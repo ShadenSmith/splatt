@@ -1,0 +1,12 @@
+
+*.swp
+*.o
+
+doc/
+
+CMakeCache.txt
+Makefile
+CMakeFiles/
+cmake_install.cmake
+
+a.out
