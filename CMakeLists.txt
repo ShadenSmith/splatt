@@ -26,8 +26,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftree-vectorize")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec-missed")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec-missed")
 
 file(GLOB SOURCES src/*.c)
 

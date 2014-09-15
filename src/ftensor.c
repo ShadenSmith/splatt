@@ -60,3 +60,20 @@ void ttkrao_ftensor(
   free(accumF);
 }
 
+ftensor_t * alloc_ftensor(
+  idx_t const dims[3],
+  idx_t const nnz)
+{
+  ftensor_t *tt = (ftensor_t*) malloc(sizeof(ftensor_t));
+  for(idx_t d=0; d < 3; ++d) {
+    tt->ind[d]  = (idx_t*) malloc(nnz * sizeof(idx_t));
+    tt->vals[d] = (val_t*) malloc(nnz * sizeof(val_t));
+  }
+  return tt;
+}
+
+void free_ftensor(
+  ftensor_t *tt)
+{
+
+}
