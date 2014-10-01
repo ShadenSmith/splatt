@@ -75,5 +75,14 @@ ftensor_t * alloc_ftensor(
 void free_ftensor(
   ftensor_t *tt)
 {
-
+  for(idx_t d=0; d < 3; ++d) {
+    free(tt->partptr[d]);
+    free(tt->slptr[d]);
+    free(tt->fptr[d]);
+    free(tt->fid[d]);
+    free(tt->ind[d]);
+    free(tt->vals[d]);
+  }
+  free(tt);
 }
+

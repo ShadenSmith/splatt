@@ -6,6 +6,8 @@
 
 typedef struct
 {
+  idx_t dims[3];
+  idx_t nnz;
   idx_t nparts;
   idx_t * partptr[3];
   idx_t * slptr[3];
@@ -14,11 +16,17 @@ typedef struct
   idx_t * ind[3];
   val_t * vals[3];
   int direction[3];
-  idx_t nnz;
-  idx_t I;
-  idx_t J;
-  idx_t K;
 } ftensor_t;
+
+typedef struct
+{
+  idx_t dims[3];
+  idx_t nnz;
+  idx_t * indI;
+  idx_t * indJ;
+  idx_t * indK;
+  val_t * vals;
+} sptensor_t;
 
 void ttkrao_ftensor(
   ftensor_t const * const tt,
