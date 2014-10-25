@@ -3,7 +3,6 @@
 #include <stdlib.h>
 
 #include "../include/splatt.h"
-#include "../src/ftensor.h"
 
 int main(int argc, char **argv)
 {
