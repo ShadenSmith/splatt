@@ -5,9 +5,9 @@
 
 typedef struct
 {
+  idx_t nnz;
   idx_t dims[NMODES];
   idx_t * ind[NMODES];
-  idx_t nnz;
   val_t * vals;
 } sptensor_t;
 

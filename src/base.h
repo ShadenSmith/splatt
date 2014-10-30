@@ -3,14 +3,16 @@
 
 #include "../include/splatt.h"
 
-/* alias for SPLATT_NMODES */
-#define NMODES SPLATT_NMODES
+#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define SS_IDX "%u"
-#define SS_VAL "%f"
+#define NMODES SPLATT_NMODES
+
+/* alias splatt types */
+#define val_t splatt_val_t
+#define idx_t splatt_idx_t
 
 #endif

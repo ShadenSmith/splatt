@@ -1,11 +1,14 @@
 #ifndef SPLATT_SPLATT_H
 #define SPLATT_SPLATT_H
 
-#ifndef SPLATT_NMODES
+/* TODO: more flexible way of this */
 #define SPLATT_NMODES 3
-#endif
+typedef float splatt_val_t;
+#define SS_VAL "%f"
+typedef unsigned int splatt_idx_t;
+#define SS_IDX "%u"
 
-typedef float val_t;
-typedef unsigned int idx_t;
+void tt_stats(
+  char * const fname);
 
 #endif
