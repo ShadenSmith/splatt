@@ -10,18 +10,18 @@ void tt_stats(
 {
   sptensor_t * tt = tt_read(fname);
 
+  double root = pow((double)tt->nnz, 1./(double)NMODES);
+  double density = 1.0;
+  for(idx_t m=0; m < NMODES; ++m) {
+    density *= root / (double)tt->dims[m];
+  }
+
   printf("FILE=%s\n", fname);
   printf("DIMS="SS_IDX, tt->dims[0]);
   for(idx_t m=1; m < NMODES; ++m) {
     printf("x" SS_IDX, tt->dims[m]);
   }
   printf(" NNZ= " SS_IDX, tt->nnz);
-
-  double root = pow((double)tt->nnz, 1./(double)NMODES);
-  double density = 1.0;
-  for(idx_t m=0; m < NMODES; ++m) {
-    density *= root / (double)tt->dims[m];
-  }
   printf(" DENSITY= %e" , density);
   printf("\n");
 }

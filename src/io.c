@@ -6,7 +6,7 @@
 sptensor_t * tt_read(
   char * const fname)
 {
-  sptensor_t * const tt = (sptensor_t*) malloc(sizeof(sptensor_t));
+  sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
 
   FILE * fin;
   if((fin = fopen(fname, "r")) == NULL) {
