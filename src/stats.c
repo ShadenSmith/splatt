@@ -21,7 +21,7 @@ void tt_stats(
   for(idx_t m=1; m < NMODES; ++m) {
     printf("x" SS_IDX, tt->dims[m]);
   }
-  printf(" NNZ= " SS_IDX, tt->nnz);
+  printf(" NNZ=" SS_IDX, tt->nnz);
   printf(" DENSITY= %e" , density);
   printf("\n");
 }
