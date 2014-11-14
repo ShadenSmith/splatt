@@ -2,6 +2,7 @@
 #include "base.h"
 
 #include "sptensor.h"
+#include "spmatrix.h"
 
 sptensor_t * tt_read(
   char * const fname)
@@ -28,9 +29,9 @@ sptensor_t * tt_read(
 
   /* allocate structures */
   for(idx_t m=0; m < NMODES; ++m) {
-    tt->ind[m] = (idx_t*)malloc(nnz * sizeof(idx_t));
+    tt->ind[m] = (idx_t*) malloc(nnz * sizeof(idx_t));
   }
-  tt->vals = (val_t*)malloc(nnz * sizeof(val_t));
+  tt->vals = (val_t*) malloc(nnz * sizeof(val_t));
 
   /* fill in tensor data */
   rewind(fin);
@@ -93,3 +94,26 @@ void tt_write(
   }
 }
 
+void spmat_write(
+  spmatrix_t const * const mat,
+  char * const fname)
+{
+  FILE * fout;
+  if(fname == NULL) {
+    fout = stdout;
+  } else {
+    if((fout = fopen(fname,"w")) == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+      exit(1);
+    }
+  }
+
+  /* write CSR matrix */
+  for(idx_t i=0; i < mat->I; ++i) {
+    for(idx_t j=mat->rowptr[i]; j < mat->rowptr[j+1]; ++j) {
+      fprintf(fout, SS_IDX " " SS_VAL " ", mat->colind[j], mat->vals[j]);
+    }
+    fprintf(fout, "\n");
+  }
+
+}
