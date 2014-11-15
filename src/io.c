@@ -10,6 +10,7 @@ sptensor_t * tt_read(
   char * const fname)
 {
   sp_timer_t timer;
+  timer_reset(&timer);
   timer_start(&timer);
 
   sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
@@ -45,15 +46,11 @@ sptensor_t * tt_read(
   while((read = getline(&line, &len, fin)) != -1) {
     /* skip empty and commented lines */
     if(read > 1 && line[0] != '#') {
-      ptr = strtok(line, " \t");
-      sscanf(ptr, SS_IDX, &(tt->ind[0][nnz]));
-      for(idx_t m=1; m < NMODES; ++m) {
-        ptr = strtok(NULL, " \t");
-        sscanf(ptr, SS_IDX, &(tt->ind[m][nnz]));
+      ptr = line;
+      for(idx_t m=0; m < NMODES; ++m) {
+        tt->ind[m][nnz] = strtoull(ptr, &ptr, 10);
       }
-      ptr = strtok(NULL, " \t");
-      sscanf(ptr, SS_VAL, &(tt->vals[nnz]));
-      ++nnz;
+      tt->vals[nnz++] = strtod(ptr, &ptr);
     }
   }
 
@@ -72,7 +69,7 @@ sptensor_t * tt_read(
   fclose(fin);
 
   timer_stop(&timer);
-  printf("time: %0.3fs\n", timer.seconds);
+  printf("IO: %0.3fs\n", timer.seconds);
   return tt;
 }
 
