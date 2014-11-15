@@ -4,9 +4,14 @@
 #include "sptensor.h"
 #include "spmatrix.h"
 
+#include "timer.h"
+
 sptensor_t * tt_read(
   char * const fname)
 {
+  sp_timer_t timer;
+  timer_start(&timer);
+
   sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
 
   FILE * fin;
@@ -65,6 +70,9 @@ sptensor_t * tt_read(
 
   free(line);
   fclose(fin);
+
+  timer_stop(&timer);
+  printf("time: %0.3fs\n", timer.seconds);
   return tt;
 }
 
