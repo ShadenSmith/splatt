@@ -42,6 +42,13 @@ sptensor_t * tt_read(
   }
   --nmodes;
 
+  if(nmodes > MAX_NMODES) {
+    fprintf(stderr, "SPLATT ERROR: maximum " SS_IDX " modes supported. Found "
+                    SS_IDX ". Please recompile with MAX_NMODES=" SS_IDX".\n",
+            MAX_NMODES, nmodes, nmodes);
+    exit(1);
+  }
+
   /* allocate structures */
   sptensor_t * tt = tt_alloc(nnz, nmodes);
 

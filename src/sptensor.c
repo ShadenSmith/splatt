@@ -30,7 +30,27 @@ void tt_free(
     free(tt->ind[m]);
   }
   tt->nmodes = 0;
+  free(tt->dims);
   free(tt->ind);
   free(tt->vals);
+}
+
+static void __ttqsort(
+  sptensor_t * const tt,
+  idx_t const * const cmplt,
+  idx_t const n)
+{
+
+}
+
+void tt_sort(
+  sptensor_t * const tt,
+  idx_t const mode)
+{
+  idx_t * cmplt = (idx_t*) malloc(tt->nmodes * sizeof(idx_t));
+  cmplt[0] = mode;
+
+
+  free(cmplt);
 }
 

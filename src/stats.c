@@ -2,6 +2,7 @@
 #include "base.h"
 #include "sptensor.h"
 #include "io.h"
+#include "sort.h"
 
 #include <math.h>
 
@@ -24,4 +25,7 @@ void tt_stats(
   printf(" NNZ=" SS_IDX, tt->nnz);
   printf(" DENSITY= %e" , density);
   printf("\n");
+  tt_free(tt);
+  free(tt);
 }
+
