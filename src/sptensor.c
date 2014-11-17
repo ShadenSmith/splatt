@@ -1,5 +1,8 @@
 
 #include "sptensor.h"
+#include "spmatrix.h"
+
+#include "sort.h"
 
 sptensor_t * tt_alloc(
   idx_t const nnz,
@@ -35,22 +38,22 @@ void tt_free(
   free(tt->vals);
 }
 
-static void __ttqsort(
-  sptensor_t * const tt,
-  idx_t const * const cmplt,
-  idx_t const n)
-{
-
-}
-
-void tt_sort(
+spmatrix_t * tt_unfold(
   sptensor_t * const tt,
   idx_t const mode)
 {
-  idx_t * cmplt = (idx_t*) malloc(tt->nmodes * sizeof(idx_t));
-  cmplt[0] = mode;
+  idx_t nrows = tt->dims[mode];
+  idx_t ncols = 1;
 
+  for(idx_t m=1; m < tt->nmodes; ++m) {
+    ncols *= tt->dims[(mode + m) % tt->nmodes];
+  }
 
-  free(cmplt);
+  /* sort tt */
+  tt_sort(tt, mode);
+
+  spmatrix_t * mat = spmat_alloc(nrows, ncols, tt->nnz);
+
+  return mat;
 }
 

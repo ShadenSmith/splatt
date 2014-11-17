@@ -3,6 +3,8 @@
 
 #include "base.h"
 
+#include "spmatrix.h"
+
 typedef enum
 {
   SPLATT_NMODE,
@@ -25,5 +27,9 @@ sptensor_t * tt_alloc(
 
 void tt_free(
   sptensor_t * tt);
+
+spmatrix_t * tt_unfold(
+  sptensor_t * const tt,
+  idx_t const mode);
 
 #endif

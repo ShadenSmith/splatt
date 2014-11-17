@@ -52,14 +52,70 @@ void quicksort(
     }
     a[0] = a[i];
     a[i] = mid;
+
     if(i > 1) {
       quicksort(a,i);
     }
-
     ++i; /* skip the pivot element */
-
     if(n-i > 1) {
       quicksort(a+i, n-i);
     }
   }
 }
+
+static inline int __ttcmp(
+  sptensor_t const * const tt,
+  idx_t const * const cmplt,
+  idx_t const i,
+  idx_t const j)
+{
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    if(tt->ind[cmplt[m]][i] < tt->ind[cmplt[m]][j]) {
+      return -1;
+    }
+  }
+  return 1;
+}
+
+static inline void __ttswap(
+  sptensor_t * const tt,
+  idx_t const i,
+  idx_t const j)
+{
+  val_t vtmp = tt->vals[i];
+  tt->vals[i] = tt->vals[j];
+  tt->vals[j] = vtmp;
+
+  idx_t itmp;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    itmp = tt->ind[m][i];
+    tt->ind[m][i] = tt->ind[m][j];
+    tt->ind[m][j] = itmp;
+  }
+}
+
+static void __ttqsort(
+  sptensor_t * const tt,
+  idx_t const * const cmplt,
+  idx_t const start,
+  idx_t const end)
+{
+
+}
+
+void tt_sort(
+  sptensor_t * const tt,
+  idx_t const mode)
+{
+  idx_t cmplt[MAX_NMODES];
+  cmplt[0] = mode;
+  printf("cmplt: " SS_IDX " ", cmplt[0]);
+  for(idx_t m=1; m < tt->nmodes; ++m) {
+    cmplt[m] = (mode + m) % tt->nmodes;
+    printf(SS_IDX " ", cmplt[m]);
+  }
+  printf("\n");
+
+  __ttqsort(tt, cmplt, 0, tt->nnz);
+}
+

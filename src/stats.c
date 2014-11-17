@@ -11,6 +11,13 @@ void tt_stats(
 {
   sptensor_t * tt = tt_read(fname);
 
+  tt_write(tt, NULL);
+  spmatrix_t * mat = tt_unfold(tt, 0);
+  //spmat_write(mat, NULL);
+  tt_write(tt, NULL);
+  spmat_free(mat);
+  free(mat);
+
   double root = pow((double)tt->nnz, 1./(double)tt->nmodes);
   double density = 1.0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
