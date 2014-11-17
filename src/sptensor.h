@@ -3,17 +3,25 @@
 
 #include "base.h"
 
+typedef enum
+{
+  SPLATT_NMODE,
+  SPLATT_3MODE
+} tt_type;
+
 typedef struct
 {
+  tt_type type;
   idx_t nnz;
-  idx_t dims[NMODES];
-  idx_t * ind[NMODES];
+  idx_t nmodes;
+  idx_t * dims;
+  idx_t ** ind;
   val_t * vals;
 } sptensor_t;
 
 sptensor_t * tt_alloc(
   idx_t const nnz,
-  idx_t const dims[NMODES]);
+  idx_t const nmodes);
 
 void tt_free(
   sptensor_t * tt);

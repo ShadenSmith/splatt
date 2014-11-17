@@ -13,7 +13,7 @@ sptensor_t * tt_read(
   timer_reset(&timer);
   timer_start(&timer);
 
-  sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
+  char *ptr = NULL;
 
   FILE * fin;
   if((fin = fopen(fname, "r")) == NULL) {
@@ -23,31 +23,36 @@ sptensor_t * tt_read(
 
   /* first count nnz in tensor */
   idx_t nnz = 0;
+  idx_t nmodes = 0;
   char * line = NULL;
   ssize_t read;
   size_t len;
   while((read = getline(&line, &len, fin)) != -1) {
     if(read > 1 && line[0] != '#') {
+      /* get nmodes from first nnz line */
+      if(nnz == 0) {
+        ptr = strtok(line, " \t");
+        while(ptr != NULL) {
+          ++nmodes;
+          ptr = strtok(NULL, " \t");
+        }
+      }
       ++nnz;
     }
   }
-  tt->nnz = nnz;
+  --nmodes;
 
   /* allocate structures */
-  for(idx_t m=0; m < NMODES; ++m) {
-    tt->ind[m] = (idx_t*) malloc(nnz * sizeof(idx_t));
-  }
-  tt->vals = (val_t*) malloc(nnz * sizeof(val_t));
+  sptensor_t * tt = tt_alloc(nnz, nmodes);
 
   /* fill in tensor data */
   rewind(fin);
   nnz = 0;
-  char *ptr = NULL;
   while((read = getline(&line, &len, fin)) != -1) {
     /* skip empty and commented lines */
     if(read > 1 && line[0] != '#') {
       ptr = line;
-      for(idx_t m=0; m < NMODES; ++m) {
+      for(idx_t m=0; m < nmodes; ++m) {
         tt->ind[m][nnz] = strtoull(ptr, &ptr, 10);
       }
       tt->vals[nnz++] = strtod(ptr, &ptr);
@@ -55,7 +60,7 @@ sptensor_t * tt_read(
   }
 
   /* now find the max dimension in each mode */
-  for(idx_t m=0; m < NMODES; ++m) {
+  for(idx_t m=0; m < nmodes; ++m) {
     idx_t const * const ind = tt->ind[m];
     tt->dims[m] = 0;
     for(idx_t n=0; n < nnz; ++n) {
@@ -88,7 +93,7 @@ void tt_write(
   }
 
   for(idx_t n=0; n < tt->nnz; ++n) {
-    for(idx_t m=0; m < NMODES; ++m) {
+    for(idx_t m=0; m < tt->nmodes; ++m) {
       fprintf(fout, SS_IDX " ", tt->ind[m][n]);
     }
     fprintf(fout, SS_VAL "\n", tt->vals[n]);
