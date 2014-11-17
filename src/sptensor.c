@@ -7,18 +7,14 @@ sptensor_t * tt_alloc(
 {
   sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
 
-  if(nmodes == 3) {
-    tt->type = SPLATT_3MODE;
-  } else {
-    tt->type = SPLATT_NMODE;
-  }
-
   tt->nnz = nnz;
-  tt->nmodes = nmodes;
   tt->vals = (val_t*) malloc(nnz * sizeof(val_t));
 
-  tt->ind = (idx_t**) malloc(nmodes * sizeof(idx_t*));
+  tt->nmodes = nmodes;
+  tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
+
   tt->dims = (idx_t*) malloc(nmodes * sizeof(idx_t));
+  tt->ind = (idx_t**) malloc(nmodes * sizeof(idx_t*));
   for(idx_t m=0; m < nmodes; ++m) {
     tt->ind[m] = (idx_t*) malloc(nnz * sizeof(idx_t));
   }
