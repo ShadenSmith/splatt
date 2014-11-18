@@ -50,11 +50,32 @@ spmatrix_t * tt_unfold(
   }
 
   /* sort tt */
-  tt_sort(tt, mode);
+  tt_sort(tt, mode, NULL);
 
   /* allocate and fill matrix */
   spmatrix_t * mat = spmat_alloc(nrows, ncols, tt->nnz);
+  idx_t * const rowptr = mat->rowptr;
+  idx_t * const colind = mat->colind;
+  val_t * const mvals  = mat->vals;
 
+  idx_t row = 0;
+  rowptr[row++] = 0;
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    /* increment row and account for possibly empty ones */
+    while(tt->ind[mode][n] != row-1) {
+      rowptr[row++] = n;
+    }
+    mvals[n] = tt->vals[n];
+
+    idx_t col = tt->ind[(mode+1) % tt->nmodes][n];
+    idx_t mult = tt->dims[(mode+1) % tt->nmodes];
+    for(idx_t m=2; m < tt->nmodes; ++m) {
+      col += tt->ind[(mode+m) % tt->nmodes][n] * mult;
+      mult += tt->dims[(mode+m) % tt->nmodes];
+    }
+    colind[n] = col;
+  }
+  rowptr[nrows] = tt->nnz;
 
   return mat;
 }

@@ -26,7 +26,7 @@ sptensor_t * tt_read(
   idx_t nmodes = 0;
   char * line = NULL;
   ssize_t read;
-  size_t len;
+  size_t len = 0;
   while((read = getline(&line, &len, fin)) != -1) {
     if(read > 1 && line[0] != '#') {
       /* get nmodes from first nnz line */
@@ -60,7 +60,7 @@ sptensor_t * tt_read(
     if(read > 1 && line[0] != '#') {
       ptr = line;
       for(idx_t m=0; m < nmodes; ++m) {
-        tt->ind[m][nnz] = strtoull(ptr, &ptr, 10);
+        tt->ind[m][nnz] = strtoull(ptr, &ptr, 10) - 1;
       }
       tt->vals[nnz++] = strtod(ptr, &ptr);
     }
@@ -75,6 +75,7 @@ sptensor_t * tt_read(
         tt->dims[m] = ind[n];
       }
     }
+    tt->dims[m] += 1; /* account for 0-indexed ind */
   }
 
   free(line);
@@ -127,10 +128,10 @@ void spmat_write(
 
   /* write CSR matrix */
   for(idx_t i=0; i < mat->I; ++i) {
-    for(idx_t j=mat->rowptr[i]; j < mat->rowptr[j+1]; ++j) {
+    for(idx_t j=mat->rowptr[i]; j < mat->rowptr[i+1]; ++j) {
       fprintf(fout, SS_IDX " " SS_VAL " ", mat->colind[j], mat->vals[j]);
     }
     fprintf(fout, "\n");
   }
-
 }
+

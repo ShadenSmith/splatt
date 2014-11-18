@@ -4,66 +4,6 @@
 
 #define MIN_QUICKSORT_SIZE 8
 
-void insertion_sort(
-  idx_t * const a,
-  idx_t const n)
-{
-  for(size_t i=1; i < n; ++i) {
-    idx_t b = a[i];
-    ssize_t j = i;
-    while (j > 0 &&  a[j-1] > b) {
-      --j;
-    }
-    memmove(a+(j+1), a+j, sizeof(idx_t)*(i-j));
-    a[j] = b;
-  }
-}
-
-void quicksort(
-  idx_t * const a,
-  idx_t const n)
-{
-  if(n < MIN_QUICKSORT_SIZE) {
-    insertion_sort(a, n);
-  } else {
-    size_t i = 1;
-    size_t j = n-1;
-    size_t k = n >> 1;
-    idx_t mid = a[k];
-    a[k] = a[0];
-    while(i < j) {
-      if(a[i] > mid) { /* a[i] is on the wrong side */
-        if(a[j] <= mid) { /* swap a[i] and a[j] */
-          idx_t tmp = a[i];
-          a[i] = a[j];
-          a[j] = tmp;
-          ++i;
-        }
-        --j;
-      } else {
-        if(a[j] > mid) { /* a[j] is on the right side */
-          --j;
-        }
-        ++i;
-      }
-    }
-
-    if(a[i] > mid) {
-      --i;
-    }
-    a[0] = a[i];
-    a[i] = mid;
-
-    if(i > 1) {
-      quicksort(a,i);
-    }
-    ++i; /* skip the pivot element */
-    if(n-i > 1) {
-      quicksort(a+i, n-i);
-    }
-  }
-}
-
 static inline int __ttqcmp3(
   idx_t const * const ind0,
   idx_t const * const ind1,
@@ -389,18 +329,21 @@ static void __tt_quicksort(
 
 void tt_sort(
   sptensor_t * const tt,
-  idx_t const mode)
+  idx_t const mode,
+  idx_t * dim_perm)
 {
   sp_timer_t timer;
 
-  idx_t cmplt[MAX_NMODES];
-  cmplt[0] = mode;
-  printf("cmplt: " SS_IDX " ", cmplt[0]);
-  for(idx_t m=1; m < tt->nmodes; ++m) {
-    cmplt[m] = (mode + m) % tt->nmodes;
-    printf(SS_IDX " ", cmplt[m]);
+  idx_t * cmplt;
+  if(dim_perm == NULL) {
+    cmplt = (idx_t*) malloc(tt->nmodes * sizeof(idx_t));
+    cmplt[0] = mode;
+    for(idx_t m=1; m < tt->nmodes; ++m) {
+      cmplt[m] = (mode + m) % tt->nmodes;
+    }
+  } else {
+    cmplt = dim_perm;
   }
-  printf("\n");
 
   timer_reset(&timer);
   timer_start(&timer);
@@ -414,6 +357,7 @@ void tt_sort(
   }
   timer_stop(&timer);
 
+#if 0
   /* validate sort */
   for(idx_t n=0; n < tt->nnz - 1; ++n) {
     if(__ttcmp(tt, cmplt, n, n+1) == 1) {
@@ -429,7 +373,71 @@ void tt_sort(
       break;
     }
   }
+#endif
 
   printf("SORT: %0.3fs\n", timer.seconds);
+
+  if(dim_perm == NULL) {
+    free(cmplt);
+  }
 }
 
+void insertion_sort(
+  idx_t * const a,
+  idx_t const n)
+{
+  for(size_t i=1; i < n; ++i) {
+    idx_t b = a[i];
+    ssize_t j = i;
+    while (j > 0 &&  a[j-1] > b) {
+      --j;
+    }
+    memmove(a+(j+1), a+j, sizeof(idx_t)*(i-j));
+    a[j] = b;
+  }
+}
+
+void quicksort(
+  idx_t * const a,
+  idx_t const n)
+{
+  if(n < MIN_QUICKSORT_SIZE) {
+    insertion_sort(a, n);
+  } else {
+    size_t i = 1;
+    size_t j = n-1;
+    size_t k = n >> 1;
+    idx_t mid = a[k];
+    a[k] = a[0];
+    while(i < j) {
+      if(a[i] > mid) { /* a[i] is on the wrong side */
+        if(a[j] <= mid) { /* swap a[i] and a[j] */
+          idx_t tmp = a[i];
+          a[i] = a[j];
+          a[j] = tmp;
+          ++i;
+        }
+        --j;
+      } else {
+        if(a[j] > mid) { /* a[j] is on the right side */
+          --j;
+        }
+        ++i;
+      }
+    }
+
+    if(a[i] > mid) {
+      --i;
+    }
+    a[0] = a[i];
+    a[i] = mid;
+
+    if(i > 1) {
+      quicksort(a,i);
+    }
+    ++i; /* skip the pivot element */
+    if(n-i > 1) {
+      quicksort(a+i, n-i);
+    }
+  }
+}

@@ -14,6 +14,7 @@ void quicksort(
 
 void tt_sort(
   sptensor_t * const tt,
-  idx_t const mode);
+  idx_t const mode,
+  idx_t * dim_perm);
 
 #endif
