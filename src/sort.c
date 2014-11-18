@@ -64,6 +64,57 @@ void quicksort(
   }
 }
 
+static inline int __ttqcmp3(
+  idx_t const * const ind0,
+  idx_t const * const ind1,
+  idx_t const * const ind2,
+  idx_t const i,
+  idx_t const j[3])
+{
+  if(ind0[i] < j[0]) {
+    return -1;
+  } else if(j[0] < ind0[i]) {
+    return 1;
+  }
+  if(ind1[i] < j[1]) {
+    return -1;
+  } else if(j[1] < ind1[i]) {
+    return 1;
+  }
+  if(ind2[i] < j[2]) {
+    return -1;
+  } else if(j[2] < ind2[i]) {
+    return 1;
+  }
+
+  return 0;
+}
+
+static inline int __ttcmp3(
+  idx_t const * const ind0,
+  idx_t const * const ind1,
+  idx_t const * const ind2,
+  idx_t const i,
+  idx_t const j)
+{
+  if(ind0[i] < ind0[j]) {
+    return -1;
+  } else if(ind0[j] < ind0[i]) {
+    return 1;
+  }
+  if(ind1[i] < ind1[j]) {
+    return -1;
+  } else if(ind1[j] < ind1[i]) {
+    return 1;
+  }
+  if(ind2[i] < ind2[j]) {
+    return -1;
+  } else if(ind2[j] < ind2[i]) {
+    return 1;
+  }
+  return 0;
+}
+
 static inline int __ttcmp(
   sptensor_t const * const tt,
   idx_t const * const cmplt,
@@ -113,6 +164,43 @@ static inline void __ttswap(
   }
 }
 
+static void __tt_insertionsort3(
+  sptensor_t * const tt,
+  idx_t const * const cmplt,
+  idx_t const start,
+  idx_t const end)
+{
+  idx_t * const ind0 = tt->ind[cmplt[0]];
+  idx_t * const ind1 = tt->ind[cmplt[1]];
+  idx_t * const ind2 = tt->ind[cmplt[2]];
+  val_t * const vals = tt->vals;
+
+  val_t vbuf;
+  idx_t ibuf;
+
+  for(size_t i=start+1; i < end; ++i) {
+    ssize_t j = i;
+    while (j > 0 && __ttcmp3(ind0, ind1, ind2, i, j-1) < 0) {
+      --j;
+    }
+
+    vbuf = vals[i];
+
+    /* shift all data */
+    memmove(vals+j+1, vals+j, (i-j)*sizeof(val_t));
+    vals[j] = vbuf;
+    ibuf = ind0[i];
+    memmove(ind0+j+1, ind0+j, (i-j)*sizeof(idx_t));
+    ind0[j] = ibuf;
+    ibuf = ind1[i];
+    memmove(ind1+j+1, ind1+j, (i-j)*sizeof(idx_t));
+    ind1[j] = ibuf;
+    ibuf = ind2[i];
+    memmove(ind2+j+1, ind2+j, (i-j)*sizeof(idx_t));
+    ind2[j] = ibuf;
+  }
+}
+
 static void __tt_insertionsort(
   sptensor_t * const tt,
   idx_t const * const cmplt,
@@ -144,6 +232,90 @@ static void __tt_insertionsort(
       ind[j] = ibuf;
     }
   }
+}
+
+static void __tt_quicksort3(
+  sptensor_t * const tt,
+  idx_t const * const cmplt,
+  idx_t const start,
+  idx_t const end)
+{
+  idx_t vmid;
+  idx_t imid[3];
+
+  idx_t * const ind0 = tt->ind[cmplt[0]];
+  idx_t * const ind1 = tt->ind[cmplt[1]];
+  idx_t * const ind2 = tt->ind[cmplt[2]];
+  val_t * const vals = tt->vals;
+
+  if((end-start) <= MIN_QUICKSORT_SIZE) {
+    __tt_insertionsort3(tt, cmplt, start, end);
+  } else {
+    size_t i = start+1;
+    size_t j = end-1;
+    size_t k = start + ((end - start) / 2);
+
+    /* grab pivot */
+    vmid = vals[k];
+    vals[k] = vals[start];
+    imid[0] = ind0[k];
+    imid[1] = ind1[k];
+    imid[2] = ind2[k];
+    ind0[k] = ind0[start];
+    ind1[k] = ind1[start];
+    ind2[k] = ind2[start];
+
+    while(i < j) {
+      /* if tt[i] > mid  -> tt[i] is on wrong side */
+      if(__ttqcmp3(ind0,ind1,ind2,i,imid) == 1) {
+        /* if tt[j] <= mid  -> swap tt[i] and tt[j] */
+        if(__ttqcmp3(ind0,ind1,ind2,j,imid) < 1) {
+          val_t vtmp = vals[i];
+          vals[i] = vals[j];
+          vals[j] = vtmp;
+          idx_t itmp = ind0[i];
+          ind0[i] = ind0[j];
+          ind0[j] = itmp;
+          itmp = ind1[i];
+          ind1[i] = ind1[j];
+          ind1[j] = itmp;
+          itmp = ind2[i];
+          ind2[i] = ind2[j];
+          ind2[j] = itmp;
+          ++i;
+        }
+        --j;
+      } else {
+        /* if tt[j] > mid  -> tt[j] is on right side */
+        if(__ttqcmp3(ind0,ind1,ind2,j,imid) == 1) {
+          --j;
+        }
+        ++i;
+      }
+    }
+
+    /* if tt[i] > mid */
+    if(__ttqcmp3(ind0,ind1,ind2,i,imid) == 1) {
+      --i;
+    }
+    vals[start] = vals[i];
+    vals[i] = vmid;
+    ind0[start] = ind0[i];
+    ind1[start] = ind1[i];
+    ind2[start] = ind2[i];
+    ind0[i] = imid[0];
+    ind1[i] = imid[1];
+    ind2[i] = imid[2];
+
+    if(i > start + 1) {
+      __tt_quicksort3(tt, cmplt, start, i);
+    }
+    ++i; /* skip the pivot element */
+    if(end - i > 1) {
+      __tt_quicksort3(tt, cmplt, i, end);
+    }
+  }
+
 }
 
 static void __tt_quicksort(
@@ -232,8 +404,14 @@ void tt_sort(
 
   timer_reset(&timer);
   timer_start(&timer);
-  __tt_quicksort(tt, cmplt, 0, tt->nnz);
-  //__tt_insertionsort(tt, cmplt, 0, tt->nnz);
+  switch(tt->type) {
+  case SPLATT_NMODE:
+    __tt_quicksort(tt, cmplt, 0, tt->nnz);
+    break;
+  case SPLATT_3MODE:
+    __tt_quicksort3(tt, cmplt, 0, tt->nnz);
+    break;
+  }
   timer_stop(&timer);
 
   /* validate sort */

@@ -52,7 +52,9 @@ spmatrix_t * tt_unfold(
   /* sort tt */
   tt_sort(tt, mode);
 
+  /* allocate and fill matrix */
   spmatrix_t * mat = spmat_alloc(nrows, ncols, tt->nnz);
+
 
   return mat;
 }
