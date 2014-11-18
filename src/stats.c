@@ -10,13 +10,7 @@ void tt_stats(
   char * const fname)
 {
   sptensor_t * tt = tt_read(fname);
-
-  tt_write(tt, NULL);
-  spmatrix_t * mat = tt_unfold(tt, 0);
-  //spmat_write(mat, NULL);
-  tt_write(tt, NULL);
-  spmat_free(mat);
-  free(mat);
+  //tt_write(tt, NULL);
 
   double root = pow((double)tt->nnz, 1./(double)tt->nmodes);
   double density = 1.0;
@@ -32,6 +26,27 @@ void tt_stats(
   printf(" NNZ=" SS_IDX, tt->nnz);
   printf(" DENSITY= %e" , density);
   printf("\n");
+
+  spmatrix_t * mat = NULL;
+
+  mat = tt_unfold(tt, 0);
+  spmat_free(mat);
+  free(mat);
+  //tt_write(tt, NULL);
+  printf("\n\n");
+
+  mat = tt_unfold(tt, 1);
+  spmat_free(mat);
+  free(mat);
+  //tt_write(tt, NULL);
+  printf("\n\n");
+
+  mat = tt_unfold(tt, 2);
+  spmat_free(mat);
+  free(mat);
+  //tt_write(tt, NULL);
+  printf("\n\n");
+
   tt_free(tt);
   free(tt);
 }
