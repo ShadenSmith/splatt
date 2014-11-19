@@ -45,10 +45,10 @@ static struct argp argp = { 0, parse_opt, args_doc, doc };
 int main(int argc, char **argv)
 {
   splatt_args args;
-
   argp_parse(&argp, argc, argv, 0, 0, &args);
 
   tt_stats(args.fname);
 
   return EXIT_SUCCESS;
 }
+
