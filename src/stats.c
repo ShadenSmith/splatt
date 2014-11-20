@@ -27,6 +27,5 @@ void tt_stats(
   printf("\n");
 
   tt_free(tt);
-  free(tt);
 }
 

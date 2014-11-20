@@ -25,5 +25,6 @@ void spmat_free(
   free(mat->rowptr);
   free(mat->colind);
   free(mat->vals);
+  free(mat);
 }
 

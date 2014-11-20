@@ -36,6 +36,7 @@ void tt_free(
   free(tt->dims);
   free(tt->ind);
   free(tt->vals);
+  free(tt);
 }
 
 spmatrix_t * tt_unfold(
