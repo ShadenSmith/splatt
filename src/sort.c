@@ -1,9 +1,23 @@
 
+
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
 #include "sort.h"
 #include "timer.h"
 
+
+
+/******************************************************************************
+ * DEFINES
+ *****************************************************************************/
 #define MIN_QUICKSORT_SIZE 8
 
+
+
+/******************************************************************************
+ * STATIC FUNCTIONS
+ *****************************************************************************/
 static inline int __ttqcmp3(
   idx_t const * const ind0,
   idx_t const * const ind1,
@@ -327,6 +341,10 @@ static void __tt_quicksort(
   }
 }
 
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
 void tt_sort(
   sptensor_t * const tt,
   idx_t const mode,
@@ -356,24 +374,6 @@ void tt_sort(
     break;
   }
   timer_stop(&timer);
-
-#if 0
-  /* validate sort */
-  for(idx_t n=0; n < tt->nnz - 1; ++n) {
-    if(__ttcmp(tt, cmplt, n, n+1) == 1) {
-      printf("fail (");
-      for(idx_t m=0; m < tt->nmodes; ++m) {
-        printf(SS_IDX " ", tt->ind[m][n]);
-      }
-      printf(")\n     (");
-      for(idx_t m=0; m < tt->nmodes; ++m) {
-        printf(SS_IDX " ", tt->ind[m][n+1]);
-      }
-      printf(")\n");
-      break;
-    }
-  }
-#endif
 
   printf("SORT: %0.3fs\n", timer.seconds);
 
@@ -441,3 +441,4 @@ void quicksort(
     }
   }
 }
+
