@@ -10,4 +10,15 @@ typedef struct
   val_t *vals;
 } matrix_t;
 
+matrix_t * mat_rand(
+  idx_t const nrows,
+  idx_t const ncols);
+
+matrix_t * mat_alloc(
+  idx_t const nrows,
+  idx_t const ncols);
+
+void mat_free(
+  matrix_t * mat);
+
 #endif

@@ -2,6 +2,7 @@
 #include "base.h"
 
 #include "sptensor.h"
+#include "matrix.h"
 #include "spmatrix.h"
 
 #include "timer.h"
@@ -130,6 +131,31 @@ void spmat_write(
   for(idx_t i=0; i < mat->I; ++i) {
     for(idx_t j=mat->rowptr[i]; j < mat->rowptr[i+1]; ++j) {
       fprintf(fout, SS_IDX " " SS_VAL " ", mat->colind[j], mat->vals[j]);
+    }
+    fprintf(fout, "\n");
+  }
+}
+
+void mat_write(
+  matrix_t const * const mat,
+  char * const fname)
+{
+  FILE * fout;
+  if(fname == NULL) {
+    fout = stdout;
+  } else {
+    if((fout = fopen(fname,"w")) == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+      exit(1);
+    }
+  }
+
+  idx_t const I = mat->I;
+  idx_t const J = mat->J;
+  val_t const * const vals = mat->vals;
+  for(idx_t i=0; i < mat->I; ++i) {
+    for(idx_t j=0; j < J; ++j) {
+      fprintf(fout, SS_VAL " ", vals[j + (i*J)]);
     }
     fprintf(fout, "\n");
   }

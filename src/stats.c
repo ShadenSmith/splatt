@@ -4,6 +4,8 @@
 #include "io.h"
 #include "sort.h"
 
+#include "matrix.h"
+
 #include <math.h>
 
 void tt_stats(

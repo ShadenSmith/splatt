@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <argp.h>
 
 #include "../include/splatt.h"
@@ -44,7 +45,7 @@ static char cmd_doc[] =
 
 void cmd_not_implemented(char const * const cmd)
 {
-  printf("SPLATT: option '%s' is not implemented.\n", cmd);
+  printf("SPLATT: option '%s' is not yet implemented.\n", cmd);
   exit(1);
 }
 
@@ -138,10 +139,14 @@ void splatt_stats(
   tt_stats(args.fname);
 }
 
+/******************************************************************************
+ * SPLATT MAIN
+ *****************************************************************************/
 int main(
   int argc,
   char **argv)
 {
+  srand(time(NULL));
   splatt_args args;
   /* parse argv[0:1] */
   int nargs = argc > 1 ? 2 : 1;
