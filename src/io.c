@@ -13,11 +13,11 @@ sptensor_t * tt_read(
   timer_reset(&timer);
   timer_start(&timer);
 
-  char *ptr = NULL;
+  char * ptr = NULL;
 
   FILE * fin;
   if((fin = fopen(fname, "r")) == NULL) {
-    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
     exit(1);
   }
 

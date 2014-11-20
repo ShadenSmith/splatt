@@ -31,13 +31,15 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftree-vectorize")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec-missed")
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 file(GLOB SOURCES src/*.c)
 
 # Generate splatt library
 add_subdirectory(lib)
 
 # Compile applications
-add_subdirectory(apps)
+add_subdirectory(src)
 
 # UNIT TESTS
 #add_subdirectory(test)
