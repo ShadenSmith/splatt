@@ -4,7 +4,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "sptensor.h"
-#include "spmatrix.h"
+#include "matrix.h"
 
 #include "sort.h"
 

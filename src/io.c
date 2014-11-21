@@ -6,10 +6,8 @@
 
 #include "sptensor.h"
 #include "matrix.h"
-#include "spmatrix.h"
 
 #include "timer.h"
-
 
 
 /******************************************************************************
