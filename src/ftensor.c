@@ -25,6 +25,12 @@ static void __create_fptr(
   idx_t const nmodes = tt->nmodes;
   idx_t const fmode = ft->dim_perms[mode][nmodes - 1];
 
+  /* permuted tt->ind */
+  idx_t * ttinds[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    ttinds[m] = tt->ind[ft->dim_perms[mode][m]];
+  }
+
   idx_t nfibs = 1;
   ft->inds[mode][0] = tt->ind[fmode][0];
   ft->vals[mode][0] = tt->vals[0];
@@ -34,7 +40,7 @@ static void __create_fptr(
     int newfib = 0;
     /* check for new fiber */
     for(idx_t m=0; m < nmodes-1; ++m) {
-      if(tt->ind[m][n] != tt->ind[m][n-1]) {
+      if(ttinds[m][n] != ttinds[m][n-1]) {
         newfib = 1;
         break;
       }
@@ -53,7 +59,23 @@ static void __create_fptr(
 
   /* now fill structure */
   ft->fptr[mode][0] = 0;
-  ft->fids[mode][0] = tt->ind[mode][ft->dim_perms[mode][1]];
+  ft->fids[mode][0] = ttinds[mode][1];
+  idx_t fib = 1;
+  for(idx_t n=1; n < nnz; ++n) {
+    int newfib = 0;
+    /* check for new fiber */
+    for(idx_t m=0; m < nmodes-1; ++m) {
+      if(ttinds[m][n] != ttinds[m][n-1]) {
+        newfib = 1;
+        break;
+      }
+    }
+    if(newfib) {
+      ft->fptr[mode][fib] = n;
+      ft->fids[mode][fib] = ttinds[mode][1];
+      ++fib;
+    }
+  }
 }
 
 static void __create_sptr(
@@ -61,6 +83,15 @@ static void __create_sptr(
   sptensor_t const * const tt,
   idx_t const mode)
 {
+  idx_t const nnz = tt->nnz;
+  idx_t const nmodes = tt->nmodes;
+
+  /* permuted tt->ind */
+  idx_t * ttinds[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    ttinds[m] = tt->ind[ft->dim_perms[mode][m]];
+  }
+
   ft->sptr[mode] = (idx_t *) malloc((ft->dims[mode]+1) * sizeof(idx_t));
 }
 
@@ -77,7 +108,7 @@ static void __order_modes(
         maxm = (m+mo) % tt->nmodes;
       }
     }
-
+;
     /* fill in mode permutation */
     ft->dim_perms[m][tt->nmodes-1] = maxm;
     idx_t mark = 1;
@@ -113,7 +144,7 @@ ftensor_t * ften_alloc(
     ft->inds[m] = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
     ft->vals[m] = (val_t *) malloc(ft->nnz * sizeof(val_t));
 
-    tt_sort(tt, m, NULL);
+    tt_sort(tt, m, ft->dim_perms[m]);
     __create_fptr(ft, tt, m);
     __create_sptr(ft, tt, m);
   }
