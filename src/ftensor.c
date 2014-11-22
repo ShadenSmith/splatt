@@ -6,6 +6,7 @@
 #include "base.h"
 #include "ftensor.h"
 #include "sort.h"
+#include "io.h"
 
 
 /******************************************************************************
@@ -53,13 +54,18 @@ static void __create_fptr(
   }
 
   /* allocate fiber structure */
+  ft->sptr[mode] = (idx_t *) malloc((ft->dims[mode]+1) * sizeof(idx_t));
   ft->nfibs[mode] = nfibs;
   ft->fptr[mode] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
   ft->fids[mode] = (idx_t *) malloc(nfibs * sizeof(idx_t));
 
   /* now fill structure */
+  ft->sptr[mode][0] = 0;
+  ft->sptr[mode][ft->dims[mode]] = nfibs;
   ft->fptr[mode][0] = 0;
-  ft->fids[mode][0] = ttinds[mode][1];
+  ft->fptr[mode][nfibs] = nnz;
+  ft->fids[mode][0] = ttinds[1][1];
+  idx_t slice = 1;
   idx_t fib = 1;
   for(idx_t n=1; n < nnz; ++n) {
     int newfib = 0;
@@ -71,28 +77,15 @@ static void __create_fptr(
       }
     }
     if(newfib) {
+      /* increment slice if necessary and account for empty slices */
+      while(slice != ttinds[0][n]+1) {
+        ft->sptr[mode][slice++] = fib;
+      }
       ft->fptr[mode][fib] = n;
-      ft->fids[mode][fib] = ttinds[mode][1];
+      ft->fids[mode][fib] = ttinds[1][n];
       ++fib;
     }
   }
-}
-
-static void __create_sptr(
-  ftensor_t * const ft,
-  sptensor_t const * const tt,
-  idx_t const mode)
-{
-  idx_t const nnz = tt->nnz;
-  idx_t const nmodes = tt->nmodes;
-
-  /* permuted tt->ind */
-  idx_t * ttinds[MAX_NMODES];
-  for(idx_t m=0; m < nmodes; ++m) {
-    ttinds[m] = tt->ind[ft->dim_perms[mode][m]];
-  }
-
-  ft->sptr[mode] = (idx_t *) malloc((ft->dims[mode]+1) * sizeof(idx_t));
 }
 
 static void __order_modes(
@@ -108,7 +101,7 @@ static void __order_modes(
         maxm = (m+mo) % tt->nmodes;
       }
     }
-;
+
     /* fill in mode permutation */
     ft->dim_perms[m][tt->nmodes-1] = maxm;
     idx_t mark = 1;
@@ -146,7 +139,6 @@ ftensor_t * ften_alloc(
 
     tt_sort(tt, m, ft->dim_perms[m]);
     __create_fptr(ft, tt, m);
-    __create_sptr(ft, tt, m);
   }
 
   return ft;
