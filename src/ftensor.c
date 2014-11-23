@@ -38,16 +38,12 @@ static void __create_fptr(
 
   /* count fibers in tt */
   for(idx_t n=1; n < nnz; ++n) {
-    int newfib = 0;
-    /* check for new fiber */
     for(idx_t m=0; m < nmodes-1; ++m) {
+      /* check for new fiber */
       if(ttinds[m][n] != ttinds[m][n-1]) {
-        newfib = 1;
+        ++nfibs;
         break;
       }
-    }
-    if(newfib) {
-      ++nfibs;
     }
     ft->inds[mode][n] = tt->ind[fmode][n];
     ft->vals[mode][n] = tt->vals[n];
@@ -138,6 +134,7 @@ ftensor_t * ften_alloc(
     ft->vals[m] = (val_t *) malloc(ft->nnz * sizeof(val_t));
 
     tt_sort(tt, m, ft->dim_perms[m]);
+    //tt_write(tt, NULL);
     __create_fptr(ft, tt, m);
   }
 

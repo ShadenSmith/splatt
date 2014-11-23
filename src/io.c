@@ -3,7 +3,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "base.h"
-
+#include "io.h"
 #include "sptensor.h"
 #include "matrix.h"
 
@@ -14,19 +14,27 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 sptensor_t * tt_read(
-  char * const fname)
+  char const * const fname)
+{
+  FILE * fin;
+  if((fin = fopen(fname, "r")) == NULL) {
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
+    exit(1);
+  }
+
+  sptensor_t * tt = tt_read_file(fin);
+  fclose(fin);
+  return tt;
+}
+
+sptensor_t * tt_read_file(
+  FILE * fin)
 {
   sp_timer_t timer;
   timer_reset(&timer);
   timer_start(&timer);
 
   char * ptr = NULL;
-
-  FILE * fin;
-  if((fin = fopen(fname, "r")) == NULL) {
-    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
-    exit(1);
-  }
 
   /* first count nnz in tensor */
   idx_t nnz = 0;
@@ -86,7 +94,6 @@ sptensor_t * tt_read(
   }
 
   free(line);
-  fclose(fin);
 
   timer_stop(&timer);
   printf("IO: %0.3fs\n", timer.seconds);
@@ -95,7 +102,7 @@ sptensor_t * tt_read(
 
 void tt_write(
   sptensor_t const * const tt,
-  char * const fname)
+  char const * const fname)
 {
   FILE * fout;
   if(fname == NULL) {
@@ -107,21 +114,28 @@ void tt_write(
     }
   }
 
-  for(idx_t n=0; n < tt->nnz; ++n) {
-    for(idx_t m=0; m < tt->nmodes; ++m) {
-      fprintf(fout, SS_IDX " ", tt->ind[m][n]);
-    }
-    fprintf(fout, SS_VAL "\n", tt->vals[n]);
-  }
+  tt_write_file(tt, fout);
 
   if(fname != NULL) {
     fclose(fout);
   }
 }
 
+void tt_write_file(
+  sptensor_t const * const tt,
+  FILE * fout)
+{
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      fprintf(fout, SS_IDX " ", tt->ind[m][n]);
+    }
+    fprintf(fout, SS_VAL "\n", tt->vals[n]);
+  }
+}
+
 void spmat_write(
   spmatrix_t const * const mat,
-  char * const fname)
+  char const * const fname)
 {
   FILE * fout;
   if(fname == NULL) {
@@ -144,7 +158,7 @@ void spmat_write(
 
 void mat_write(
   matrix_t const * const mat,
-  char * const fname)
+  char const * const fname)
 {
   FILE * fout;
   if(fname == NULL) {

@@ -6,6 +6,7 @@
 #include <argp.h>
 
 #include "../include/splatt.h"
+#include "convert.h"
 
 /******************************************************************************
  * SPLATT GLOBAL INFO
@@ -21,8 +22,9 @@ typedef enum
 {
   CMD_CPD,
   CMD_BENCH,
-  CMD_STATS,
+  CMD_CONVERT,
   CMD_PERM,
+  CMD_STATS,
   CMD_HELP,
   CMD_ERROR
 } splatt_cmd;
@@ -39,8 +41,9 @@ static char cmd_doc[] =
   "The available commands are:\n"
   "  cpd\t\tCompute the Canonical Polyadic Decomposition\n"
   "  bench\t\tBenchmark MTTKRP algorithms\n"
-  "  stats\t\tPrint tensor statistics\n"
+  "  convert\tConvert a tensor to different formats\n"
   "  perm\t\tPermute a tensor using one of several methods\n"
+  "  stats\t\tPrint tensor statistics\n"
   "  help\t\tPrint this help message\n";
 
 void cmd_not_implemented(char const * const cmd)
@@ -56,10 +59,12 @@ static splatt_cmd read_cmd(char const * const str)
     cmd = CMD_CPD;
   } else if(strcmp(str, "bench") == 0) {
     cmd = CMD_BENCH;
-  } else if(strcmp(str, "stats") == 0) {
-    cmd = CMD_STATS;
+  } else if(strcmp(str, "convert") == 0) {
+    cmd = CMD_CONVERT;
   } else if(strcmp(str, "perm") == 0) {
     cmd = CMD_PERM;
+  } else if(strcmp(str, "stats") == 0) {
+    cmd = CMD_STATS;
   } else if(strcmp(str, "help") == 0) {
     cmd = CMD_HELP;
   }
@@ -139,6 +144,63 @@ void splatt_stats(
   tt_stats(args.fname);
 }
 
+
+
+/******************************************************************************
+ * SPLATT CONVERT
+ *****************************************************************************/
+static char convert_doc[] = "splatt-convert -- convert a tensor";
+static char convert_args_doc[] = "TENSOR OUTPUT";
+
+typedef struct
+{
+  char * ifname;
+  char * ofname;
+  splatt_convert_type type;
+} convert_args;
+
+static error_t parse_convert_opt(
+  int key,
+  char * arg,
+  struct argp_state * state)
+{
+  convert_args *args = state->input;
+  switch(key) {
+  case ARGP_KEY_ARG:
+    switch(state->arg_num) {
+    case 0:
+      args->ifname = arg;
+      break;
+    case 1:
+      args->ofname = arg;
+      break;
+    default:
+      argp_usage(state);
+    }
+    break;
+  case ARGP_KEY_END:
+    if(args->ifname == NULL || args->ofname == NULL) {
+      argp_usage(state);
+      break;
+    }
+  }
+  return 0;
+}
+
+static struct argp convert_argp =
+  {0, parse_convert_opt, convert_args_doc, convert_doc};
+void splatt_convert(
+  int argc,
+  char ** argv)
+{
+  convert_args args;
+  args.ifname = NULL;
+  args.ofname = NULL;
+  argp_parse(&convert_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+
+  tt_convert(args.ifname, args.ofname, args.type);
+}
+
 /******************************************************************************
  * SPLATT MAIN
  *****************************************************************************/
@@ -155,6 +217,9 @@ int main(
   switch(args.cmd) {
   case CMD_STATS:
     splatt_stats(argc-1, argv+1);
+    break;
+  case CMD_CONVERT:
+    splatt_convert(argc-1, argv+1);
     break;
   case CMD_CPD:
   case CMD_BENCH:
