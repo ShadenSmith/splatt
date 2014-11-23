@@ -7,6 +7,7 @@
  *****************************************************************************/
 #include "sptensor.h"
 #include "matrix.h"
+#include "graph.h"
 
 
 /******************************************************************************
@@ -26,6 +27,13 @@ void tt_write_file(
   FILE * fout);
 void tt_write(
   sptensor_t const * const tt,
+  char const * const fname);
+
+void hgraph_write_file(
+  hgraph_t const * const hg,
+  FILE * fout);
+void hgraph_write(
+  hgraph_t const * const hg,
   char const * const fname);
 
 void spmat_write(

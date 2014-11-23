@@ -156,8 +156,15 @@ typedef struct
 {
   char * ifname;
   char * ofname;
+  idx_t mode;
   splatt_convert_type type;
 } convert_args;
+
+static struct argp_option convert_options[] = {
+  { "mode", 'm', "MODE", 0, "tensor mode to convert, if applicable\n\t"
+                             "default: 1"},
+  { 0 }
+};
 
 static error_t parse_convert_opt(
   int key,
@@ -166,6 +173,10 @@ static error_t parse_convert_opt(
 {
   convert_args *args = state->input;
   switch(key) {
+  case 'm':
+    args->mode = atoi(arg) - 1;
+    break;
+
   case ARGP_KEY_ARG:
     switch(state->arg_num) {
     case 0:
@@ -188,7 +199,7 @@ static error_t parse_convert_opt(
 }
 
 static struct argp convert_argp =
-  {0, parse_convert_opt, convert_args_doc, convert_doc};
+  {convert_options, parse_convert_opt, convert_args_doc, convert_doc};
 void splatt_convert(
   int argc,
   char ** argv)
@@ -196,9 +207,10 @@ void splatt_convert(
   convert_args args;
   args.ifname = NULL;
   args.ofname = NULL;
+  args.mode = 0;
   argp_parse(&convert_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
-  tt_convert(args.ifname, args.ofname, args.type);
+  tt_convert(args.ifname, args.ofname, args.mode, args.type);
 }
 
 /******************************************************************************

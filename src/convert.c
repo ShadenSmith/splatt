@@ -28,6 +28,7 @@ static void __convert_fib_hgraph(
   ftensor_t * ft = ften_alloc(tt);
 
   hgraph_t * hg = hgraph_fib_alloc(ft, mode);
+  hgraph_write(hg, ofname);
 
   hgraph_free(hg);
   ften_free(ft);
@@ -40,10 +41,11 @@ static void __convert_fib_hgraph(
 void tt_convert(
   char const * const ifname,
   char const * const ofname,
+  idx_t const mode,
   splatt_convert_type const type)
 {
   sptensor_t * tt = tt_read(ifname);
-  __convert_fib_hgraph(tt, 0, NULL);
+  __convert_fib_hgraph(tt, mode, ofname);
 
   tt_free(tt);
 }

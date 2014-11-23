@@ -15,6 +15,7 @@ endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")

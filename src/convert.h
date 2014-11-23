@@ -24,6 +24,7 @@ typedef enum
 void tt_convert(
   char const * const ifname,
   char const * const ofname,
+  idx_t const mode,
   splatt_convert_type const type);
 
 #endif

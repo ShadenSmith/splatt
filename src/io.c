@@ -6,6 +6,7 @@
 #include "io.h"
 #include "sptensor.h"
 #include "matrix.h"
+#include "graph.h"
 
 #include "timer.h"
 
@@ -130,6 +131,39 @@ void tt_write_file(
       fprintf(fout, SS_IDX " ", tt->ind[m][n]);
     }
     fprintf(fout, SS_VAL "\n", tt->vals[n]);
+  }
+}
+
+void hgraph_write(
+  hgraph_t const * const hg,
+  char const * const fname)
+{
+  FILE * fout;
+  if(fname == NULL || strcmp(fname, "-") == 0) {
+    fout = stdout;
+  } else {
+    if((fout = fopen(fname,"w")) == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+      exit(1);
+    }
+  }
+
+  hgraph_write_file(hg, fout);
+
+  fclose(fout);
+}
+
+void hgraph_write_file(
+  hgraph_t const * const hg,
+  FILE * fout)
+{
+  fprintf(fout, "%d %d\n", hg->nhedges, hg->nvtxs);
+
+  for(int e=0; e < hg->nhedges; ++e) {
+    for(int v=hg->eptr[e]; v < hg->eptr[e+1]; ++v) {
+      fprintf(fout, "%d ", hg->eind[v]+1);
+    }
+    fprintf(fout, "\n");
   }
 }
 

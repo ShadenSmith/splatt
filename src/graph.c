@@ -18,15 +18,15 @@ static void __fill_emap(
   int ** emaps)
 {
   hg->nhedges = 0;
+  int h = 0;
   for(idx_t m=0; m < ft->nmodes; ++m) {
     idx_t pm = ft->dim_perms[mode][m];
     emaps[m] = (int *) malloc(ft->dims[pm] * sizeof(int));
     memset(emaps[m], 0, ft->dims[pm]);
 
-    idx_t h = 0;
     for(idx_t s=0; s < ft->dims[pm]; ++s) {
       /* if slice is non-empty */
-      if(ft->sptr[pm][s] != ft->sptr[m][s+1]) {
+      if(ft->sptr[pm][s] != ft->sptr[pm][s+1]) {
         emaps[m][s] = h++;
         ++(hg->nhedges);
       } else {
@@ -54,21 +54,49 @@ hgraph_t * hgraph_fib_alloc(
    * slices are possible */
   int * emaps[MAX_NMODES];
   __fill_emap(ft, hg, mode, emaps);
-  printf("found %d vtxs and %d hedges\n", hg->nvtxs, hg->nhedges);
 
   /* a) each nnz induces a hyperedge connection
      b) each non-fiber mode accounts for a hyperedge connection */
   idx_t neind = ft->nnz + ((ft->nmodes-1) * hg->nvtxs);
   hg->eptr = (int *) malloc((hg->nhedges+1) * sizeof(int));
+  memset(hg->eptr, 0, (hg->nhedges+1) * sizeof(int));
   hg->eind = (int *) malloc(neind * sizeof(int));
-  hg->eptr[0] = 0;
 
-  /* fill in hedges */
-  idx_t vtx = 0;
+  /* fill in eptr - all offset by 1 to do a prefix sum later */
   for(idx_t s=0; s < ft->dims[mode]; ++s) {
+    /* slice hyperedge */
+    int hs = emaps[0][s];
+    hg->eptr[hs+1] = ft->sptr[mode][s+1] - ft->sptr[mode][s];
     for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
+      int hfid = emaps[1][ft->fids[mode][f]];
+      hg->eptr[hfid+1] += 1;
       for(idx_t jj= ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
+        int hjj = emaps[2][ft->inds[mode][jj]];
+        hg->eptr[hjj+1] += 1;
+      }
+    }
+  }
 
+  /* do a shifted prefix sum to get eptr */
+  int saved = hg->eptr[1];
+  hg->eptr[1] = 0;
+  for(int i=2; i <= hg->nhedges; ++i) {
+    int tmp = hg->eptr[i];
+    hg->eptr[i] = hg->eptr[i-1] + saved;
+    saved = tmp;
+  }
+
+  /* now fill in eind while using eptr as a marker */
+  int vtx = 0;
+  for(idx_t s=0; s < ft->dims[mode]; ++s) {
+    int hs = emaps[0][s];
+    for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
+      int hfid = emaps[1][ft->fids[mode][f]];
+      hg->eind[hg->eptr[hs+1]++]   = vtx;
+      hg->eind[hg->eptr[hfid+1]++] = vtx;
+      for(idx_t jj= ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
+        int hjj = emaps[2][ft->inds[mode][jj]];
+        hg->eind[hg->eptr[hjj+1]++] = vtx;
       }
       ++vtx;
     }
