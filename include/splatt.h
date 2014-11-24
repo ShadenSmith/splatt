@@ -6,7 +6,4 @@ typedef float splatt_val_t;
 typedef unsigned int splatt_idx_t;
 #define SS_IDX "%u"
 
-void tt_stats(
-  char * const fname);
-
 #endif

@@ -7,6 +7,7 @@
 
 #include "../include/splatt.h"
 #include "convert.h"
+#include "stats.h"
 
 /******************************************************************************
  * SPLATT GLOBAL INFO
@@ -101,12 +102,29 @@ static struct argp cmd_argp = { 0, parse_cmd, cmd_args_doc, cmd_doc };
 /******************************************************************************
  * SPLATT STATS
  *****************************************************************************/
-static char stats_doc[] = "splatt-stats -- print statistics about a tensor";
 static char stats_args_doc[] = "TENSOR";
+static char stats_doc[] =
+  "splatt-stats -- print statistics about a tensor\n\n"
+  "Analysis types are:\n"
+  "  basic\t\tPrint simple statistics\n"
+  "  fibers\t\tAnalyze fiber statistics (mode specific)\n"
+  "  hparts\t\tAnalyze a hypergraph partitioning (mode specific)\n";
+
+static struct argp_option stats_options[] = {
+  { "type", 't', "TYPE", 0, "type of statistics\n\t"
+                             "default: basic" },
+  { "mode", 'm', "MODE", 0, "tensor mode to analyze, if applicable\n\t"
+                             "default: 1" },
+  { "pfile", 'p', "PFILE", 0, "partition file\n\t" },
+  { 0 }
+};
 
 typedef struct
 {
-  char * fname;
+  char * ifname;
+  char * pfname;
+  splatt_stats_type type;
+  idx_t mode;
 } stats_args;
 
 static error_t parse_stats_opt(
@@ -116,15 +134,35 @@ static error_t parse_stats_opt(
 {
   stats_args *args = state->input;
   switch(key) {
+  case 'm':
+    args->mode = atoi(arg) - 1;
+    break;
+
+  case 't':
+    if(strcmp(arg, "basic") == 0) {
+      args->type = STATS_BASIC;
+    } else if(strcmp(arg, "fibers") == 0) {
+      args->type = STATS_FIBERS;
+    } else if(strcmp(arg, "hparts") == 0) {
+      args->type = STATS_HPARTS;
+    } else {
+      args->type = STATS_ERROR;
+    }
+    break;
+
+  case 'p':
+    args->pfname = arg;
+    break;
+
   case ARGP_KEY_ARG:
-    if(args->fname != NULL) {
+    if(args->ifname != NULL) {
       argp_usage(state);
       break;
     }
-    args->fname = arg;
+    args->ifname = arg;
     break;
   case ARGP_KEY_END:
-    if(args->fname == NULL) {
+    if(args->ifname == NULL) {
       argp_usage(state);
       break;
     }
@@ -132,16 +170,20 @@ static error_t parse_stats_opt(
   return 0;
 }
 
-static struct argp stats_argp = {0, parse_stats_opt, stats_args_doc, stats_doc};
+static struct argp stats_argp =
+  {stats_options, parse_stats_opt, stats_args_doc, stats_doc};
 void splatt_stats(
   int argc,
   char ** argv)
 {
   stats_args args;
-  args.fname = NULL;
+  args.ifname = NULL;
+  args.pfname = NULL;
+  args.type = STATS_BASIC;
+  args.mode = 0;
   argp_parse(&stats_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
-  tt_stats(args.fname);
+  tt_stats(args.ifname, args.type, args.mode, args.pfname);
 }
 
 
