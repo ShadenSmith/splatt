@@ -6,6 +6,7 @@
  *****************************************************************************/
 #include "base.h"
 #include "sptensor.h"
+#include "matrix.h"
 
 
 /******************************************************************************
@@ -38,6 +39,10 @@ typedef struct
  *****************************************************************************/
 ftensor_t * ften_alloc(
   sptensor_t * const tt);
+
+spmatrix_t * ften_spmat(
+  ftensor_t * ft,
+  idx_t const mode);
 
 void ften_free(
   ftensor_t * ft);

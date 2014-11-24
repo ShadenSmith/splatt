@@ -36,6 +36,17 @@ static void __fill_emap(
   }
 }
 
+static void __fill_vwts(
+  ftensor_t const * const ft,
+  hgraph_t * const hg,
+  idx_t const mode)
+{
+  hg->vwts = (int *) malloc(hg->nvtxs * sizeof(int));
+  for(int v=0; v < hg->nvtxs; ++v) {
+    hg->vwts[v] = ft->fptr[mode][v+1] - ft->fptr[mode][v];
+  }
+}
+
 
 
 /******************************************************************************
@@ -49,6 +60,9 @@ hgraph_t * hgraph_fib_alloc(
   hg->nvtxs = ft->nfibs[mode];
   hg->vwts = NULL;
   hg->hewts = NULL;
+
+  /* vertex weights are nnz per fiber */
+  __fill_vwts(ft, hg, mode);
 
   /* count hedges and map ind to hedge - this is necessary because empty
    * slices are possible */
@@ -113,6 +127,8 @@ void hgraph_free(
 {
   free(hg->eptr);
   free(hg->eind);
+  free(hg->vwts);
+  free(hg->hewts);
   free(hg);
 }
 

@@ -39,5 +39,8 @@ void hgraph_write(
 void spmat_write(
   spmatrix_t const * const mat,
   char const * const fname);
+void spmat_write_file(
+  spmatrix_t const * const mat,
+  FILE * fout);
 
 #endif

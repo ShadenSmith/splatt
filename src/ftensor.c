@@ -4,10 +4,10 @@
  * INCLUDES
  *****************************************************************************/
 #include "base.h"
-#include "ftensor.h"
 #include "sort.h"
 #include "io.h"
-
+#include "matrix.h"
+#include "ftensor.h"
 
 /******************************************************************************
  * STATIC FUNCTIONS
@@ -139,6 +139,22 @@ ftensor_t * ften_alloc(
 
   return ft;
 }
+
+spmatrix_t * ften_spmat(
+  ftensor_t * ft,
+  idx_t const mode)
+{
+  idx_t const nrows = ft->nfibs[mode];
+  idx_t const ncols = ft->dims[ft->dim_perms[mode][2]];
+  spmatrix_t * mat = spmat_alloc(nrows, ncols, ft->nnz);
+
+  memcpy(mat->rowptr, ft->fptr[mode], (nrows+1) * sizeof(idx_t));
+  memcpy(mat->colind, ft->inds[mode], ft->nnz * sizeof(idx_t));
+  memcpy(mat->vals,   ft->vals[mode], ft->nnz * sizeof(val_t));
+
+  return mat;
+}
+
 
 void ften_free(
   ftensor_t * ft)

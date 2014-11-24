@@ -149,8 +149,14 @@ void splatt_stats(
 /******************************************************************************
  * SPLATT CONVERT
  *****************************************************************************/
-static char convert_doc[] = "splatt-convert -- convert a tensor";
 static char convert_args_doc[] = "TENSOR OUTPUT";
+static char convert_doc[] =
+  "splatt-convert -- convert a tensor\n\n"
+  "Mode-dependent conversion types are:\n"
+  "  hgraph\t\tHypergraph modeling the sparsity pattern of fibers\n"
+  "  fibmat\t\tCSR matrix whose rows are fibers\n"
+  "Mode-independent conversion types are:\n"
+  "  ijkgraph\t\tTri-partite graph model\n";
 
 typedef struct
 {
@@ -161,8 +167,9 @@ typedef struct
 } convert_args;
 
 static struct argp_option convert_options[] = {
+  { "type", 't', "TYPE", 0, "type of conversion" },
   { "mode", 'm', "MODE", 0, "tensor mode to convert, if applicable\n\t"
-                             "default: 1"},
+                             "default: 1" },
   { 0 }
 };
 
@@ -175,6 +182,16 @@ static error_t parse_convert_opt(
   switch(key) {
   case 'm':
     args->mode = atoi(arg) - 1;
+    break;
+
+  case 't':
+    if(strcmp(arg, "hgraph") == 0) {
+      args->type = CNV_FIB_HGRAPH;
+    } else if(strcmp(arg, "ijkgraph") == 0) {
+      args->type = CNV_IJK_GRAPH;
+    } else if(strcmp(arg, "fibmat") == 0) {
+      args->type = CNV_FIB_SPMAT;
+    }
     break;
 
   case ARGP_KEY_ARG:
@@ -208,6 +225,7 @@ void splatt_convert(
   args.ifname = NULL;
   args.ofname = NULL;
   args.mode = 0;
+  args.type= CNV_ERROR;
   argp_parse(&convert_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
   tt_convert(args.ifname, args.ofname, args.mode, args.type);

@@ -157,13 +157,35 @@ void hgraph_write_file(
   hgraph_t const * const hg,
   FILE * fout)
 {
-  fprintf(fout, "%d %d\n", hg->nhedges, hg->nvtxs);
+  /* print header */
+  fprintf(fout, "%d %d", hg->nhedges, hg->nvtxs);
+  if(hg->vwts != NULL) {
+    if(hg->hewts != NULL) {
+      fprintf(fout, " 11");
+    } else {
+      fprintf(fout, " 10");
+    }
+  } else if(hg->hewts != NULL) {
+    fprintf(fout, " 1");
+  }
+  fprintf(fout, "\n");
 
+  /* print hyperedges */
   for(int e=0; e < hg->nhedges; ++e) {
+    if(hg->hewts != NULL) {
+      fprintf(fout, "%d ", hg->hewts[e]);
+    }
     for(int v=hg->eptr[e]; v < hg->eptr[e+1]; ++v) {
       fprintf(fout, "%d ", hg->eind[v]+1);
     }
     fprintf(fout, "\n");
+  }
+
+  /* print vertex weights */
+  if(hg->vwts != NULL) {
+    for(int v=0; v < hg->nvtxs; ++v) {
+      fprintf(fout, "%d\n", hg->vwts[v]);
+    }
   }
 }
 
@@ -172,7 +194,7 @@ void spmat_write(
   char const * const fname)
 {
   FILE * fout;
-  if(fname == NULL) {
+  if(fname == NULL || strcmp(fname, "-") == 0) {
     fout = stdout;
   } else {
     if((fout = fopen(fname,"w")) == NULL) {
@@ -181,6 +203,15 @@ void spmat_write(
     }
   }
 
+  spmat_write_file(mat, fout);
+
+  fclose(fout);
+}
+
+void spmat_write_file(
+  spmatrix_t const * const mat,
+  FILE * fout)
+{
   /* write CSR matrix */
   for(idx_t i=0; i < mat->I; ++i) {
     for(idx_t j=mat->rowptr[i]; j < mat->rowptr[i+1]; ++j) {
