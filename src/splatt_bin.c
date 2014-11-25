@@ -19,7 +19,7 @@ char const *argp_program_bug_address = "Shaden Smith <shaden@cs.umn.edu>";
 /******************************************************************************
  * SPLATT CMDS
  *****************************************************************************/
-typedef enum
+typedef enum splatt_cmd
 {
   CMD_CPD,
   CMD_BENCH,
@@ -30,7 +30,7 @@ typedef enum
   CMD_ERROR
 } splatt_cmd;
 
-typedef struct
+typedef struct splatt_args
 {
   char * cmd_str;
   splatt_cmd cmd;
@@ -105,17 +105,17 @@ static struct argp cmd_argp = { 0, parse_cmd, cmd_args_doc, cmd_doc };
 static char stats_args_doc[] = "TENSOR";
 static char stats_doc[] =
   "splatt-stats -- print statistics about a tensor\n\n"
-  "Analysis types are:\n"
-  "  basic\t\tPrint simple statistics\n"
-  "  fibers\t\tAnalyze fiber statistics (mode specific)\n"
-  "  hparts\t\tAnalyze a hypergraph partitioning (mode specific)\n";
+  "Mode-independent types are:\n"
+  "  basic\t\t\tPrint simple statistics\n"
+  "Mode-dependent types are:\n"
+  "  fibers\t\tAnalyze fiber statistics\n"
+  "  hparts\t\tAnalyze a hypergraph partitioning\n";
 
 static struct argp_option stats_options[] = {
-  { "type", 't', "TYPE", 0, "type of statistics\n\t"
-                             "default: basic" },
-  { "mode", 'm', "MODE", 0, "tensor mode to analyze, if applicable\n\t"
-                             "default: 1" },
-  { "pfile", 'p', "PFILE", 0, "partition file\n\t" },
+  { "type", 't', "TYPE", 0, "type of analysis" },
+  { "pfile", 'p', "PFILE", 0, "partition file" },
+  { 0, 0, 0, 0, "Mode-dependent options:", 1},
+  { "mode", 'm', "MODE", 0, "tensor mode to analyze (default: 1)" },
   { 0 }
 };
 
@@ -209,9 +209,10 @@ typedef struct
 } convert_args;
 
 static struct argp_option convert_options[] = {
+  { 0, 0, 0, 0, "Mode-independent options:", 2},
   { "type", 't', "TYPE", 0, "type of conversion" },
-  { "mode", 'm', "MODE", 0, "tensor mode to convert, if applicable\n\t"
-                             "default: 1" },
+  { 0, 0, 0, 0, "Mode-dependent options:", 1},
+  { "mode", 'm', "MODE", 0, "tensor mode to convert (default: 1)"},
   { 0 }
 };
 

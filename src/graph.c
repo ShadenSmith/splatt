@@ -93,8 +93,7 @@ hgraph_t * hgraph_fib_alloc(
   /* count hedges and map ind to hedge - this is necessary because empty
    * slices are possible */
   int * emaps[MAX_NMODES];
-  //__fill_emap(ft, hg, mode, emaps);
-  __fill_emap_fibonly(ft, hg, mode, emaps);
+  __fill_emap(ft, hg, mode, emaps);
 
   /* a) each nnz induces a hyperedge connection
      b) each non-fiber mode accounts for a hyperedge connection */
@@ -106,11 +105,11 @@ hgraph_t * hgraph_fib_alloc(
   /* fill in eptr - all offset by 1 to do a prefix sum later */
   for(idx_t s=0; s < ft->dims[mode]; ++s) {
     /* slice hyperedge */
-    //int hs = emaps[0][s];
-    //hg->eptr[hs+1] = ft->sptr[mode][s+1] - ft->sptr[mode][s];
+    int hs = emaps[0][s];
+    hg->eptr[hs+1] = ft->sptr[mode][s+1] - ft->sptr[mode][s];
     for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
-      //int hfid = emaps[1][ft->fids[mode][f]];
-      //hg->eptr[hfid+1] += 1;
+      int hfid = emaps[1][ft->fids[mode][f]];
+      hg->eptr[hfid+1] += 1;
       for(idx_t jj= ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
         int hjj = emaps[2][ft->inds[mode][jj]];
         hg->eptr[hjj+1] += 1;
@@ -130,11 +129,11 @@ hgraph_t * hgraph_fib_alloc(
   /* now fill in eind while using eptr as a marker */
   int vtx = 0;
   for(idx_t s=0; s < ft->dims[mode]; ++s) {
-    //int hs = emaps[0][s];
+    int hs = emaps[0][s];
     for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
-      //int hfid = emaps[1][ft->fids[mode][f]];
-      //hg->eind[hg->eptr[hs+1]++]   = vtx;
-      //hg->eind[hg->eptr[hfid+1]++] = vtx;
+      int hfid = emaps[1][ft->fids[mode][f]];
+      hg->eind[hg->eptr[hs+1]++]   = vtx;
+      hg->eind[hg->eptr[hfid+1]++] = vtx;
       for(idx_t jj= ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
         int hjj = emaps[2][ft->inds[mode][jj]];
         hg->eind[hg->eptr[hjj+1]++] = vtx;
