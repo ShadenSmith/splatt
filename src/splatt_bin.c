@@ -38,7 +38,7 @@ typedef struct splatt_args
 
 static char cmd_args_doc[] = "CMD";
 static char cmd_doc[] =
-  "splatt -- a tensor toolkit\n\n"
+  "splatt -- the Surprisingly ParalleL spArse Tensor Toolkit\n\n"
   "The available commands are:\n"
   "  cpd\t\tCompute the Canonical Polyadic Decomposition\n"
   "  bench\t\tBenchmark MTTKRP algorithms\n"
