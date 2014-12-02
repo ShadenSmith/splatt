@@ -12,23 +12,9 @@
 
 
 /******************************************************************************
- * PUBLIC FUNCTIONS
+ * PRIVATE FUNCTIONS
  *****************************************************************************/
-sptensor_t * tt_read(
-  char const * const fname)
-{
-  FILE * fin;
-  if((fin = fopen(fname, "r")) == NULL) {
-    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
-    exit(1);
-  }
-
-  sptensor_t * tt = tt_read_file(fin);
-  fclose(fin);
-  return tt;
-}
-
-sptensor_t * tt_read_file(
+static sptensor_t * __tt_read_file(
   FILE * fin)
 {
   sp_timer_t timer;
@@ -100,6 +86,25 @@ sptensor_t * tt_read_file(
   printf("IO: %0.3fs\n", timer.seconds);
   return tt;
 }
+
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
+sptensor_t * tt_read_file(
+  char const * const fname)
+{
+  FILE * fin;
+  if((fin = fopen(fname, "r")) == NULL) {
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
+    exit(1);
+  }
+
+  sptensor_t * tt = __tt_read_file(fin);
+  fclose(fin);
+  return tt;
+}
+
 
 void tt_write(
   sptensor_t const * const tt,

@@ -5,14 +5,59 @@
  *****************************************************************************/
 #include "sptensor.h"
 #include "matrix.h"
-
 #include "sort.h"
+#include "io.h"
 
 
+/******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
+static void __tt_remove_dups(
+  sptensor_t * const tt)
+{
+  tt_sort(tt, 0, NULL);
+
+  idx_t dups = 0;
+  for(idx_t n=0; n < tt->nnz - 1; ++n) {
+    int same = 1;
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      if(tt->ind[m][n] != tt->ind[m][n+1]) {
+        same = 0;
+        break;
+      }
+    }
+    if(same) {
+      tt->vals[n] = (tt->vals[n] + tt->vals[n+1]) / 2;
+      printf("* (%u %u %u)\n", tt->ind[0][n-1], tt->ind[1][n-1], tt->ind[2][n-1]);
+      printf("- (%u %u %u)\n", tt->ind[0][n], tt->ind[1][n], tt->ind[2][n]);
+      printf("  (%u %u %u)\n", tt->ind[0][n+1], tt->ind[1][n+1], tt->ind[2][n+1]);
+      printf("  (%u %u %u)\n", tt->ind[0][n+2], tt->ind[1][n+2], tt->ind[2][n+2]);
+      for(idx_t m=0; m < tt->nmodes; ++m) {
+        memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]), tt->nnz - n );
+      }
+      printf("* (%u %u %u)\n", tt->ind[0][n-1], tt->ind[1][n-1], tt->ind[2][n-1]);
+      printf("- (%u %u %u)\n", tt->ind[0][n], tt->ind[1][n], tt->ind[2][n]);
+      printf("  (%u %u %u)\n", tt->ind[0][n+1], tt->ind[1][n+1], tt->ind[2][n+1]);
+      ++dups;
+      --n;
+      tt->nnz -= 1;
+    }
+  }
+  printf("removed: %u dups\n", dups);
+}
 
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
+sptensor_t * tt_read(
+  char const * const ifname)
+{
+  sptensor_t * tt = tt_read_file(ifname);
+  __tt_remove_dups(tt);
+  return tt;
+}
+
+
 sptensor_t * tt_alloc(
   idx_t const nnz,
   idx_t const nmodes)

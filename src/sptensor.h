@@ -34,6 +34,10 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+sptensor_t * tt_read(
+  char const * const ifname);
+
 sptensor_t * tt_alloc(
   idx_t const nnz,
   idx_t const nmodes);

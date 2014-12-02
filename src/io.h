@@ -14,8 +14,6 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 sptensor_t * tt_read_file(
-  FILE * fin);
-sptensor_t * tt_read(
   char const * const fname);
 
 void mat_write(
