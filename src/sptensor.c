@@ -17,7 +17,6 @@ static void __tt_remove_dups(
 {
   tt_sort(tt, 0, NULL);
 
-  idx_t dups = 0;
   for(idx_t n=0; n < tt->nnz - 1; ++n) {
     int same = 1;
     for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -28,22 +27,13 @@ static void __tt_remove_dups(
     }
     if(same) {
       tt->vals[n] = (tt->vals[n] + tt->vals[n+1]) / 2;
-      printf("* (%u %u %u)\n", tt->ind[0][n-1], tt->ind[1][n-1], tt->ind[2][n-1]);
-      printf("- (%u %u %u)\n", tt->ind[0][n], tt->ind[1][n], tt->ind[2][n]);
-      printf("  (%u %u %u)\n", tt->ind[0][n+1], tt->ind[1][n+1], tt->ind[2][n+1]);
-      printf("  (%u %u %u)\n", tt->ind[0][n+2], tt->ind[1][n+2], tt->ind[2][n+2]);
       for(idx_t m=0; m < tt->nmodes; ++m) {
-        memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]), tt->nnz - n );
+        memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]), (tt->nnz-n-1) * sizeof(idx_t) );
       }
-      printf("* (%u %u %u)\n", tt->ind[0][n-1], tt->ind[1][n-1], tt->ind[2][n-1]);
-      printf("- (%u %u %u)\n", tt->ind[0][n], tt->ind[1][n], tt->ind[2][n]);
-      printf("  (%u %u %u)\n", tt->ind[0][n+1], tt->ind[1][n+1], tt->ind[2][n+1]);
-      ++dups;
       --n;
       tt->nnz -= 1;
     }
   }
-  printf("removed: %u dups\n", dups);
 }
 
 /******************************************************************************
