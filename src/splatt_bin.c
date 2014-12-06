@@ -274,6 +274,122 @@ void splatt_convert(
   tt_convert(args.ifname, args.ofname, args.mode, args.type);
 }
 
+
+
+/******************************************************************************
+ * SPLATT BENCH
+ *****************************************************************************/
+static char bench_args_doc[] = "TENSOR";
+static char bench_doc[] =
+  "splatt-bench -- benchmark MTTKRP algorithms\n\n"
+  "Available algorithms are:\n"
+  "  splatt\tThe algorithm introduced by splatt\n"
+  "  giga\t\tGigaTensor algorithm adapted from the MapReduce paradigm\n"
+  "  dfacto\tDFacTo algorithm\n"
+  "  ttbox\t\tTensor-Vector products as done by Tensor Toolbox\n";
+
+typedef enum
+{
+  ALG_SPLATT,
+  ALG_GIGA,
+  ALG_DFACTO,
+  ALG_TTBOX,
+  ALG_ERR,
+  ALG_NALGS
+} splatt_algs;
+
+typedef struct
+{
+  char * ifname;
+  int which[ALG_NALGS];
+  char * algerr;
+  idx_t niters;
+  idx_t nthreads;
+  int scale;
+} bench_args;
+
+static struct argp_option bench_options[] = {
+  {"alg", 'a', "ALG", 0, "algorithm to benchmark"},
+  {"iters", 'i', "NITERS", 0, "number of iterations to use (default: 5)"},
+  {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
+  {"scale", 's', 0, 0, "scale threads from 1 to NTHREADS (by 2)"},
+  { 0 }
+};
+
+
+static error_t parse_bench_opt(
+  int key,
+  char * arg,
+  struct argp_state * state)
+{
+  bench_args *args = state->input;
+  switch(key) {
+  case 'a':
+    if(strcmp(arg, "splatt") == 0) {
+      args->which[ALG_SPLATT] = 1;
+    } else if(strcmp(arg, "giga") == 0) {
+      args->which[ALG_GIGA] = 1;
+    } else if(strcmp(arg, "dfacto") == 0) {
+      args->which[ALG_DFACTO] = 1;
+    } else if(strcmp(arg, "ttbox") == 0) {
+      args->which[ALG_TTBOX] = 1;
+    } else {
+      args->which[ALG_ERR] = 1;
+      args->algerr = arg;
+    }
+    break;
+  case 'i':
+    args->niters = atoi(arg);
+    break;
+  case 't':
+    args->nthreads = atoi(arg);
+    break;
+  case 's':
+    args->scale = 1;
+    break;
+
+  case ARGP_KEY_ARG:
+    if(args->ifname != NULL) {
+      argp_usage(state);
+      break;
+    }
+    args->ifname = arg;
+    break;
+  case ARGP_KEY_END:
+    if(args->ifname == NULL) {
+      argp_usage(state);
+      break;
+    }
+  }
+  return 0;
+}
+
+static struct argp bench_argp =
+  {bench_options, parse_bench_opt, bench_args_doc, bench_doc};
+
+void splatt_bench(
+  int argc,
+  char ** argv)
+{
+  bench_args args;
+  args.ifname = NULL;
+  args.niters = 5;
+  args.nthreads = 1;
+  args.scale = 0;
+  for(int a=0; a < ALG_NALGS; ++a) {
+    args.which[a] = 0;
+  }
+  argp_parse(&bench_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+
+  if(args.which[ALG_ERR]) {
+    fprintf(stderr, "SPLATT: algorithm '%s' is not recognized.\n"
+                    "Run with '--help' for assistance.\n", args.algerr);
+    exit(EXIT_FAILURE);
+  }
+}
+
+
+
 /******************************************************************************
  * SPLATT MAIN
  *****************************************************************************/
@@ -296,6 +412,8 @@ int main(
     break;
   case CMD_CPD:
   case CMD_BENCH:
+    splatt_bench(argc-1, argv+1);
+    break;
   case CMD_PERM:
     cmd_not_implemented(args.cmd_str);
     break;
