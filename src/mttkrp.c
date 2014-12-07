@@ -11,7 +11,7 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void splatt_mttkrp(
+void mttkrp_splatt(
   ftensor_t const * const ft,
   matrix_t ** mats,
   idx_t const mode)
@@ -64,4 +64,48 @@ void splatt_mttkrp(
 
   free(accumF);
 }
+
+
+void mttkrp_ttbox(
+  sptensor_t const * const tt,
+  matrix_t ** mats,
+  idx_t const mode,
+  val_t * const scratch)
+{
+  matrix_t * const m1 = mats[mode];
+  matrix_t const * const A = mode == 0 ? mats[1] : mats[0];
+  matrix_t const * const B = mode == 2 ? mats[1] : mats[2];
+
+  idx_t const rank = m1->J;
+
+  val_t * const restrict m1vals = m1->vals;
+
+  idx_t const nnz = tt->nnz;
+  idx_t const * const restrict indM = tt->ind[mode];
+  idx_t const * const restrict indA =
+    mode == 0 ? tt->ind[1] : tt->ind[0];
+  idx_t const * const restrict indB =
+    mode == 2 ? tt->ind[1] : tt->ind[2];
+
+  val_t const * const restrict vals = tt->vals;
+
+  for(idx_t r=0; r < rank; ++r) {
+    val_t       * const restrict mv = m1->vals + (r * m1->I);
+    val_t const * const restrict av =  A->vals + (r * A->I);
+    val_t const * const restrict bv =  B->vals + (r * B->I);
+
+    /* stretch out columns of A and B */
+    for(idx_t x=0; x < nnz; ++x) {
+      scratch[x] = vals[x] * av[indA[x]] * bv[indB[x]];
+    }
+
+    /* now accumulate into m1 */
+    for(idx_t x=0; x < nnz; ++x) {
+      mv[indM[x]] += scratch[x];
+    }
+  }
+}
+
+
+
 

@@ -15,10 +15,15 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void splatt_mttkrp(
+void mttkrp_splatt(
   ftensor_t const * const ft,
   matrix_t ** mats,
   idx_t const mode);
 
+void mttkrp_ttbox(
+  sptensor_t const * const tt,
+  matrix_t ** mats,
+  idx_t const mode,
+  val_t * const scratch);
 
 #endif
