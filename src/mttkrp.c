@@ -21,9 +21,10 @@ void mttkrp_splatt(
   idx_t const rank = m1->J;
 
   val_t * const m1vals = m1->vals;
+  memset(m1vals, 0, nslices * rank * sizeof(val_t));
+
   val_t const * const avals = mats[ft->dim_perms[mode][1]]->vals;
   val_t const * const bvals = mats[ft->dim_perms[mode][2]]->vals;
-  memset(m1vals, 0, nslices * rank * sizeof(val_t));
 
   idx_t const * const restrict sptr = ft->sptr[mode];
   idx_t const * const restrict fptr = ft->fptr[mode];
@@ -63,6 +64,51 @@ void mttkrp_splatt(
   }
 
   free(accumF);
+}
+
+
+void mttkrp_giga(
+  spmatrix_t const * const spmat,
+  matrix_t ** mats,
+  idx_t const mode,
+  val_t * const scratch)
+{
+  matrix_t * const m1 = mats[mode];
+  matrix_t const * const A = mode == 0 ? mats[1] : mats[0];
+  matrix_t const * const B = mode == 2 ? mats[1] : mats[2];
+
+  idx_t const I = m1->I;
+  idx_t const J = m1->J;
+  idx_t const rank = m1->J;
+  memset(m1->vals, 0, I * J * sizeof(val_t));
+
+  idx_t const * const restrict rowptr = spmat->rowptr;
+  idx_t const * const restrict colind = spmat->colind;
+  val_t const * const restrict vals   = spmat->vals;
+
+  for(idx_t r=0; r < rank; ++r) {
+    val_t       * const restrict mv = m1->vals + (r * m1->I);
+    val_t const * const restrict av =  A->vals + (r * A->I);
+    val_t const * const restrict bv =  B->vals + (r * B->I);
+
+    /* Joined Hadamard products of X, C, and B */
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
+        idx_t const a = colind[y] % J;
+        idx_t const b = colind[y] / J;
+        scratch[y] = vals[y] * av[a] * bv[b];
+      }
+    }
+
+    /* now accumulate rows into column of M1 */
+    for(idx_t i=0; i < I; ++i) {
+      val_t sum = 0;
+      for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
+        sum += scratch[y];
+      }
+      mv[i] = sum;
+    }
+  }
 }
 
 

@@ -20,6 +20,12 @@ void mttkrp_splatt(
   matrix_t ** mats,
   idx_t const mode);
 
+void mttkrp_giga(
+  spmatrix_t const * const spmat,
+  matrix_t ** mats,
+  idx_t const mode,
+  val_t * const scratch);
+
 void mttkrp_ttbox(
   sptensor_t const * const tt,
   matrix_t ** mats,
