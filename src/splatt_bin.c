@@ -5,9 +5,15 @@
 #include <time.h>
 #include <argp.h>
 
-#include "../include/splatt.h"
+/* SPLATT MODULES */
+#include "io.h"
 #include "convert.h"
 #include "stats.h"
+#include "mttkrp.h"
+
+#include "sptensor.h"
+#include "ftensor.h"
+#include "matrix.h"
 
 /******************************************************************************
  * SPLATT GLOBAL INFO
@@ -305,6 +311,7 @@ typedef struct
   char * algerr;
   idx_t niters;
   idx_t nthreads;
+  idx_t rank;
   int scale;
 } bench_args;
 
@@ -312,6 +319,7 @@ static struct argp_option bench_options[] = {
   {"alg", 'a', "ALG", 0, "algorithm to benchmark"},
   {"iters", 'i', "NITERS", 0, "number of iterations to use (default: 5)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
+  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"scale", 's', 0, 0, "scale threads from 1 to NTHREADS (by 2)"},
   { 0 }
 };
@@ -343,6 +351,9 @@ static error_t parse_bench_opt(
     break;
   case 't':
     args->nthreads = atoi(arg);
+    break;
+  case 'r':
+    args->rank = atoi(arg);
     break;
   case 's':
     args->scale = 1;
@@ -376,6 +387,7 @@ void splatt_bench(
   args.niters = 5;
   args.nthreads = 1;
   args.scale = 0;
+  args.rank = 10;
   for(int a=0; a < ALG_NALGS; ++a) {
     args.which[a] = 0;
   }
@@ -386,6 +398,63 @@ void splatt_bench(
                     "Run with '--help' for assistance.\n", args.algerr);
     exit(EXIT_FAILURE);
   }
+
+  sptensor_t * tt = tt_read(args.ifname);
+
+  val_t * scratch;
+
+  matrix_t * mats[MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    mats[m] = mat_rand(tt->dims[m], args.rank);
+  }
+  mat_write(mats[0], NULL);
+
+  /* for each of the selected algs */
+  for(int a=0; a < ALG_NALGS; ++a) {
+    if(args.which[a] == 0) {
+      continue;
+    }
+
+    switch(a) {
+    case ALG_SPLATT:
+      printf("splatt!\n");
+      ftensor_t * ft = ften_alloc(tt);
+      mttkrp_splatt(ft, mats, 0);
+      ften_free(ft);
+      break;
+
+
+    case ALG_GIGA:
+      scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
+      printf("gigatensor!\n");
+      spmatrix_t * uf = tt_unfold(tt, 0);
+      spmat_write(uf, NULL);
+
+      mttkrp_giga(uf, mats, 0, scratch);
+
+
+      spmat_free(uf);
+      free(scratch);
+      break;
+    case ALG_TTBOX:
+      printf("ttbox\n");
+      scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
+      mttkrp_ttbox(tt, mats, 0, scratch);
+
+      free(scratch);
+      break;
+    default:
+      printf("whoops\n");
+      break;
+    }
+
+    mat_write(mats[0], NULL);
+  }
+
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    mat_free(mats[m]);
+  }
+  tt_free(tt);
 }
 
 
@@ -397,7 +466,8 @@ int main(
   int argc,
   char **argv)
 {
-  srand(time(NULL));
+  //srand(time(NULL));
+  srand(1);
   splatt_args args;
   /* parse argv[0:1] */
   int nargs = argc > 1 ? 2 : 1;

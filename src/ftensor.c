@@ -134,6 +134,9 @@ ftensor_t * ften_alloc(
     ft->vals[m] = (val_t *) malloc(ft->nnz * sizeof(val_t));
 
     tt_sort(tt, m, ft->dim_perms[m]);
+    if(m == 0) {
+      //tt_write(tt, NULL);
+    }
     __create_fptr(ft, tt, m);
   }
 

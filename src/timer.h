@@ -1,5 +1,5 @@
-#ifndef sp_timer_H
-#define sp_timer_H
+#ifndef SP_TIMER_H
+#define SP_TIMER_H
 
 /******************************************************************************
  * INCLUDES
@@ -24,7 +24,7 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-inline void timer_reset(sp_timer_t * const timer)
+static inline void timer_reset(sp_timer_t * const timer)
 {
   timer->running       = 0;
   timer->seconds       = 0;
@@ -34,13 +34,13 @@ inline void timer_reset(sp_timer_t * const timer)
   timer->stop.tv_nsec  = 0;
 }
 
-inline void timer_start(sp_timer_t * const timer)
+static inline void timer_start(sp_timer_t * const timer)
 {
   timer->running = 1;
   clock_gettime(CLOCK_MONOTONIC, &(timer->start));
 }
 
-inline void timer_stop(sp_timer_t * const timer)
+static inline void timer_stop(sp_timer_t * const timer)
 {
   clock_gettime(CLOCK_MONOTONIC, &(timer->stop));
   timer->running = 0;

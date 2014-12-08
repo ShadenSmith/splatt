@@ -16,10 +16,10 @@ matrix_t * mat_alloc(
   idx_t const nrows,
   idx_t const ncols)
 {
-  matrix_t * mat = (matrix_t*) malloc(sizeof(matrix_t));
+  matrix_t * mat = (matrix_t *) malloc(sizeof(matrix_t));
   mat->I = nrows;
   mat->J = ncols;
-  mat->vals = (val_t*) malloc(nrows * ncols * sizeof(val_t));
+  mat->vals = (val_t *) malloc(nrows * ncols * sizeof(val_t));
   return mat;
 }
 
@@ -64,9 +64,6 @@ spmatrix_t * spmat_alloc(
 void spmat_free(
   spmatrix_t * mat)
 {
-  mat->I = 0;
-  mat->J = 0;
-  mat->nnz = 0;
   free(mat->rowptr);
   free(mat->colind);
   free(mat->vals);
