@@ -31,6 +31,10 @@ static void __create_fptr(
   for(idx_t m=0; m < nmodes; ++m) {
     ttinds[m] = tt->ind[ft->dim_perms[mode][m]];
   }
+  /* this avoids some maybe-uninitialized warnings */
+  for(idx_t m=nmodes; m < MAX_NMODES; ++m) {
+    ttinds[m] = NULL;
+  }
 
   idx_t nfibs = 1;
   ft->inds[mode][0] = tt->ind[fmode][0];

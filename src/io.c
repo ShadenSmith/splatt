@@ -17,10 +17,6 @@
 static sptensor_t * __tt_read_file(
   FILE * fin)
 {
-  sp_timer_t timer;
-  timer_reset(&timer);
-  timer_start(&timer);
-
   char * ptr = NULL;
 
   /* first count nnz in tensor */
@@ -82,8 +78,6 @@ static sptensor_t * __tt_read_file(
 
   free(line);
 
-  timer_stop(&timer);
-  printf("IO: %0.3fs\n", timer.seconds);
   return tt;
 }
 
@@ -100,7 +94,9 @@ sptensor_t * tt_read_file(
     exit(1);
   }
 
+  timer_start(&timers[TIMER_IO]);
   sptensor_t * tt = __tt_read_file(fin);
+  timer_stop(&timers[TIMER_IO]);
   fclose(fin);
   return tt;
 }
@@ -131,12 +127,14 @@ void tt_write_file(
   sptensor_t const * const tt,
   FILE * fout)
 {
+  timer_start(&timers[TIMER_IO]);
   for(idx_t n=0; n < tt->nnz; ++n) {
     for(idx_t m=0; m < tt->nmodes; ++m) {
       fprintf(fout, SS_IDX " ", tt->ind[m][n]);
     }
     fprintf(fout, SS_VAL "\n", tt->vals[n]);
   }
+  timer_stop(&timers[TIMER_IO]);
 }
 
 void hgraph_write(
@@ -162,6 +160,7 @@ void hgraph_write_file(
   hgraph_t const * const hg,
   FILE * fout)
 {
+  timer_start(&timers[TIMER_IO]);
   /* print header */
   fprintf(fout, "%d %d", hg->nhedges, hg->nvtxs);
   if(hg->vwts != NULL) {
@@ -192,6 +191,7 @@ void hgraph_write_file(
       fprintf(fout, "%d\n", hg->vwts[v]);
     }
   }
+  timer_stop(&timers[TIMER_IO]);
 }
 
 void spmat_write(
@@ -219,6 +219,7 @@ void spmat_write_file(
   spmatrix_t const * const mat,
   FILE * fout)
 {
+  timer_start(&timers[TIMER_IO]);
   /* write CSR matrix */
   for(idx_t i=0; i < mat->I; ++i) {
     for(idx_t j=mat->rowptr[i]; j < mat->rowptr[i+1]; ++j) {
@@ -226,6 +227,7 @@ void spmat_write_file(
     }
     fprintf(fout, "\n");
   }
+  timer_stop(&timers[TIMER_IO]);
 }
 
 void mat_write(
@@ -242,6 +244,7 @@ void mat_write(
     }
   }
 
+  timer_start(&timers[TIMER_IO]);
   idx_t const I = mat->I;
   idx_t const J = mat->J;
   val_t const * const vals = mat->vals;
@@ -251,5 +254,6 @@ void mat_write(
     }
     fprintf(fout, "\n");
   }
+  timer_stop(&timers[TIMER_IO]);
 }
 

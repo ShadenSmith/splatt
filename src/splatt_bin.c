@@ -1,18 +1,19 @@
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include "base.h"
+
 #include <argp.h>
 
 /* SPLATT MODULES */
+#include "timer.h"
 #include "io.h"
 #include "convert.h"
 #include "stats.h"
 #include "bench.h"
 
+/* DATA STRUCTURES */
 #include "sptensor.h"
 #include "matrix.h"
+
 
 /******************************************************************************
  * SPLATT GLOBAL INFO
@@ -307,8 +308,8 @@ typedef enum
 static void (*bench_funcs[ALG_NALGS]) (sptensor_t * const tt,
                                        matrix_t ** mats,
                                        idx_t const niters,
-                                       idx_t const nthreads,
-                                       int const scale)
+                                       idx_t const * const threads,
+                                       idx_t const nruns)
   = {
     [ALG_SPLATT] = bench_splatt,
     [ALG_GIGA]   = bench_giga,
@@ -417,12 +418,34 @@ void splatt_bench(
     mats[m] = mat_rand(tt->dims[m], args.rank);
   }
 
+  /* create an array of nthreads for scaling */
+  idx_t *tsizes;
+  idx_t tcount;
+
+  if(args.scale) {
+    tcount = 1;
+    while((idx_t)(1 << tcount) <= args.nthreads) {
+      ++tcount;
+    }
+    tsizes = (idx_t *) malloc(tcount * sizeof(idx_t));
+
+    for(idx_t t=0; t < tcount; ++t) {
+      tsizes[t] = (idx_t) (1 << t);
+    }
+
+  } else {
+    tcount = 1;
+    tsizes = (idx_t *) malloc(1 * sizeof(idx_t));
+    tsizes[0] = args.nthreads;
+  }
+
   for(int a=0; a < ALG_NALGS; ++a) {
     if(args.which[a]) {
-      bench_funcs[a](tt, mats, args.niters, args.nthreads, args.scale);
+      bench_funcs[a](tt, mats, args.niters, tsizes, tcount);
     }
   }
 
+  //free(tsizes);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mat_free(mats[m]);
   }
@@ -439,11 +462,14 @@ int main(
   char **argv)
 {
   //srand(time(NULL));
+  init_timers();
   srand(1);
   splatt_args args;
   /* parse argv[0:1] */
   int nargs = argc > 1 ? 2 : 1;
   argp_parse(&cmd_argp, nargs, argv, ARGP_IN_ORDER, 0, &args);
+
+  printf("****************************************************************\n");
 
   switch(args.cmd) {
   case CMD_STATS:
@@ -463,6 +489,8 @@ int main(
     break;
   }
 
+  report_times();
+  printf("****************************************************************\n");
   return EXIT_SUCCESS;
 }
 

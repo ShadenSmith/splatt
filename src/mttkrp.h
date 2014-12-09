@@ -8,7 +8,7 @@
 #include "base.h"
 #include "matrix.h"
 #include "ftensor.h"
-
+#include "thd_info.h"
 
 
 /******************************************************************************
@@ -18,7 +18,9 @@
 void mttkrp_splatt(
   ftensor_t const * const ft,
   matrix_t ** mats,
-  idx_t const mode);
+  idx_t const mode,
+  thd_info * const thds,
+  idx_t const nthreads);
 
 void mttkrp_giga(
   spmatrix_t const * const spmat,

@@ -4,6 +4,8 @@
  *****************************************************************************/
 #include "base.h"
 #include "mttkrp.h"
+#include "thd_info.h"
+#include <omp.h>
 
 
 
@@ -14,7 +16,9 @@
 void mttkrp_splatt(
   ftensor_t const * const ft,
   matrix_t ** mats,
-  idx_t const mode)
+  idx_t const mode,
+  thd_info * const thds,
+  idx_t const nthreads)
 {
   matrix_t       * const M = mats[ft->dim_perms[mode][0]];
   matrix_t const * const A = mats[ft->dim_perms[mode][1]];
@@ -34,38 +38,45 @@ void mttkrp_splatt(
   idx_t const * const restrict inds = ft->inds[mode];
   val_t const * const restrict vals = ft->vals[mode];
 
-  val_t * restrict accumF = (val_t *) malloc(rank * sizeof(val_t));
+  #pragma omp parallel
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch;
+    timer_start(&thds[tid].ttime);
 
-  for(idx_t s=0; s < nslices; ++s) {
-    val_t * const restrict mv = mvals + (s * rank);
+    #pragma omp for schedule(dynamic, 16) nowait
+    for(idx_t s=0; s < nslices; ++s) {
+      val_t * const restrict mv = mvals + (s * rank);
 
-    /* foreach fiber in slice */
-    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
-      /* first entry of the fiber is used to initialize accumF */
-      idx_t const jjfirst  = fptr[f];
-      val_t const vfirst   = vals[jjfirst];
-      val_t const * const restrict bv = bvals + (inds[jjfirst] * rank);
-      for(idx_t r=0; r < rank; ++r) {
-        accumF[r] = vfirst * bv[r];
-      }
-
-      /* foreach nnz in fiber */
-      for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
-        val_t const v = vals[jj];
-        val_t const * const restrict bv = bvals + (inds[jj] * rank);
+      /* foreach fiber in slice */
+      for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+        /* first entry of the fiber is used to initialize accumF */
+        idx_t const jjfirst  = fptr[f];
+        val_t const vfirst   = vals[jjfirst];
+        val_t const * const restrict bv = bvals + (inds[jjfirst] * rank);
         for(idx_t r=0; r < rank; ++r) {
-          accumF[r] += v * bv[r];
+          accumF[r] = vfirst * bv[r];
+        }
+
+        /* foreach nnz in fiber */
+        for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
+          val_t const v = vals[jj];
+          val_t const * const restrict bv = bvals + (inds[jj] * rank);
+          for(idx_t r=0; r < rank; ++r) {
+            accumF[r] += v * bv[r];
+          }
+        }
+
+        /* scale inner products by row of A and update to M */
+        val_t const * const restrict av = avals  + (fids[f] * rank);
+        for(idx_t r=0; r < rank; ++r) {
+          mv[r] += accumF[r] * av[r];
         }
       }
-
-      val_t const * const restrict av = avals  + (fids[f] * rank);
-      for(idx_t r=0; r < rank; ++r) {
-        mv[r] += accumF[r] * av[r];
-      }
     }
-  }
 
-  free(accumF);
+    timer_stop(&thds[tid].ttime);
+  } /* end parallel region */
 }
 
 

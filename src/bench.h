@@ -19,21 +19,21 @@ void bench_splatt(
   sptensor_t * const tt,
   matrix_t ** mats,
   idx_t const niters,
-  idx_t const nthreads,
-  int const scale);
+  idx_t const * const threads,
+  idx_t const nruns);
 
 void bench_giga(
   sptensor_t * const tt,
   matrix_t ** mats,
   idx_t const niters,
-  idx_t const nthreads,
-  int const scale);
+  idx_t const * const threads,
+  idx_t const nruns);
 
 void bench_ttbox(
   sptensor_t * const tt,
   matrix_t ** mats,
   idx_t const niters,
-  idx_t const nthreads,
-  int const scale);
+  idx_t const * const threads,
+  idx_t const nruns);
 
 #endif

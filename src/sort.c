@@ -350,8 +350,6 @@ void tt_sort(
   idx_t const mode,
   idx_t * dim_perm)
 {
-  sp_timer_t timer;
-
   idx_t * cmplt;
   if(dim_perm == NULL) {
     cmplt = (idx_t*) malloc(tt->nmodes * sizeof(idx_t));
@@ -363,8 +361,7 @@ void tt_sort(
     cmplt = dim_perm;
   }
 
-  timer_reset(&timer);
-  timer_start(&timer);
+  timer_start(&timers[TIMER_SORT]);
   switch(tt->type) {
   case SPLATT_NMODE:
     __tt_quicksort(tt, cmplt, 0, tt->nnz);
@@ -373,19 +370,18 @@ void tt_sort(
     __tt_quicksort3(tt, cmplt, 0, tt->nnz);
     break;
   }
-  timer_stop(&timer);
-
-  printf("SORT: %0.3fs\n", timer.seconds);
 
   if(dim_perm == NULL) {
     free(cmplt);
   }
+  timer_stop(&timers[TIMER_SORT]);
 }
 
 void insertion_sort(
   idx_t * const a,
   idx_t const n)
 {
+  timer_start(&timers[TIMER_SORT]);
   for(size_t i=1; i < n; ++i) {
     idx_t b = a[i];
     ssize_t j = i;
@@ -395,12 +391,14 @@ void insertion_sort(
     memmove(a+(j+1), a+j, sizeof(idx_t)*(i-j));
     a[j] = b;
   }
+  timer_stop(&timers[TIMER_SORT]);
 }
 
 void quicksort(
   idx_t * const a,
   idx_t const n)
 {
+  timer_start(&timers[TIMER_SORT]);
   if(n < MIN_QUICKSORT_SIZE) {
     insertion_sort(a, n);
   } else {
@@ -440,5 +438,6 @@ void quicksort(
       quicksort(a+i, n-i);
     }
   }
+  timer_stop(&timers[TIMER_SORT]);
 }
 
