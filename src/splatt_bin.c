@@ -445,7 +445,7 @@ void splatt_bench(
     }
   }
 
-  //free(tsizes);
+  free(tsizes);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mat_free(mats[m]);
   }
