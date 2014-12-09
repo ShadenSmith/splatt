@@ -105,6 +105,7 @@ void mttkrp_giga(
 #endif
 
     /* Joined Hadamard products of X, C, and B */
+    #pragma omp parallel for schedule(static, 16)
     for(idx_t i=0; i < I; ++i) {
       for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
         idx_t const a = colind[y] / B->I;
@@ -159,6 +160,7 @@ void mttkrp_ttbox(
 #endif
 
     /* stretch out columns of A and B */
+    #pragma omp parallel for
     for(idx_t x=0; x < nnz; ++x) {
       //scratch[x] = vals[x] * av[indA[x]] * bv[indB[x]];
       scratch[x] = vals[x] * A->vals[r + (rank*indA[x])] * B->vals[r + (rank*indB[x])];
