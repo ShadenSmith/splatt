@@ -28,7 +28,8 @@ static void __tt_remove_dups(
     if(same) {
       tt->vals[n] = (tt->vals[n] + tt->vals[n+1]) / 2;
       for(idx_t m=0; m < tt->nmodes; ++m) {
-        memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]), (tt->nnz-n-1) * sizeof(idx_t) );
+        memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]),
+          (tt->nnz-n-1)*sizeof(idx_t));
       }
       --n;
       tt->nnz -= 1;
@@ -112,12 +113,17 @@ spmatrix_t * tt_unfold(
     }
     mvals[n] = tt->vals[n];
 
-    idx_t col = tt->ind[(mode+1) % tt->nmodes][n];
-    idx_t mult = tt->dims[(mode+1) % tt->nmodes];
-    for(idx_t m=2; m < tt->nmodes; ++m) {
-      col += tt->ind[(mode+m) % tt->nmodes][n] * mult;
-      mult += tt->dims[(mode+m) % tt->nmodes];
+    idx_t col = 0;
+    idx_t mult = 1;
+    for(idx_t m = 0; m < tt->nmodes; ++m) {
+      idx_t const off = tt->nmodes - 1 - m;
+      if(off == mode) {
+        continue;
+      }
+      col += tt->ind[off][n] * mult;
+      mult *= tt->dims[off];
     }
+
     colind[n] = col;
   }
   rowptr[nrows] = tt->nnz;

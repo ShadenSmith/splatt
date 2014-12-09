@@ -210,7 +210,9 @@ void spmat_write(
 
   spmat_write_file(mat, fout);
 
-  fclose(fout);
+  if(fout != stdout) {
+    fclose(fout);
+  }
 }
 
 void spmat_write_file(

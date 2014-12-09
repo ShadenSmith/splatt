@@ -27,9 +27,6 @@ void mttkrp_splatt(
 
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
-  printf("grabbing M: %u x %u\n", M->I, M->J);
-  printf("grabbing A: %u x %u\n", A->I, A->J);
-  printf("grabbing B: %u x %u\n", B->I, B->J);
 
   idx_t const * const restrict sptr = ft->sptr[mode];
   idx_t const * const restrict fptr = ft->fptr[mode];
@@ -82,10 +79,6 @@ void mttkrp_giga(
   matrix_t const * const A = mode == 0 ? mats[1] : mats[0];
   matrix_t const * const B = mode == 2 ? mats[1] : mats[2];
 
-  printf("grabbing M: %u x %u\n", M->I, M->J);
-  printf("grabbing A: %u x %u\n", A->I, A->J);
-  printf("grabbing B: %u x %u\n", B->I, B->J);
-
   idx_t const I = M->I;
   idx_t const rank = M->J;
 
@@ -105,7 +98,6 @@ void mttkrp_giga(
       for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
         idx_t const a = colind[y] / B->I;
         idx_t const b = colind[y] % B->I;
-        printf("a: %u b: %u\n", a, b);
         //scratch[y] = vals[y] * av[a] * bv[b];
         scratch[y] = vals[y] * A->vals[r + (a*rank)] * B->vals[r + (b*rank)];
       }
@@ -137,11 +129,6 @@ void mttkrp_ttbox(
 
   memset(M->vals, 0, M->I * M->J * sizeof(val_t));
 
-  printf("grabbing M: %u x %u\n", M->I, M->J);
-  printf("grabbing A: %u x %u\n", A->I, A->J);
-  printf("grabbing B: %u x %u\n", B->I, B->J);
-
-
   val_t * const restrict m1vals = M->vals;
 
   idx_t const nnz = tt->nnz;
@@ -164,7 +151,6 @@ void mttkrp_ttbox(
     for(idx_t x=0; x < nnz; ++x) {
       //scratch[x] = vals[x] * av[indA[x]] * bv[indB[x]];
       scratch[x] = vals[x] * A->vals[r + (rank*indA[x])] * B->vals[r + (rank*indB[x])];
-      printf("a: %u b: %u\n", indA[x], indB[x]);
     }
 
     /* now accumulate into m1 */

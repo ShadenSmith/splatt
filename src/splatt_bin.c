@@ -9,10 +9,9 @@
 #include "io.h"
 #include "convert.h"
 #include "stats.h"
-#include "mttkrp.h"
+#include "bench.h"
 
 #include "sptensor.h"
-#include "ftensor.h"
 #include "matrix.h"
 
 /******************************************************************************
@@ -304,6 +303,18 @@ typedef enum
   ALG_NALGS
 } splatt_algs;
 
+
+static void (*bench_funcs[ALG_NALGS]) (sptensor_t * const tt,
+                                       matrix_t ** mats,
+                                       idx_t const niters,
+                                       idx_t const nthreads,
+                                       int const scale)
+  = {
+    [ALG_SPLATT] = bench_splatt,
+    [ALG_GIGA]   = bench_giga,
+    [ALG_TTBOX]  = bench_ttbox
+  };
+
 typedef struct
 {
   char * ifname;
@@ -378,6 +389,7 @@ static error_t parse_bench_opt(
 static struct argp bench_argp =
   {bench_options, parse_bench_opt, bench_args_doc, bench_doc};
 
+
 void splatt_bench(
   int argc,
   char ** argv)
@@ -400,55 +412,15 @@ void splatt_bench(
   }
 
   sptensor_t * tt = tt_read(args.ifname);
-
-  val_t * scratch;
-
   matrix_t * mats[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mats[m] = mat_rand(tt->dims[m], args.rank);
   }
-  mat_write(mats[0], NULL);
 
-  /* for each of the selected algs */
   for(int a=0; a < ALG_NALGS; ++a) {
-    if(args.which[a] == 0) {
-      continue;
+    if(args.which[a]) {
+      bench_funcs[a](tt, mats, args.niters, args.nthreads, args.scale);
     }
-
-    switch(a) {
-    case ALG_SPLATT:
-      printf("splatt!\n");
-      ftensor_t * ft = ften_alloc(tt);
-      mttkrp_splatt(ft, mats, 0);
-      ften_free(ft);
-      break;
-
-
-    case ALG_GIGA:
-      scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
-      printf("gigatensor!\n");
-      spmatrix_t * uf = tt_unfold(tt, 0);
-      spmat_write(uf, NULL);
-
-      mttkrp_giga(uf, mats, 0, scratch);
-
-
-      spmat_free(uf);
-      free(scratch);
-      break;
-    case ALG_TTBOX:
-      printf("ttbox\n");
-      scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
-      mttkrp_ttbox(tt, mats, 0, scratch);
-
-      free(scratch);
-      break;
-    default:
-      printf("whoops\n");
-      break;
-    }
-
-    mat_write(mats[0], NULL);
   }
 
   for(idx_t m=0; m < tt->nmodes; ++m) {
