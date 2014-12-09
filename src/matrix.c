@@ -46,6 +46,27 @@ void mat_free(
   free(mat);
 }
 
+
+matrix_t * mat_mkcol(
+  matrix_t const * const mat)
+{
+  idx_t const I = mat->I;
+  idx_t const J = mat->J;
+
+  matrix_t * col = mat_alloc(I, J);
+  val_t       * const restrict colv = col->vals;
+  val_t const * const restrict rowv = mat->vals;
+
+  for(idx_t i=0; i < I; ++i) {
+    for(idx_t j=0; j < J; ++j) {
+      colv[i + (j*I)] = rowv[j + (i*J)];
+    }
+  }
+
+  return col;
+}
+
+
 spmatrix_t * spmat_alloc(
   idx_t const nrows,
   idx_t const ncols,

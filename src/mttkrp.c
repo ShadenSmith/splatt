@@ -98,11 +98,9 @@ void mttkrp_giga(
   val_t const * const restrict vals   = spmat->vals;
 
   for(idx_t r=0; r < rank; ++r) {
-#if 0
     val_t       * const restrict mv =  M->vals + (r * M->I);
     val_t const * const restrict av =  A->vals + (r * A->I);
     val_t const * const restrict bv =  B->vals + (r * B->I);
-#endif
 
     /* Joined Hadamard products of X, C, and B */
     #pragma omp parallel for schedule(static, 16)
@@ -110,8 +108,7 @@ void mttkrp_giga(
       for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
         idx_t const a = colind[y] / B->I;
         idx_t const b = colind[y] % B->I;
-        //scratch[y] = vals[y] * av[a] * bv[b];
-        scratch[y] = vals[y] * A->vals[r + (a*rank)] * B->vals[r + (b*rank)];
+        scratch[y] = vals[y] * av[a] * bv[b];
       }
     }
 
@@ -121,8 +118,7 @@ void mttkrp_giga(
       for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
         sum += scratch[y];
       }
-      //mv[i] = sum;
-      M->vals[r + (i*rank)] = sum;
+      mv[i] = sum;
     }
   }
 }

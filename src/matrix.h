@@ -50,4 +50,7 @@ spmatrix_t * spmat_alloc(
 void spmat_free(
   spmatrix_t * mat);
 
+matrix_t * mat_mkcol(
+  matrix_t const * const mat);
+
 #endif

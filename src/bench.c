@@ -65,8 +65,6 @@ void bench_splatt(
   }
   timer_stop(&timers[TIMER_SPLATT]);
 
-  //mat_write(mats[0], NULL);
-
   thd_free(thds, threads[nruns-1]);
   ften_free(ft);
 }
@@ -83,10 +81,13 @@ void bench_giga(
   thd_info * thds = thd_init(threads[nruns-1], 0);
   val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
 
+  matrix_t * colmats[MAX_NMODES];
+
   printf("** GigaTensor **\n");
   spmatrix_t * unfolds[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     unfolds[m] = tt_unfold(tt, m);
+    colmats[m] = mat_mkcol(mats[m]);
   }
 
   timer_start(&timers[TIMER_GIGA]);
@@ -101,7 +102,7 @@ void bench_giga(
       timer_fstart(&itertime);
       for(idx_t m=0; m < tt->nmodes; ++m) {
         timer_fstart(&modetime);
-        mttkrp_giga(unfolds[m], mats, m, scratch);
+        mttkrp_giga(unfolds[m], colmats, m, scratch);
         timer_stop(&modetime);
         printf("  mode %u %0.3fs\n", m+1, modetime.seconds);
       }
@@ -121,6 +122,7 @@ void bench_giga(
   thd_free(thds, threads[nruns-1]);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     spmat_free(unfolds[m]);
+    mat_free(colmats[m]);
   }
   free(scratch);
 }
@@ -135,6 +137,11 @@ void bench_ttbox(
 {
   sp_timer_t itertime;
   sp_timer_t modetime;
+
+  matrix_t * colmats[MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    colmats[m] = mat_mkcol(mats[m]);
+  }
 
   thd_info * thds = thd_init(threads[nruns-1], 0);
 
@@ -153,7 +160,7 @@ void bench_ttbox(
       timer_fstart(&itertime);
       for(idx_t m=0; m < tt->nmodes; ++m) {
         timer_fstart(&modetime);
-        mttkrp_ttbox(tt, mats, m, scratch);
+        mttkrp_ttbox(tt, colmats, m, scratch);
         timer_stop(&modetime);
         printf("  mode %u %0.3fs\n", m+1, modetime.seconds);
       }
@@ -173,6 +180,9 @@ void bench_ttbox(
 
   thd_free(thds, threads[nruns-1]);
   free(scratch);
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    mat_free(colmats[m]);
+  }
 }
 
 
