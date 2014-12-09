@@ -189,7 +189,9 @@ void splatt_stats(
   args.mode = 0;
   argp_parse(&stats_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
-  tt_stats(args.ifname, args.type, args.mode, args.pfname);
+  sptensor_t * tt = tt_read(args.ifname);
+  stats_tt(tt, args.ifname, args.type, args.mode, args.pfname);
+  tt_free(tt);
 }
 
 
@@ -413,6 +415,10 @@ void splatt_bench(
   }
 
   sptensor_t * tt = tt_read(args.ifname);
+  stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+
+  printf("Benchmarking ---------------------------------------------------\n");
+
   matrix_t * mats[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mats[m] = mat_rand(tt->dims[m], args.rank);
@@ -470,6 +476,7 @@ int main(
   argp_parse(&cmd_argp, nargs, argv, ARGP_IN_ORDER, 0, &args);
 
   printf("****************************************************************\n");
+  printf("splatt built from %s\n\n", VERSION_STR);
 
   switch(args.cmd) {
   case CMD_STATS:

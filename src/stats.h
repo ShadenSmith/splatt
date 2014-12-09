@@ -5,6 +5,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "base.h"
+#include "sptensor.h"
 
 
 
@@ -24,7 +25,9 @@ typedef enum
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-void tt_stats(
+
+void stats_tt(
+  sptensor_t const * const tt,
   char const * const ifname,
   splatt_stats_type const type,
   idx_t const mode,

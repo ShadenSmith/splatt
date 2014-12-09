@@ -33,7 +33,7 @@ void bench_splatt(
 
   ftensor_t * ft = ften_alloc(tt);
   timer_start(&timers[TIMER_SPLATT]);
-  printf("SPLATT ---------------------------------------------------------\n");
+  printf("** SPLATT **\n");
 
   /* for each # threads */
   for(idx_t t=0; t < nruns; ++t) {
@@ -78,7 +78,7 @@ void bench_giga(
   idx_t const * const threads,
   idx_t const nruns)
 {
-  printf("bench giga!\n");
+  printf("** GigaTensor **\n");
   val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
   spmatrix_t * unfolds[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -106,7 +106,7 @@ void bench_ttbox(
   idx_t const * const threads,
   idx_t const nruns)
 {
-  printf("bench ttbox!\n");
+  printf("** TTBOX **\n");
   val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
 
   timer_start(&timers[TIMER_TTBOX]);

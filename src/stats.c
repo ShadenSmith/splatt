@@ -24,20 +24,18 @@ static double __tt_density(
 }
 
 static void __stats_basic(
+  sptensor_t const * const tt,
   char const * const ifname)
 {
-  sptensor_t * tt = tt_read(ifname);
-
+  printf("Tensor information ---------------------------------------------\n");
   printf("FILE=%s\n", ifname);
   printf("DIMS="SS_IDX, tt->dims[0]);
   for(idx_t m=1; m < tt->nmodes; ++m) {
     printf("x" SS_IDX, tt->dims[m]);
   }
   printf(" NNZ=" SS_IDX, tt->nnz);
-  printf(" DENSITY= %e" , __tt_density(tt));
-  printf("\n");
-
-  tt_free(tt);
+  printf(" DENSITY=%e" , __tt_density(tt));
+  printf("\n\n");
 }
 
 static void __stats_hparts(
@@ -136,7 +134,8 @@ static void __stats_hparts(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-void tt_stats(
+void stats_tt(
+  sptensor_t const * const tt,
   char const * const ifname,
   splatt_stats_type const type,
   idx_t const mode,
@@ -144,7 +143,7 @@ void tt_stats(
 {
   switch(type) {
   case STATS_BASIC:
-    __stats_basic(ifname);
+    __stats_basic(tt, ifname);
     break;
   case STATS_HPARTS:
     __stats_hparts(ifname, mode, pfile);
@@ -154,4 +153,7 @@ void tt_stats(
     exit(1);
   }
 }
+
+
+
 
