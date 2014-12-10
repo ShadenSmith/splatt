@@ -20,10 +20,10 @@ void mttkrp_splatt(
   thd_info * const thds,
   idx_t const nthreads)
 {
-  matrix_t       * const M = mats[ft->dim_perms[mode][0]];
+  matrix_t       * const M = mats[MAX_NMODES];
   matrix_t const * const A = mats[ft->dim_perms[mode][1]];
   matrix_t const * const B = mats[ft->dim_perms[mode][2]];
-  idx_t const nslices = M->I;
+  idx_t const nslices = ft->dims[mode];
   idx_t const rank = M->J;
 
   val_t * const mvals = M->vals;
@@ -86,11 +86,11 @@ void mttkrp_giga(
   idx_t const mode,
   val_t * const scratch)
 {
-  matrix_t       * const M = mats[mode];
+  matrix_t       * const M = mats[MAX_NMODES];
   matrix_t const * const A = mode == 0 ? mats[1] : mats[0];
   matrix_t const * const B = mode == 2 ? mats[1] : mats[2];
 
-  idx_t const I = M->I;
+  idx_t const I = spmat->I;
   idx_t const rank = M->J;
 
   idx_t const * const restrict rowptr = spmat->rowptr;
@@ -98,12 +98,12 @@ void mttkrp_giga(
   val_t const * const restrict vals   = spmat->vals;
 
   for(idx_t r=0; r < rank; ++r) {
-    val_t       * const restrict mv =  M->vals + (r * M->I);
+    val_t       * const restrict mv =  M->vals + (r * I);
     val_t const * const restrict av =  A->vals + (r * A->I);
     val_t const * const restrict bv =  B->vals + (r * B->I);
 
     /* Joined Hadamard products of X, C, and B */
-    #pragma omp parallel for schedule(static, 16)
+    #pragma omp parallel for schedule(dynamic, 16)
     for(idx_t i=0; i < I; ++i) {
       for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
         idx_t const a = colind[y] / B->I;
@@ -130,12 +130,14 @@ void mttkrp_ttbox(
   idx_t const mode,
   val_t * const scratch)
 {
-  matrix_t       * const M = mats[mode];
+  matrix_t       * const M = mats[MAX_NMODES];
   matrix_t const * const A = mode == 0 ? mats[1] : mats[0];
   matrix_t const * const B = mode == 2 ? mats[1] : mats[2];
+
+  idx_t const I = tt->dims[mode];
   idx_t const rank = M->J;
 
-  memset(M->vals, 0, M->I * M->J * sizeof(val_t));
+  memset(M->vals, 0, I * rank * sizeof(val_t));
 
   val_t * const restrict m1vals = M->vals;
 
@@ -149,23 +151,21 @@ void mttkrp_ttbox(
   val_t const * const restrict vals = tt->vals;
 
   for(idx_t r=0; r < rank; ++r) {
-#if 0
-    val_t       * const restrict mv =  M->vals + (r * M->I);
+    val_t       * const restrict mv =  M->vals + (r * I);
     val_t const * const restrict av =  A->vals + (r * A->I);
     val_t const * const restrict bv =  B->vals + (r * B->I);
-#endif
 
     /* stretch out columns of A and B */
     #pragma omp parallel for
     for(idx_t x=0; x < nnz; ++x) {
-      //scratch[x] = vals[x] * av[indA[x]] * bv[indB[x]];
-      scratch[x] = vals[x] * A->vals[r + (rank*indA[x])] * B->vals[r + (rank*indB[x])];
+      scratch[x] = vals[x] * av[indA[x]] * bv[indB[x]];
+      //scratch[x] = vals[x] * A->vals[r + (rank*indA[x])] * B->vals[r + (rank*indB[x])];
     }
 
     /* now accumulate into m1 */
     for(idx_t x=0; x < nnz; ++x) {
-      //mv[indM[x]] += scratch[x];
-      M->vals[r + (rank * indM[x])] += scratch[x];
+      mv[indM[x]] += scratch[x];
+      //M->vals[r + (rank * indM[x])] += scratch[x];
     }
   }
 }

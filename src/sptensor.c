@@ -105,7 +105,10 @@ spmatrix_t * tt_unfold(
   val_t * const mvals  = mat->vals;
 
   idx_t row = 0;
-  rowptr[row++] = 0;
+  rowptr[row] = 0;
+  while(tt->ind[mode][0] != 0) {
+    rowptr[row++] = 0;
+  }
   for(idx_t n=0; n < tt->nnz; ++n) {
     /* increment row and account for possibly empty ones */
     while(tt->ind[mode][n] != row-1) {

@@ -104,6 +104,17 @@ static error_t parse_cmd(
 }
 static struct argp cmd_argp = { 0, parse_cmd, cmd_args_doc, cmd_doc };
 
+static void print_header()
+{
+  printf("****************************************************************\n");
+  printf("splatt built from %s\n\n", VERSION_STR);
+}
+
+static void print_footer()
+{
+  report_times();
+  printf("****************************************************************\n");
+}
 
 /******************************************************************************
  * SPLATT STATS
@@ -188,6 +199,8 @@ void splatt_stats(
   args.type = STATS_BASIC;
   args.mode = 0;
   argp_parse(&stats_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+
+  print_header();
 
   sptensor_t * tt = tt_read(args.ifname);
   stats_tt(tt, args.ifname, args.type, args.mode, args.pfname);
@@ -278,6 +291,8 @@ void splatt_convert(
   args.mode = 0;
   args.type= CNV_ERROR;
   argp_parse(&convert_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+
+  print_header();
 
   tt_convert(args.ifname, args.ofname, args.mode, args.type);
 }
@@ -414,15 +429,23 @@ void splatt_bench(
     exit(EXIT_FAILURE);
   }
 
+  print_header();
+
   sptensor_t * tt = tt_read(args.ifname);
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
   printf("Benchmarking ---------------------------------------------------\n");
 
-  matrix_t * mats[MAX_NMODES];
+  /* M, the result matrix is stored at mats[MAX_NMODES] */
+  idx_t max_dim = 0;
+  matrix_t * mats[MAX_NMODES+1];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mats[m] = mat_rand(tt->dims[m], args.rank);
+    if(tt->dims[m] > max_dim) {
+      max_dim = tt->dims[m];
+    }
   }
+  mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
   /* create an array of nthreads for scaling */
   idx_t *tsizes;
@@ -455,6 +478,7 @@ void splatt_bench(
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mat_free(mats[m]);
   }
+  mat_free(mats[MAX_NMODES]);
   tt_free(tt);
 }
 
@@ -475,9 +499,6 @@ int main(
   int nargs = argc > 1 ? 2 : 1;
   argp_parse(&cmd_argp, nargs, argv, ARGP_IN_ORDER, 0, &args);
 
-  printf("****************************************************************\n");
-  printf("splatt built from %s\n\n", VERSION_STR);
-
   switch(args.cmd) {
   case CMD_STATS:
     splatt_stats(argc-1, argv+1);
@@ -496,8 +517,8 @@ int main(
     break;
   }
 
-  report_times();
-  printf("****************************************************************\n");
+  print_footer();
+
   return EXIT_SUCCESS;
 }
 

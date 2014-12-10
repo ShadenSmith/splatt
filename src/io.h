@@ -19,6 +19,9 @@ sptensor_t * tt_read_file(
 void mat_write(
   matrix_t const * const mat,
   char const * const fname);
+void colmat_write(
+  matrix_t const * const mat,
+  char const * const fname);
 
 void tt_write_file(
   sptensor_t const * const tt,

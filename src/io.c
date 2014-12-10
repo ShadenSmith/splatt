@@ -257,3 +257,30 @@ void mat_write(
   timer_stop(&timers[TIMER_IO]);
 }
 
+void colmat_write(
+  matrix_t const * const mat,
+  char const * const fname)
+{
+  FILE * fout;
+  if(fname == NULL) {
+    fout = stdout;
+  } else {
+    if((fout = fopen(fname,"w")) == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+      exit(1);
+    }
+  }
+
+  timer_start(&timers[TIMER_IO]);
+  idx_t const I = mat->I;
+  idx_t const J = mat->J;
+  val_t const * const vals = mat->vals;
+  for(idx_t i=0; i < mat->I; ++i) {
+    for(idx_t j=0; j < J; ++j) {
+      fprintf(fout, SS_VAL " ", vals[i + (j*I)]);
+    }
+    fprintf(fout, "\n");
+  }
+  timer_stop(&timers[TIMER_IO]);
+}
+

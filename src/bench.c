@@ -51,6 +51,9 @@ void bench_splatt(
         mttkrp_splatt(ft, mats, m, thds, nthreads);
         timer_stop(&modetime);
         printf("  mode %u %0.3fs\n", m+1, modetime.seconds);
+        mats[MAX_NMODES]->I = ft->dims[m];
+        //if(m == 1)
+          mat_write(mats[MAX_NMODES], "splatt_out");
       }
       timer_stop(&itertime);
       printf("    its = %3u (%0.3fs)\n", i+1, itertime.seconds);
@@ -69,6 +72,7 @@ void bench_splatt(
   ften_free(ft);
 }
 
+
 void bench_giga(
   sptensor_t * const tt,
   matrix_t ** mats,
@@ -81,7 +85,7 @@ void bench_giga(
   thd_info * thds = thd_init(threads[nruns-1], 0);
   val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
 
-  matrix_t * colmats[MAX_NMODES];
+  matrix_t * colmats[MAX_NMODES+1];
 
   printf("** GigaTensor **\n");
   spmatrix_t * unfolds[MAX_NMODES];
@@ -89,6 +93,7 @@ void bench_giga(
     unfolds[m] = tt_unfold(tt, m);
     colmats[m] = mat_mkcol(mats[m]);
   }
+  colmats[MAX_NMODES] = mats[MAX_NMODES];
 
   timer_start(&timers[TIMER_GIGA]);
   for(idx_t t=0; t < nruns; ++t) {
@@ -105,6 +110,9 @@ void bench_giga(
         mttkrp_giga(unfolds[m], colmats, m, scratch);
         timer_stop(&modetime);
         printf("  mode %u %0.3fs\n", m+1, modetime.seconds);
+        colmats[MAX_NMODES]->I = tt->dims[m];
+        //if(m == 1)
+          colmat_write(colmats[MAX_NMODES], "giga_out");
       }
       timer_stop(&itertime);
       printf("    its = %3u (%0.3fs)\n", i+1, itertime.seconds);
@@ -138,10 +146,11 @@ void bench_ttbox(
   sp_timer_t itertime;
   sp_timer_t modetime;
 
-  matrix_t * colmats[MAX_NMODES];
+  matrix_t * colmats[MAX_NMODES+1];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     colmats[m] = mat_mkcol(mats[m]);
   }
+  colmats[MAX_NMODES] = mats[MAX_NMODES];
 
   thd_info * thds = thd_init(threads[nruns-1], 0);
 
@@ -163,6 +172,9 @@ void bench_ttbox(
         mttkrp_ttbox(tt, colmats, m, scratch);
         timer_stop(&modetime);
         printf("  mode %u %0.3fs\n", m+1, modetime.seconds);
+        colmats[MAX_NMODES]->I = tt->dims[m];
+        //if(m == 1)
+          colmat_write(colmats[MAX_NMODES], "ttbox_out");
       }
       timer_stop(&itertime);
       printf("    its = %3u (%0.3fs)\n", i+1, itertime.seconds);

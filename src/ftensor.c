@@ -9,6 +9,7 @@
 #include "matrix.h"
 #include "ftensor.h"
 
+
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
@@ -37,7 +38,7 @@ static void __create_fptr(
   }
 
   idx_t nfibs = 1;
-  ft->inds[mode][0] = tt->ind[fmode][0];
+  ft->inds[mode][0] = ttinds[2][0];
   ft->vals[mode][0] = tt->vals[0];
 
   /* count fibers in tt */
@@ -49,7 +50,7 @@ static void __create_fptr(
         break;
       }
     }
-    ft->inds[mode][n] = tt->ind[fmode][n];
+    ft->inds[mode][n] = ttinds[2][n];
     ft->vals[mode][n] = tt->vals[n];
   }
 
@@ -60,12 +61,16 @@ static void __create_fptr(
   ft->fids[mode] = (idx_t *) malloc(nfibs * sizeof(idx_t));
 
   /* now fill structure */
-  ft->sptr[mode][0] = 0;
+  idx_t slice = 0;
+  ft->sptr[mode][slice] = 0;
   ft->sptr[mode][ft->dims[mode]] = nfibs;
+  while(slice != ttinds[0][0]+1) {
+    ft->sptr[mode][slice++] = 0;
+  }
+
   ft->fptr[mode][0] = 0;
   ft->fptr[mode][nfibs] = nnz;
-  ft->fids[mode][0] = ttinds[1][1];
-  idx_t slice = 1;
+  ft->fids[mode][0] = ttinds[1][0];
   idx_t fib = 1;
   for(idx_t n=1; n < nnz; ++n) {
     int newfib = 0;
@@ -87,6 +92,7 @@ static void __create_fptr(
     }
   }
 }
+
 
 static void __order_modes(
   ftensor_t * const ft,
@@ -138,14 +144,12 @@ ftensor_t * ften_alloc(
     ft->vals[m] = (val_t *) malloc(ft->nnz * sizeof(val_t));
 
     tt_sort(tt, m, ft->dim_perms[m]);
-    if(m == 0) {
-      //tt_write(tt, NULL);
-    }
     __create_fptr(ft, tt, m);
   }
 
   return ft;
 }
+
 
 spmatrix_t * ften_spmat(
   ftensor_t * ft,
