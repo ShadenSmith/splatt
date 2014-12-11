@@ -104,13 +104,15 @@ static error_t parse_cmd(
 }
 static struct argp cmd_argp = { 0, parse_cmd, cmd_args_doc, cmd_doc };
 
-static void print_header()
+
+static inline void print_header(void)
 {
   printf("****************************************************************\n");
   printf("splatt built from %s\n\n", VERSION_STR);
 }
 
-static void print_footer()
+
+static inline void print_footer(void)
 {
   report_times();
   printf("****************************************************************\n");
@@ -490,12 +492,14 @@ void splatt_bench(
 /******************************************************************************
  * SPLATT MAIN
  *****************************************************************************/
+
 int main(
   int argc,
   char **argv)
 {
   //srand(time(NULL));
   init_timers();
+  timer_start(&timers[TIMER_ALL]);
   srand(1);
   splatt_args args;
   /* parse argv[0:1] */
@@ -520,6 +524,7 @@ int main(
     break;
   }
 
+  timer_stop(&timers[TIMER_ALL]);
   print_footer();
 
   return EXIT_SUCCESS;
