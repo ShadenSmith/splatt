@@ -284,3 +284,25 @@ void colmat_write(
   timer_stop(&timers[TIMER_IO]);
 }
 
+idx_t * idx_read(
+  char const * const ifname,
+  idx_t const nelems)
+{
+  FILE * pfile;
+  if((pfile = fopen(ifname, "r")) == NULL) {
+    fprintf(stderr, "SPLATT ERROR: unable to open '%s'\n", ifname);
+    exit(1);
+  }
+
+  idx_t ret;
+  idx_t * arr = (idx_t *) malloc(nelems * sizeof(idx_t));
+  for(idx_t i=0; i < nelems; ++i) {
+    if((ret = fscanf(pfile, SS_IDX, &(arr[i]))) == 0) {
+      fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n", ifname);
+      exit(1);
+    }
+  }
+  fclose(pfile);
+
+  return arr;
+}

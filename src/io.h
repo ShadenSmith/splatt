@@ -16,6 +16,10 @@
 sptensor_t * tt_read_file(
   char const * const fname);
 
+idx_t * idx_read(
+  char const * const ifname,
+  idx_t const nelems);
+
 void mat_write(
   matrix_t const * const mat,
   char const * const fname);
