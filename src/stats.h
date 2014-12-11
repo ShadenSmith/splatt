@@ -27,7 +27,7 @@ typedef enum
  *****************************************************************************/
 
 void stats_tt(
-  sptensor_t const * const tt,
+  sptensor_t * const tt,
   char const * const ifname,
   splatt_stats_type const type,
   idx_t const mode,

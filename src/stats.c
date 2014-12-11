@@ -38,8 +38,9 @@ static void __stats_basic(
   printf("\n\n");
 }
 
+
 static void __stats_hparts(
-  char const * const ifname,
+  sptensor_t * const tt,
   idx_t const mode,
   char const * const pfname)
 {
@@ -55,9 +56,7 @@ static void __stats_hparts(
     exit(1);
   }
 
-  sptensor_t * tt = tt_read(ifname);
   ftensor_t * ft = ften_alloc(tt);
-  tt_free(tt);
 
   /* read partition info */
   idx_t const nvtxs = ft->nfibs[mode];
@@ -97,45 +96,77 @@ static void __stats_hparts(
   }
   psizes[nparts] = nvtxs;
 
-  idx_t const max_unique = ft->dims[ft->dim_perms[mode][2]];
-  idx_t * unique = (idx_t *) malloc(max_unique * sizeof(idx_t));
+  /* get stats on partition sizes */
+  idx_t minp = tt->nnz;
+  idx_t maxp = 0;
 
-  printf("nnz: " SS_IDX " unique: " SS_IDX " ratio: " SS_VAL "\n",
-    ft->nnz, max_unique, ((val_t)ft->nnz / (val_t)max_unique));
+  idx_t * unique[MAX_NMODES];
+  idx_t nunique[MAX_NMODES];
+  for(idx_t m=0; m < ft->nmodes; ++m) {
+    unique[m] = (idx_t *) malloc(ft->dims[ft->dim_perms[mode][m]]
+      * sizeof(idx_t));
+  }
 
-  /* now get per-partition stats */
+  /* now lets track unique ind info for each partition */
   for(idx_t p=0; p < nparts; ++p) {
-    memset(unique, 0, max_unique * sizeof(idx_t));
+    for(idx_t m=0; m < ft->nmodes; ++m) {
+      memset(unique[m], 0, ft->dims[ft->dim_perms[mode][m]] * sizeof(idx_t));
+      nunique[m] = 0;
+    }
+
     idx_t nnz = 0;
-    idx_t nunique = 0;
     for(idx_t f=psizes[p]; f < psizes[p+1]; ++f) {
       nnz += ft->fptr[mode][f+1] - ft->fptr[mode][f];
+      /* mark unique fids */
+      if(unique[1][ft->fids[mode][f]] == 0) {
+        ++nunique[1];
+        unique[1][ft->fids[mode][f]] = 1;
+      }
 
-      for(idx_t jj=ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
-        idx_t const ind = ft->inds[mode][jj];
-        if(unique[ind] == 0) {
-          ++nunique;
-          unique[ind] = 1;
+      for(idx_t j=ft->fptr[mode][f]; j < ft->fptr[mode][f+1]; ++j) {
+        idx_t const jind = ft->inds[mode][j];
+        /* mark unique inds */
+        if(unique[2][jind] == 0) {
+          ++nunique[2];
+          unique[2][jind] = 1;
         }
       }
     }
-    printf("nnz: " SS_IDX " unique: " SS_IDX " ratio: " SS_VAL "\n",
-      nnz, nunique, ((val_t)nnz / (val_t)nunique));
+
+    printf("nnz: %5lu (%2.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
+    printf("I: %5lu (%2.1f%%)  ", nunique[0],
+      100. * (val_t)nunique[0] / (val_t) ft->dims[mode]);
+    printf("J: %5lu (%2.1f%%)  ", nunique[1],
+      100. * (val_t)nunique[1] / (val_t) ft->dims[ft->dim_perms[mode][1]]);
+    printf("K: %5lu (%2.1f%%)\n", nunique[2],
+      100. * (val_t)nunique[2] / (val_t) ft->dims[ft->dim_perms[mode][2]]);
+
+    if(nnz < minp) {
+      minp = nnz;
+    }
+    if(nnz > maxp) {
+      maxp = nnz;
+    }
   }
 
-  free(unique);
+  printf("Partition information ------------------------------------------\n");
+  printf("NPARTS=" SS_IDX " LIGHTEST=" SS_IDX " HEAVIEST=" SS_IDX " AVG=%0.1f\n",
+    nparts, minp, maxp, (val_t)(ft->nnz) / (val_t) nparts);
+
+
+  for(idx_t m=0; m < ft->nmodes; ++m) {
+    free(unique[m]);
+  }
+  free(parts);
   free(plookup);
   free(psizes);
-  free(parts);
-  ften_free(ft);
 }
-
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void stats_tt(
-  sptensor_t const * const tt,
+  sptensor_t * const tt,
   char const * const ifname,
   splatt_stats_type const type,
   idx_t const mode,
@@ -146,7 +177,7 @@ void stats_tt(
     __stats_basic(tt, ifname);
     break;
   case STATS_HPARTS:
-    __stats_hparts(ifname, mode, pfile);
+    __stats_hparts(tt, mode, pfile);
     break;
   default:
     fprintf(stderr, "SPLATT ERROR: analysis type not implemented\n");
