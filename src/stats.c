@@ -44,15 +44,8 @@ static void __stats_hparts(
   idx_t const mode,
   char const * const pfname)
 {
-  FILE * pfile;
-  idx_t * parts;
-  idx_t nparts;
   if(pfname == NULL) {
     fprintf(stderr, "SPLATT ERROR: analysis type requires partition file\n");
-    exit(1);
-  }
-  if((pfile = fopen(pfname, "r")) == NULL) {
-    fprintf(stderr, "SPLATT ERROR: unable to open '%s'\n", pfname);
     exit(1);
   }
 
@@ -60,45 +53,62 @@ static void __stats_hparts(
 
   /* read partition info */
   idx_t const nvtxs = ft->nfibs[mode];
-  parts = (idx_t *) malloc(nvtxs * sizeof(idx_t));
-  idx_t ret;
-  nparts = 1;
+  idx_t * parts = idx_read(pfname, nvtxs);
+  idx_t nparts = 1;
   for(idx_t v=0; v < nvtxs; ++v) {
-    if((ret = fscanf(pfile, SS_IDX, &(parts[v]))) == 0) {
-      fprintf(stderr, "SPLATT ERROR: not enough vertices in file\n");
-      exit(1);
-    }
     if(parts[v] + 1 > nparts) {
       nparts = parts[v] + 1;
     }
   }
-  fclose(pfile);
 
-  idx_t * psizes = (idx_t *) malloc((nparts+1) * sizeof(idx_t));
-  memset(psizes, 0, (nparts+1) * sizeof(idx_t));
+  /* pptr marks the size of each partition (in vtxs, not nnz) */
+  idx_t * pptr = (idx_t *) calloc(nparts+1, sizeof(idx_t));
   for(idx_t v=0; v < nvtxs; ++v) {
-    psizes[1+parts[v]]++;
+    pptr[1+parts[v]]++;
   }
 
-  /* prefix sum of psizes */
-  idx_t saved = psizes[1];
-  psizes[1] = 0;
-  for(idx_t p=2; p < nparts; ++p) {
-    idx_t tmp = psizes[p];
-    psizes[p] = psizes[p-1] + saved;
+  /* prefix sum of pptr */
+  idx_t saved = pptr[1];
+  pptr[1] = 0;
+  for(idx_t p=2; p <= nparts; ++p) {
+    idx_t tmp = pptr[p];
+    pptr[p] = pptr[p-1] + saved;
     saved = tmp;
   }
 
   idx_t * plookup = (idx_t *) malloc(nvtxs * sizeof(idx_t));
   for(idx_t f=0; f < nvtxs; ++f) {
-    idx_t const index = psizes[1+parts[f]]++;
+    idx_t const index = pptr[1+parts[f]]++;
     plookup[index] = f;
   }
-  psizes[nparts] = nvtxs;
 
   /* get stats on partition sizes */
   idx_t minp = tt->nnz;
   idx_t maxp = 0;
+  for(idx_t p=0; p < nparts; ++p) {
+    idx_t nnz = 0;
+    for(idx_t f=pptr[p]; f < pptr[p+1]; ++f) {
+      idx_t const findex = plookup[f];
+      nnz += ft->fptr[mode][findex+1] - ft->fptr[mode][findex];
+    }
+    if(nnz < minp) {
+      minp = nnz;
+    }
+    if(nnz > maxp) {
+      maxp = nnz;
+    }
+  }
+
+  idx_t nhedges = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    nhedges += tt->dims[m];
+  }
+
+  printf("Partition information ------------------------------------------\n");
+  printf("FILE=%s\n", pfname);
+  printf("NVTXS="SS_IDX" NHEDGES="SS_IDX"\n", nvtxs, nhedges);
+  printf("NPARTS="SS_IDX" LIGHTEST="SS_IDX" HEAVIEST="SS_IDX" AVG=%0.1f\n",
+    nparts, minp, maxp, (val_t)(ft->nnz) / (val_t) nparts);
 
   idx_t * unique[MAX_NMODES];
   idx_t nunique[MAX_NMODES];
@@ -107,7 +117,7 @@ static void __stats_hparts(
       * sizeof(idx_t));
   }
 
-  /* now lets track unique ind info for each partition */
+  /* now track unique ind info for each partition */
   for(idx_t p=0; p < nparts; ++p) {
     for(idx_t m=0; m < ft->nmodes; ++m) {
       memset(unique[m], 0, ft->dims[ft->dim_perms[mode][m]] * sizeof(idx_t));
@@ -115,15 +125,16 @@ static void __stats_hparts(
     }
 
     idx_t nnz = 0;
-    for(idx_t f=psizes[p]; f < psizes[p+1]; ++f) {
-      nnz += ft->fptr[mode][f+1] - ft->fptr[mode][f];
+    for(idx_t f=pptr[p]; f < pptr[p+1]; ++f) {
+      idx_t const findex = plookup[f];
+      nnz += ft->fptr[mode][findex+1] - ft->fptr[mode][findex];
       /* mark unique fids */
       if(unique[1][ft->fids[mode][f]] == 0) {
         ++nunique[1];
         unique[1][ft->fids[mode][f]] = 1;
       }
 
-      for(idx_t j=ft->fptr[mode][f]; j < ft->fptr[mode][f+1]; ++j) {
+      for(idx_t j=ft->fptr[mode][findex]; j < ft->fptr[mode][findex+1]; ++j) {
         idx_t const jind = ft->inds[mode][j];
         /* mark unique inds */
         if(unique[2][jind] == 0) {
@@ -133,25 +144,14 @@ static void __stats_hparts(
       }
     }
 
-    printf("nnz: %5lu (%2.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
-    printf("I: %5lu (%2.1f%%)  ", nunique[0],
+    printf("nnz: %5lu (%4.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
+    printf("I: %5lu (%4.1f%%)  ", nunique[0],
       100. * (val_t)nunique[0] / (val_t) ft->dims[mode]);
-    printf("J: %5lu (%2.1f%%)  ", nunique[1],
+    printf("K: %5lu (%4.1f%%)  ", nunique[1],
       100. * (val_t)nunique[1] / (val_t) ft->dims[ft->dim_perms[mode][1]]);
-    printf("K: %5lu (%2.1f%%)\n", nunique[2],
+    printf("J: %5lu (%4.1f%%)\n", nunique[2],
       100. * (val_t)nunique[2] / (val_t) ft->dims[ft->dim_perms[mode][2]]);
-
-    if(nnz < minp) {
-      minp = nnz;
-    }
-    if(nnz > maxp) {
-      maxp = nnz;
-    }
   }
-
-  printf("Partition information ------------------------------------------\n");
-  printf("NPARTS=" SS_IDX " LIGHTEST=" SS_IDX " HEAVIEST=" SS_IDX " AVG=%0.1f\n",
-    nparts, minp, maxp, (val_t)(ft->nnz) / (val_t) nparts);
 
 
   for(idx_t m=0; m < ft->nmodes; ++m) {
@@ -159,7 +159,8 @@ static void __stats_hparts(
   }
   free(parts);
   free(plookup);
-  free(psizes);
+  free(pptr);
+  ften_free(ft);
 }
 
 /******************************************************************************
