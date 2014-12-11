@@ -28,7 +28,7 @@ void thd_times(
   idx_t const nthreads)
 {
   for(idx_t t=0; t < nthreads; ++t) {
-    printf("  thd: %u %0.3fs\n", t, thds[t].ttime.seconds);
+    printf("  thd: " SS_IDX " %0.3fs\n", t, thds[t].ttime.seconds);
   }
 }
 

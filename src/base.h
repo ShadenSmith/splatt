@@ -13,6 +13,6 @@
 #define val_t splatt_val_t
 #define idx_t splatt_idx_t
 
-#define MAX_NMODES 8
+#define MAX_NMODES ((idx_t)8)
 
 #endif

@@ -12,6 +12,22 @@
 #include <omp.h>
 #include "io.h"
 
+static void __go(
+  ftensor_t const * const ft,
+  idx_t const mode)
+{
+  FILE * fout;
+  fout = fopen("spmat_splatt", "w");
+  for(idx_t s=0; s < ft->dims[mode]; ++s) {
+    for(idx_t f=ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
+      for(idx_t j=ft->fptr[mode][f]; j < ft->fptr[mode][f+1]; ++j) {
+        fprintf(fout, SS_IDX " %f ", ft->inds[mode][j], ft->vals[mode][j]);
+      }
+    }
+    fprintf(fout, "\n");
+  }
+  fclose(fout);
+}
 
 
 /******************************************************************************
@@ -40,7 +56,7 @@ void bench_splatt(
     idx_t const nthreads = threads[t];
     omp_set_num_threads(nthreads);
     if(nruns > 1) {
-      printf("## THREADS %u\n", nthreads);
+      printf("## THREADS " SS_IDX "\n", nthreads);
     }
 
     for(idx_t i=0; i < niters; ++i) {
@@ -50,13 +66,10 @@ void bench_splatt(
         timer_fstart(&modetime);
         mttkrp_splatt(ft, mats, m, thds, nthreads);
         timer_stop(&modetime);
-        printf("  mode %u %0.3fs\n", m+1, modetime.seconds);
-        mats[MAX_NMODES]->I = ft->dims[m];
-        //if(m == 1)
-          mat_write(mats[MAX_NMODES], "splatt_out");
+        printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
       }
       timer_stop(&itertime);
-      printf("    its = %3u (%0.3fs)\n", i+1, itertime.seconds);
+      printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
     }
 
     /* output load balance info */
@@ -100,7 +113,7 @@ void bench_giga(
     idx_t const nthreads = threads[t];
     omp_set_num_threads(nthreads);
     if(nruns > 1) {
-      printf("## THREADS %u\n", nthreads);
+      printf("## THREADS " SS_IDX "\n", nthreads);
     }
 
     for(idx_t i=0; i < niters; ++i) {
@@ -109,13 +122,10 @@ void bench_giga(
         timer_fstart(&modetime);
         mttkrp_giga(unfolds[m], colmats, m, scratch);
         timer_stop(&modetime);
-        printf("  mode %u %0.3fs\n", m+1, modetime.seconds);
-        colmats[MAX_NMODES]->I = tt->dims[m];
-        //if(m == 1)
-          colmat_write(colmats[MAX_NMODES], "giga_out");
+        printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
       }
       timer_stop(&itertime);
-      printf("    its = %3u (%0.3fs)\n", i+1, itertime.seconds);
+      printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
     }
 
     /* output load balance info */
@@ -162,7 +172,7 @@ void bench_ttbox(
     idx_t const nthreads = threads[t];
     omp_set_num_threads(nthreads);
     if(nruns > 1) {
-      printf("## THREADS %u\n", nthreads);
+      printf("## THREADS " SS_IDX "\n", nthreads);
     }
 
     for(idx_t i=0; i < niters; ++i) {
@@ -171,13 +181,10 @@ void bench_ttbox(
         timer_fstart(&modetime);
         mttkrp_ttbox(tt, colmats, m, scratch);
         timer_stop(&modetime);
-        printf("  mode %u %0.3fs\n", m+1, modetime.seconds);
-        colmats[MAX_NMODES]->I = tt->dims[m];
-        //if(m == 1)
-          colmat_write(colmats[MAX_NMODES], "ttbox_out");
+        printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
       }
       timer_stop(&itertime);
-      printf("    its = %3u (%0.3fs)\n", i+1, itertime.seconds);
+      printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
     }
 
 

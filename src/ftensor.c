@@ -19,7 +19,7 @@ static void __create_fptr(
   idx_t const mode)
 {
   if(tt->type == SPLATT_NMODE) {
-    fprintf(stderr, "SPLATT: ftensor for n-mode tensors is finished.\n");
+    fprintf(stderr, "SPLATT: ftensor for n-mode tensors is unfinished.\n");
     exit(1);
   }
 
@@ -38,7 +38,7 @@ static void __create_fptr(
   }
 
   idx_t nfibs = 1;
-  ft->inds[mode][0] = ttinds[2][0];
+  ft->inds[mode][0] = ttinds[nmodes-1][0];
   ft->vals[mode][0] = tt->vals[0];
 
   /* count fibers in tt */
@@ -50,7 +50,7 @@ static void __create_fptr(
         break;
       }
     }
-    ft->inds[mode][n] = ttinds[2][n];
+    ft->inds[mode][n] = ttinds[nmodes-1][n];
     ft->vals[mode][n] = tt->vals[n];
   }
 

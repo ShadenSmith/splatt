@@ -113,6 +113,7 @@ void mttkrp_giga(
     }
 
     /* now accumulate rows into column of M1 */
+    #pragma omp parallel for schedule(dynamic, 16)
     for(idx_t i=0; i < I; ++i) {
       val_t sum = 0;
       for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {

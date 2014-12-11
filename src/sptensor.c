@@ -104,14 +104,11 @@ spmatrix_t * tt_unfold(
   idx_t * const colind = mat->colind;
   val_t * const mvals  = mat->vals;
 
+  /* make sure to skip ahead to the first non-empty slice */
   idx_t row = 0;
-  rowptr[row] = 0;
-  while(tt->ind[mode][0] != 0) {
-    rowptr[row++] = 0;
-  }
   for(idx_t n=0; n < tt->nnz; ++n) {
     /* increment row and account for possibly empty ones */
-    while(tt->ind[mode][n] != row-1) {
+    while(row <= tt->ind[mode][n]) {
       rowptr[row++] = n;
     }
     mvals[n] = tt->vals[n];
