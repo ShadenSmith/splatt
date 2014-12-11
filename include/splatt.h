@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-typedef double splatt_val_t;
+typedef float splatt_val_t;
 #define SS_VAL "%f"
 typedef size_t splatt_idx_t;
 #define SS_IDX "%lu"
