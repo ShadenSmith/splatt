@@ -109,6 +109,7 @@ static void __stats_hparts(
   printf("NVTXS="SS_IDX" NHEDGES="SS_IDX"\n", nvtxs, nhedges);
   printf("NPARTS="SS_IDX" LIGHTEST="SS_IDX" HEAVIEST="SS_IDX" AVG=%0.1f\n",
     nparts, minp, maxp, (val_t)(ft->nnz) / (val_t) nparts);
+  printf("\n");
 
   idx_t * unique[MAX_NMODES];
   idx_t nunique[MAX_NMODES];
@@ -125,9 +126,20 @@ static void __stats_hparts(
     }
 
     idx_t nnz = 0;
+    idx_t ptr = 0;
     for(idx_t f=pptr[p]; f < pptr[p+1]; ++f) {
       idx_t const findex = plookup[f];
       nnz += ft->fptr[mode][findex+1] - ft->fptr[mode][findex];
+
+      /* find slice of findex */
+      while(ft->sptr[mode][ptr] < findex && ft->sptr[mode][ptr+1] < findex) {
+        ++ptr;
+      }
+      if(unique[0][ptr] == 0) {
+        ++nunique[0];
+        unique[0][ptr] = 1;
+      }
+
       /* mark unique fids */
       if(unique[1][ft->fids[mode][f]] == 0) {
         ++nunique[1];
@@ -144,7 +156,10 @@ static void __stats_hparts(
       }
     }
 
-    printf("nnz: %5lu (%4.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
+    printf("%4lu  ", p);
+    printf("fibs: %5lu(%4.1f%%)  ", pptr[p+1] - pptr[p],
+      100. * (val_t)(pptr[p+1]-pptr[p]) / nvtxs);
+    printf("nnz: %6lu (%4.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
     printf("I: %5lu (%4.1f%%)  ", nunique[0],
       100. * (val_t)nunique[0] / (val_t) ft->dims[mode]);
     printf("K: %5lu (%4.1f%%)  ", nunique[1],
