@@ -162,7 +162,7 @@ void hgraph_write_file(
 {
   timer_start(&timers[TIMER_IO]);
   /* print header */
-  fprintf(fout, "%d %d", hg->nhedges, hg->nvtxs);
+  fprintf(fout, SS_IDX" "SS_IDX, hg->nhedges, hg->nvtxs);
   if(hg->vwts != NULL) {
     if(hg->hewts != NULL) {
       fprintf(fout, " 11");
@@ -175,20 +175,20 @@ void hgraph_write_file(
   fprintf(fout, "\n");
 
   /* print hyperedges */
-  for(int e=0; e < hg->nhedges; ++e) {
+  for(idx_t e=0; e < hg->nhedges; ++e) {
     if(hg->hewts != NULL) {
-      fprintf(fout, "%d ", hg->hewts[e]);
+      fprintf(fout, SS_IDX" ", hg->hewts[e]);
     }
-    for(int v=hg->eptr[e]; v < hg->eptr[e+1]; ++v) {
-      fprintf(fout, "%d ", hg->eind[v]+1);
+    for(idx_t v=hg->eptr[e]; v < hg->eptr[e+1]; ++v) {
+      fprintf(fout, SS_IDX" ", hg->eind[v]+1);
     }
     fprintf(fout, "\n");
   }
 
   /* print vertex weights */
   if(hg->vwts != NULL) {
-    for(int v=0; v < hg->nvtxs; ++v) {
-      fprintf(fout, "%d\n", hg->vwts[v]);
+    for(idx_t v=0; v < hg->nvtxs; ++v) {
+      fprintf(fout, SS_IDX"\n", hg->vwts[v]);
     }
   }
   timer_stop(&timers[TIMER_IO]);

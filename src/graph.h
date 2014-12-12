@@ -13,18 +13,18 @@
  *****************************************************************************/
 typedef struct
 {
-  int nvtxs;
-  int nedges;
+  idx_t nvtxs;
+  idx_t nedges;
 } graph_t;
 
 typedef struct
 {
-  int nvtxs;
-  int nhedges;
-  int * vwts;
-  int * hewts;
-  int * eptr;
-  int * eind;
+  idx_t nvtxs;
+  idx_t nhedges;
+  idx_t * vwts;
+  idx_t * hewts;
+  idx_t * eptr;
+  idx_t * eind;
 } hgraph_t;
 
 
@@ -37,5 +37,9 @@ hgraph_t * hgraph_fib_alloc(
 
 void hgraph_free(
   hgraph_t * hg);
+
+idx_t * hgraph_uncut(
+  hgraph_t const * const hg,
+  idx_t const * const parts);
 
 #endif

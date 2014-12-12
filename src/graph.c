@@ -15,13 +15,13 @@ static void __fill_emap(
   ftensor_t const * const ft,
   hgraph_t * const hg,
   idx_t const mode,
-  int ** emaps)
+  idx_t ** emaps)
 {
   hg->nhedges = 0;
-  int h = 0;
+  idx_t h = 0;
   for(idx_t m=0; m < ft->nmodes; ++m) {
     idx_t pm = ft->dim_perms[mode][m];
-    emaps[m] = (int *) malloc(ft->dims[pm] * sizeof(int));
+    emaps[m] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
     memset(emaps[m], 0, ft->dims[pm]);
 
     for(idx_t s=0; s < ft->dims[pm]; ++s) {
@@ -40,7 +40,7 @@ static void __fill_emap_fibonly(
   ftensor_t const * const ft,
   hgraph_t * const hg,
   idx_t const mode,
-  int ** emaps)
+  idx_t ** emaps)
 {
   for(idx_t m=0; m < ft->nmodes; ++m) {
     emaps[m] = NULL;
@@ -48,9 +48,9 @@ static void __fill_emap_fibonly(
 
   hg->nhedges = 0;
   idx_t const pm = ft->dim_perms[mode][2];
-  emaps[2] = (int *) malloc(ft->dims[pm] * sizeof(int));
+  emaps[2] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
   memset(emaps[2], 0, ft->dims[pm]);
-  int h = 0;
+  idx_t h = 0;
   for(idx_t s=0; s < ft->dims[pm]; ++s) {
     /* if slice is non-empty */
     if(ft->sptr[pm][s] != ft->sptr[pm][s+1]) {
@@ -67,8 +67,8 @@ static void __fill_vwts(
   hgraph_t * const hg,
   idx_t const mode)
 {
-  hg->vwts = (int *) malloc(hg->nvtxs * sizeof(int));
-  for(int v=0; v < hg->nvtxs; ++v) {
+  hg->vwts = (idx_t *) malloc(hg->nvtxs * sizeof(idx_t));
+  for(idx_t v=0; v < hg->nvtxs; ++v) {
     hg->vwts[v] = ft->fptr[mode][v+1] - ft->fptr[mode][v];
   }
 }
@@ -92,50 +92,50 @@ hgraph_t * hgraph_fib_alloc(
 
   /* count hedges and map ind to hedge - this is necessary because empty
    * slices are possible */
-  int * emaps[MAX_NMODES];
+  idx_t * emaps[MAX_NMODES];
   __fill_emap(ft, hg, mode, emaps);
 
   /* a) each nnz induces a hyperedge connection
      b) each non-fiber mode accounts for a hyperedge connection */
   idx_t neind = ft->nnz + ((ft->nmodes-1) * hg->nvtxs);
-  hg->eptr = (int *) malloc((hg->nhedges+1) * sizeof(int));
-  memset(hg->eptr, 0, (hg->nhedges+1) * sizeof(int));
-  hg->eind = (int *) malloc(neind * sizeof(int));
+  hg->eptr = (idx_t *) malloc((hg->nhedges+1) * sizeof(idx_t));
+  memset(hg->eptr, 0, (hg->nhedges+1) * sizeof(idx_t));
+  hg->eind = (idx_t *) malloc(neind * sizeof(idx_t));
 
   /* fill in eptr - all offset by 1 to do a prefix sum later */
   for(idx_t s=0; s < ft->dims[mode]; ++s) {
     /* slice hyperedge */
-    int hs = emaps[0][s];
+    idx_t hs = emaps[0][s];
     hg->eptr[hs+1] = ft->sptr[mode][s+1] - ft->sptr[mode][s];
     for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
-      int hfid = emaps[1][ft->fids[mode][f]];
+      idx_t hfid = emaps[1][ft->fids[mode][f]];
       hg->eptr[hfid+1] += 1;
       for(idx_t jj= ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
-        int hjj = emaps[2][ft->inds[mode][jj]];
+        idx_t hjj = emaps[2][ft->inds[mode][jj]];
         hg->eptr[hjj+1] += 1;
       }
     }
   }
 
   /* do a shifted prefix sum to get eptr */
-  int saved = hg->eptr[1];
+  idx_t saved = hg->eptr[1];
   hg->eptr[1] = 0;
-  for(int i=2; i <= hg->nhedges; ++i) {
-    int tmp = hg->eptr[i];
+  for(idx_t i=2; i <= hg->nhedges; ++i) {
+    idx_t tmp = hg->eptr[i];
     hg->eptr[i] = hg->eptr[i-1] + saved;
     saved = tmp;
   }
 
   /* now fill in eind while using eptr as a marker */
-  int vtx = 0;
+  idx_t vtx = 0;
   for(idx_t s=0; s < ft->dims[mode]; ++s) {
-    int hs = emaps[0][s];
+    idx_t hs = emaps[0][s];
     for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
-      int hfid = emaps[1][ft->fids[mode][f]];
+      idx_t hfid = emaps[1][ft->fids[mode][f]];
       hg->eind[hg->eptr[hs+1]++]   = vtx;
       hg->eind[hg->eptr[hfid+1]++] = vtx;
       for(idx_t jj= ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
-        int hjj = emaps[2][ft->inds[mode][jj]];
+        idx_t hjj = emaps[2][ft->inds[mode][jj]];
         hg->eind[hg->eptr[hjj+1]++] = vtx;
       }
       ++vtx;
@@ -146,6 +146,39 @@ hgraph_t * hgraph_fib_alloc(
     free(emaps[m]);
   }
   return hg;
+}
+
+idx_t * hgraph_uncut(
+  hgraph_t const * const hg,
+  idx_t const * const parts)
+{
+  idx_t const nhedges = (idx_t) hg->nhedges;
+  idx_t const nvtxs = (idx_t)hg->nvtxs;
+
+  idx_t const * const eptr = hg->eptr;
+  idx_t const * const eind = hg->eind;
+
+  idx_t ncut = 0;
+  for(idx_t h=0; h < nhedges; ++h) {
+    int iscut = 0;
+    for(idx_t e=eptr[h]; e < eptr[h+1]; ++e) {
+      idx_t const firstpart = parts[eind[e]];
+      for(idx_t v=eind[e]+1; v < eind[e+1]; ++v) {
+        if(parts[v] != firstpart) {
+          iscut = 1;
+          break;
+        }
+      }
+    }
+    if(iscut == 0) {
+      ++ncut;
+    }
+  }
+  printf("ncut: "SS_IDX"\n", ncut);
+
+  idx_t * cut = (idx_t *) malloc(ncut * sizeof(idx_t));
+
+  return cut;
 }
 
 void hgraph_free(

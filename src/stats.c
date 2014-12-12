@@ -1,4 +1,7 @@
 
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
 #include "base.h"
 #include "stats.h"
 #include "sptensor.h"
@@ -50,9 +53,13 @@ static void __stats_hparts(
   }
 
   ftensor_t * ft = ften_alloc(tt);
-
-  /* read partition info */
   idx_t const nvtxs = ft->nfibs[mode];
+  idx_t nhedges = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    nhedges += tt->dims[m];
+  }
+
+
   idx_t * parts = idx_read(pfname, nvtxs);
   idx_t nparts = 1;
   for(idx_t v=0; v < nvtxs; ++v) {
@@ -97,11 +104,6 @@ static void __stats_hparts(
     if(nnz > maxp) {
       maxp = nnz;
     }
-  }
-
-  idx_t nhedges = 0;
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    nhedges += tt->dims[m];
   }
 
   printf("Partition information ------------------------------------------\n");
