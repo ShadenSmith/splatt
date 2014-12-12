@@ -7,6 +7,15 @@
 #include "base.h"
 #include "sptensor.h"
 
+/******************************************************************************
+ * STRUCTURES
+ *****************************************************************************/
+typedef enum
+{
+  PERM_GRAPH,
+  PERM_HGRAPH,
+  PERM_ERROR
+} splatt_perm_type;
 
 
 /******************************************************************************
@@ -14,6 +23,15 @@
  *****************************************************************************/
 void tt_perm(
   sptensor_t * const tt,
-  idx_t const * const perm);
+  splatt_perm_type const type,
+  idx_t const mode,
+  char const * const pfile);
+
+void build_pptr(
+  idx_t const * const parts,
+  idx_t const nparts,
+  idx_t const nvtxs,
+  idx_t ** ret_pptr,
+  idx_t ** ret_plookup);
 
 #endif

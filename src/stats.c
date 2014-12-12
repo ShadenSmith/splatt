@@ -7,6 +7,7 @@
 #include "sptensor.h"
 #include "ftensor.h"
 #include "io.h"
+#include "reorder.h"
 
 #include <math.h>
 
@@ -60,34 +61,11 @@ static void __stats_hparts(
   }
 
 
-  idx_t * parts = idx_read(pfname, nvtxs);
-  idx_t nparts = 1;
-  for(idx_t v=0; v < nvtxs; ++v) {
-    if(parts[v] + 1 > nparts) {
-      nparts = parts[v] + 1;
-    }
-  }
-
-  /* pptr marks the size of each partition (in vtxs, not nnz) */
-  idx_t * pptr = (idx_t *) calloc(nparts+1, sizeof(idx_t));
-  for(idx_t v=0; v < nvtxs; ++v) {
-    pptr[1+parts[v]]++;
-  }
-
-  /* prefix sum of pptr */
-  idx_t saved = pptr[1];
-  pptr[1] = 0;
-  for(idx_t p=2; p <= nparts; ++p) {
-    idx_t tmp = pptr[p];
-    pptr[p] = pptr[p-1] + saved;
-    saved = tmp;
-  }
-
-  idx_t * plookup = (idx_t *) malloc(nvtxs * sizeof(idx_t));
-  for(idx_t f=0; f < nvtxs; ++f) {
-    idx_t const index = pptr[1+parts[f]]++;
-    plookup[index] = f;
-  }
+  idx_t nparts = 0;
+  idx_t * parts = part_read(pfname, nvtxs, &nparts);
+  idx_t * pptr = NULL;
+  idx_t * plookup = NULL;
+  build_pptr(parts, nparts, nvtxs, &pptr, &plookup);
 
   /* get stats on partition sizes */
   idx_t minp = tt->nnz;

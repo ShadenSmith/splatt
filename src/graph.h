@@ -40,6 +40,7 @@ void hgraph_free(
 
 idx_t * hgraph_uncut(
   hgraph_t const * const hg,
-  idx_t const * const parts);
+  idx_t const * const parts,
+  idx_t * const ncut);
 
 #endif

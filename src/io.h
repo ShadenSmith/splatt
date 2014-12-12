@@ -62,10 +62,11 @@ void spmat_write_file(
 
 
 /******************************************************************************
- * UTILITY FUNCTIONS
+ * PARTITION FUNCTIONS
  *****************************************************************************/
-idx_t * idx_read(
+idx_t * part_read(
   char const * const ifname,
-  idx_t const nelems);
+  idx_t const nvtxs,
+  idx_t * nparts);
 
 #endif

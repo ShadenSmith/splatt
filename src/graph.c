@@ -150,7 +150,8 @@ hgraph_t * hgraph_fib_alloc(
 
 idx_t * hgraph_uncut(
   hgraph_t const * const hg,
-  idx_t const * const parts)
+  idx_t const * const parts,
+  idx_t * const ret_ncut)
 {
   idx_t const nhedges = (idx_t) hg->nhedges;
   idx_t const nvtxs = (idx_t)hg->nvtxs;
@@ -161,25 +162,41 @@ idx_t * hgraph_uncut(
   idx_t ncut = 0;
   for(idx_t h=0; h < nhedges; ++h) {
     int iscut = 0;
-    for(idx_t e=eptr[h]; e < eptr[h+1]; ++e) {
-      idx_t const firstpart = parts[eind[e]];
-      for(idx_t v=eind[e]+1; v < eind[e+1]; ++v) {
-        if(parts[v] != firstpart) {
-          iscut = 1;
-          break;
-        }
+    idx_t const firstpart = parts[eind[eptr[h]]];
+    for(idx_t e=eptr[h]+1; e < eptr[h+1]; ++e) {
+      idx_t const vtx = eind[e];
+      if(parts[vtx] != firstpart) {
+        iscut = 1;
+        break;
       }
     }
     if(iscut == 0) {
       ++ncut;
     }
   }
-  printf("ncut: "SS_IDX"\n", ncut);
+  *ret_ncut = ncut;
 
+  /* go back and fill in uncut edges */
   idx_t * cut = (idx_t *) malloc(ncut * sizeof(idx_t));
+  idx_t ptr = 0;
+  for(idx_t h=0; h < nhedges; ++h) {
+    int iscut = 0;
+    idx_t const firstpart = parts[eind[eptr[h]]];
+    for(idx_t e=eptr[h]+1; e < eptr[h+1]; ++e) {
+      idx_t const vtx = eind[e];
+      if(parts[vtx] != firstpart) {
+        iscut = 1;
+        break;
+      }
+    }
+    if(iscut == 0) {
+      cut[ptr++] = h;
+    }
+  }
 
   return cut;
 }
+
 
 void hgraph_free(
   hgraph_t * hg)

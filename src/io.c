@@ -284,9 +284,10 @@ void colmat_write(
   timer_stop(&timers[TIMER_IO]);
 }
 
-idx_t * idx_read(
+idx_t * part_read(
   char const * const ifname,
-  idx_t const nelems)
+  idx_t const nvtxs,
+  idx_t * nparts)
 {
   FILE * pfile;
   if((pfile = fopen(ifname, "r")) == NULL) {
@@ -294,15 +295,22 @@ idx_t * idx_read(
     exit(1);
   }
 
+  *nparts = 0;
   idx_t ret;
-  idx_t * arr = (idx_t *) malloc(nelems * sizeof(idx_t));
-  for(idx_t i=0; i < nelems; ++i) {
+  idx_t * arr = (idx_t *) malloc(nvtxs * sizeof(idx_t));
+  for(idx_t i=0; i < nvtxs; ++i) {
     if((ret = fscanf(pfile, SS_IDX, &(arr[i]))) == 0) {
       fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n", ifname);
       exit(1);
     }
+    if(arr[i] > *nparts) {
+      *nparts = arr[i];
+    }
   }
   fclose(pfile);
+
+  /* increment to adjust for 0-indexing of partition ids */
+  *nparts += 1;
 
   return arr;
 }
