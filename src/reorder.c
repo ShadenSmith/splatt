@@ -9,6 +9,7 @@
 #include "sptensor.h"
 #include "ftensor.h"
 #include "io.h"
+#include "sort.h"
 
 #include <assert.h>
 
@@ -80,12 +81,80 @@ static void __reorder_slices(
     ind[n] = sliceperm[ind[n]];
   }
 
-  tt_write(tt, "permed.tns");
-
   free(pptr);
   free(plookup);
   free(sliceperm);
   free(slice);
+}
+
+static void __reorder_fibs(
+  sptensor_t * const tt,
+  ftensor_t const * const ft,
+  idx_t const * const parts,
+  idx_t const nparts,
+  idx_t const * const uncut,
+  idx_t const mode)
+{
+  /* build map of fiber -> fid */
+  idx_t const nfids = ft->dims[mode];
+  idx_t const nfibs = ft->nfibs[mode];
+  idx_t * fid = (idx_t *) malloc(nfibs * sizeof(idx_t));
+
+  idx_t * fidperm = (idx_t *) malloc(nfids * sizeof(idx_t));
+  idx_t const * const sptr = ft->sptr[mode];
+  for(idx_t s=0; s < nfids; ++s) {
+    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+      fid[f] = ft->fids[mode][f];
+    }
+    /* mark perm as incomplete */
+    fidperm[s] = nfids;
+  }
+
+  idx_t * pptr = NULL;
+  idx_t * plookup = NULL;
+  build_pptr(parts, nparts, nfibs, &pptr, &plookup);
+
+  idx_t fidptr = 0;
+  idx_t uncutptr = 0;
+
+  /* order all uncut fids first */
+  for(idx_t p=0; p < nparts; ++p) {
+    uncutptr = 0;
+    /* for each fiber in partition */
+    for(idx_t j=pptr[p]; j < pptr[p+1]; ++j) {
+      idx_t const fib = plookup[j];
+      idx_t const s = fid[fib];
+      /* move to uncut slice (or past it) */
+      while(uncut[uncutptr] < s) {
+        ++uncutptr;
+      }
+
+      /* mark s if it is uncut and not already marked */
+      if(uncut[uncutptr] == s && fidperm[s] == nfids) {
+        fidperm[s] = fidptr++;
+      }
+    }
+  }
+
+  /* place untouched slices at end of permutation */
+  for(idx_t s=0; s < nfids; ++s) {
+    if(fidperm[s] == nfids) {
+      fidperm[s] = fidptr++;
+    }
+  }
+  assert(fidptr == nfids);
+
+  /* now do actual reordering */
+  idx_t const nnz = tt->nnz;
+  idx_t * const ind = tt->ind[ft->dim_perms[mode][1]];
+  for(idx_t n=0; n < nnz; ++n) {
+    ind[n] = fidperm[ind[n]];
+  }
+
+  free(pptr);
+  free(plookup);
+  free(fidperm);
+  free(fid);
 }
 
 
@@ -131,6 +200,10 @@ static void __perm_hgraph(
 
   /* reorder slices */
   __reorder_slices(tt, ft, parts, nparts, uncuts, mode);
+  __reorder_fibs(tt, ft, parts, nparts, uncuts, mode);
+
+  tt_sort(tt, mode, NULL);
+  tt_write(tt, "permed.tns");
 
   free(uncuts);
   free(parts);
