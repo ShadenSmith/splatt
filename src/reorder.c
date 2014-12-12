@@ -270,3 +270,18 @@ void build_pptr(
 }
 
 
+
+/******************************************************************************
+ * MATRIX REORDER FUNCTIONS
+ *****************************************************************************/
+matrix_t * perm_matrix(
+  matrix_t const * const mat,
+  idx_t const * const perm,
+  matrix_t * retmat)
+{
+
+
+  return retmat;
+}
+
+
