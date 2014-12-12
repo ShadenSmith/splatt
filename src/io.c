@@ -130,7 +130,8 @@ void tt_write_file(
   timer_start(&timers[TIMER_IO]);
   for(idx_t n=0; n < tt->nnz; ++n) {
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      fprintf(fout, SS_IDX " ", tt->ind[m][n]);
+      /* files are 1-indexed instead of 0 */
+      fprintf(fout, SS_IDX " ", tt->ind[m][n] + 1);
     }
     fprintf(fout, SS_VAL "\n", tt->vals[n]);
   }
