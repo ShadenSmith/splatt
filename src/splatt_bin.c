@@ -330,9 +330,7 @@ typedef enum
 
 static void (*bench_funcs[ALG_NALGS]) (sptensor_t * const tt,
                                        matrix_t ** mats,
-                                       idx_t const niters,
-                                       idx_t const * const threads,
-                                       idx_t const nruns)
+                                       bench_opts const * const opts)
   = {
     [ALG_SPLATT] = bench_splatt,
     [ALG_GIGA]   = bench_giga,
@@ -474,9 +472,16 @@ void splatt_bench(
     tsizes[0] = args.nthreads;
   }
 
+  /* fill bench opts */
+  bench_opts opts;
+  opts.niters = args.niters;
+  opts.threads = tsizes;
+  opts.nruns = tcount;
+  opts.perm = NULL;
+
   for(int a=0; a < ALG_NALGS; ++a) {
     if(args.which[a]) {
-      bench_funcs[a](tt, mats, args.niters, tsizes, tcount);
+      bench_funcs[a](tt, mats, &opts);
     }
   }
 

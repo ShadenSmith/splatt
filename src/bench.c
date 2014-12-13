@@ -36,10 +36,12 @@ static void __go(
 void bench_splatt(
   sptensor_t * const tt,
   matrix_t ** mats,
-  idx_t const niters,
-  idx_t const * const threads,
-  idx_t const nruns)
+  bench_opts const * const opts)
 {
+  idx_t const niters = opts->niters;
+  idx_t const * const threads = opts->threads;
+  idx_t const nruns = opts->nruns;
+
   sp_timer_t itertime;
   sp_timer_t modetime;
 
@@ -89,10 +91,12 @@ void bench_splatt(
 void bench_giga(
   sptensor_t * const tt,
   matrix_t ** mats,
-  idx_t const niters,
-  idx_t const * const threads,
-  idx_t const nruns)
+  bench_opts const * const opts)
 {
+  idx_t const niters = opts->niters;
+  idx_t const * const threads = opts->threads;
+  idx_t const nruns = opts->nruns;
+
   sp_timer_t itertime;
   sp_timer_t modetime;
   thd_info * thds = thd_init(threads[nruns-1], 0);
@@ -149,10 +153,12 @@ void bench_giga(
 void bench_ttbox(
   sptensor_t * const tt,
   matrix_t ** mats,
-  idx_t const niters,
-  idx_t const * const threads,
-  idx_t const nruns)
+  bench_opts const * const opts)
 {
+  idx_t const niters = opts->niters;
+  idx_t const * const threads = opts->threads;
+  idx_t const nruns = opts->nruns;
+
   sp_timer_t itertime;
   sp_timer_t modetime;
 

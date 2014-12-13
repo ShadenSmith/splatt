@@ -17,6 +17,12 @@ typedef enum
   PERM_ERROR
 } splatt_perm_type;
 
+typedef struct
+{
+  idx_t * perms[MAX_NMODES];
+  idx_t * iperms[MAX_NMODES];
+} perm_t;
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS

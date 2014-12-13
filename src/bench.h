@@ -8,32 +8,40 @@
 #include "base.h"
 #include "matrix.h"
 #include "sptensor.h"
+#include "reorder.h"
+
+
+
+/******************************************************************************
+ * STRUCTURES
+ *****************************************************************************/
+typedef struct
+{
+  idx_t niters;
+  idx_t * threads;
+  idx_t nruns;
+  perm_t * perm;
+} bench_opts;
 
 
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-
 void bench_splatt(
   sptensor_t * const tt,
   matrix_t ** mats,
-  idx_t const niters,
-  idx_t const * const threads,
-  idx_t const nruns);
+  bench_opts const * const opts);
 
 void bench_giga(
   sptensor_t * const tt,
   matrix_t ** mats,
-  idx_t const niters,
-  idx_t const * const threads,
-  idx_t const nruns);
+  bench_opts const * const opts);
 
 void bench_ttbox(
   sptensor_t * const tt,
   matrix_t ** mats,
-  idx_t const niters,
-  idx_t const * const threads,
-  idx_t const nruns);
+  bench_opts const * const opts);
+
 
 #endif
