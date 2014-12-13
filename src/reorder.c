@@ -279,9 +279,24 @@ matrix_t * perm_matrix(
   idx_t const * const perm,
   matrix_t * retmat)
 {
+  idx_t const I = mat->I;
+  idx_t const J = mat->J;
 
+  if(retmat == NULL) {
+    retmat = (matrix_t *) malloc(sizeof(matrix_t));
+    retmat->I = I;
+    retmat->J = J;
+    retmat->vals = (val_t *) malloc(I * J * sizeof(val_t));
+  }
+
+  for(idx_t i=0; i < I; ++i) {
+    for(idx_t j=0; j < J; ++j) {
+      retmat->vals[j + (i*J)] = mat->vals[j + (perm[i] * J)];
+    }
+  }
 
   return retmat;
 }
+
 
 
