@@ -43,9 +43,6 @@ void hgraph_write(
 void mat_write(
   matrix_t const * const mat,
   char const * const fname);
-void colmat_write(
-  matrix_t const * const mat,
-  char const * const fname);
 
 
 

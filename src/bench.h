@@ -20,7 +20,8 @@ typedef struct
   idx_t niters;
   idx_t * threads;
   idx_t nruns;
-  perm_t * perm;
+  int write;
+  perm_t perm;
 } bench_opts;
 
 

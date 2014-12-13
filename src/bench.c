@@ -8,26 +8,26 @@
 #include "mttkrp.h"
 #include "timer.h"
 #include "thd_info.h"
+#include "reorder.h"
 
 #include <omp.h>
 #include "io.h"
 
-static void __go(
-  ftensor_t const * const ft,
-  idx_t const mode)
+static void __log_mat(
+  char const * const ofname,
+  matrix_t const * const mat,
+  idx_t const * const iperm)
 {
-  FILE * fout;
-  fout = fopen("spmat_splatt", "w");
-  for(idx_t s=0; s < ft->dims[mode]; ++s) {
-    for(idx_t f=ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
-      for(idx_t j=ft->fptr[mode][f]; j < ft->fptr[mode][f+1]; ++j) {
-        fprintf(fout, SS_IDX " %f ", ft->inds[mode][j], ft->vals[mode][j]);
-      }
-    }
-    fprintf(fout, "\n");
+  printf("writing to %s\n", ofname);
+  if(iperm != NULL) {
+    matrix_t * mat_permed = perm_matrix(mat, iperm, NULL);
+    mat_write(mat_permed, ofname);
+    mat_free(mat_permed);
+  } else {
+    mat_write(mat, ofname);
   }
-  fclose(fout);
 }
+
 
 
 /******************************************************************************
@@ -41,6 +41,7 @@ void bench_splatt(
   idx_t const niters = opts->niters;
   idx_t const * const threads = opts->threads;
   idx_t const nruns = opts->nruns;
+  char matname[64];
 
   sp_timer_t itertime;
   sp_timer_t modetime;
@@ -69,6 +70,13 @@ void bench_splatt(
         mttkrp_splatt(ft, mats, m, thds, nthreads);
         timer_stop(&modetime);
         printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
+        if(opts->write && t == 0 && i == 0) {
+          idx_t oldI = mats[MAX_NMODES]->I;
+          mats[MAX_NMODES]->I = tt->dims[m];
+          sprintf(matname, "splatt_mode"SS_IDX".mat", m+1);
+          __log_mat(matname, mats[MAX_NMODES], opts->perm.iperms[m]);
+          mats[MAX_NMODES]->I = oldI;
+        }
       }
       timer_stop(&itertime);
       printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
@@ -96,6 +104,7 @@ void bench_giga(
   idx_t const niters = opts->niters;
   idx_t const * const threads = opts->threads;
   idx_t const nruns = opts->nruns;
+  char matname[64];
 
   sp_timer_t itertime;
   sp_timer_t modetime;
@@ -110,7 +119,7 @@ void bench_giga(
     unfolds[m] = tt_unfold(tt, m);
     colmats[m] = mat_mkcol(mats[m]);
   }
-  colmats[MAX_NMODES] = mats[MAX_NMODES];
+  colmats[MAX_NMODES] = mat_mkcol(mats[MAX_NMODES]);
 
   timer_start(&timers[TIMER_GIGA]);
   for(idx_t t=0; t < nruns; ++t) {
@@ -127,6 +136,11 @@ void bench_giga(
         mttkrp_giga(unfolds[m], colmats, m, scratch);
         timer_stop(&modetime);
         printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
+        if(opts->write && t == 0 && i == 0) {
+          colmats[MAX_NMODES]->I = tt->dims[m];
+          sprintf(matname, "giga_mode"SS_IDX".mat", m+1);
+          __log_mat(matname, colmats[MAX_NMODES], opts->perm.iperms[m]);
+        }
       }
       timer_stop(&itertime);
       printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
@@ -146,6 +160,7 @@ void bench_giga(
     spmat_free(unfolds[m]);
     mat_free(colmats[m]);
   }
+  mat_free(colmats[MAX_NMODES]);
   free(scratch);
 }
 
@@ -158,6 +173,7 @@ void bench_ttbox(
   idx_t const niters = opts->niters;
   idx_t const * const threads = opts->threads;
   idx_t const nruns = opts->nruns;
+  char matname[64];
 
   sp_timer_t itertime;
   sp_timer_t modetime;
@@ -166,7 +182,7 @@ void bench_ttbox(
   for(idx_t m=0; m < tt->nmodes; ++m) {
     colmats[m] = mat_mkcol(mats[m]);
   }
-  colmats[MAX_NMODES] = mats[MAX_NMODES];
+  colmats[MAX_NMODES] = mat_mkcol(mats[MAX_NMODES]);
 
   thd_info * thds = thd_init(threads[nruns-1], 0);
 
@@ -188,6 +204,11 @@ void bench_ttbox(
         mttkrp_ttbox(tt, colmats, m, scratch);
         timer_stop(&modetime);
         printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
+        if(opts->write && t == 0 && i == 0) {
+          colmats[MAX_NMODES]->I = tt->dims[m];
+          sprintf(matname, "ttbox_mode"SS_IDX".mat", m+1);
+          __log_mat(matname, colmats[MAX_NMODES], opts->perm.iperms[m]);
+        }
       }
       timer_stop(&itertime);
       printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
@@ -208,6 +229,7 @@ void bench_ttbox(
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mat_free(colmats[m]);
   }
+  mat_free(colmats[MAX_NMODES]);
 }
 
 

@@ -346,6 +346,7 @@ typedef struct
   idx_t nthreads;
   idx_t rank;
   int scale;
+  int write;
 } bench_args;
 
 static struct argp_option bench_options[] = {
@@ -354,6 +355,7 @@ static struct argp_option bench_options[] = {
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"scale", 's', 0, 0, "scale threads from 1 to NTHREADS (by 2)"},
+  {"write", 'w', 0, 0, "write results to files ALG_mode<N>.mat (for testing)"},
   { 0 }
 };
 
@@ -391,6 +393,9 @@ static error_t parse_bench_opt(
   case 's':
     args->scale = 1;
     break;
+  case 'w':
+    args->write = 1;
+    break;
 
   case ARGP_KEY_ARG:
     if(args->ifname != NULL) {
@@ -418,10 +423,12 @@ void splatt_bench(
 {
   bench_args args;
   args.ifname = NULL;
+  args.algerr = NULL;
   args.niters = 5;
   args.nthreads = 1;
   args.scale = 0;
   args.rank = 10;
+  args.write = 0;
   for(int a=0; a < ALG_NALGS; ++a) {
     args.which[a] = 0;
   }
@@ -477,7 +484,13 @@ void splatt_bench(
   opts.niters = args.niters;
   opts.threads = tsizes;
   opts.nruns = tcount;
-  opts.perm = NULL;
+  opts.write = args.write;
+
+  /* initialize perms */
+  for(idx_t m=0; m < tt->nmodes; ++m ){
+    opts.perm.perms[m] = NULL;
+    opts.perm.iperms[m] = NULL;
+  }
 
   for(int a=0; a < ALG_NALGS; ++a) {
     if(args.which[a]) {

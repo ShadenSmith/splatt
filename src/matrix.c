@@ -20,6 +20,7 @@ matrix_t * mat_alloc(
   mat->I = nrows;
   mat->J = ncols;
   mat->vals = (val_t *) malloc(nrows * ncols * sizeof(val_t));
+  mat->rowmajor = 1;
   return mat;
 }
 
@@ -46,10 +47,31 @@ void mat_free(
   free(mat);
 }
 
+matrix_t * mat_mkrow(
+  matrix_t const * const mat)
+{
+  assert(mat->rowmajor == 0);
+
+  idx_t const I = mat->I;
+  idx_t const J = mat->J;
+
+  matrix_t * row = mat_alloc(I, J);
+  val_t       * const restrict rowv = row->vals;
+  val_t const * const restrict colv = mat->vals;
+
+  for(idx_t i=0; i < I; ++i) {
+    for(idx_t j=0; j < J; ++j) {
+      rowv[j + (i*J)] = colv[i + (j*I)];
+    }
+  }
+
+  return row;
+}
 
 matrix_t * mat_mkcol(
   matrix_t const * const mat)
 {
+  assert(mat->rowmajor == 1);
   idx_t const I = mat->I;
   idx_t const J = mat->J;
 
@@ -62,6 +84,8 @@ matrix_t * mat_mkcol(
       colv[i + (j*I)] = rowv[j + (i*J)];
     }
   }
+
+  col->rowmajor = 0;
 
   return col;
 }

@@ -15,6 +15,7 @@ typedef struct
   idx_t I;
   idx_t J;
   val_t *vals;
+  int rowmajor;
 } matrix_t;
 
 typedef struct
@@ -50,6 +51,8 @@ spmatrix_t * spmat_alloc(
 void spmat_free(
   spmatrix_t * mat);
 
+matrix_t * mat_mkrow(
+  matrix_t const * const mat);
 matrix_t * mat_mkcol(
   matrix_t const * const mat);
 
