@@ -193,7 +193,7 @@ void splatt_bench(
     printf("\n");
   } else {
     /* initialize perms */
-    opts.perm = (perm_t *) malloc(sizeof(perm_t));
+    opts.perm = (permutation_t *) malloc(sizeof(permutation_t));
     for(idx_t m=0; m < tt->nmodes; ++m ){
       opts.perm->perms[m] = NULL;
       opts.perm->iperms[m] = NULL;

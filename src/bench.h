@@ -21,7 +21,7 @@ typedef struct
   idx_t * threads;
   idx_t nruns;
   int write;
-  perm_t * perm;
+  permutation_t * perm;
 } bench_opts;
 
 

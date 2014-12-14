@@ -21,13 +21,13 @@ typedef struct
 {
   idx_t * perms[MAX_NMODES];
   idx_t * iperms[MAX_NMODES];
-} perm_t;
+} permutation_t;
 
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-perm_t *  tt_perm(
+permutation_t *  tt_perm(
   sptensor_t * const tt,
   splatt_perm_type const type,
   idx_t const mode,

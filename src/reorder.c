@@ -160,7 +160,7 @@ static void __reorder_fibs(
 
 static void __perm_hgraph(
   sptensor_t * const tt,
-  perm_t * const perm,
+  permutation_t * const perm,
   idx_t const mode,
   char const * const pfile)
 {
@@ -216,13 +216,13 @@ static void __perm_hgraph(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-perm_t * tt_perm(
+permutation_t * tt_perm(
   sptensor_t * const tt,
   splatt_perm_type const type,
   idx_t const mode,
   char const * const pfile)
 {
-  perm_t * perm = (perm_t *) malloc(sizeof(perm_t));
+  permutation_t * perm = (permutation_t *) malloc(sizeof(permutation_t));
   for(idx_t m=0; m < tt->nmodes; ++m ){
     perm->perms[m]  = (idx_t *) malloc(tt->dims[m] * sizeof(idx_t));
     perm->iperms[m] = (idx_t *) malloc(tt->dims[m] * sizeof(idx_t));
@@ -245,12 +245,12 @@ perm_t * tt_perm(
   return perm;
 }
 
-perm_t * perm_hparts(
+permutation_t * perm_hparts(
   sptensor_t * const tt,
   idx_t const mode,
   idx_t const * const parts)
 {
-  perm_t * perm = (perm_t *) malloc(sizeof(perm_t));
+  permutation_t * perm = (permutation_t *) malloc(sizeof(permutation_t));
   for(idx_t m=0; m < tt->nmodes; ++m ) {
     perm->perms[m]  = NULL;
     perm->iperms[m] = NULL;
