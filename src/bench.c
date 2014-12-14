@@ -18,7 +18,6 @@ static void __log_mat(
   matrix_t const * const mat,
   idx_t const * const iperm)
 {
-  printf("writing to %s\n", ofname);
   if(iperm != NULL) {
     matrix_t * mat_permed = perm_matrix(mat, iperm, NULL);
     mat_write(mat_permed, ofname);
@@ -28,6 +27,19 @@ static void __log_mat(
   }
 }
 
+static void __shuffle_mats(
+  matrix_t ** mats,
+  idx_t * const * const perms,
+  idx_t const nmodes)
+{
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(perms[m] != NULL) {
+      matrix_t * mperm = perm_matrix(mats[m], perms[m], NULL);
+      mat_free(mats[m]);
+      mats[m] = mperm;
+    }
+  }
+}
 
 
 /******************************************************************************
@@ -42,6 +54,9 @@ void bench_splatt(
   idx_t const * const threads = opts->threads;
   idx_t const nruns = opts->nruns;
   char matname[64];
+
+  /* shuffle matrices if permutation exists */
+  __shuffle_mats(mats, opts->perm.perms, tt->nmodes);
 
   sp_timer_t itertime;
   sp_timer_t modetime;
@@ -93,6 +108,9 @@ void bench_splatt(
 
   thd_free(thds, threads[nruns-1]);
   ften_free(ft);
+
+  /* fix any matrices that we shuffled */
+  __shuffle_mats(mats, opts->perm.iperms, tt->nmodes);
 }
 
 

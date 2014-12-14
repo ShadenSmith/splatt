@@ -314,7 +314,6 @@ static char bench_doc[] =
   "Available algorithms are:\n"
   "  splatt\tThe algorithm introduced by splatt\n"
   "  giga\t\tGigaTensor algorithm adapted from the MapReduce paradigm\n"
-  "  dfacto\tDFacTo algorithm\n"
   "  ttbox\t\tTensor-Vector products as done by Tensor Toolbox\n";
 
 typedef enum
@@ -340,6 +339,7 @@ static void (*bench_funcs[ALG_NALGS]) (sptensor_t * const tt,
 typedef struct
 {
   char * ifname;
+  char * pfname;
   int which[ALG_NALGS];
   char * algerr;
   idx_t niters;
@@ -356,6 +356,7 @@ static struct argp_option bench_options[] = {
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"scale", 's', 0, 0, "scale threads from 1 to NTHREADS (by 2)"},
   {"write", 'w', 0, 0, "write results to files ALG_mode<N>.mat (for testing)"},
+  {"partition", 'p', "FILE", 0, "use an hgraph partitioning to reorder tensor"},
   { 0 }
 };
 
@@ -384,14 +385,17 @@ static error_t parse_bench_opt(
   case 'i':
     args->niters = atoi(arg);
     break;
-  case 't':
-    args->nthreads = atoi(arg);
+  case 'p':
+    args->pfname = arg;
     break;
   case 'r':
     args->rank = atoi(arg);
     break;
   case 's':
     args->scale = 1;
+    break;
+  case 't':
+    args->nthreads = atoi(arg);
     break;
   case 'w':
     args->write = 1;
@@ -423,6 +427,7 @@ void splatt_bench(
 {
   bench_args args;
   args.ifname = NULL;
+  args.pfname = NULL;
   args.algerr = NULL;
   args.niters = 5;
   args.nthreads = 1;
@@ -444,6 +449,11 @@ void splatt_bench(
 
   sptensor_t * tt = tt_read(args.ifname);
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+
+  if(args.pfname != NULL) {
+    printf("Reordering ------------------------------------------------------\n");
+
+  }
 
   printf("Benchmarking ---------------------------------------------------\n");
 
@@ -520,8 +530,9 @@ static char perm_doc[] =
   "  hgraph\t\tReorder based on the partitioning of a fiber hyper-graph\n";
 
 static struct argp_option perm_options[] = {
-  { "type", 't', "TYPE", 0, "type of analysis" },
+  { "type", 't', "TYPE", 0, "type of reordering" },
   { "pfile", 'p', "PFILE", 0, "partition file" },
+  { "outfile", 'o', "FILE", 0, "write reordered tensor to file" },
   { 0, 0, 0, 0, "Mode-dependent options:", 1},
   { "mode", 'm', "MODE", 0, "tensor mode to analyze (default: 1)" },
   { 0 }
@@ -530,6 +541,7 @@ static struct argp_option perm_options[] = {
 typedef struct
 {
   char * ifname;
+  char * ofname;
   char * pfname;
   char * typestr;
   splatt_perm_type type;
@@ -545,6 +557,10 @@ static error_t parse_perm_opt(
   switch(key) {
   case 'm':
     args->mode = atoi(arg) - 1;
+    break;
+
+  case 'o':
+    args->ofname = arg;
     break;
 
   case 't':

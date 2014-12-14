@@ -236,6 +236,20 @@ void tt_perm(
   }
 }
 
+perm_t * perm_hparts(
+  sptensor_t * const tt,
+  idx_t const mode,
+  idx_t const * const parts)
+{
+  perm_t * perm = (perm_t *) malloc(sizeof(perm_t));
+  for(idx_t m=0; m < tt->nmodes; ++m ) {
+    perm->perms[m]  = NULL;
+    perm->iperms[m] = NULL;
+  }
+
+  return perm;
+}
+
 
 void build_pptr(
   idx_t const * const parts,
@@ -283,15 +297,21 @@ matrix_t * perm_matrix(
   idx_t const J = mat->J;
 
   if(retmat == NULL) {
-    retmat = (matrix_t *) malloc(sizeof(matrix_t));
-    retmat->I = I;
-    retmat->J = J;
-    retmat->vals = (val_t *) malloc(I * J * sizeof(val_t));
+    retmat = mat_alloc(I, J);
+    retmat->rowmajor = mat->rowmajor;
   }
 
-  for(idx_t i=0; i < I; ++i) {
-    for(idx_t j=0; j < J; ++j) {
-      retmat->vals[j + (i*J)] = mat->vals[j + (perm[i] * J)];
+  if(mat->rowmajor) {
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t j=0; j < J; ++j) {
+        retmat->vals[j + (i*J)] = mat->vals[j + (perm[i] * J)];
+      }
+    }
+  } else {
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t j=0; j < J; ++j) {
+        retmat->vals[i + (j*I)] = mat->vals[perm[i] + (j * I)];
+      }
     }
   }
 

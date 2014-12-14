@@ -251,7 +251,6 @@ void mat_write(
   val_t const * const vals = mat->vals;
 
   if(mat->rowmajor) {
-    printf("rowmajor\n");
     for(idx_t i=0; i < mat->I; ++i) {
       for(idx_t j=0; j < J; ++j) {
         fprintf(fout, SS_VAL " ", vals[j + (i*J)]);
@@ -259,7 +258,6 @@ void mat_write(
       fprintf(fout, "\n");
     }
   } else {
-    printf("colmajor\n");
     for(idx_t i=0; i < mat->I; ++i) {
       for(idx_t j=0; j < J; ++j) {
         fprintf(fout, SS_VAL " ", vals[i + (j*I)]);
