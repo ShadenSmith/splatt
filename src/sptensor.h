@@ -16,7 +16,7 @@
 typedef enum
 {
   SPLATT_NMODE,
-  SPLATT_3MODE
+  SPLATT_3MODE,
 } tt_type;
 
 typedef struct

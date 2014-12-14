@@ -29,12 +29,13 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-missing-field-initializers")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -funroll-loops")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftree-vectorize")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec-missed")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-file(GLOB SOURCES src/*.c)
+file(GLOB SPLATT_SOURCES src/*.c)
 
 # Generate splatt library
 add_subdirectory(lib)

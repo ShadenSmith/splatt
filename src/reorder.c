@@ -160,6 +160,7 @@ static void __reorder_fibs(
 
 static void __perm_hgraph(
   sptensor_t * const tt,
+  perm_t * const perm,
   idx_t const mode,
   char const * const pfile)
 {
@@ -215,25 +216,33 @@ static void __perm_hgraph(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-void tt_perm(
+perm_t * tt_perm(
   sptensor_t * const tt,
   splatt_perm_type const type,
   idx_t const mode,
   char const * const pfile)
 {
+  perm_t * perm = (perm_t *) malloc(sizeof(perm_t));
+  for(idx_t m=0; m < tt->nmodes; ++m ){
+    perm->perms[m]  = (idx_t *) malloc(tt->dims[m] * sizeof(idx_t));
+    perm->iperms[m] = (idx_t *) malloc(tt->dims[m] * sizeof(idx_t));
+  }
+
   switch(type) {
   case PERM_GRAPH:
     break;
   case PERM_HGRAPH:
     if(pfile == NULL) {
       fprintf(stderr, "SPLATT: permutation file must be supplied for now.\n");
-      return;
+      exit(1);
     }
-    __perm_hgraph(tt, mode, pfile);
+    __perm_hgraph(tt, perm, mode, pfile);
     break;
   default:
     break;
   }
+
+  return perm;
 }
 
 perm_t * perm_hparts(

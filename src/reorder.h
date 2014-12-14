@@ -14,7 +14,7 @@ typedef enum
 {
   PERM_GRAPH,
   PERM_HGRAPH,
-  PERM_ERROR
+  PERM_ERROR,
 } splatt_perm_type;
 
 typedef struct
@@ -27,7 +27,7 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-void tt_perm(
+perm_t *  tt_perm(
   sptensor_t * const tt,
   splatt_perm_type const type,
   idx_t const mode,

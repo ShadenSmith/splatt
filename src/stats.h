@@ -17,7 +17,7 @@ typedef enum
   STATS_BASIC,
   STATS_FIBERS,
   STATS_HPARTS,
-  STATS_ERROR
+  STATS_ERROR,
 } splatt_stats_type;
 
 

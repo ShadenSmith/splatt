@@ -56,7 +56,7 @@ void bench_splatt(
   char matname[64];
 
   /* shuffle matrices if permutation exists */
-  __shuffle_mats(mats, opts->perm.perms, tt->nmodes);
+  __shuffle_mats(mats, opts->perm->perms, tt->nmodes);
 
   sp_timer_t itertime;
   sp_timer_t modetime;
@@ -89,7 +89,7 @@ void bench_splatt(
           idx_t oldI = mats[MAX_NMODES]->I;
           mats[MAX_NMODES]->I = tt->dims[m];
           sprintf(matname, "splatt_mode"SS_IDX".mat", m+1);
-          __log_mat(matname, mats[MAX_NMODES], opts->perm.iperms[m]);
+          __log_mat(matname, mats[MAX_NMODES], opts->perm->iperms[m]);
           mats[MAX_NMODES]->I = oldI;
         }
       }
@@ -110,7 +110,7 @@ void bench_splatt(
   ften_free(ft);
 
   /* fix any matrices that we shuffled */
-  __shuffle_mats(mats, opts->perm.iperms, tt->nmodes);
+  __shuffle_mats(mats, opts->perm->iperms, tt->nmodes);
 }
 
 
@@ -157,7 +157,7 @@ void bench_giga(
         if(opts->write && t == 0 && i == 0) {
           colmats[MAX_NMODES]->I = tt->dims[m];
           sprintf(matname, "giga_mode"SS_IDX".mat", m+1);
-          __log_mat(matname, colmats[MAX_NMODES], opts->perm.iperms[m]);
+          __log_mat(matname, colmats[MAX_NMODES], opts->perm->iperms[m]);
         }
       }
       timer_stop(&itertime);
@@ -225,7 +225,7 @@ void bench_ttbox(
         if(opts->write && t == 0 && i == 0) {
           colmats[MAX_NMODES]->I = tt->dims[m];
           sprintf(matname, "ttbox_mode"SS_IDX".mat", m+1);
-          __log_mat(matname, colmats[MAX_NMODES], opts->perm.iperms[m]);
+          __log_mat(matname, colmats[MAX_NMODES], opts->perm->iperms[m]);
         }
       }
       timer_stop(&itertime);
