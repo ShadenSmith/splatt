@@ -12,7 +12,7 @@
 /******************************************************************************
  * SPLATT BENCH
  *****************************************************************************/
-static char bench_args_doc[] = "TENSOR";
+static char bench_args_doc[] = "TENSOR [-a ALG]...";
 static char bench_doc[] =
   "splatt-bench -- benchmark MTTKRP algorithms\n\n"
   "Available algorithms are:\n"
@@ -124,6 +124,34 @@ static error_t parse_bench_opt(
 static struct argp bench_argp =
   {bench_options, parse_bench_opt, bench_args_doc, bench_doc};
 
+static idx_t * __mkthreads(
+  idx_t const nthreads,
+  int const scale,
+  idx_t * nruns)
+{
+  idx_t *tsizes;
+  idx_t tcount;
+
+  if(scale) {
+    tcount = 1;
+    while((idx_t)(1 << tcount) <= nthreads) {
+      ++tcount;
+    }
+    tsizes = (idx_t *) malloc(tcount * sizeof(idx_t));
+
+    for(idx_t t=0; t < tcount; ++t) {
+      tsizes[t] = (idx_t) (1 << t);
+    }
+
+  } else {
+    tcount = 1;
+    tsizes = (idx_t *) malloc(1 * sizeof(idx_t));
+    tsizes[0] = nthreads;
+  }
+
+  *nruns = tcount;
+  return tsizes;
+}
 
 void splatt_bench(
   int argc,
@@ -183,28 +211,7 @@ void splatt_bench(
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
-  /* create an array of nthreads for scaling */
-  idx_t *tsizes;
-  idx_t tcount;
-
-  if(args.scale) {
-    tcount = 1;
-    while((idx_t)(1 << tcount) <= args.nthreads) {
-      ++tcount;
-    }
-    tsizes = (idx_t *) malloc(tcount * sizeof(idx_t));
-
-    for(idx_t t=0; t < tcount; ++t) {
-      tsizes[t] = (idx_t) (1 << t);
-    }
-
-  } else {
-    tcount = 1;
-    tsizes = (idx_t *) malloc(1 * sizeof(idx_t));
-    tsizes[0] = args.nthreads;
-  }
-  opts.threads = tsizes;
-  opts.nruns = tcount;
+  opts.threads = __mkthreads(args.nthreads, args.scale, &opts.nruns);
 
   printf("Benchmarking ---------------------------------------------------\n");
 
@@ -215,7 +222,7 @@ void splatt_bench(
   }
 
   free(opts.perm);
-  free(tsizes);
+  free(opts.threads);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mat_free(mats[m]);
   }
