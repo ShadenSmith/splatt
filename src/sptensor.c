@@ -126,7 +126,10 @@ spmatrix_t * tt_unfold(
 
     colind[n] = col;
   }
-  rowptr[nrows] = tt->nnz;
+  /* account for any empty rows at end, too */
+  for(idx_t r=row; r <= nrows; ++r) {
+    rowptr[r] = tt->nnz;
+  }
 
   return mat;
 }
