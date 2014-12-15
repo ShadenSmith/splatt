@@ -51,11 +51,13 @@ typedef struct
   idx_t rank;
   int scale;
   int write;
+  idx_t permmode;
 } bench_args;
 
 static struct argp_option bench_options[] = {
   {"alg", 'a', "ALG", 0, "algorithm to benchmark"},
   {"iters", 'i', "NITERS", 0, "number of iterations to use (default: 5)"},
+  {"mode", 'm', "MODE", 0, "mode basis for hgraph reordering (default: 1)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"scale", 's', 0, 0, "scale threads from 1 to NTHREADS (by 2)"},
@@ -88,6 +90,9 @@ static error_t parse_bench_opt(
     break;
   case 'i':
     args->niters = atoi(arg);
+    break;
+  case 'm':
+    args->permmode = atoi(arg) - 1;
     break;
   case 'p':
     args->pfname = arg;
@@ -166,6 +171,7 @@ void splatt_bench(
   args.scale = 0;
   args.rank = 10;
   args.write = 0;
+  args.permmode = 0;
   for(int a=0; a < ALG_NALGS; ++a) {
     args.which[a] = 0;
   }
@@ -189,15 +195,11 @@ void splatt_bench(
 
   if(args.pfname != NULL) {
     printf("Reordering ------------------------------------------------------\n");
-    opts.perm = tt_perm(tt, PERM_HGRAPH, 0, args.pfname);
+    opts.perm = tt_perm(tt, PERM_HGRAPH, args.permmode, args.pfname);
     printf("\n");
   } else {
     /* initialize perms */
-    opts.perm = (permutation_t *) malloc(sizeof(permutation_t));
-    for(idx_t m=0; m < tt->nmodes; ++m ){
-      opts.perm->perms[m] = NULL;
-      opts.perm->iperms[m] = NULL;
-    }
+    opts.perm = perm_alloc(tt->dims, 0);
   }
 
   /* M, the result matrix is stored at mats[MAX_NMODES] */
@@ -221,7 +223,7 @@ void splatt_bench(
     }
   }
 
-  free(opts.perm);
+  perm_free(opts.perm);
   free(opts.threads);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mat_free(mats[m]);

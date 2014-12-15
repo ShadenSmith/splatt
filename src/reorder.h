@@ -6,6 +6,7 @@
  *****************************************************************************/
 #include "base.h"
 #include "sptensor.h"
+#include "ftensor.h"
 
 /******************************************************************************
  * STRUCTURES
@@ -40,6 +41,27 @@ void build_pptr(
   idx_t ** ret_pptr,
   idx_t ** ret_plookup);
 
+void perm_apply(
+  sptensor_t * const tt,
+  idx_t ** perm);
+
+permutation_t * perm_hgraph(
+  sptensor_t * const tt,
+  ftensor_t const * const ft,
+  idx_t const * const parts,
+  idx_t const nparts,
+  idx_t const mode);
+
+permutation_t * perm_graph(
+  sptensor_t * const tt,
+  idx_t const * const parts);
+
+permutation_t * perm_alloc(
+  idx_t const * const dims,
+  idx_t const nmodes);
+
+void perm_free(
+  permutation_t * perm);
 
 /******************************************************************************
  * MATRIX REORDER FUNCTIONS
