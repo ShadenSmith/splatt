@@ -91,6 +91,10 @@ static void __create_fptr(
       ++fib;
     }
   }
+  /* account for any empty slices at end */
+  for(idx_t s=slice; s < ft->dims[mode]; ++s) {
+    ft->sptr[mode][s] = ft->nfibs[mode];
+  }
 }
 
 

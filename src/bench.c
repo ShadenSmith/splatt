@@ -99,8 +99,8 @@ void bench_splatt(
 
     /* output load balance info */
     if(nruns > 1 || nthreads > 1) {
-      thd_times(thds, nthreads);
-      thd_reset(thds, nthreads);
+      thd_times(thds, threads[nruns-1]);
+      thd_reset(thds, threads[nruns-1]);
       printf("\n");
     }
   }
@@ -166,8 +166,8 @@ void bench_giga(
 
     /* output load balance info */
     if(nruns > 1 || nthreads > 1) {
-      thd_times(thds, nthreads);
-      thd_reset(thds, nthreads);
+      thd_times(thds, threads[nruns-1]);
+      thd_reset(thds, threads[nruns-1]);
       printf("\n");
     }
   }
@@ -235,8 +235,8 @@ void bench_ttbox(
 
     /* output load balance info */
     if(nruns > 1 || nthreads > 1) {
-      thd_times(thds, nthreads);
-      thd_reset(thds, nthreads);
+      thd_times(thds, threads[nruns-1]);
+      thd_reset(thds, threads[nruns-1]);
       printf("\n");
     }
   }

@@ -10,6 +10,7 @@
 #include "ftensor.h"
 #include "io.h"
 #include "sort.h"
+#include "timer.h"
 
 #include <assert.h>
 
@@ -59,6 +60,12 @@ static void __reorder_slices(
     for(idx_t j=pptr[p]; j < pptr[p+1]; ++j) {
       idx_t const fib = plookup[j];
       idx_t const s = slice[fib];
+      if(sliceperm[s] == nslices) {
+        sliceiperm[sliceptr] = s;
+        sliceperm[s] = sliceptr++;
+      }
+      continue;
+
       /* move to uncut slice (or past it) */
       while(uncutptr < nuncut && uncut[uncutptr] < s) {
         ++uncutptr;
@@ -104,16 +111,11 @@ static void __reorder_fibs(
   idx_t const nslices = ft->dims[mode];
   idx_t const nfids = ft->dims[pm];
   idx_t const nfibs = ft->nfibs[mode];
-  idx_t * fid = (idx_t *) malloc(nfibs * sizeof(idx_t));
+  idx_t const * const fids = ft->fids[mode];
 
   idx_t * const fidperm  = perm->perms[pm];
   idx_t * const fidiperm = perm->iperms[pm];
   idx_t const * const sptr = ft->sptr[mode];
-
-  /* build map of fiber -> fid */
-  for(idx_t f=0; f < nfibs; ++f) {
-    fid[f] = ft->fids[mode][f];
-  }
 
   for(idx_t f=0; f < nfids; ++f) {
     /* mark perm as incomplete */
@@ -138,7 +140,13 @@ static void __reorder_fibs(
     for(idx_t j=pptr[p]; j < pptr[p+1]; ++j) {
       uncutptr = uncutstart;
       idx_t const fib = plookup[j];
-      idx_t const s = fid[fib];
+      idx_t const s = fids[fib];
+      if(fidperm[s] == nfids) {
+        fidiperm[fidptr] = s;
+        fidperm[s] = fidptr++;
+      }
+      continue;
+
       /* move to uncut slice (or past it) */
       while(uncutptr < nuncut && uncut[uncutptr] < (s + nslices)) {
         ++uncutptr;
@@ -167,7 +175,6 @@ static void __reorder_fibs(
 
   free(pptr);
   free(plookup);
-  free(fid);
 }
 
 static void __reorder_inds(
@@ -221,6 +228,12 @@ static void __reorder_inds(
       idx_t const fib = plookup[j];
       for(idx_t j=fptr[fib]; j < fptr[fib+1]; ++j) {
         idx_t const s = inds[j];
+        if(indperm[s] == ninds) {
+          indiperm[indptr] = s;
+          indperm[s] = indptr++;
+        }
+        continue;
+
 
         while(uncutptr < nuncut && uncut[uncutptr] < (s + nslices + nfids)) {
           ++uncutptr;
@@ -262,6 +275,7 @@ permutation_t * tt_perm(
   idx_t const mode,
   char const * const pfile)
 {
+  timer_start(&timers[TIMER_REORDER]);
   permutation_t * perm = NULL;
   switch(type) {
   case PERM_GRAPH:
@@ -282,6 +296,18 @@ permutation_t * tt_perm(
     break;
   }
 
+#if 0
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    printf("len: %lu\n", tt->dims[m]);
+    for(idx_t n=0; n < tt->dims[m]; ++n) {
+      printf("  %lu  %lu\n", perm->perms[m][n], perm->iperms[m][n]);
+    }
+  }
+  printf("go time\n");
+  fflush(stdout);
+#endif
+
+  timer_stop(&timers[TIMER_REORDER]);
   return perm;
 }
 
@@ -369,16 +395,20 @@ permutation_t * perm_hgraph(
   }
   printf("slices: "SS_IDX"  fibs: "SS_IDX"  inds: "SS_IDX"\n", nslices, nfibs, ninds);
 
+#if 0
   for(idx_t m=0; m < tt->nmodes; ++m) {
     for(idx_t n=0; n < tt->dims[m]; ++n) {
       perm->perms[m][n] = n;
       perm->iperms[m][n] = n;
     }
   }
+#endif
 
   __reorder_slices(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
   __reorder_fibs(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
   __reorder_inds(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
+#if 0
+#endif
 
 #if 0
   tt_sort(tt, mode, NULL);

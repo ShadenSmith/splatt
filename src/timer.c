@@ -17,6 +17,7 @@ static char const * const timer_names[] = {
   [TIMER_GIGA]    = "GIGA",
   [TIMER_TTBOX]   = "TTBOX",
   [TIMER_DFACTO]  = "DFACTO",
+  [TIMER_REORDER] = "REORDER",
   [TIMER_SORT]    = "SORT",
   [TIMER_MISC]    = "MISC"
 };
