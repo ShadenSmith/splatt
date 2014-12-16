@@ -53,7 +53,7 @@ static void __stats_hparts(
     exit(1);
   }
 
-  ftensor_t * ft = ften_alloc(tt);
+  ftensor_t * ft = ften_alloc(tt, 0);
   idx_t const nvtxs = ft->nfibs[mode];
   idx_t nhedges = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {

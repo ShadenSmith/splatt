@@ -65,7 +65,7 @@ void bench_splatt(
   thd_info * thds = thd_init(threads[nruns-1],
     mats[0]->J * sizeof(val_t) + 64);
 
-  ftensor_t * ft = ften_alloc(tt);
+  ftensor_t * ft = ften_alloc(tt, opts->tile);
   timer_start(&timers[TIMER_SPLATT]);
   printf("** SPLATT **\n");
 

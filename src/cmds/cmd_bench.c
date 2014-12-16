@@ -51,8 +51,11 @@ typedef struct
   idx_t rank;
   int scale;
   int write;
+  int tile;
   idx_t permmode;
 } bench_args;
+
+#define TT_TILE 255
 
 static struct argp_option bench_options[] = {
   {"alg", 'a', "ALG", 0, "algorithm to benchmark"},
@@ -61,6 +64,7 @@ static struct argp_option bench_options[] = {
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"scale", 's', 0, 0, "scale threads from 1 to NTHREADS (by 2)"},
+  {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"write", 'w', 0, 0, "write results to files ALG_mode<N>.mat (for testing)"},
   {"partition", 'p', "FILE", 0, "use an hgraph partitioning to reorder tensor"},
   { 0 }
@@ -108,6 +112,10 @@ static error_t parse_bench_opt(
     break;
   case 'w':
     args->write = 1;
+    break;
+
+  case TT_TILE:
+    args->tile = 1;
     break;
 
   case ARGP_KEY_ARG:
@@ -171,6 +179,7 @@ void splatt_bench(
   args.scale = 0;
   args.rank = 10;
   args.write = 0;
+  args.tile = 0;
   args.permmode = 0;
   for(int a=0; a < ALG_NALGS; ++a) {
     args.which[a] = 0;
@@ -192,6 +201,7 @@ void splatt_bench(
   bench_opts opts;
   opts.niters = args.niters;
   opts.write = args.write;
+  opts.tile = args.tile;
 
   if(args.pfname != NULL) {
     printf("Reordering ------------------------------------------------------\n");

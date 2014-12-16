@@ -38,7 +38,8 @@ typedef struct
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 ftensor_t * ften_alloc(
-  sptensor_t * const tt);
+  sptensor_t * const tt,
+  int const tile);
 
 spmatrix_t * ften_spmat(
   ftensor_t * ft,
@@ -46,5 +47,11 @@ spmatrix_t * ften_spmat(
 
 void ften_free(
   ftensor_t * ft);
+
+void fib_mode_order(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t const mode,
+  idx_t * const perm_dims);
 
 #endif

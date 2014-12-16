@@ -298,7 +298,7 @@ permutation_t * tt_perm(
     break;
 
   case PERM_HGRAPH:
-    ft = ften_alloc(tt);
+    ft = ften_alloc(tt, 0);
     parts = part_read(pfile, ft->nfibs[mode], &nparts);
     perm = perm_hgraph(tt, ft, parts, nparts, mode);
     ften_free(ft);

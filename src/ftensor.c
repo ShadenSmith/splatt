@@ -8,6 +8,7 @@
 #include "io.h"
 #include "matrix.h"
 #include "ftensor.h"
+#include "tile.h"
 
 
 /******************************************************************************
@@ -103,33 +104,16 @@ static void __order_modes(
   sptensor_t const * const tt)
 {
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    ft->dim_perms[m][0] = m;
-    /* find largest mode */
-    idx_t maxm = (m+1) % tt->nmodes;
-    for(idx_t mo=1; mo < tt->nmodes; ++mo) {
-      if(ft->dims[(m+mo) % tt->nmodes] > ft->dims[maxm]) {
-        maxm = (m+mo) % tt->nmodes;
-      }
-    }
-
-    /* fill in mode permutation */
-    ft->dim_perms[m][tt->nmodes-1] = maxm;
-    idx_t mark = 1;
-    for(idx_t mo=1; mo < tt->nmodes; ++mo) {
-      idx_t mround = (m + mo) % tt->nmodes;
-      if(mround != maxm) {
-        ft->dim_perms[m][mark++] = mround;
-      }
-    }
+    fib_mode_order(tt->dims, tt->nmodes, m, ft->dim_perms[m]);
   }
 }
-
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 ftensor_t * ften_alloc(
-  sptensor_t * const tt)
+  sptensor_t * const tt,
+  int const tile)
 {
   ftensor_t * ft = (ftensor_t *) malloc(sizeof(ftensor_t));
   ft->nnz = tt->nnz;
@@ -148,6 +132,10 @@ ftensor_t * ften_alloc(
     ft->vals[m] = (val_t *) malloc(ft->nnz * sizeof(val_t));
 
     tt_sort(tt, m, ft->dim_perms[m]);
+    if(tile) {
+      tt_tile(tt, ft->dim_perms[m]);
+    }
+
     __create_fptr(ft, tt, m);
   }
 
@@ -184,4 +172,30 @@ void ften_free(
   free(ft);
 }
 
+
+void fib_mode_order(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t const mode,
+  idx_t * const perm_dims)
+{
+  perm_dims[0] = mode;
+  /* find largest mode */
+  idx_t maxm = (mode+1) % nmodes;
+  for(idx_t mo=1; mo < nmodes; ++mo) {
+    if(dims[(mode+mo) % nmodes] > dims[maxm]) {
+      maxm = (mode+mo) % nmodes;
+    }
+  }
+
+  /* fill in mode permutation */
+  perm_dims[nmodes-1] = maxm;
+  idx_t mark = 1;
+  for(idx_t mo=1; mo < nmodes; ++mo) {
+    idx_t mround = (mode + mo) % nmodes;
+    if(mround != maxm) {
+      perm_dims[mark++] = mround;
+    }
+  }
+}
 
