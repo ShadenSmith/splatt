@@ -11,6 +11,7 @@
 #include "io.h"
 #include "sort.h"
 #include "timer.h"
+#include "util.h"
 
 #include <assert.h>
 
@@ -476,6 +477,39 @@ permutation_t * perm_alloc(
   return perm;
 }
 
+
+permutation_t * perm_rand(
+  idx_t const * const dims,
+  idx_t const nmodes)
+{
+  permutation_t * perm = perm_alloc(dims, nmodes);
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* initialize perm */
+    for(idx_t n=0; n < dims[m]; ++n){
+      perm->perms[m][n] = n;
+    }
+
+    /* shuffle perm */
+    for(idx_t n=0; n < dims[m]; ++n) {
+      /* random idx in range [n, dims[m]) */
+      idx_t j = (rand_idx() % dims[m] - n) + n;
+      /* swap n and j */
+      idx_t tmp = perm->perms[m][n];
+      perm->perms[m][n] = j;
+      perm->perms[m][j] = tmp;
+    }
+
+    /* now fill in iperms */
+    for(idx_t n=0; n < dims[m]; ++n) {
+      perm->iperms[m][perm->perms[m][n]] = n;
+    }
+  }
+
+  return perm;
+}
+
+
 void perm_free(
   permutation_t * perm)
 {
@@ -495,6 +529,7 @@ matrix_t * perm_matrix(
   idx_t const * const perm,
   matrix_t * retmat)
 {
+  timer_start(&timers[TIMER_REORDER]);
   idx_t const I = mat->I;
   idx_t const J = mat->J;
 
@@ -519,6 +554,7 @@ matrix_t * perm_matrix(
     }
   }
 
+  timer_stop(&timers[TIMER_REORDER]);
   return retmat;
 }
 
