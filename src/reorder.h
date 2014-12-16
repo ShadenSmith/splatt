@@ -54,7 +54,8 @@ permutation_t * perm_hgraph(
 
 permutation_t * perm_graph(
   sptensor_t * const tt,
-  idx_t const * const parts);
+  idx_t const * const parts,
+  idx_t const nparts);
 
 permutation_t * perm_alloc(
   idx_t const * const dims,

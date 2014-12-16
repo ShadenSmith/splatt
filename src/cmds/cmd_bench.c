@@ -195,7 +195,8 @@ void splatt_bench(
 
   if(args.pfname != NULL) {
     printf("Reordering ------------------------------------------------------\n");
-    opts.perm = tt_perm(tt, PERM_HGRAPH, args.permmode, args.pfname);
+    //opts.perm = tt_perm(tt, PERM_HGRAPH, args.permmode, args.pfname);
+    opts.perm = tt_perm(tt, PERM_GRAPH, args.permmode, args.pfname);
     printf("\n");
   } else {
     /* initialize perms */

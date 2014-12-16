@@ -276,37 +276,37 @@ permutation_t * tt_perm(
   char const * const pfile)
 {
   timer_start(&timers[TIMER_REORDER]);
+  if(pfile == NULL) {
+    fprintf(stderr, "SPLATT: permutation file must be supplied for now.\n");
+    exit(1);
+  }
+
+  idx_t nvtxs = 0;
+  idx_t * parts = NULL;
+  idx_t nparts = 0;
+  ftensor_t * ft = NULL;
+
   permutation_t * perm = NULL;
   switch(type) {
   case PERM_GRAPH:
-    break;
-  case PERM_HGRAPH:
-    if(pfile == NULL) {
-      fprintf(stderr, "SPLATT: permutation file must be supplied for now.\n");
-      exit(1);
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      nvtxs += tt->dims[m];
     }
-    ftensor_t * ft = ften_alloc(tt);
-    idx_t nparts = 0;
-    idx_t * parts = part_read(pfile, ft->nfibs[mode], &nparts);
+    parts = part_read(pfile, nvtxs, &nparts);
+    perm = perm_graph(tt, parts, nparts);
+    break;
+
+  case PERM_HGRAPH:
+    ft = ften_alloc(tt);
+    parts = part_read(pfile, ft->nfibs[mode], &nparts);
     perm = perm_hgraph(tt, ft, parts, nparts, mode);
-    free(parts);
     ften_free(ft);
     break;
   default:
     break;
   }
 
-#if 0
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    printf("len: %lu\n", tt->dims[m]);
-    for(idx_t n=0; n < tt->dims[m]; ++n) {
-      printf("  %lu  %lu\n", perm->perms[m][n], perm->iperms[m][n]);
-    }
-  }
-  printf("go time\n");
-  fflush(stdout);
-#endif
-
+  free(parts);
   timer_stop(&timers[TIMER_REORDER]);
   return perm;
 }
@@ -395,36 +395,12 @@ permutation_t * perm_hgraph(
   }
   printf("slices: "SS_IDX"  fibs: "SS_IDX"  inds: "SS_IDX"\n", nslices, nfibs, ninds);
 
-#if 0
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    for(idx_t n=0; n < tt->dims[m]; ++n) {
-      perm->perms[m][n] = n;
-      perm->iperms[m][n] = n;
-    }
-  }
-#endif
-
   __reorder_slices(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
   __reorder_fibs(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
   __reorder_inds(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
-#if 0
-#endif
-
-#if 0
-  tt_sort(tt, mode, NULL);
-  tt_write(tt, "orig.tns");
-#endif
 
   /* actually apply permutation */
   perm_apply(tt, perm->perms);
-
-#if 0
-  tt_sort(tt, mode, NULL);
-  tt_write(tt, "permd.tns");
-  perm_apply(tt, perm->iperms);
-  tt_sort(tt, mode, NULL);
-  tt_write(tt, "ipermd.tns");
-#endif
 
   free(uncuts);
   return perm;
@@ -432,10 +408,53 @@ permutation_t * perm_hgraph(
 
 permutation_t * perm_graph(
   sptensor_t * const tt,
-  idx_t const * const parts)
+  idx_t const * const parts,
+  idx_t const nparts)
 {
-  permutation_t * perm = perm_alloc(tt->dims, tt->nmodes);
+  idx_t const nmodes = tt->nmodes;
+  idx_t const * const dims = tt->dims;
 
+  permutation_t * perm = perm_alloc(dims, nmodes);
+  idx_t mkrs[MAX_NMODES];
+  idx_t nvtxs = 0;
+  for(idx_t m=0; m < nmodes; ++m) {
+    nvtxs += dims[m];
+    mkrs[m] = 0;
+
+    for(idx_t n=0; n < dims[m]; ++n) {
+      perm->perms[m][n]  = dims[m];
+      perm->iperms[m][n] = dims[m];
+    }
+  }
+  printf("nvtxs: "SS_IDX" nparts: "SS_IDX"\n", nvtxs, nparts);
+
+  idx_t * pptr = NULL;
+  idx_t * plookup = NULL;
+  build_pptr(parts, nparts, nvtxs, &pptr, &plookup);
+
+  for(idx_t p=0; p < nparts; ++p) {
+    for(idx_t j=pptr[p]; j < pptr[p+1]; ++j) {
+      idx_t v = plookup[j];
+
+      /* figure out which mode vtx belongs in */
+      for(idx_t m=0; m < nmodes; ++m) {
+        if(v < dims[m]) {
+          /* reorder v! each vtx can only appear once per partition, so don't
+           * check for previous assignment */
+          perm->iperms[m][mkrs[m]] = v;
+          perm->perms[m][v] = mkrs[m]++;
+          break;
+        }
+        /* not found in this mode, try next one */
+        v -= dims[m];
+      }
+    }
+  }
+
+  perm_apply(tt, perm->perms);
+
+  free(pptr);
+  free(plookup);
   return perm;
 }
 
