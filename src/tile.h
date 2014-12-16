@@ -7,9 +7,7 @@
 #include "base.h"
 #include "sptensor.h"
 
-#define SLAB_TILE 8
-#define FIB_TILE 8
-
+static idx_t const TILE_SIZES[] = { 512, 8, 8 };
 
 
 /******************************************************************************
