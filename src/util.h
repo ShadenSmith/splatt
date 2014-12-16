@@ -13,5 +13,6 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 val_t rand_val(void);
+idx_t rand_idx(void);
 
 #endif
