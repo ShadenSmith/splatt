@@ -5,7 +5,12 @@
 #include "tile.h"
 #include "sort.h"
 #include "timer.h"
+#include "io.h"
 
+
+/******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
 static idx_t * __mkslabptr(
   idx_t const * const inds,
   idx_t const nnz,
@@ -26,14 +31,15 @@ static idx_t * __mkslabptr(
   return slabs;
 }
 
-static void __lol(
+
+static idx_t __fill_uniques(
   idx_t const * const inds,
   idx_t const start,
   idx_t const end,
-  idx_t * const seen)
+  idx_t * const seen,
+  idx_t * const uniques)
 {
-  idx_t * uniques;
-  idx_t nuniques;
+  idx_t nuniques = 0;
   for(idx_t n=start; n < end; ++n) {
     idx_t const jj = inds[n];
 
@@ -45,6 +51,119 @@ static void __lol(
   }
 
   quicksort(uniques, nuniques);
+  return nuniques;
+}
+
+
+static void __tile_uniques(
+  idx_t const start,
+  idx_t const end,
+  sptensor_t * const src,
+  sptensor_t * const dest,
+  idx_t const mode,
+  idx_t * const seen,
+  idx_t * const uniques,
+  idx_t const nuniques,
+  idx_t const tsize)
+{
+  idx_t const ntubes = (nuniques / tsize) + (nuniques % tsize != 0);
+  idx_t * tmkr = (idx_t *) calloc(ntubes+1, sizeof(idx_t));
+  //printf("ntubes: %lu\n", ntubes);
+
+  /* make a marker array so we can quickly move nnz into dest */
+  tmkr[0] = start;
+  for(idx_t n=0; n < nuniques; ++n) {
+    tmkr[1+(uniques[n] / tsize)] += seen[uniques[n]];
+  }
+  for(idx_t t=1; t <= ntubes; ++t) {
+    tmkr[t] += tmkr[t-1];
+  }
+
+#if 0
+  printf("tmkr: ");
+  for(idx_t t=0; t <= ntubes; ++t) {
+    printf("%lu ", tmkr[t]);
+  }
+  printf("\n");
+#endif
+
+  /* place nnz */
+  idx_t const * const ind = src->ind[mode];
+  for(idx_t n=start; n < end; ++n) {
+    idx_t const index = tmkr[ind[n] / tsize];
+    for(idx_t m=0; m < src->nmodes; ++m) {
+      dest->ind[m][index] = src->ind[m][n];
+    }
+    dest->vals[index] = src->vals[n];
+    tmkr[ind[n] / tsize] += 1;
+  }
+
+  free(tmkr);
+}
+
+
+static void __clear_uniques(
+  idx_t * const seen,
+  idx_t * const uniques,
+  idx_t const nuniques)
+{
+  for(idx_t n=0; n < nuniques; ++n) {
+    seen[uniques[n]] = 0;
+    uniques[n] = 0;
+  }
+}
+
+
+static void __pack_slab(
+  idx_t const start,
+  idx_t const end,
+  sptensor_t * const tt,
+  sptensor_t * const tt_buf,
+  idx_t const * const dim_perm,
+  idx_t * const * const seen,
+  idx_t * const * const uniques,
+  idx_t * const nuniques)
+{
+
+  idx_t const fibmode = dim_perm[1];
+  idx_t const idxmode = dim_perm[2];
+
+  /* get unique fibers */
+  nuniques[fibmode] = __fill_uniques(tt->ind[fibmode], start, end,
+    seen[fibmode], uniques[fibmode]);
+  __tile_uniques(start, end, tt, tt_buf, fibmode, seen[fibmode],
+    uniques[fibmode], nuniques[fibmode], TILE_SIZES[1]);
+
+#if 0
+  printf("buf:\n");
+  for(idx_t n=start; n < end; ++n) {
+    printf("%lu %lu %lu %f\n",
+      1+tt_buf->ind[0][n],
+      1+tt_buf->ind[1][n],
+      1+tt_buf->ind[2][n],
+      tt_buf->vals[n]);
+  }
+#endif
+
+  /* get unique idxs */
+  nuniques[idxmode] = __fill_uniques(tt_buf->ind[idxmode], start, end,
+    seen[idxmode], uniques[idxmode]);
+  __tile_uniques(start, end, tt_buf, tt, idxmode, seen[idxmode],
+    uniques[idxmode], nuniques[idxmode], TILE_SIZES[2]);
+
+#if 0
+  printf("tt:\n");
+  for(idx_t n=start; n < end; ++n) {
+    printf("%lu %lu %lu %f\n",
+      1+tt->ind[0][n],
+      1+tt->ind[1][n],
+      1+tt->ind[2][n],
+      tt->vals[n]);
+  }
+#endif
+
+  __clear_uniques(seen[fibmode], uniques[fibmode], nuniques[fibmode]);
+  __clear_uniques(seen[idxmode], uniques[idxmode], nuniques[idxmode]);
 }
 
 
@@ -63,19 +182,45 @@ void tt_tile(
   printf("nslices: "SS_IDX"  nslabs: " SS_IDX"\n", nslices, nslabs);
 
   tt_sort(tt, dim_perm[0], dim_perm);
+#if 0
+  tt_write(tt, NULL);
+#endif
+
+  sptensor_t * tt_buf = tt_alloc(tt->nnz, tt->nmodes);
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    tt_buf->dims[m] = tt->dims[m];
+  }
 
   /* fill in slabs */
   idx_t * slabptr = __mkslabptr(tt->ind[dim_perm[0]], tt->nnz, nslabs);
-  idx_t * fibptr = (idx_t *) calloc(tt->dims[dim_perm[1]], sizeof(idx_t));
 
+  /* seen and uniques are used to mark unique idxs in each slab */
+  idx_t * seen[MAX_NMODES];
+  idx_t * uniques[MAX_NMODES];
+  idx_t nuniques[MAX_NMODES];
+  for(idx_t m=1; m < tt->nmodes; ++m) {
+    seen[dim_perm[m]]    = (idx_t *) calloc(tt->dims[dim_perm[m]], sizeof(idx_t));
+    uniques[dim_perm[m]] = (idx_t *) calloc(tt->dims[dim_perm[m]], sizeof(idx_t));
+  }
+
+  /* tile each slab of nonzeros */
   for(idx_t s=0; s < nslabs; ++s) {
     idx_t const start = slabptr[s];
     idx_t const end = slabptr[s+1];
+    printf("s: %lu  start: %lu  end: %lu\n", s, start, end);
+
+    __pack_slab(start, end, tt, tt_buf, dim_perm, seen, uniques, nuniques);
   }
 
-  free(fibptr);
+  for(idx_t m=1; m < tt->nmodes; ++m) {
+    free(seen[dim_perm[m]]);
+    free(uniques[dim_perm[m]]);
+  }
+
+  tt_free(tt_buf);
   free(slabptr);
   timer_stop(&timers[TIMER_TILE]);
+  printf("\n\n");
 }
 
 

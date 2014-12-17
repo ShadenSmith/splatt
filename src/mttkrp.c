@@ -23,16 +23,17 @@ void mttkrp_splatt(
   matrix_t       * const M = mats[MAX_NMODES];
   matrix_t const * const A = mats[ft->dim_perms[mode][1]];
   matrix_t const * const B = mats[ft->dim_perms[mode][2]];
-  idx_t const nslices = ft->dims[mode];
+  idx_t const nslices = ft->nslcs[mode];
   idx_t const rank = M->J;
 
   val_t * const mvals = M->vals;
-  memset(mvals, 0, nslices * rank * sizeof(val_t));
+  memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
 
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
 
   idx_t const * const restrict sptr = ft->sptr[mode];
+  idx_t const * const restrict sids = ft->sids[mode];
   idx_t const * const restrict fptr = ft->fptr[mode];
   idx_t const * const restrict fids = ft->fids[mode];
   idx_t const * const restrict inds = ft->inds[mode];
@@ -46,7 +47,7 @@ void mttkrp_splatt(
 
     #pragma omp for schedule(dynamic, 16) nowait
     for(idx_t s=0; s < nslices; ++s) {
-      val_t * const restrict mv = mvals + (s * rank);
+      val_t * const restrict mv = mvals + (sids[s] * rank);
 
       /* foreach fiber in slice */
       for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {

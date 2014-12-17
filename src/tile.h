@@ -7,7 +7,7 @@
 #include "base.h"
 #include "sptensor.h"
 
-static idx_t const TILE_SIZES[] = { 512, 8, 8 };
+static idx_t const TILE_SIZES[] = { 512, 512, 512 };
 
 
 /******************************************************************************

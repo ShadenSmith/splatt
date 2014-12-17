@@ -17,9 +17,12 @@ static void __tt_remove_dups(
 {
   tt_sort(tt, 0, NULL);
 
-  for(idx_t n=0; n < tt->nnz - 1; ++n) {
+  idx_t nnz = tt->nnz;
+  idx_t const nmodes = tt->nmodes;
+
+  for(idx_t n=0; n < nnz - 1; ++n) {
     int same = 1;
-    for(idx_t m=0; m < tt->nmodes; ++m) {
+    for(idx_t m=0; m < nmodes; ++m) {
       if(tt->ind[m][n] != tt->ind[m][n+1]) {
         same = 0;
         break;
@@ -27,14 +30,15 @@ static void __tt_remove_dups(
     }
     if(same) {
       tt->vals[n] = (tt->vals[n] + tt->vals[n+1]) / 2;
-      for(idx_t m=0; m < tt->nmodes; ++m) {
+      for(idx_t m=0; m < nmodes; ++m) {
         memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]),
-          (tt->nnz-n-1)*sizeof(idx_t));
+          (nnz-n-1)*sizeof(idx_t));
       }
       --n;
-      tt->nnz -= 1;
+      nnz -= 1;
     }
   }
+  tt->nnz = nnz;
 }
 
 /******************************************************************************

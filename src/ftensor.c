@@ -39,12 +39,16 @@ static void __create_fptr(
   }
 
   idx_t nfibs = 1;
+  idx_t nslices = 1;
   ft->inds[mode][0] = ttinds[nmodes-1][0];
   ft->vals[mode][0] = tt->vals[0];
 
   /* count fibers in tt */
   for(idx_t n=1; n < nnz; ++n) {
     for(idx_t m=0; m < nmodes-1; ++m) {
+      if(ttinds[0][n] != ttinds[0][n-1]) {
+        ++nslices;
+      }
       /* check for new fiber */
       if(ttinds[m][n] != ttinds[m][n-1]) {
         ++nfibs;
@@ -55,24 +59,59 @@ static void __create_fptr(
     ft->vals[mode][n] = tt->vals[n];
   }
 
-  /* allocate fiber structure */
-  ft->sptr[mode] = (idx_t *) malloc((ft->dims[mode]+1) * sizeof(idx_t));
+  printf("nslices: %lu dims: %lu\n", nslices, ft->dims[mode]);
+
+  /* allocate slice/fiber structure */
   ft->nfibs[mode] = nfibs;
+  ft->nslcs[mode] = nslices;
+  ft->sptr[mode] = (idx_t *) malloc((nslices+1) * sizeof(idx_t));
+  ft->sids[mode] = (idx_t *) malloc(nslices * sizeof(idx_t));
   ft->fptr[mode] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
   ft->fids[mode] = (idx_t *) malloc(nfibs * sizeof(idx_t));
 
+  /* initialize boundary values */
+  ft->sptr[mode][0] = 0;
+  ft->sids[mode][0] = ttinds[0][0];
+  ft->fptr[mode][0] = 0;
+  ft->fids[mode][0] = ttinds[1][0];
+  ft->sptr[mode][nslices] = nfibs;
+  ft->fptr[mode][nfibs] = nnz;
+
+  /* fill in rest of tensor */
+  idx_t slice = 1;
+  idx_t fib = 1;
+  for(idx_t n=1; n < nnz; ++n) {
+    int newfib = 0;
+    /* check for new fiber */
+    for(idx_t m=0; m < nmodes-1; ++m) {
+      if(ttinds[m][n] != ttinds[m][n-1]) {
+        newfib = 1;
+        break;
+      }
+    }
+    if(newfib) {
+      if(ttinds[0][n] != ttinds[0][n-1]) {
+        ft->sids[mode][slice] = ttinds[0][n];
+        ft->sptr[mode][slice] = fib;
+        ++slice;
+      }
+      ft->fptr[mode][fib] = n;
+      ft->fids[mode][fib] = ttinds[1][n];
+      ++fib;
+    }
+  }
+
+  return;
+
   /* now fill structure */
-  idx_t slice = 0;
   ft->sptr[mode][slice] = 0;
   ft->sptr[mode][ft->dims[mode]] = nfibs;
   while(slice != ttinds[0][0]+1) {
     ft->sptr[mode][slice++] = 0;
   }
 
-  ft->fptr[mode][0] = 0;
   ft->fptr[mode][nfibs] = nnz;
   ft->fids[mode][0] = ttinds[1][0];
-  idx_t fib = 1;
   for(idx_t n=1; n < nnz; ++n) {
     int newfib = 0;
     /* check for new fiber */
@@ -168,6 +207,7 @@ void ften_free(
     free(ft->fids[m]);
     free(ft->inds[m]);
     free(ft->vals[m]);
+    //free(ft->sids[m]);
   }
   free(ft);
 }

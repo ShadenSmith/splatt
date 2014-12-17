@@ -24,8 +24,10 @@ typedef struct
    */
   idx_t dim_perms[MAX_NMODES][MAX_NMODES];
 
+  idx_t  nslcs[MAX_NMODES];
   idx_t  nfibs[MAX_NMODES];
   idx_t * sptr[MAX_NMODES];
+  idx_t * sids[MAX_NMODES];
   idx_t * fptr[MAX_NMODES];
   idx_t * fids[MAX_NMODES];
   idx_t * inds[MAX_NMODES];
