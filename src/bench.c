@@ -124,6 +124,9 @@ void bench_giga(
   idx_t const nruns = opts->nruns;
   char matname[64];
 
+  /* shuffle matrices if permutation exists */
+  __shuffle_mats(mats, opts->perm->perms, tt->nmodes);
+
   sp_timer_t itertime;
   sp_timer_t modetime;
   thd_info * thds = thd_init(threads[nruns-1], 0);
@@ -180,6 +183,9 @@ void bench_giga(
   }
   mat_free(colmats[MAX_NMODES]);
   free(scratch);
+
+  /* fix any matrices that we shuffled */
+  __shuffle_mats(mats, opts->perm->iperms, tt->nmodes);
 }
 
 
@@ -192,6 +198,9 @@ void bench_ttbox(
   idx_t const * const threads = opts->threads;
   idx_t const nruns = opts->nruns;
   char matname[64];
+
+  /* shuffle matrices if permutation exists */
+  __shuffle_mats(mats, opts->perm->perms, tt->nmodes);
 
   sp_timer_t itertime;
   sp_timer_t modetime;
@@ -248,6 +257,9 @@ void bench_ttbox(
     mat_free(colmats[m]);
   }
   mat_free(colmats[MAX_NMODES]);
+
+  /* fix any matrices that we shuffled */
+  __shuffle_mats(mats, opts->perm->iperms, tt->nmodes);
 }
 
 

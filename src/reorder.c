@@ -30,7 +30,7 @@ static void __reorder_slices(
   idx_t const mode)
 {
   /* build map of fiber -> slice */
-  idx_t const nslices = ft->dims[mode];
+  idx_t const nslices = ft->nslcs[mode];
   idx_t const nfibs = ft->nfibs[mode];
   idx_t * slice = (idx_t *) malloc(nfibs * sizeof(idx_t));
 
@@ -38,13 +38,17 @@ static void __reorder_slices(
   idx_t * const sliceiperm = perm->iperms[mode];
 
   idx_t const * const sptr = ft->sptr[mode];
+  idx_t const * const sids = ft->sids[mode];
   for(idx_t s=0; s < nslices; ++s) {
     for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
-      slice[f] = s;
+      slice[f] = sids[s];
     }
+  }
+
+  for(idx_t s=0; s < ft->dims[mode]; ++s) {
     /* mark perm as incomplete */
-    sliceperm[s] = nslices;
-    sliceiperm[s] = nslices;
+    sliceperm[s] = ft->dims[mode];
+    sliceiperm[s] = ft->dims[mode];
   }
 
   idx_t * pptr = NULL;
@@ -52,45 +56,23 @@ static void __reorder_slices(
   build_pptr(parts, nparts, nfibs, &pptr, &plookup);
 
   idx_t sliceptr = 0;
-  idx_t uncutptr = 0;
 
   /* order all uncut slices first */
   for(idx_t p=0; p < nparts; ++p) {
-    uncutptr = 0;
     /* for each fiber in partition */
     for(idx_t j=pptr[p]; j < pptr[p+1]; ++j) {
       idx_t const fib = plookup[j];
       idx_t const s = slice[fib];
-      if(sliceperm[s] == nslices) {
-        sliceiperm[sliceptr] = s;
-        sliceperm[s] = sliceptr++;
-      }
-      continue;
-
-      /* move to uncut slice (or past it) */
-      while(uncutptr < nuncut && uncut[uncutptr] < s) {
-        ++uncutptr;
-      }
-      if(uncutptr == nuncut) {
-        break;
-      }
-
-      /* mark s if it is uncut and not already marked */
-      if(uncut[uncutptr] == s && sliceperm[s] == nslices) {
+      if(sliceperm[s] == ft->dims[mode]) {
         sliceiperm[sliceptr] = s;
         sliceperm[s] = sliceptr++;
       }
     }
   }
+
+  /* account for empty slices at end.. */
 
   printf("placed: %lu\n", sliceptr);
-  /* place untouched slices at end of permutation */
-  for(idx_t s=0; s < nslices; ++s) {
-    if(sliceperm[s] == nslices) {
-      sliceiperm[sliceptr] = s;
-      sliceperm[s] = sliceptr++;
-    }
-  }
   assert(sliceptr == nslices);
 
   free(pptr);
@@ -109,14 +91,13 @@ static void __reorder_fibs(
   idx_t const mode)
 {
   idx_t const pm = ft->dim_perms[mode][1];
-  idx_t const nslices = ft->dims[mode];
+  idx_t const nslices = ft->nslcs[mode];
   idx_t const nfids = ft->dims[pm];
   idx_t const nfibs = ft->nfibs[mode];
   idx_t const * const fids = ft->fids[mode];
 
   idx_t * const fidperm  = perm->perms[pm];
   idx_t * const fidiperm = perm->iperms[pm];
-  idx_t const * const sptr = ft->sptr[mode];
 
   for(idx_t f=0; f < nfids; ++f) {
     /* mark perm as incomplete */
@@ -129,35 +110,12 @@ static void __reorder_fibs(
   build_pptr(parts, nparts, nfibs, &pptr, &plookup);
 
   idx_t fidptr = 0;
-  idx_t uncutptr = 0;
-  idx_t uncutstart = 0;
-  while(uncut[uncutstart] < nslices) {
-    ++uncutstart;
-  }
-
-  /* order all uncut fids first */
   for(idx_t p=0; p < nparts; ++p) {
     /* for each fiber in partition */
     for(idx_t j=pptr[p]; j < pptr[p+1]; ++j) {
-      uncutptr = uncutstart;
       idx_t const fib = plookup[j];
       idx_t const s = fids[fib];
       if(fidperm[s] == nfids) {
-        fidiperm[fidptr] = s;
-        fidperm[s] = fidptr++;
-      }
-      continue;
-
-      /* move to uncut slice (or past it) */
-      while(uncutptr < nuncut && uncut[uncutptr] < (s + nslices)) {
-        ++uncutptr;
-      }
-      if(uncutptr == nuncut) {
-        break;
-      }
-
-      /* mark s if it is uncut and not already marked */
-      if(uncut[uncutptr] == (s + nslices) && fidperm[s] == nfids) {
         fidiperm[fidptr] = s;
         fidperm[s] = fidptr++;
       }
@@ -166,12 +124,14 @@ static void __reorder_fibs(
 
   /* place untouched slices at end of permutation */
   printf("placed: %lu\n", fidptr);
+#if 0
   for(idx_t s=0; s < nfids; ++s) {
     if(fidperm[s] == nfids) {
       fidiperm[fidptr] = s;
       fidperm[s] = fidptr++;
     }
   }
+#endif
   assert(fidptr == nfids);
 
   free(pptr);

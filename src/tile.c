@@ -68,15 +68,19 @@ static void __tile_uniques(
 {
   idx_t const ntubes = (nuniques / tsize) + (nuniques % tsize != 0);
   idx_t * tmkr = (idx_t *) calloc(ntubes+1, sizeof(idx_t));
-  //printf("ntubes: %lu\n", ntubes);
 
   /* make a marker array so we can quickly move nnz into dest */
   tmkr[0] = start;
   for(idx_t n=0; n < nuniques; ++n) {
-    tmkr[1+(uniques[n] / tsize)] += seen[uniques[n]];
+    tmkr[1+(n / tsize)] += seen[uniques[n]];
   }
   for(idx_t t=1; t <= ntubes; ++t) {
     tmkr[t] += tmkr[t-1];
+  }
+
+  /* reuse seen[] to map ind to unique id */
+  for(idx_t n=0; n < nuniques; ++n) {
+    seen[uniques[n]] = n;
   }
 
 #if 0
@@ -90,12 +94,12 @@ static void __tile_uniques(
   /* place nnz */
   idx_t const * const ind = src->ind[mode];
   for(idx_t n=start; n < end; ++n) {
-    idx_t const index = tmkr[ind[n] / tsize];
+    idx_t const index = tmkr[seen[ind[n]] / tsize];
     for(idx_t m=0; m < src->nmodes; ++m) {
       dest->ind[m][index] = src->ind[m][n];
     }
     dest->vals[index] = src->vals[n];
-    tmkr[ind[n] / tsize] += 1;
+    tmkr[seen[ind[n]] / tsize] += 1;
   }
 
   free(tmkr);
@@ -207,7 +211,6 @@ void tt_tile(
   for(idx_t s=0; s < nslabs; ++s) {
     idx_t const start = slabptr[s];
     idx_t const end = slabptr[s+1];
-    printf("s: %lu  start: %lu  end: %lu\n", s, start, end);
 
     __pack_slab(start, end, tt, tt_buf, dim_perm, seen, uniques, nuniques);
   }
