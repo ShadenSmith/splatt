@@ -83,14 +83,6 @@ static void __tile_uniques(
     seen[uniques[n]] = n;
   }
 
-#if 0
-  printf("tmkr: ");
-  for(idx_t t=0; t <= ntubes; ++t) {
-    printf("%lu ", tmkr[t]);
-  }
-  printf("\n");
-#endif
-
   /* place nnz */
   idx_t const * const ind = src->ind[mode];
   for(idx_t n=start; n < end; ++n) {
@@ -138,34 +130,14 @@ static void __pack_slab(
   __tile_uniques(start, end, tt, tt_buf, fibmode, seen[fibmode],
     uniques[fibmode], nuniques[fibmode], TILE_SIZES[1]);
 
-#if 0
-  printf("buf:\n");
-  for(idx_t n=start; n < end; ++n) {
-    printf("%lu %lu %lu %f\n",
-      1+tt_buf->ind[0][n],
-      1+tt_buf->ind[1][n],
-      1+tt_buf->ind[2][n],
-      tt_buf->vals[n]);
-  }
-#endif
-
   /* get unique idxs */
   nuniques[idxmode] = __fill_uniques(tt_buf->ind[idxmode], start, end,
     seen[idxmode], uniques[idxmode]);
   __tile_uniques(start, end, tt_buf, tt, idxmode, seen[idxmode],
     uniques[idxmode], nuniques[idxmode], TILE_SIZES[2]);
 
-#if 0
-  printf("tt:\n");
-  for(idx_t n=start; n < end; ++n) {
-    printf("%lu %lu %lu %f\n",
-      1+tt->ind[0][n],
-      1+tt->ind[1][n],
-      1+tt->ind[2][n],
-      tt->vals[n]);
-  }
-#endif
-
+  /* Clear out uniques for next slab. Complexity is #uniques, not dimension
+   * of tensor... */
   __clear_uniques(seen[fibmode], uniques[fibmode], nuniques[fibmode]);
   __clear_uniques(seen[idxmode], uniques[idxmode], nuniques[idxmode]);
 }
@@ -186,9 +158,6 @@ void tt_tile(
   printf("nslices: "SS_IDX"  nslabs: " SS_IDX"\n", nslices, nslabs);
 
   tt_sort(tt, dim_perm[0], dim_perm);
-#if 0
-  tt_write(tt, NULL);
-#endif
 
   sptensor_t * tt_buf = tt_alloc(tt->nnz, tt->nmodes);
   for(idx_t m=0; m < tt->nmodes; ++m) {

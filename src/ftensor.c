@@ -38,6 +38,14 @@ static void __create_fptr(
     ttinds[m] = NULL;
   }
 
+  if(ft->tiled) {
+    ft->nslabs[mode] = ft->dims[mode] / TILE_SIZES[0]
+      + (ft->dims[mode] % TILE_SIZES[0] != 0);
+
+    ft->slabptr[mode] = (idx_t *) calloc(ft->nslabs[mode]+1, sizeof(idx_t));
+    ft->slabptr[mode][0] = 0;
+  }
+
   idx_t nfibs = 1;
   idx_t nslices = 1;
   ft->inds[mode][0] = ttinds[nmodes-1][0];
@@ -162,6 +170,8 @@ ftensor_t * ften_alloc(
     ft->dims[m] = tt->dims[m];
   }
 
+  ft->tiled = tt->tiled;
+
   /* compute permutation of modes */
   __order_modes(ft, tt);
 
@@ -173,6 +183,7 @@ ftensor_t * ften_alloc(
     tt_sort(tt, m, ft->dim_perms[m]);
     if(tile) {
       tt_tile(tt, ft->dim_perms[m]);
+      ft->tiled = 1;
     }
 
     __create_fptr(ft, tt, m);
@@ -207,7 +218,10 @@ void ften_free(
     free(ft->fids[m]);
     free(ft->inds[m]);
     free(ft->vals[m]);
-    //free(ft->sids[m]);
+    free(ft->sids[m]);
+    if(ft->tiled) {
+      free(ft->slabptr[m]);
+    }
   }
   free(ft);
 }

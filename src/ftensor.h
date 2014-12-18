@@ -32,6 +32,11 @@ typedef struct
   idx_t * fids[MAX_NMODES];
   idx_t * inds[MAX_NMODES];
   val_t * vals[MAX_NMODES];
+
+  /* structures for tiled tensors */
+  int tiled;
+  idx_t    nslabs[MAX_NMODES];
+  idx_t * slabptr[MAX_NMODES];
 } ftensor_t;
 
 

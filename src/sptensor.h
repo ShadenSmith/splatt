@@ -27,6 +27,7 @@ typedef struct
   idx_t * dims;
   idx_t ** ind;
   val_t * vals;
+  int tiled;
 } sptensor_t;
 
 

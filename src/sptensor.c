@@ -58,6 +58,7 @@ sptensor_t * tt_alloc(
   idx_t const nmodes)
 {
   sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
+  tt->tiled = 0;
 
   tt->nnz = nnz;
   tt->vals = (val_t*) malloc(nnz * sizeof(val_t));
