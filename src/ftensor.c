@@ -14,6 +14,7 @@
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
+
 static void __create_fptr(
   ftensor_t * const ft,
   sptensor_t const * const tt,
@@ -110,6 +111,7 @@ static void __create_fptr(
   }
 
   return;
+  /*******************/
 
   /* now fill structure */
   ft->sptr[mode][slice] = 0;

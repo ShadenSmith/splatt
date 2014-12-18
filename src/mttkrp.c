@@ -13,6 +13,10 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+
+/******************************************************************************
+ * SPLATT MTTKRP
+ *****************************************************************************/
 void mttkrp_splatt(
   ftensor_t const * const ft,
   matrix_t ** mats,
@@ -20,6 +24,11 @@ void mttkrp_splatt(
   thd_info * const thds,
   idx_t const nthreads)
 {
+  if(ft->tiled) {
+    mttkrp_splatt_tiled(ft, mats, mode, thds, nthreads);
+    return;
+  }
+
   matrix_t       * const M = mats[MAX_NMODES];
   matrix_t const * const A = mats[ft->dim_perms[mode][1]];
   matrix_t const * const B = mats[ft->dim_perms[mode][2]];
@@ -81,6 +90,78 @@ void mttkrp_splatt(
 }
 
 
+void mttkrp_splatt_tiled(
+  ftensor_t const * const ft,
+  matrix_t ** mats,
+  idx_t const mode,
+  thd_info * const thds,
+  idx_t const nthreads)
+{
+  matrix_t       * const M = mats[MAX_NMODES];
+  matrix_t const * const A = mats[ft->dim_perms[mode][1]];
+  matrix_t const * const B = mats[ft->dim_perms[mode][2]];
+
+  idx_t const nslabs = ft->nslabs[mode];
+  idx_t const rank = M->J;
+
+  val_t * const mvals = M->vals;
+  memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
+
+  val_t const * const avals = A->vals;
+  val_t const * const bvals = B->vals;
+
+  idx_t const * const restrict slabptr = ft->slabptr[mode];
+  idx_t const * const restrict sids = ft->sids[mode];
+  idx_t const * const restrict fptr = ft->fptr[mode];
+  idx_t const * const restrict fids = ft->fids[mode];
+  idx_t const * const restrict inds = ft->inds[mode];
+  val_t const * const restrict vals = ft->vals[mode];
+
+  #pragma omp parallel
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch;
+    timer_start(&thds[tid].ttime);
+
+    #pragma omp for schedule(dynamic, 4) nowait
+    for(idx_t s=0; s < nslabs; ++s) {
+      /* foreach fiber in slice */
+      for(idx_t f=slabptr[s]; f < slabptr[s+1]; ++f) {
+        /* first entry of the fiber is used to initialize accumF */
+        idx_t const jjfirst  = fptr[f];
+        val_t const vfirst   = vals[jjfirst];
+        val_t const * const restrict bv = bvals + (inds[jjfirst] * rank);
+        for(idx_t r=0; r < rank; ++r) {
+          accumF[r] = vfirst * bv[r];
+        }
+
+        /* foreach nnz in fiber */
+        for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
+          val_t const v = vals[jj];
+          val_t const * const restrict bv = bvals + (inds[jj] * rank);
+          for(idx_t r=0; r < rank; ++r) {
+            accumF[r] += v * bv[r];
+          }
+        }
+
+        /* scale inner products by row of A and update to M */
+        val_t       * const restrict mv = mvals + (sids[f] * rank);
+        val_t const * const restrict av = avals  + (fids[f] * rank);
+        for(idx_t r=0; r < rank; ++r) {
+          mv[r] += accumF[r] * av[r];
+        }
+      }
+    }
+
+    timer_stop(&thds[tid].ttime);
+  } /* end parallel region */
+}
+
+
+
+/******************************************************************************
+ * GIGA MTTKRP
+ *****************************************************************************/
 void mttkrp_giga(
   spmatrix_t const * const spmat,
   matrix_t ** mats,
@@ -126,6 +207,9 @@ void mttkrp_giga(
 }
 
 
+/******************************************************************************
+ * TTBOX MTTKRP
+ *****************************************************************************/
 void mttkrp_ttbox(
   sptensor_t const * const tt,
   matrix_t ** mats,
@@ -171,7 +255,6 @@ void mttkrp_ttbox(
     }
   }
 }
-
 
 
 
