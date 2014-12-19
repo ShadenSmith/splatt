@@ -32,7 +32,7 @@ void mttkrp_splatt(
   matrix_t       * const M = mats[MAX_NMODES];
   matrix_t const * const A = mats[ft->dim_perms[mode][1]];
   matrix_t const * const B = mats[ft->dim_perms[mode][2]];
-  idx_t const nslices = ft->nslcs[mode];
+  idx_t const nslices = ft->dims[mode];
   idx_t const rank = M->J;
 
   val_t * const mvals = M->vals;
@@ -42,7 +42,6 @@ void mttkrp_splatt(
   val_t const * const bvals = B->vals;
 
   idx_t const * const restrict sptr = ft->sptr[mode];
-  idx_t const * const restrict sids = ft->sids[mode];
   idx_t const * const restrict fptr = ft->fptr[mode];
   idx_t const * const restrict fids = ft->fids[mode];
   idx_t const * const restrict inds = ft->inds[mode];
@@ -56,7 +55,7 @@ void mttkrp_splatt(
 
     #pragma omp for schedule(dynamic, 16) nowait
     for(idx_t s=0; s < nslices; ++s) {
-      val_t * const restrict mv = mvals + (sids[s] * rank);
+      val_t * const restrict mv = mvals + (s * rank);
 
       /* foreach fiber in slice */
       for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
@@ -123,7 +122,7 @@ void mttkrp_splatt_tiled(
     val_t * const restrict accumF = (val_t *) thds[tid].scratch;
     timer_start(&thds[tid].ttime);
 
-    #pragma omp for schedule(dynamic, 4) nowait
+    #pragma omp for schedule(dynamic, 1) nowait
     for(idx_t s=0; s < nslabs; ++s) {
       /* foreach fiber in slice */
       for(idx_t f=slabptr[s]; f < slabptr[s+1]; ++f) {
@@ -146,7 +145,7 @@ void mttkrp_splatt_tiled(
 
         /* scale inner products by row of A and update to M */
         val_t       * const restrict mv = mvals + (sids[f] * rank);
-        val_t const * const restrict av = avals  + (fids[f] * rank);
+        val_t const * const restrict av = avals + (fids[f] * rank);
         for(idx_t r=0; r < rank; ++r) {
           mv[r] += accumF[r] * av[r];
         }

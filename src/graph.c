@@ -24,13 +24,17 @@ static void __fill_emap(
     emaps[m] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
     memset(emaps[m], 0, ft->dims[pm]);
 
-    for(idx_t s=0; s < ft->nslcs[pm]; ++s) {
-      emaps[m][ft->sids[pm][s]] = h++;
-      ++(hg->nhedges);
+    for(idx_t s=0; s < ft->dims[pm]; ++s) {
+      /* if slice is non-empty */
+      if(ft->sptr[pm][s] != ft->sptr[pm][s+1]) {
+        emaps[m][s] = h++;
+        ++(hg->nhedges);
+      } else {
+        emaps[m][s] = -1;
+      }
     }
   }
 }
-
 
 static void __fill_emap_fibonly(
   ftensor_t const * const ft,
@@ -44,15 +48,19 @@ static void __fill_emap_fibonly(
 
   hg->nhedges = 0;
   idx_t const pm = ft->dim_perms[mode][2];
-  emaps[2] = (idx_t *) malloc(ft->nslcs[pm] * sizeof(idx_t));
-  memset(emaps[2], 0, ft->nslcs[pm]);
+  emaps[2] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
+  memset(emaps[2], 0, ft->dims[pm]);
   idx_t h = 0;
-  for(idx_t s=0; s < ft->nslcs[pm]; ++s) {
-    emaps[2][s] = h++;
-    ++(hg->nhedges);
+  for(idx_t s=0; s < ft->dims[pm]; ++s) {
+    /* if slice is non-empty */
+    if(ft->sptr[pm][s] != ft->sptr[pm][s+1]) {
+      emaps[2][s] = h++;
+      ++(hg->nhedges);
+    } else {
+      emaps[2][s] = -1;
+    }
   }
 }
-
 
 static void __fill_vwts(
   ftensor_t const * const ft,
@@ -95,9 +103,9 @@ hgraph_t * hgraph_fib_alloc(
   hg->eind = (idx_t *) malloc(neind * sizeof(idx_t));
 
   /* fill in eptr - all offset by 1 to do a prefix sum later */
-  for(idx_t s=0; s < ft->nslcs[mode]; ++s) {
+  for(idx_t s=0; s < ft->dims[mode]; ++s) {
     /* slice hyperedge */
-    idx_t hs = emaps[0][ft->sids[mode][s]];
+    idx_t hs = emaps[0][s];
     hg->eptr[hs+1] = ft->sptr[mode][s+1] - ft->sptr[mode][s];
     for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
       idx_t hfid = emaps[1][ft->fids[mode][f]];
@@ -120,8 +128,8 @@ hgraph_t * hgraph_fib_alloc(
 
   /* now fill in eind while using eptr as a marker */
   idx_t vtx = 0;
-  for(idx_t s=0; s < ft->nslcs[mode]; ++s) {
-    idx_t hs = emaps[0][ft->sids[mode][s]];
+  for(idx_t s=0; s < ft->dims[mode]; ++s) {
+    idx_t hs = emaps[0][s];
     for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
       idx_t hfid = emaps[1][ft->fids[mode][f]];
       hg->eind[hg->eptr[hs+1]++]   = vtx;

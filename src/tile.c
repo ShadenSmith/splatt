@@ -155,7 +155,6 @@ void tt_tile(
   idx_t const nslices = tt->dims[dim_perm[0]];
   idx_t const nslabs = (nslices / TILE_SIZES[0]) +
     (nslices % TILE_SIZES[0] != 0);
-  printf("nslices: "SS_IDX"  nslabs: " SS_IDX"\n", nslices, nslabs);
 
   tt_sort(tt, dim_perm[0], dim_perm);
 
@@ -192,7 +191,6 @@ void tt_tile(
   tt_free(tt_buf);
   free(slabptr);
   timer_stop(&timers[TIMER_TILE]);
-  printf("\n\n");
 }
 
 

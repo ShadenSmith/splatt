@@ -22,6 +22,13 @@ void mttkrp_splatt(
   thd_info * const thds,
   idx_t const nthreads);
 
+void mttkrp_splatt_tiled(
+  ftensor_t const * const ft,
+  matrix_t ** mats,
+  idx_t const mode,
+  thd_info * const thds,
+  idx_t const nthreads);
+
 void mttkrp_giga(
   spmatrix_t const * const spmat,
   matrix_t ** mats,

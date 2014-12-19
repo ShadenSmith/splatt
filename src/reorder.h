@@ -15,6 +15,7 @@ typedef enum
 {
   PERM_GRAPH,
   PERM_HGRAPH,
+  PERM_FIBSCHED,
   PERM_ERROR,
 } splatt_perm_type;
 
