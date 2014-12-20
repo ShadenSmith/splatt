@@ -50,7 +50,7 @@ static void __create_fptr(
     ft->vals[mode][n] = tt->vals[n];
   }
 
-  printf("mode: "SS_IDX" found "SS_IDX" fibers.\n", mode, nfibs);
+  printf("mode: "SS_IDX" found "SS_IDX" fibers.\n", mode+1, nfibs);
 
   /* allocate fiber structure */
   ft->nfibs[mode] = nfibs;
@@ -115,8 +115,10 @@ static void __create_slabptr(
       ft->slabptr[mode][slab++] = f;
     }
   }
+
+  /* account for any empty slabs at end */
   ft->slabptr[mode][slab] = nfibs;
-  assert(slab == nslabs);
+  ft->nslabs[mode] = slab;
 }
 
 
