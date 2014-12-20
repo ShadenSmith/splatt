@@ -15,10 +15,14 @@
 static char bench_args_doc[] = "TENSOR [-a ALG]...";
 static char bench_doc[] =
   "splatt-bench -- benchmark MTTKRP algorithms\n\n"
-  "Available algorithms are:\n"
+  "Available MTTKRP algorithms are:\n"
   "  splatt\tThe algorithm introduced by splatt\n"
   "  giga\t\tGigaTensor algorithm adapted from the MapReduce paradigm\n"
-  "  ttbox\t\tTensor-Vector products as done by Tensor Toolbox\n";
+  "  ttbox\t\tTensor-Vector products as done by Tensor Toolbox\n"
+  "Available reordering algorithms are:\n"
+  "  graph\t\t\tReorder based on the partitioning of a mode-independent graph\n"
+  "  hgraph\t\tReorder based on the partitioning of a hypergraph\n"
+  "  fib\t\t'hgraph' reordering AND reschedule fiber execution\n";
 
 typedef enum
 {
@@ -44,8 +48,10 @@ typedef struct
 {
   char * ifname;
   char * pfname;
+  splatt_perm_type rtype;
   int which[ALG_NALGS];
   char * algerr;
+  char * permerr;
   idx_t niters;
   idx_t nthreads;
   idx_t rank;
@@ -66,7 +72,8 @@ static struct argp_option bench_options[] = {
   {"scale", 's', 0, 0, "scale threads from 1 to NTHREADS (by 2)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"write", 'w', 0, 0, "write results to files ALG_mode<N>.mat (for testing)"},
-  {"partition", 'p', "FILE", 0, "use an hgraph partitioning to reorder tensor"},
+  {"rtype", 'z', "TYPE", 0, "designate reordering type"},
+  {"pfile", 'p', "FILE", 0, "partition file for reordering"},
   { 0 }
 };
 
@@ -112,6 +119,18 @@ static error_t parse_bench_opt(
     break;
   case 'w':
     args->write = 1;
+    break;
+  case 'z':
+    if(strcmp(arg, "graph") == 0) {
+      args->rtype = PERM_GRAPH;
+    } else if(strcmp(arg, "hgraph") == 0) {
+      args->rtype = PERM_HGRAPH;
+    } else if(strcmp(arg, "fib") == 0) {
+      args->rtype = PERM_FIBSCHED;
+    } else {
+      args->rtype = PERM_ERROR;
+      args->permerr = arg;
+    }
     break;
 
   case TT_TILE:
@@ -174,6 +193,7 @@ void splatt_bench(
   args.ifname = NULL;
   args.pfname = NULL;
   args.algerr = NULL;
+  args.permerr = NULL;
   args.niters = 5;
   args.nthreads = 1;
   args.scale = 0;
@@ -181,6 +201,7 @@ void splatt_bench(
   args.write = 0;
   args.tile = 0;
   args.permmode = 0;
+  args.rtype = PERM_ERROR;
   for(int a=0; a < ALG_NALGS; ++a) {
     args.which[a] = 0;
   }
@@ -191,6 +212,7 @@ void splatt_bench(
                     "Run with '--help' for assistance.\n", args.algerr);
     exit(EXIT_FAILURE);
   }
+
 
   print_header();
 
@@ -204,10 +226,14 @@ void splatt_bench(
   opts.tile = args.tile;
 
   if(args.pfname != NULL) {
+    if(args.rtype == PERM_ERROR) {
+      fprintf(stderr, "SPLATT: reordering algorithm '%s' is not recognized.\n"
+                      "Run with '--help' for assistance.\n", args.permerr);
+      exit(EXIT_FAILURE);
+    }
+
     printf("Reordering ------------------------------------------------------\n");
-    //opts.perm = tt_perm(tt, PERM_HGRAPH, args.permmode, args.pfname);
-    opts.perm = tt_perm(tt, PERM_GRAPH, args.permmode, args.pfname);
-    printf("\n");
+    opts.perm = tt_perm(tt, args.rtype, args.permmode, args.pfname);
   } else {
     /* initialize perms */
     opts.perm = perm_alloc(tt->dims, 0);
@@ -227,6 +253,7 @@ void splatt_bench(
   opts.threads = __mkthreads(args.nthreads, args.scale, &opts.nruns);
 
   printf("Benchmarking ---------------------------------------------------\n");
+  printf("RANK="SS_IDX" ITS="SS_IDX"\n", args.rank, args.niters);
 
   for(int a=0; a < ALG_NALGS; ++a) {
     if(args.which[a]) {

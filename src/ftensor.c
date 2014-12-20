@@ -203,6 +203,8 @@ ftensor_t * ften_alloc(
 
     tt_sort(tt, m, ft->dim_perms[m]);
     if(tile) {
+      printf("tiling with "SS_IDX"x"SS_IDX"x"SS_IDX" tile dimensions.\n",
+        TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
       tt_tile(tt, ft->dim_perms[m]);
       ft->tiled = 1;
     }
