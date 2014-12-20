@@ -9,9 +9,10 @@
 #include "timer.h"
 #include "thd_info.h"
 #include "reorder.h"
+#include "sort.h"
+#include "io.h"
 
 #include <omp.h>
-#include "io.h"
 
 static void __log_mat(
   char const * const ofname,
@@ -198,6 +199,8 @@ void bench_ttbox(
   idx_t const * const threads = opts->threads;
   idx_t const nruns = opts->nruns;
   char matname[64];
+
+  tt_sort(tt, 0, NULL);
 
   /* shuffle matrices if permutation exists */
   __shuffle_mats(mats, opts->perm->perms, tt->nmodes);
