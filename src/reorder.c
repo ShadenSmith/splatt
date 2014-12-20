@@ -83,7 +83,7 @@ static void __reorder_slices(
     }
   }
 
-  printf("placed: %lu\n", sliceptr);
+  printf("placed: "SS_IDX"\n", sliceptr);
   /* place untouched slices at end of permutation */
   for(idx_t s=0; s < nslices; ++s) {
     if(sliceperm[s] == nslices) {
@@ -165,7 +165,7 @@ static void __reorder_fibs(
   }
 
   /* place untouched slices at end of permutation */
-  printf("placed: %lu\n", fidptr);
+  printf("placed: "SS_IDX"\n", fidptr);
   for(idx_t s=0; s < nfids; ++s) {
     if(fidperm[s] == nfids) {
       fidiperm[fidptr] = s;
@@ -252,7 +252,7 @@ static void __reorder_inds(
   }
 
   /* place untouched slices at end of permutation */
-  printf("placed: %lu\n", indptr);
+  printf("placed: "SS_IDX"\n", indptr);
   for(idx_t s=0; s < ninds; ++s) {
     if(indperm[s] == ninds) {
       indiperm[indptr] = s;

@@ -136,15 +136,15 @@ static void __stats_hparts(
       }
     }
 
-    printf("%4lu  ", p);
-    printf("fibs: %5lu(%4.1f%%)  ", pptr[p+1] - pptr[p],
+    printf(SS_IDX"  ", p);
+    printf("fibs: "SS_IDX"(%4.1f%%)  ", pptr[p+1] - pptr[p],
       100. * (val_t)(pptr[p+1]-pptr[p]) / nvtxs);
-    printf("nnz: %6lu (%4.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
-    printf("I: %5lu (%4.1f%%)  ", nunique[0],
+    printf("nnz: "SS_IDX" (%4.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
+    printf("I: "SS_IDX" (%4.1f%%)  ", nunique[0],
       100. * (val_t)nunique[0] / (val_t) ft->dims[mode]);
-    printf("K: %5lu (%4.1f%%)  ", nunique[1],
+    printf("K: "SS_IDX" (%4.1f%%)  ", nunique[1],
       100. * (val_t)nunique[1] / (val_t) ft->dims[ft->dim_perms[mode][1]]);
-    printf("J: %5lu (%4.1f%%)\n", nunique[2],
+    printf("J: "SS_IDX" (%4.1f%%)\n", nunique[2],
       100. * (val_t)nunique[2] / (val_t) ft->dims[ft->dim_perms[mode][2]]);
   }
 
