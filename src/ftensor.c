@@ -50,7 +50,10 @@ static void __create_fptr(
     ft->vals[mode][n] = tt->vals[n];
   }
 
-  printf("mode: "SS_IDX" found "SS_IDX" fibers.\n", mode+1, nfibs);
+  idx_t const maxfibs = ft->dims[mode] * ft->dims[ft->dim_perms[mode][1]];
+  printf("mode: "SS_IDX" found "SS_IDX" fibers"
+         " (max: "SS_IDX" %0.2f%% dense).\n", mode+1, nfibs, maxfibs,
+         100. * (double)nfibs / (double)(maxfibs));
 
   /* allocate fiber structure */
   ft->nfibs[mode] = nfibs;
