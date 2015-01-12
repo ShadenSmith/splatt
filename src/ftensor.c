@@ -9,6 +9,7 @@
 #include "matrix.h"
 #include "ftensor.h"
 #include "tile.h"
+#include "util.h"
 
 
 /******************************************************************************
@@ -216,6 +217,28 @@ ftensor_t * ften_alloc(
       __create_sliceptr(ft, tt, m);
     }
   }
+
+  /* calculate storage */
+  idx_t bytes = 0;
+  /* nnz */
+  bytes += 3 * ((ft->nnz * sizeof(idx_t)) + (ft->nnz * sizeof(val_t)));
+  for(idx_t m=0; m < ft->nmodes; ++m) {
+    bytes += (ft->nfibs[m]+1) * sizeof(idx_t); /* fptr */
+    bytes += ft->nfibs[m] * sizeof(idx_t);     /* fids */
+
+    if(ft->tiled) {
+      bytes += ft->nslabs[m] * sizeof(idx_t); /* slabptr */
+      bytes += ft->nfibs[m] * sizeof(idx_t);  /* sids */
+    } else {
+      bytes += ft->dims[m] * sizeof(idx_t);   /* sptr */
+    }
+  }
+
+  char * cbyte = bytes_str(bytes);
+  printf("storage: %s\n", cbyte);
+  free(cbyte);
+
+  printf("\n");
 
   return ft;
 }
