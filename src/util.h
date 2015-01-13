@@ -14,5 +14,7 @@
  *****************************************************************************/
 val_t rand_val(void);
 idx_t rand_idx(void);
+char * bytes_str(
+  idx_t const bytes);
 
 #endif
