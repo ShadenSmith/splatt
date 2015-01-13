@@ -8,6 +8,10 @@
 #include "sptensor.h"
 #include "matrix.h"
 
+/* 1 selects longer fiber direction, 0 chooses short fibers */
+#ifndef SPLATT_LONG_FIB
+#define SPLATT_LONG_FIB 1
+#endif
 
 /******************************************************************************
  * STRUCTURES

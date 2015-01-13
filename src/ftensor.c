@@ -266,6 +266,7 @@ void fib_mode_order(
   idx_t * const perm_dims)
 {
   perm_dims[0] = mode;
+#if SPLATT_LONG_FIB == 1
   /* find largest mode */
   idx_t maxm = (mode+1) % nmodes;
   for(idx_t mo=1; mo < nmodes; ++mo) {
@@ -273,6 +274,15 @@ void fib_mode_order(
       maxm = (mode+mo) % nmodes;
     }
   }
+#else
+  /* find shortest mode */
+  idx_t maxm = (mode+1) % nmodes;
+  for(idx_t mo=1; mo < nmodes; ++mo) {
+    if(dims[(mode+mo) % nmodes] < dims[maxm]) {
+      maxm = (mode+mo) % nmodes;
+    }
+  }
+#endif
 
   /* fill in mode permutation */
   perm_dims[nmodes-1] = maxm;
