@@ -16,7 +16,7 @@ static char convert_doc[] =
   "  hgraph\t\tHypergraph modeling the sparsity pattern of fibers\n"
   "  fibmat\t\tCSR matrix whose rows are fibers\n"
   "Mode-independent conversion types are:\n"
-  "  ijkgraph\t\tTri-partite graph model\n";
+  "  graph\t\tTri-partite graph model\n";
 
 typedef struct
 {
@@ -48,7 +48,7 @@ static error_t parse_convert_opt(
   case 't':
     if(strcmp(arg, "hgraph") == 0) {
       args->type = CNV_FIB_HGRAPH;
-    } else if(strcmp(arg, "ijkgraph") == 0) {
+    } else if(strcmp(arg, "graph") == 0) {
       args->type = CNV_IJK_GRAPH;
     } else if(strcmp(arg, "fibmat") == 0) {
       args->type = CNV_FIB_SPMAT;

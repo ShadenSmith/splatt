@@ -12,9 +12,9 @@
  *****************************************************************************/
 typedef enum
 {
-  CNV_FIB_HGRAPH,
-  CNV_FIB_SPMAT,
   CNV_IJK_GRAPH,
+  CNV_FIB_SPMAT,
+  CNV_FIB_HGRAPH,
   CNV_ERROR,
 } splatt_convert_type;
 
