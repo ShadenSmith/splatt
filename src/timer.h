@@ -32,6 +32,7 @@ typedef enum
   TIMER_MISC,
   TIMER_REORDER,
   TIMER_TILE,
+  TIMER_CONVERT,
   TIMER_NTIMERS
 } timer_id;
 

@@ -10,6 +10,8 @@
 #include "matrix.h"
 #include "convert.h"
 #include "sort.h"
+#include "stats.h"
+#include "timer.h"
 
 
 /******************************************************************************
@@ -18,14 +20,17 @@
 typedef struct
 {
   idx_t v;
-  idx_t cnt;
+  unsigned int cnt;
 } kvp_t;
+
+static idx_t nreallocs;
+static idx_t const ADJ_START_ALLOC = 8;
 
 
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
- static inline void __update_adj(
+static inline void __update_adj(
   idx_t const u,
   idx_t const v,
   kvp_t * * const adj,
@@ -46,6 +51,7 @@ typedef struct
     /* resize if necessary */
     adjsize[u] *= 2;
     adj[u] = (kvp_t *) realloc(adj[u], adjsize[u] * sizeof(kvp_t));
+    ++nreallocs;
   }
   adj[u][adjmkr[u]].v   = v;
   adj[u][adjmkr[u]].cnt = 1;
@@ -65,6 +71,8 @@ static void __convert_ijk_graph(
     fout = fopen(ofname, "w");
   }
 
+  nreallocs = 0;
+
   idx_t nvtxs = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
     nvtxs += tt->dims[m];
@@ -75,15 +83,18 @@ static void __convert_ijk_graph(
   idx_t * adjmkr  = (idx_t *) malloc(nvtxs * sizeof(idx_t));
   idx_t * adjsize = (idx_t *) malloc(nvtxs * sizeof(idx_t));
   for(idx_t v=0; v < nvtxs; ++v) {
-    adj[v] = (kvp_t *) malloc(2 * sizeof(kvp_t));
+    adjsize[v] = ADJ_START_ALLOC;
+    adj[v] = (kvp_t *) malloc(adjsize[v] * sizeof(kvp_t));
     adjmkr[v] = 0;
-    adjsize[v] = 2;
   }
   /* marks #edges in each adj list and tells us when to resize */
 
   /* count edges in graph */
   idx_t nedges = 0;
   for(idx_t n=0; n < tt->nnz; ++n) {
+    if(n % 100000 == 0) {
+      printf("n: %lu\n", n);
+    }
     idx_t uoffset = 0;
     /* update each adj list */
     for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -109,10 +120,12 @@ static void __convert_ijk_graph(
   /* now write adj list */
   for(idx_t u=0; u < nvtxs; ++u) {
     for(idx_t v=0; v < adjmkr[u]; ++v) {
-      fprintf(fout, SS_IDX" "SS_IDX" ", 1+adj[u][v].v, adj[u][v].cnt);
+      fprintf(fout, SS_IDX" %u ", 1+adj[u][v].v, adj[u][v].cnt);
     }
     fprintf(fout, "\n");
   }
+
+  printf("reallocs: "SS_IDX"\n", nreallocs);
 
   /* cleanup */
   if(ofname != NULL || strcmp(ofname, "-") != 0) {
@@ -168,6 +181,9 @@ void tt_convert(
   splatt_convert_type const type)
 {
   sptensor_t * tt = tt_read(ifname);
+  stats_tt(tt, ifname, STATS_BASIC, 0, NULL);
+
+  timer_start(&timers[TIMER_CONVERT]);
 
   switch(type) {
   case CNV_IJK_GRAPH:
@@ -184,6 +200,7 @@ void tt_convert(
     exit(1);
   }
 
+  timer_stop(&timers[TIMER_CONVERT]);
   tt_free(tt);
 }
 
