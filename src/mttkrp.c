@@ -180,6 +180,7 @@ void mttkrp_splatt_coop_tiled(
   val_t const * const bvals = B->vals;
 
   idx_t const * const restrict slabptr = ft->slabptr[mode];
+  idx_t const * const restrict sptr = ft->sptr[mode];
   idx_t const * const restrict sids = ft->sids[mode];
   idx_t const * const restrict fptr = ft->fptr[mode];
   idx_t const * const restrict fids = ft->fids[mode];
@@ -196,30 +197,33 @@ void mttkrp_splatt_coop_tiled(
     /* foreach slab */
     for(idx_t s=0; s < nslabs; ++s) {
       /* foreach fiber in slab */
-      #pragma omp for schedule(static, 1)
-      for(idx_t f=slabptr[s]; f < slabptr[s+1]; ++f) {
-        /* first entry of the fiber is used to initialize accumF */
-        idx_t const jjfirst  = fptr[f];
-        val_t const vfirst   = vals[jjfirst];
-        val_t const * const restrict bv = bvals + (inds[jjfirst] * rank);
-        for(idx_t r=0; r < rank; ++r) {
-          accumF[r] = vfirst * bv[r];
-        }
-
-        /* foreach nnz in fiber */
-        for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
-          val_t const v = vals[jj];
-          val_t const * const restrict bv = bvals + (inds[jj] * rank);
+      #pragma omp for schedule(dynamic, 8)
+      for(idx_t sl=slabptr[s]; sl < slabptr[s+1]; ++sl) {
+        idx_t const slice = sids[sl];
+        for(idx_t f=sptr[sl]; f < sptr[sl+1]; ++f) {
+          /* first entry of the fiber is used to initialize accumF */
+          idx_t const jjfirst  = fptr[f];
+          val_t const vfirst   = vals[jjfirst];
+          val_t const * const restrict bv = bvals + (inds[jjfirst] * rank);
           for(idx_t r=0; r < rank; ++r) {
-            accumF[r] += v * bv[r];
+            accumF[r] = vfirst * bv[r];
           }
-        }
 
-        /* scale inner products by row of A and update thread-local M */
-        val_t       * const restrict mv = localm + ((sids[f] % TILE_SIZES[0]) * rank);
-        val_t const * const restrict av = avals + (fids[f] * rank);
-        for(idx_t r=0; r < rank; ++r) {
-          mv[r] += accumF[r] * av[r];
+          /* foreach nnz in fiber */
+          for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
+            val_t const v = vals[jj];
+            val_t const * const restrict bv = bvals + (inds[jj] * rank);
+            for(idx_t r=0; r < rank; ++r) {
+              accumF[r] += v * bv[r];
+            }
+          }
+
+          /* scale inner products by row of A and update thread-local M */
+          val_t       * const restrict mv = localm + ((slice % TILE_SIZES[0]) * rank);
+          val_t const * const restrict av = avals + (fids[f] * rank);
+          for(idx_t r=0; r < rank; ++r) {
+            mv[r] += accumF[r] * av[r];
+          }
         }
       }
 

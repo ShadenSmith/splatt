@@ -111,18 +111,43 @@ static void __create_slabptr(
   ft->slabptr[mode][slab++] = 0;
 
   idx_t const nfibs = ft->nfibs[mode];
-  for(idx_t f=0; f < nfibs; ++f) {
+  /* count slices */
+  idx_t slices = 1;
+  for(idx_t f=1; f < nfibs; ++f) {
     idx_t const slice = ft->sids[mode][f];
-    /* update slabptr as necessary and account for empty slabs (hopefully
-     * unlikely...*/
-    while(slice / tsize > slab-1) {
-      ft->slabptr[mode][slab++] = f;
+    if(ft->sids[mode][f] != ft->sids[mode][f-1]) {
+      ++slices;
+    }
+  }
+  printf("slices: %lu\n", slices);
+  idx_t * sptr = (idx_t *) malloc((slices+1) * sizeof(idx_t));
+  idx_t * sids = (idx_t *) malloc(slices * sizeof(idx_t));
+
+  sptr[0] = 0;
+  sids[0] = ft->sids[mode][0];
+  idx_t s = 1;
+  for(idx_t f=1; f < nfibs; ++f) {
+    idx_t const slice = ft->sids[mode][f];
+    if(ft->sids[mode][f] != ft->sids[mode][f-1]) {
+      sptr[s] = f;
+      sids[s] = ft->sids[mode][f];
+      /* update slabptr if we've moved to the next slab */
+      while(sids[s] / tsize > slab-1) {
+        ft->slabptr[mode][slab++] = s;
+      }
+      ++s;
     }
   }
 
+  /* update ft with new data structures */
+  free(ft->sids[mode]);
+  ft->sids[mode] = sids;
+  ft->sptr[mode] = sptr;
+
   /* account for any empty slabs at end */
-  ft->slabptr[mode][slab] = nfibs;
   ft->nslabs[mode] = slab;
+  ft->slabptr[mode][slab] = slices;
+  ft->sptr[mode][slices] = nfibs;
 }
 
 
@@ -221,6 +246,7 @@ ftensor_t * ften_alloc(
     }
   }
 
+#if 0
   /* how useful is a sliceptr? */
   idx_t saved = 0;
   idx_t fibs = 0;
@@ -235,6 +261,7 @@ ftensor_t * ften_alloc(
     }
   }
   printf("COULD BE SAVED: "SS_IDX"  left: " SS_IDX"\n", saved, fibs - saved);
+#endif
 
   /* calculate storage */
   idx_t bytes = 0;
