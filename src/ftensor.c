@@ -221,6 +221,21 @@ ftensor_t * ften_alloc(
     }
   }
 
+  /* how useful is a sliceptr? */
+  idx_t saved = 0;
+  idx_t fibs = 0;
+  if(ft->tiled) {
+    for(idx_t m=0; m < 3; ++m) {
+      fibs += ft->nfibs[m];
+      for(idx_t f=0; f < ft->nfibs[m]-1; ++f) {
+        if(ft->sids[m][f] == ft->sids[m][f+1]) {
+          ++saved;
+        }
+      }
+    }
+  }
+  printf("COULD BE SAVED: "SS_IDX"  left: " SS_IDX"\n", saved, fibs - saved);
+
   /* calculate storage */
   idx_t bytes = 0;
   /* nnz */

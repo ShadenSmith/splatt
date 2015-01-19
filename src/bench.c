@@ -11,6 +11,7 @@
 #include "reorder.h"
 #include "sort.h"
 #include "io.h"
+#include "tile.h"
 
 #include <omp.h>
 
@@ -65,6 +66,9 @@ void bench_splatt(
   /* add 64 bytes to avoid false sharing */
   thd_info * thds = thd_init(threads[nruns-1],
     mats[0]->J * sizeof(val_t) + 64);
+  for(idx_t t=0; t < threads[nruns-1]; ++t) {
+    thds[t].scratch2 = calloc(mats[0]->J * TILE_SIZES[0] + 64, sizeof(val_t));
+  }
 
   ftensor_t * ft = ften_alloc(tt, opts->tile);
   timer_start(&timers[TIMER_SPLATT]);

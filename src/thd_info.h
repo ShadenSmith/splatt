@@ -16,6 +16,7 @@
 typedef struct
 {
   void * scratch;
+  void * scratch2;
   sp_timer_t ttime;
 } thd_info;
 
