@@ -107,9 +107,6 @@ static void __create_slabptr(
   ft->nslabs[mode] = nslabs;
   ft->slabptr[mode] = (idx_t *) malloc((nslabs+1) * sizeof(idx_t));
 
-  idx_t slab = 0;
-  ft->slabptr[mode][slab++] = 0;
-
   idx_t const nfibs = ft->nfibs[mode];
   /* count slices */
   idx_t slices = 1;
@@ -119,15 +116,15 @@ static void __create_slabptr(
       ++slices;
     }
   }
-  printf("slices: %lu\n", slices);
   idx_t * sptr = (idx_t *) malloc((slices+1) * sizeof(idx_t));
   idx_t * sids = (idx_t *) malloc(slices * sizeof(idx_t));
 
   sptr[0] = 0;
   sids[0] = ft->sids[mode][0];
+  ft->slabptr[mode][0] = 0;
   idx_t s = 1;
+  idx_t slab = 1;
   for(idx_t f=1; f < nfibs; ++f) {
-    idx_t const slice = ft->sids[mode][f];
     if(ft->sids[mode][f] != ft->sids[mode][f-1]) {
       sptr[s] = f;
       sids[s] = ft->sids[mode][f];
@@ -232,10 +229,10 @@ ftensor_t * ften_alloc(
 
     tt_sort(tt, m, ft->dim_perms[m]);
     if(tile) {
+      ft->tiled = 1;
       printf("tiling with "SS_IDX"x"SS_IDX"x"SS_IDX" tile dimensions.\n",
         TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
       tt_tile(tt, ft->dim_perms[m]);
-      ft->tiled = 1;
     }
 
     __create_fptr(ft, tt, m);
@@ -245,23 +242,6 @@ ftensor_t * ften_alloc(
       __create_sliceptr(ft, tt, m);
     }
   }
-
-#if 0
-  /* how useful is a sliceptr? */
-  idx_t saved = 0;
-  idx_t fibs = 0;
-  if(ft->tiled) {
-    for(idx_t m=0; m < 3; ++m) {
-      fibs += ft->nfibs[m];
-      for(idx_t f=0; f < ft->nfibs[m]-1; ++f) {
-        if(ft->sids[m][f] == ft->sids[m][f+1]) {
-          ++saved;
-        }
-      }
-    }
-  }
-  printf("COULD BE SAVED: "SS_IDX"  left: " SS_IDX"\n", saved, fibs - saved);
-#endif
 
   /* calculate storage */
   idx_t bytes = 0;
@@ -313,11 +293,10 @@ void ften_free(
     free(ft->fids[m]);
     free(ft->inds[m]);
     free(ft->vals[m]);
+    free(ft->sptr[m]);
     if(ft->tiled) {
       free(ft->slabptr[m]);
       free(ft->sids[m]);
-    } else {
-      free(ft->sptr[m]);
     }
   }
   free(ft);

@@ -191,7 +191,7 @@ void mttkrp_splatt_coop_tiled(
   {
     int const tid = omp_get_thread_num();
     val_t * const restrict accumF = (val_t *) thds[tid].scratch;
-    val_t * const restrict localm = (val_t *) thds[tid].scratch2;
+    val_t * const localm = (val_t *) thds[tid].scratch2;
     timer_start(&thds[tid].ttime);
 
     /* foreach slab */
@@ -227,27 +227,6 @@ void mttkrp_splatt_coop_tiled(
         }
       }
 
-#if 0
-      /* reduction on localm into M */
-      #pragma omp master
-      {
-        for(idx_t t=0; t < nthreads; ++t) {
-          val_t * const restrict localm = (val_t *) thds[t].scratch2;
-          for(idx_t i=0; i < TILE_SIZES[0]; ++i) {
-            /* map i back to global slice id */
-            idx_t const globalrow = i + (s * TILE_SIZES[0]);
-            if(globalrow >= ft->dims[mode]) {
-              break;
-            }
-            for(idx_t r=0; r < rank; ++r) {
-              mvals[r + (globalrow*rank)] += localm[r + (i*rank)];
-              localm[r + (i*rank)] = 0;
-            }
-          }
-        }
-      } /* end reduction */
-      #pragma omp barrier
-#else
       idx_t const start = s * TILE_SIZES[0];
       idx_t const stop  = dmin((s+1) * TILE_SIZES[0], ft->dims[mode]);
 
@@ -256,14 +235,13 @@ void mttkrp_splatt_coop_tiled(
         /* map i back to global slice id */
         idx_t const localrow = i % TILE_SIZES[0];
         for(idx_t t=0; t < nthreads; ++t) {
-          val_t * const restrict localm = (val_t *) thds[t].scratch2;
+          val_t * const threadm = (val_t *) thds[t].scratch2;
           for(idx_t r=0; r < rank; ++r) {
-            mvals[r + (i*rank)] += localm[r + (localrow*rank)];
-            localm[r + (localrow*rank)] = 0.;
+            mvals[r + (i*rank)] += threadm[r + (localrow*rank)];
+            threadm[r + (localrow*rank)] = 0.;
           }
         }
       }
-#endif
 
     } /* end foreach slab */
     timer_stop(&thds[tid].ttime);

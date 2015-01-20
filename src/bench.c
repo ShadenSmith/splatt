@@ -65,10 +65,8 @@ void bench_splatt(
 
   /* add 64 bytes to avoid false sharing */
   thd_info * thds = thd_init(threads[nruns-1],
-    mats[0]->J * sizeof(val_t) + 64);
-  for(idx_t t=0; t < threads[nruns-1]; ++t) {
-    thds[t].scratch2 = calloc(mats[0]->J * TILE_SIZES[0] + 64, sizeof(val_t));
-  }
+    mats[0]->J * sizeof(val_t) + 64,
+    (mats[0]->J * TILE_SIZES[0] * sizeof(val_t)) + 64);
 
   ftensor_t * ft = ften_alloc(tt, opts->tile);
   timer_start(&timers[TIMER_SPLATT]);
@@ -134,7 +132,7 @@ void bench_giga(
 
   sp_timer_t itertime;
   sp_timer_t modetime;
-  thd_info * thds = thd_init(threads[nruns-1], 0);
+  thd_info * thds = thd_init(threads[nruns-1], 0, 0);
   val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
 
   matrix_t * colmats[MAX_NMODES+1];
@@ -218,7 +216,7 @@ void bench_ttbox(
   }
   colmats[MAX_NMODES] = mat_mkcol(mats[MAX_NMODES]);
 
-  thd_info * thds = thd_init(threads[nruns-1], 0);
+  thd_info * thds = thd_init(threads[nruns-1], 0, 0);
 
   printf("** TTBOX **\n");
   val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));

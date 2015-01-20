@@ -12,13 +12,15 @@
  *****************************************************************************/
 thd_info * thd_init(
   idx_t const nthreads,
-  idx_t const scratch_bytes)
+  idx_t const scratch1_bytes,
+  idx_t const scratch2_bytes)
 {
   thd_info * thds = (thd_info *) malloc(nthreads * sizeof(thd_info));
 
   for(idx_t t=0; t < nthreads; ++t) {
     timer_reset(&thds[t].ttime);
-    thds[t].scratch = (void *) malloc(scratch_bytes);
+    thds[t].scratch  = (void *) malloc(scratch1_bytes);
+    thds[t].scratch2 = (void *) malloc(scratch2_bytes);
   }
   return thds;
 }
@@ -47,6 +49,7 @@ void thd_free(
 {
   for(idx_t t=0; t < nthreads; ++t) {
     free(thds[t].scratch);
+    free(thds[t].scratch2);
   }
   free(thds);
 }

@@ -35,7 +35,8 @@ void thd_reset(
 
 thd_info * thd_init(
   idx_t const nthreads,
-  idx_t const scratch_bytes);
+  idx_t const scratch1_bytes,
+  idx_t const scratch2_bytes);
 
 void thd_free(
   thd_info * thds,
