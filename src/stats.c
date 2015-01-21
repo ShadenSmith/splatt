@@ -15,6 +15,15 @@
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
+
+
+/**
+* @brief Compute the density of a sparse tensor, defined by nnz/(I*J*K).
+*
+* @param tt The sparse tensor.
+*
+* @return The density of tt.
+*/
 static double __tt_density(
   sptensor_t const * const tt)
 {
@@ -27,6 +36,13 @@ static double __tt_density(
   return density;
 }
 
+
+/**
+* @brief Output basic statistics about tt to STDOUT.
+*
+* @param tt The tensor to inspect.
+* @param ifname The filename of tt. Can be NULL.
+*/
 static void __stats_basic(
   sptensor_t const * const tt,
   char const * const ifname)
@@ -43,6 +59,13 @@ static void __stats_basic(
 }
 
 
+/**
+* @brief Compute statistics about a hypergraph partitioning of tt.
+*
+* @param tt The tensor to inspect.
+* @param mode The mode to operate on.
+* @param pfname The file containing the partitioning.
+*/
 static void __stats_hparts(
   sptensor_t * const tt,
   idx_t const mode,

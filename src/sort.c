@@ -377,6 +377,7 @@ void tt_sort(
   timer_stop(&timers[TIMER_SORT]);
 }
 
+
 void insertion_sort(
   idx_t * const a,
   idx_t const n)
@@ -393,6 +394,7 @@ void insertion_sort(
   }
   timer_stop(&timers[TIMER_SORT]);
 }
+
 
 void quicksort(
   idx_t * const a,

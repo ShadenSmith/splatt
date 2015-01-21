@@ -1,16 +1,28 @@
 
+
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
 #include "base.h"
 #include "util.h"
 
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
 val_t rand_val(void)
 {
+  /* TODO: modify this to work based on the size of idx_t */
   return (val_t) rand() / (val_t) RAND_MAX;
 }
 
+
 idx_t rand_idx(void)
 {
+  /* TODO: modify this to work based on the size of idx_t */
   return (idx_t) (rand() << 16) | rand();
 }
+
 
 char * bytes_str(
   idx_t const bytes)
