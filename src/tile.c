@@ -11,6 +11,17 @@
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Build a pointer structure (i.e. CSR rowptr) into the slabs of tt.
+*
+* @param inds Indices of just the slice ids.
+* @param nnz The number of nonzeros (and thus slice ids).
+* @param nslabs The number of slabs to construct.
+*
+* @return An array of length (nslabs+1) that points into inds and marks the
+*         start/end of each slab.
+*/
 static idx_t * __mkslabptr(
   idx_t const * const inds,
   idx_t const nnz,
@@ -32,6 +43,18 @@ static idx_t * __mkslabptr(
 }
 
 
+/**
+* @brief Construct a set of unique values (and counts) found within inds.
+*
+* @param inds The array of indices to tally.
+* @param start The first index to tally.
+* @param end The last index to tally.
+* @param seen An array for marking the counts of each index that is found.
+*             NOTE: must at least as large as the largest index.
+* @param uniques A sorted array of the unique indices found.
+*
+* @return The number of unique indices found in ind[start:end].
+*/
 static idx_t __fill_uniques(
   idx_t const * const inds,
   idx_t const start,
@@ -55,6 +78,23 @@ static idx_t __fill_uniques(
 }
 
 
+/**
+* @brief Use the uniques/seen arrays to rearrange the nonzeros in a given into
+*        a tiled order. Slabs are already ordered after sorting, so this
+*        function will be used to first tile into 'tubes' and then finally into
+*        proper tiles.
+*
+* @param start The first nonzero in the working set.
+* @param end The last nonzero in the working set.
+* @param src The tensor to rearrange.
+* @param dest A tensor to write the rearrange slab into.
+* @param mode The mode to tile with.
+* @param seen An array used to count the number of times each index appears in
+*             the mode.
+* @param uniques An array used to mark the unique indices. Indexes into seen.
+* @param nuniques The number of unique indices in the mode (between start/end).
+* @param tsize The dimension of the tiles to construct.
+*/
 static void __tile_uniques(
   idx_t const start,
   idx_t const end,
@@ -98,6 +138,14 @@ static void __tile_uniques(
 }
 
 
+/**
+* @brief Empty a set of unique indices and their counts. Scales with the number
+*        of uniques, not the size of the arrays!
+*
+* @param seen The count for each unique index.
+* @param uniques The index of each unique value. Used to index into seen.
+* @param nuniques The number of uniques to clear.
+*/
 static void __clear_uniques(
   idx_t * const seen,
   idx_t * const uniques,
@@ -110,6 +158,21 @@ static void __clear_uniques(
 }
 
 
+/**
+* @brief Rearrange nonzeros into a tiled slab.
+*
+* @param start The first nonzero in the slab.
+* @param end The last nonzero in the slab.
+* @param tt The tensor to rearrange.
+* @param tt_buf A tensor to use for double-buffering when rearranging.
+* @param dim_perm The mode permutation to tile with.
+* @param seen An array *for each mode* used to count the number of times each
+*             index appears in the slab.
+* @param uniques An array *for each mode* used to mark the unique indices. Used
+*                to index into seen.
+* @param nuniques An idx_t for each mode to count the unique indices in the
+*                 slab.
+*/
 static void __pack_slab(
   idx_t const start,
   idx_t const end,
