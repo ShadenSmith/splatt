@@ -175,6 +175,14 @@ static inline void __ttswap(
 }
 
 
+/**
+* @brief Perform insertion sort on a 3-mode tensor between start and end.
+*
+* @param tt The tensor to sort.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+* @param start The first nonzero to sort.
+* @param end The last nonzero to sort.
+*/
 static void __tt_insertionsort3(
   sptensor_t * const tt,
   idx_t const * const cmplt,
@@ -212,6 +220,15 @@ static void __tt_insertionsort3(
   }
 }
 
+
+/**
+* @brief Perform insertion sort on an n-mode tensor between start and end.
+*
+* @param tt The tensor to sort.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+* @param start The first nonzero to sort.
+* @param end The last nonzero to sort.
+*/
 static void __tt_insertionsort(
   sptensor_t * const tt,
   idx_t const * const cmplt,
@@ -245,6 +262,15 @@ static void __tt_insertionsort(
   }
 }
 
+
+/**
+* @brief Perform quicksort on a 3-mode tensor between start and end.
+*
+* @param tt The tensor to sort.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+* @param start The first nonzero to sort.
+* @param end The last nonzero to sort.
+*/
 static void __tt_quicksort3(
   sptensor_t * const tt,
   idx_t const * const cmplt,
@@ -326,9 +352,17 @@ static void __tt_quicksort3(
       __tt_quicksort3(tt, cmplt, i, end);
     }
   }
-
 }
 
+
+/**
+* @brief Perform quicksort on a n-mode tensor between start and end.
+*
+* @param tt The tensor to sort.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+* @param start The first nonzero to sort.
+* @param end The last nonzero to sort.
+*/
 static void __tt_quicksort(
   sptensor_t * const tt,
   idx_t const * const cmplt,
@@ -397,6 +431,7 @@ static void __tt_quicksort(
     }
   }
 }
+
 
 
 /******************************************************************************
