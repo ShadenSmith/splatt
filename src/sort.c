@@ -18,6 +18,18 @@
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Compares ind*[i] and j[*] for three-mode tensors.
+*
+* @param ind0 The primary mode to compare. Defer tie-breaks to ind1.
+* @param ind1 The secondary mode to compare. Defer tie-breaks to ind2.
+* @param ind2 The final tie-breaking mode.
+* @param i The index into ind*[]
+* @param j[3] The indices we are comparing i against.
+*
+* @return Returns -1 if ind[i] < j, 1 if ind[i] > j, and 0 if they are equal.
+*/
 static inline int __ttqcmp3(
   idx_t const * const ind0,
   idx_t const * const ind1,
@@ -44,6 +56,19 @@ static inline int __ttqcmp3(
   return 0;
 }
 
+
+/**
+* @brief Compares ind*[i] and ind*[j] for three-mode tensors.
+*
+* @param ind0 The primary mode to compare. Defer tie-breaks to ind1.
+* @param ind1 The secondary mode to compare. Defer tie-breaks to ind2.
+* @param ind2 The final tie-breaking mode.
+* @param i The index into ind*.
+* @param j The second index into ind*.
+*
+* @return Returns -1 if ind[i] < ind[j], 1 if ind[i] > ind[j], and 0 if they
+*         are equal.
+*/
 static inline int __ttcmp3(
   idx_t const * const ind0,
   idx_t const * const ind1,
@@ -69,6 +94,18 @@ static inline int __ttcmp3(
   return 0;
 }
 
+
+/**
+* @brief Compares ind*[i] and ind*[j] for n-mode tensors.
+*
+* @param tt The tensor we are sorting.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+* @param i The index into ind*.
+* @param j The second index into ind*.
+*
+* @return Returns -1 if ind[i] < ind[j], 1 if ind[i] > ind[j], and 0 if they
+*         are equal.
+*/
 static inline int __ttcmp(
   sptensor_t const * const tt,
   idx_t const * const cmplt,
@@ -85,6 +122,17 @@ static inline int __ttcmp(
   return 0;
 }
 
+
+/**
+* @brief Compares ind*[i] and ind*[j] for n-mode tensors.
+*
+* @param tt The tensor we are sorting.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+* @param i The index into ind*.
+* @param j The coordinate we are comparing against.
+*
+* @return Returns -1 if ind[i] < j, 1 if ind[i] > j, and 0 if they are equal.
+*/
 static inline int __ttqcmp(
   sptensor_t const * const tt,
   idx_t const * const cmplt,
@@ -101,6 +149,14 @@ static inline int __ttqcmp(
   return 0;
 }
 
+
+/**
+* @brief Swap nonzeros i and j.
+*
+* @param tt The tensor to operate on.
+* @param i The first nonzero to swap.
+* @param j The second nonzero to swap with.
+*/
 static inline void __ttswap(
   sptensor_t * const tt,
   idx_t const i,
@@ -117,6 +173,7 @@ static inline void __ttswap(
     tt->ind[m][j] = itmp;
   }
 }
+
 
 static void __tt_insertionsort3(
   sptensor_t * const tt,
