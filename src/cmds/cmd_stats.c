@@ -48,8 +48,6 @@ static error_t parse_stats_opt(
   case 't':
     if(strcmp(arg, "basic") == 0) {
       args->type = STATS_BASIC;
-    } else if(strcmp(arg, "fibers") == 0) {
-      args->type = STATS_FIBERS;
     } else if(strcmp(arg, "hparts") == 0) {
       args->type = STATS_HPARTS;
     } else {
