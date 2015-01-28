@@ -12,6 +12,14 @@
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Remove the duplicate entries of a tensor. Duplicate values are
+*        repeatedly averaged.
+*
+* @param tt The modified tensor to work on. NOTE: data structures are not
+*           resized!
+*/
 static void __tt_remove_dups(
   sptensor_t * const tt)
 {
