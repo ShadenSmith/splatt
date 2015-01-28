@@ -270,29 +270,32 @@ void mttkrp_giga(
   idx_t const * const restrict colind = spmat->colind;
   val_t const * const restrict vals   = spmat->vals;
 
-  for(idx_t r=0; r < rank; ++r) {
-    val_t       * const restrict mv =  M->vals + (r * I);
-    val_t const * const restrict av =  A->vals + (r * A->I);
-    val_t const * const restrict bv =  B->vals + (r * B->I);
+  #pragma omp parallel
+  {
+    for(idx_t r=0; r < rank; ++r) {
+      val_t       * const restrict mv =  M->vals + (r * I);
+      val_t const * const restrict av =  A->vals + (r * A->I);
+      val_t const * const restrict bv =  B->vals + (r * B->I);
 
-    /* Joined Hadamard products of X, C, and B */
-    #pragma omp parallel for schedule(dynamic, 16)
-    for(idx_t i=0; i < I; ++i) {
-      for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
-        idx_t const a = colind[y] / B->I;
-        idx_t const b = colind[y] % B->I;
-        scratch[y] = vals[y] * av[a] * bv[b];
+      /* Joined Hadamard products of X, C, and B */
+      #pragma omp for schedule(dynamic, 16)
+      for(idx_t i=0; i < I; ++i) {
+        for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
+          idx_t const a = colind[y] / B->I;
+          idx_t const b = colind[y] % B->I;
+          scratch[y] = vals[y] * av[a] * bv[b];
+        }
       }
-    }
 
-    /* now accumulate rows into column of M1 */
-    #pragma omp parallel for schedule(dynamic, 16)
-    for(idx_t i=0; i < I; ++i) {
-      val_t sum = 0;
-      for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
-        sum += scratch[y];
+      /* now accumulate rows into column of M1 */
+      #pragma omp for schedule(dynamic, 16)
+      for(idx_t i=0; i < I; ++i) {
+        val_t sum = 0;
+        for(idx_t y=rowptr[i]; y < rowptr[i+1]; ++y) {
+          sum += scratch[y];
+        }
+        mv[i] = sum;
       }
-      mv[i] = sum;
     }
   }
 }
