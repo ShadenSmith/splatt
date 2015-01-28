@@ -32,6 +32,17 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Compute A^T * A with a nice row-major pattern.
+*
+* @param A The input matrix.
+* @param ret The output matrix, A^T * A.
+*/
+void mat_aTa(
+  matrix_t const * const A,
+  matrix_t * const ret);
+
 matrix_t * mat_rand(
   idx_t const nrows,
   idx_t const ncols);

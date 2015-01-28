@@ -12,6 +12,42 @@
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+void mat_aTa(
+  matrix_t const * const A,
+  matrix_t * const ret)
+{
+  /* check matrix dimensions */
+  assert(ret->I == ret->J);
+  assert(ret->I == A->J);
+  assert(ret->vals != NULL);
+  assert(A->rowmajor);
+  assert(ret->rowmajor);
+
+  idx_t const I = A->I;
+  idx_t const F = A->J;
+  val_t const * const restrict Av = A->vals;
+  val_t       * const restrict rv = ret->vals;
+
+  /* compute upper triangular portion */
+  memset(rv, 0, F * F * sizeof(val_t));
+  for(idx_t i=0; i < I; ++i) {
+    for(idx_t mi=0; mi < F; ++mi) {
+      for(idx_t mj=mi; mj < F; ++mj) {
+        rv[mj + (mi*F)] += Av[mi + (i*F)] * Av[mj + (i*F)];
+      }
+    }
+  }
+
+  /* copy to lower triangular matrix */
+  for(idx_t i=1; i < F; ++i) {
+    for(idx_t j=0; j < i; ++j) {
+      rv[j + (i*F)] = rv[i + (j*F)];
+    }
+  }
+}
+
+
+
 matrix_t * mat_alloc(
   idx_t const nrows,
   idx_t const ncols)
