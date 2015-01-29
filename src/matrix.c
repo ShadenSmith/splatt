@@ -7,11 +7,108 @@
 #include "matrix.h"
 #include "util.h"
 
+#include <math.h>
+
 
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+void mat_matmul(
+  matrix_t const * const A,
+  matrix_t const * const B,
+  matrix_t  * const C)
+{
+  /* check dimensions */
+  assert(A->J == B->I);
+  assert(C->I == A->I);
+  assert(C->J == B->J);
+
+  idx_t const I = A->I;
+  idx_t const J = B->J:
+  idx_t const aj = A->J;
+
+  val_t * const restrict cv = C->vals;
+  memset(cv, 0, I * J * sizeof(val_t));
+
+  for(idx_t i=0; i < I; ++i) {
+    for(idx_t j=0; j < J; ++j) {
+      for(idx_t ii=0; ii < aj; ++ii) {
+      }
+    }
+  }
+
+}
+
+
+void mat_syminv(
+  matrix_t * const A,
+  matrix_t * const Abuf)
+{
+
+}
+
+
+
+void mat_aTa_hada(
+  matrix_t ** mats,
+  idx_t const start,
+  idx_t const end,
+  idx_t const nmats,
+  matrix_t * const buf,
+  matrix_t * const ret)
+{
+  idx_t const F = mats[0]->J;
+
+  /* check matrix dimensions */
+  assert(ret->I == ret->J);
+  assert(ret->I == F);
+  assert(buf->I == F);
+  assert(buf->J == F);
+  assert(ret->vals != NULL);
+  assert(mats[0]->rowmajor);
+  assert(ret->rowmajor);
+
+  val_t       * const restrict rv   = ret->vals;
+  val_t       * const restrict bufv = buf->vals;
+  for(idx_t i=0; i < F; ++i) {
+    for(idx_t j=i; j < F; ++j) {
+      rv[j+(i*F)] = 1.;
+    }
+  }
+
+  for(idx_t m=start; m != end; m = (m+1) % nmats) {
+    idx_t const I  = mats[m]->I;
+    val_t const * const Av = mats[m]->vals;
+    memset(bufv, 0, F * F * sizeof(val_t));
+
+    /* compute upper triangular matrix */
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t mi=0; mi < F; ++mi) {
+        for(idx_t mj=mi; mj < F; ++mj) {
+          bufv[mj + (mi*F)] += Av[mi + (i*F)] * Av[mj + (i*F)];
+        }
+      }
+    }
+
+    /* hadamard product */
+    for(idx_t mi=0; mi < F; ++mi) {
+      for(idx_t mj=mi; mj < F; ++mj) {
+        rv[mj + (mi*F)] *= bufv[mj + (mi*F)];
+      }
+    }
+  }
+
+  /* copy to lower triangular matrix */
+  for(idx_t i=1; i < F; ++i) {
+    for(idx_t j=0; j < i; ++j) {
+      rv[j + (i*F)] = rv[i + (j*F)];
+    }
+  }
+}
+
+
 void mat_aTa(
   matrix_t const * const A,
   matrix_t * const ret)
@@ -42,6 +139,55 @@ void mat_aTa(
   for(idx_t i=1; i < F; ++i) {
     for(idx_t j=0; j < i; ++j) {
       rv[j + (i*F)] = rv[i + (j*F)];
+    }
+  }
+}
+
+void mat_normalize(
+  matrix_t * const A,
+  val_t * const lambda,
+  splatt_mat_norm const which)
+{
+  idx_t const I = A->I;
+  idx_t const J = A->J;
+  val_t * const restrict vals = A->vals;
+
+  assert(vals != NULL);
+  assert(lambda != NULL);
+
+  for(idx_t j=0; j < J; ++j) {
+    lambda[j] = 0;
+  }
+
+  /* get column norms */
+  switch(which) {
+  case MAT_NORM_2:
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t j=0; j < J; ++j) {
+        lambda[j] += vals[j + (i*J)] * vals[j + (i*J)];
+      }
+    }
+    for(idx_t j=0; j < J; ++j) {
+      lambda[j] = sqrt(lambda[j]);
+    }
+    break;
+
+  case MAT_NORM_MAX:
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t j=0; j < J; ++j) {
+        lambda[j] = (vals[j+(i*J)] > lambda[j]) ?  vals[j+(i*J)] : lambda[j];
+      }
+    }
+    for(idx_t j=0; j < J; ++j) {
+      lambda[j] = (lambda[j] > 1.) ? lambda[j] : 1.;
+    }
+    break;
+  }
+
+  /* do the normalization */
+  for(idx_t i=0; i < I; ++i) {
+    for(idx_t j=0; j < J; ++j) {
+      vals[j+(i*J)] /= lambda[j];
     }
   }
 }

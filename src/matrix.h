@@ -28,10 +28,45 @@ typedef struct
   val_t * vals;
 } spmatrix_t;
 
+typedef enum
+{
+  MAT_NORM_2,
+  MAT_NORM_MAX
+} splatt_mat_norm;
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Compute the 'inverse' of symmetric matrix A.
+*
+* @param A Symmetric FxF matrix.
+* @param Abuf FxF buffer space.
+*/
+void mat_syminv(
+  matrix_t * const A,
+  matrix_t * const Abuf);
+
+/**
+* @brief Compute (A^T A * B^T B * C^T C ...) where * is the Khatri-Rao product.
+*
+* @param mats An array of matrices.
+* @param start The first matrix to include.
+* @param end The last matrix to include. This can be before start because we
+*            operate modulo nmats.
+* @param nmats The number of matrices.
+* @param ret The FxF output matrix.
+*/
+void mat_aTa_hada(
+  matrix_t ** mats,
+  idx_t const start,
+  idx_t const end,
+  idx_t const nmats,
+  matrix_t * const buf,
+  matrix_t * const ret);
+
 
 /**
 * @brief Compute A^T * A with a nice row-major pattern.
@@ -42,6 +77,22 @@ typedef struct
 void mat_aTa(
   matrix_t const * const A,
   matrix_t * const ret);
+
+
+/**
+* @brief Normalize the columns of A and return the norms in lambda.
+*        Supported norms are:
+*          1. 2-norm
+*          2. max-norm
+*
+* @param A The matrix to normalize.
+* @param lambda The vector of column norms.
+* @param which Which norm to use.
+*/
+void mat_normalize(
+  matrix_t * const A,
+  val_t * const lambda,
+  splatt_mat_norm const which);
 
 matrix_t * mat_rand(
   idx_t const nrows,
