@@ -42,6 +42,7 @@ static inline void cmd_not_implemented(int argc, char ** argv)
  *****************************************************************************/
 
 /* prototypes */
+void splatt_cpd(int argc, char ** argv);
 void splatt_bench(int argc, char ** argv);
 void splatt_convert(int argc, char ** argv);
 void splatt_reorder(int argc, char ** argv);
@@ -62,7 +63,7 @@ typedef enum splatt_cmd
 
 
 static void (*splatt_cmds[CMD_NCMDS]) (int argc, char ** argv) = {
-  [CMD_CPD]     = cmd_not_implemented,
+  [CMD_CPD]     = splatt_cpd,
   [CMD_BENCH]   = splatt_bench,
   [CMD_CONVERT] = splatt_convert,
   [CMD_REORDER] = splatt_reorder,
