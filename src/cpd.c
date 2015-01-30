@@ -69,6 +69,22 @@ void cpd(
     printf("    its = " SS_IDX " (%0.3fs)\n", it+1, itertime.seconds);
   }
 
+  matrix_t * tmp = mat_alloc(rank, rank);
+
+#if 0
+  memset(atabuf->vals, 0, rank*rank*sizeof(val_t));
+  for(idx_t r=0; r < rank; ++r) {
+    atabuf->vals[r + (r*rank)] = 2.;
+  }
+  mat_write(ata, NULL);
+  printf("\n");
+  mat_write(atabuf, NULL);
+  printf("\n");
+  mat_matmul(ata, atabuf, tmp);
+  mat_write(tmp, NULL);
+  mat_free(tmp);
+#endif
+
   ften_free(ft);
   thd_free(thds, opts->nthreads);
   mat_free(ata);

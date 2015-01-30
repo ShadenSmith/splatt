@@ -6,6 +6,7 @@
 #include "base.h"
 #include "matrix.h"
 #include "util.h"
+#include "io.h"
 
 #include <math.h>
 
@@ -15,40 +16,55 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void mat_matmul(
-  matrix_t const * const A,
-  matrix_t const * const B,
-  matrix_t  * const C)
-{
-  /* check dimensions */
-  assert(A->J == B->I);
-  assert(C->I == A->I);
-  assert(C->J == B->J);
-
-  idx_t const I = A->I;
-  idx_t const J = B->J:
-  idx_t const aj = A->J;
-
-  val_t * const restrict cv = C->vals;
-  memset(cv, 0, I * J * sizeof(val_t));
-
-  for(idx_t i=0; i < I; ++i) {
-    for(idx_t j=0; j < J; ++j) {
-      for(idx_t ii=0; ii < aj; ++ii) {
-      }
-    }
-  }
-
-}
-
 
 void mat_syminv(
   matrix_t * const A,
   matrix_t * const Abuf)
 {
+  /* check dimensions */
+  assert(A->I == A->J);
+  assert(A->I == Abuf->I);
+  assert(A->I == Abuf->J);
 
+  val_t * const restrict av   = A->vals;
+  val_t * const restrict bufv = Abuf->vals;
+
+  /* do a Cholesky factorization and store L in Abuf */
+  mat_cholesky(A, Abuf);
+
+  /* now solve L (L' X) = I */
 }
 
+
+void mat_cholesky(
+  matrix_t const * const A,
+  matrix_t * const L)
+{
+  /* check dimensions */
+  assert(A->I == A->J);
+  assert(A->I == L->J);
+  assert(L->I == L->J);
+
+  idx_t const N = A->I;
+  val_t const * const restrict av = A->vals;
+  val_t * const lv = L->vals;
+
+  memset(lv, 0, N*N*sizeof(val_t));
+  for (idx_t i = 0; i < N; ++i) {
+    for (idx_t j = 0; j <= i; ++j) {
+      val_t inner = 0;
+      for (idx_t k = 0; k < j; ++k) {
+        inner += lv[k+(i*N)] * lv[k+(j*N)];
+      }
+
+      if(i == j) {
+        lv[j+(i*N)] = sqrt(av[i+(i*N)] - inner);
+      } else {
+        lv[j+(i*N)] = 1.0 / lv[j+(j*N)] * (av[j+(i*N)] - inner);
+      }
+    }
+  }
+}
 
 
 void mat_aTa_hada(
@@ -141,6 +157,35 @@ void mat_aTa(
       rv[j + (i*F)] = rv[i + (j*F)];
     }
   }
+}
+
+void mat_matmul(
+  matrix_t const * const A,
+  matrix_t const * const B,
+  matrix_t  * const C)
+{
+  /* check dimensions */
+  assert(A->J == B->I);
+  assert(C->I == A->I);
+  assert(C->J == B->J);
+
+  idx_t const I = A->I;
+  idx_t const J = B->J;
+  idx_t const Aj = A->J;
+
+  val_t * const restrict av = A->vals;
+  val_t * const restrict bv = B->vals;
+  val_t * const restrict cv = C->vals;
+
+  for(idx_t i=0; i < I; ++i) {
+    for(idx_t j=0; j < J; ++j) {
+      for(idx_t k=0; k < Aj; ++k) {
+        /* C(i,j) += A(i,jj) * B(jj,j) */
+        cv[j + (i*J)] += av[k + (i*Aj)] * bv[j + (k*J)];
+      }
+    }
+  }
+
 }
 
 void mat_normalize(
