@@ -13,26 +13,121 @@
 
 
 /******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
+
+/**
+* @brief Solve the system LX = B.
+*
+* @param L The lower triangular matrix of coefficients.
+* @param B The right-hand side which is overwritten with X.
+*/
+static void __mat_forwardsolve(
+  matrix_t const * const L,
+  matrix_t * const B)
+{
+  /* check dimensions */
+  idx_t const N = L->I;
+
+  val_t const * const restrict lv = L->vals;
+  val_t * const restrict bv = B->vals;
+
+  /* first row of X is easy */
+  for(idx_t j=0; j < N; ++j) {
+    bv[j] /= lv[0];
+  }
+
+  /* now do forward substitution */
+  for(idx_t i=1; i < N; ++i) {
+    /* X(i,f) = B(i,f) - \sum_{j=0}^{i-1} L(i,j)X(i,j) */
+    for(idx_t j=0; j < i; ++j) {
+      for(idx_t f=0; f < N; ++f) {
+        bv[f+(i*N)] -= lv[j+(i*N)] * bv[f+(j*N)];
+      }
+    }
+    for(idx_t f=0; f < N; ++f) {
+      bv[f+(i*N)] /= lv[i+(i*N)];
+    }
+  }
+}
+
+/**
+* @brief Solve the system UX = B.
+*
+* @param U The upper triangular matrix of coefficients.
+* @param B The right-hand side which is overwritten with X.
+*/
+static void __mat_backwardsolve(
+  matrix_t const * const U,
+  matrix_t * const B)
+{
+  /* check dimensions */
+  idx_t const N = U->I;
+
+  val_t const * const restrict rv = U->vals;
+  val_t * const restrict bv = B->vals;
+
+  /* last row of X is easy */
+  for(idx_t f=0; f < N; ++f) {
+    idx_t const i = N-1;
+    bv[f+(i*N)] /= rv[i+(i*N)];
+  }
+
+  /* now do backward substitution */
+  for(idx_t row=1; row <= N; ++row) {
+    /* operate with N-row to make unsigned comparisons easy */
+    idx_t const i = N-row;
+
+    /* X(i,f) = B(i,f) - \sum_{j=0}^{i-1} R(i,j)X(i,j) */
+    for(idx_t j=i+1; j < N; ++j) {
+      for(idx_t f=0; f < N; ++f) {
+        bv[f+(i*N)] -= rv[j+(i*N)] * bv[f+(j*N)];
+      }
+    }
+    for(idx_t f=0; f < N; ++f) {
+      bv[f+(i*N)] /= rv[i+(i*N)];
+    }
+  }
+}
+
+/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-
 void mat_syminv(
-  matrix_t * const A,
-  matrix_t * const Abuf)
+  matrix_t * const A)
 {
   /* check dimensions */
   assert(A->I == A->J);
-  assert(A->I == Abuf->I);
-  assert(A->I == Abuf->J);
 
-  val_t * const restrict av   = A->vals;
-  val_t * const restrict bufv = Abuf->vals;
+  idx_t const N = A->I;
 
-  /* do a Cholesky factorization and store L in Abuf */
-  mat_cholesky(A, Abuf);
+  matrix_t * L = mat_alloc(N, N);
 
-  /* now solve L (L' X) = I */
+  /* do a Cholesky factorization on A */
+  mat_cholesky(A, L);
+
+  /* setup identity matrix */
+  memset(A->vals, 0, N*N*sizeof(val_t));
+  for(idx_t n=0; n < N; ++n) {
+    A->vals[n+(n*N)] = 1.;
+  }
+
+  /* Solve L*Y = I */
+  __mat_forwardsolve(L, A);
+
+  /* transpose L */
+  for(idx_t i=0; i < N; ++i) {
+    for(idx_t j=i+1; j < N; ++j) {
+      L->vals[j+(i*N)] = L->vals[i+(j*N)];
+      L->vals[i+(j*N)] = 0.;
+    }
+  }
+
+  /* Solve U*A = Y */
+  __mat_backwardsolve(L, A);
+
+  mat_free(L);
 }
 
 

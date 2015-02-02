@@ -70,8 +70,7 @@ void mat_matmul(
 * @param Abuf FxF buffer space.
 */
 void mat_syminv(
-  matrix_t * const A,
-  matrix_t * const Abuf);
+  matrix_t * const A);
 
 /**
 * @brief Compute (A^T A * B^T B * C^T C ...) where * is the Khatri-Rao product.

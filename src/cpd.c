@@ -47,10 +47,24 @@ void cpd(
   for(idx_t it=0; it < opts->niters; ++it) {
     timer_fstart(&itertime);
     for(idx_t m=0; m < nmodes; ++m) {
+      mats[MAX_NMODES]->I = ft->dims[m];
+
       /* M1 = X * (C o B) */
-      timer_start(&timers[TIMER_SPLATT]);
+      timer_start(&timers[TIMER_MTTKRP]);
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
-      timer_stop(&timers[TIMER_SPLATT]);
+      timer_stop(&timers[TIMER_MTTKRP]);
+
+      timer_start(&timers[TIMER_INV]);
+      /* M2 = (CtC * BtB * ...) */
+      mat_aTa_hada(mats, (m+1) % nmodes, m, nmodes, atabuf, ata);
+
+      /* M2 = M2^-1 */
+      mat_syminv(ata);
+      timer_stop(&timers[TIMER_INV]);
+
+      /* A = M1 * M2 */
+      memset(mats[m]->vals, 0, mats[m]->I * rank * sizeof(val_t));
+      mat_matmul(mats[MAX_NMODES], ata, mats[m]);
 
       /* normalize columns and extract lambda if necessary */
       if(it == 0) {
@@ -58,32 +72,10 @@ void cpd(
       } else {
         mat_normalize(mats[m], lambda, MAT_NORM_MAX);
       }
-
-      /* M2 = (CtC * BtB * ...) */
-      mat_aTa_hada(mats, (m+1) % nmodes, m, nmodes, atabuf, ata);
-
-      /* M2 = LL^T */
-      mat_syminv(ata, atabuf);
     }
     timer_stop(&itertime);
     printf("    its = " SS_IDX " (%0.3fs)\n", it+1, itertime.seconds);
   }
-
-  matrix_t * tmp = mat_alloc(rank, rank);
-
-#if 0
-  memset(atabuf->vals, 0, rank*rank*sizeof(val_t));
-  for(idx_t r=0; r < rank; ++r) {
-    atabuf->vals[r + (r*rank)] = 2.;
-  }
-  mat_write(ata, NULL);
-  printf("\n");
-  mat_write(atabuf, NULL);
-  printf("\n");
-  mat_matmul(ata, atabuf, tmp);
-  mat_write(tmp, NULL);
-  mat_free(tmp);
-#endif
 
   ften_free(ft);
   thd_free(thds, opts->nthreads);

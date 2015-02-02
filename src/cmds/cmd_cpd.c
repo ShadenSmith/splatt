@@ -101,6 +101,11 @@ void splatt_cpd(
 
   cpd(tt, mats, &args);
 
+  for(idx_t m=0;m < tt->nmodes; ++m) {
+    mat_free(mats[m]);
+  }
+  mat_free(mats[MAX_NMODES]);
+
   tt_free(tt);
 }
 
