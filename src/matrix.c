@@ -6,7 +6,7 @@
 #include "base.h"
 #include "matrix.h"
 #include "util.h"
-#include "io.h"
+#include "timer.h"
 
 #include <math.h>
 
@@ -260,28 +260,39 @@ void mat_matmul(
   matrix_t const * const B,
   matrix_t  * const C)
 {
+  timer_start(&timers[TIMER_MISC]);
   /* check dimensions */
   assert(A->J == B->I);
   assert(C->I == A->I);
   assert(C->J == B->J);
 
-  idx_t const I = A->I;
-  idx_t const J = B->J;
-  idx_t const Aj = A->J;
-
-  val_t * const restrict av = A->vals;
-  val_t * const restrict bv = B->vals;
+  val_t const * const restrict av = A->vals;
+  val_t const * const restrict bv = B->vals;
   val_t * const restrict cv = C->vals;
 
-  for(idx_t i=0; i < I; ++i) {
-    for(idx_t j=0; j < J; ++j) {
-      for(idx_t k=0; k < Aj; ++k) {
-        /* C(i,j) += A(i,jj) * B(jj,j) */
-        cv[j + (i*J)] += av[k + (i*Aj)] * bv[j + (k*J)];
+  idx_t const M  = A->I;
+  idx_t const N  = B->J;
+  idx_t const Na = A->J;
+
+  /* tiled matrix multiplication */
+  idx_t const TILE = 64;
+  for(idx_t i=0; i < M; ++i) {
+    for(idx_t jt=0; jt < N; jt += TILE) {
+      for(idx_t kt=0; kt < Na; kt += TILE) {
+        idx_t const JSTOP = vmin(jt+TILE, N);
+        for(idx_t j=jt; j < JSTOP; ++j) {
+          val_t accum = 0;
+          const idx_t KSTOP = vmin(kt+TILE,Na);
+          for(idx_t k=kt; k < KSTOP; ++k) {
+            accum += av[k + (i*Na)] * bv[j + (k*N)];
+          }
+          cv[j + (i*N)] += accum;
+        }
       }
     }
   }
 
+  timer_stop(&timers[TIMER_MISC]);
 }
 
 void mat_normalize(

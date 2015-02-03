@@ -95,16 +95,26 @@ void cpd(
 
     /* compute inner product */
     val_t inner = 0;
+    val_t * const mv = mats[MAX_NMODES]->vals;
+    val_t * const av = atabuf->vals;
     for(idx_t r=0; r < rank; ++r) {
-      val_t accum = 0.;
-      for(idx_t n=0; n < tt->nnz; ++n) {
-        val_t tmp = tt->vals[n];
-        for(idx_t m=0; m < tt->nmodes; ++m) {
-          tmp *= mats[m]->vals[r+(tt->ind[m][n] * rank)];
-        }
-        accum += tmp;
+      mv[r] = 0.;
+    }
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      for(idx_t r=0; r < rank; ++r) {
+        av[r] = tt->vals[n];
       }
-      inner += accum * lambda[r];
+      for(idx_t m=0; m < nmodes; ++m) {
+        for(idx_t r=0; r < rank; ++r) {
+          av[r] *= mats[m]->vals[r + (tt->ind[m][n] * rank)];
+        }
+      }
+      for(idx_t r=0; r < rank; ++r) {
+        mv[r] += av[r];
+      }
+    }
+    for(idx_t r=0; r < rank; ++r) {
+      inner += mv[r] * lambda[r];
     }
 
     val_t residual = sqrt(xnorm + norm_mats - (2 * inner));
