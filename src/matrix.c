@@ -165,7 +165,7 @@ void mat_cholesky(
 void mat_aTa_hada(
   matrix_t ** mats,
   idx_t const start,
-  idx_t const end,
+  idx_t const nmults,
   idx_t const nmats,
   matrix_t * const buf,
   matrix_t * const ret)
@@ -189,7 +189,8 @@ void mat_aTa_hada(
     }
   }
 
-  for(idx_t m=start; m != end; m = (m+1) % nmats) {
+  for(idx_t mode=0; mode < nmults; ++mode) {
+    idx_t const m = (start+mode) % nmats;
     idx_t const I  = mats[m]->I;
     val_t const * const Av = mats[m]->vals;
     memset(bufv, 0, F * F * sizeof(val_t));
@@ -331,7 +332,6 @@ void mat_normalize(
     }
   }
 }
-
 
 
 matrix_t * mat_alloc(

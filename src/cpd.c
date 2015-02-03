@@ -11,6 +11,7 @@
 #include "tile.h"
 #include "io.h"
 
+#include <math.h>
 #include <omp.h>
 
 
@@ -40,6 +41,13 @@ void cpd(
     thds = thd_init(opts->nthreads, rank * sizeof(val_t) + 64, 0);
   }
 
+  val_t xnorm = 0.;
+  val_t const * const restrict xv = tt->vals;
+  #pragma omp parallel for reduction(+:xnorm)
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    xnorm += xv[n] * xv[n];
+  }
+
   /* setup timers */
   sp_timer_t itertime;
   timer_reset(&timers[TIMER_SPLATT]);
@@ -56,7 +64,7 @@ void cpd(
 
       timer_start(&timers[TIMER_INV]);
       /* M2 = (CtC * BtB * ...) */
-      mat_aTa_hada(mats, (m+1) % nmodes, m, nmodes, atabuf, ata);
+      mat_aTa_hada(mats, (m+1) % nmodes, nmodes-1, nmodes, atabuf, ata);
 
       /* M2 = M2^-1 */
       mat_syminv(ata);
@@ -73,8 +81,37 @@ void cpd(
         mat_normalize(mats[m], lambda, MAT_NORM_MAX);
       }
     }
+
+    /* calculate fit */
+    val_t norm_mats = 0;
+    mat_aTa_hada(mats, 0, nmodes, nmodes, atabuf, ata);
+    /* add lambda * lambda^T to ata */
+    for(idx_t i=0; i < rank; ++i) {
+      for(idx_t j=0; j < rank; ++j) {
+        norm_mats += ata->vals[j+(i*rank)] * lambda[i] * lambda[j];
+      }
+    }
+    norm_mats = fabs(norm_mats);
+
+    /* compute inner product */
+    val_t inner = 0;
+    for(idx_t r=0; r < rank; ++r) {
+      val_t accum = 0.;
+      for(idx_t n=0; n < tt->nnz; ++n) {
+        val_t tmp = tt->vals[n];
+        for(idx_t m=0; m < tt->nmodes; ++m) {
+          tmp *= mats[m]->vals[r+(tt->ind[m][n] * rank)];
+        }
+        accum += tmp;
+      }
+      inner += accum * lambda[r];
+    }
+
+    val_t residual = sqrt(xnorm + norm_mats - (2 * inner));
+    val_t fit = 1 - (residual / sqrt(xnorm));
+
     timer_stop(&itertime);
-    printf("    its = " SS_IDX " (%0.3fs)\n", it+1, itertime.seconds);
+    printf("    its = " SS_IDX " (%0.3fs)  fit = %0.3f\n", it+1, itertime.seconds, fit);
   }
 
   ften_free(ft);
