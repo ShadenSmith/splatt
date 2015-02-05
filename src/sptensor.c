@@ -135,7 +135,7 @@ static void __tt_distribute_stats(
     nprocs * nprocs * nprocs,
     p3,
     minp,
-    maxp, 100. * ((double)maxp - (double)minp)/(double)maxp);
+    maxp, 100. * ((double)maxp - (double)p3)/(double)maxp);
 
   free(psizes);
   for(idx_t m=0; m < tt->nmodes; ++m) {
