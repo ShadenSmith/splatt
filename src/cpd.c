@@ -64,6 +64,8 @@ void cpd(
     xnorm += xv[n] * xv[n];
   }
 
+  val_t oldfit = 0;
+
   /* setup timers */
   sp_timer_t itertime;
   timer_reset(&timers[TIMER_SPLATT]);
@@ -160,7 +162,10 @@ void cpd(
     val_t fit = 1 - (residual / sqrt(xnorm));
 
     timer_stop(&itertime);
-    printf("    its = " SS_IDX " (%0.3fs)  fit = %0.3f\n", it+1, itertime.seconds, fit);
+
+    printf("    its = " SS_IDX " (%0.3fs)  fit = %0.5f  delta = %+0.5f\n", it+1,
+      itertime.seconds, fit, fit - oldfit);
+    oldfit = fit;
   }
 
   for(idx_t m=0; m < nmodes; ++m) {
