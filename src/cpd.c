@@ -101,7 +101,7 @@ void cpd(
       memset(mats[m]->vals, 0, mats[m]->I * rank * sizeof(val_t));
       mat_matmul(mats[MAX_NMODES], aTa[MAX_NMODES], mats[m]);
 
-      /* normalize columns and extract lambda if necessary */
+      /* normalize columns and extract lambda */
       if(it == 0) {
         mat_normalize(mats[m], lambda, MAT_NORM_2);
       } else {
