@@ -40,6 +40,8 @@ typedef struct
                       ..., ind[m][n]. */
   val_t * vals;   /** An array containing the values of each nonzero. */
   int tiled;      /** Whether sptensor_t has been tiled. Used by ftensor_t. */
+
+  idx_t * indmap[MAX_NMODES]; /** Maps local -> global indices. */
 } sptensor_t;
 
 

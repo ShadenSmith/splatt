@@ -8,6 +8,7 @@
 #include "sort.h"
 #include "io.h"
 #include "mpi.h"
+#include "timer.h"
 
 
 /******************************************************************************
@@ -51,6 +52,60 @@ static void __tt_remove_dups(
 }
 
 
+/**
+* @brief Relabel tensor indices to remove empty slices. Local -> global mapping
+*        is written to tt->indmap.
+*
+* @param tt The tensor to relabel.
+*/
+static void __tt_remove_empty(
+  sptensor_t * const tt)
+{
+  idx_t dim_sizes[MAX_NMODES];
+
+  /* Allocate indmap */
+  idx_t const nmodes = tt->nmodes;
+  idx_t const nnz = tt->nnz;
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    dim_sizes[m] = 0;
+    tt->indmap[m] = (idx_t *) calloc(tt->dims[m], sizeof(idx_t));
+
+    /* Fill in indmap */
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      /* keep track of #unique slices */
+      if(tt->indmap[m][tt->ind[m][n]] == 0) {
+        ++dim_sizes[m];
+      }
+      tt->indmap[m][tt->ind[m][n]] = 1;
+    }
+
+    /* move on if no remapping is necessary */
+    if(dim_sizes[m] == tt->dims[m]) {
+      free(tt->indmap[m]);
+      tt->indmap[m] = NULL;
+      continue;
+    }
+
+    /* Now scan to remove empty slices */
+    idx_t ptr = 0;
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      /* move ptr to the next non-empty slice */
+      while(tt->indmap[m][ptr] == 0) {
+        ++ptr;
+      }
+      tt->indmap[m][i] = ptr;
+    }
+
+    /* relabel all indices in mode m */
+    tt->dims[m] = dim_sizes[m];
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      tt->ind[m][n] = tt->indmap[m][tt->ind[m][n]];
+    }
+  }
+}
+
+
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
@@ -58,14 +113,18 @@ sptensor_t * tt_read(
   char const * const ifname)
 {
   sptensor_t * tt = tt_read_file(ifname);
-  __tt_remove_dups(tt);
 
+  /* remove duplicates and empty slices */
+  __tt_remove_dups(tt);
+  __tt_remove_empty(tt);
+
+#if 0
   /* XXX */
   for(idx_t p=2; p <= 22; p += 1) {
     tt_distribute_stats(tt, p);
   }
-
   printf("\n");
+#endif
 
   return tt;
 }
@@ -99,6 +158,7 @@ void tt_free(
   tt->nnz = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
     free(tt->ind[m]);
+    free(tt->indmap[m]);
   }
   tt->nmodes = 0;
   free(tt->dims);
