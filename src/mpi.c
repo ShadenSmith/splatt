@@ -6,6 +6,12 @@
 #include "io.h"
 #include <string.h>
 
+
+
+/******************************************************************************
+ * PRIVATE FUNCTONS
+ *****************************************************************************/
+
 static void __get_dims(
   char const * const fname,
   idx_t * const outnnz,
@@ -17,29 +23,26 @@ static void __get_dims(
     exit(1);
   }
 
-  /* first count nnz in tensor */
   char * ptr = NULL;
   idx_t nnz = 0;
-  idx_t nmodes = 0;
   char * line = NULL;
   ssize_t read;
   size_t len = 0;
+
+  /* first count modes in tensor */
+  idx_t nmodes = 0;
   while((read = getline(&line, &len, fin)) != -1) {
     if(read > 1 && line[0] != '#') {
       /* get nmodes from first nnz line */
-      if(nnz == 0) {
-        ptr = strtok(line, " \t");
-        while(ptr != NULL) {
-          ++nmodes;
-          ptr = strtok(NULL, " \t");
-        }
+      ptr = strtok(line, " \t");
+      while(ptr != NULL) {
+        ++nmodes;
+        ptr = strtok(NULL, " \t");
       }
-      ++nnz;
+      break;
     }
   }
   --nmodes;
-
-  *outnnz = nnz;
 
   for(idx_t m=0; m < nmodes; ++m) {
     outdims[m] = 0;
@@ -57,8 +60,10 @@ static void __get_dims(
       }
       /* skip over tensor val */
       strtod(ptr, &ptr);
+      ++nnz;
     }
   }
+  *outnnz = nnz;
 }
 
 
