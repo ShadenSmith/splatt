@@ -8,6 +8,7 @@
 #include "../stats.h"
 #include "../cpd.h"
 
+#include "../mpi.h"
 
 
 /******************************************************************************
@@ -67,6 +68,32 @@ static struct argp cpd_argp =
   {cpd_options, parse_cpd_opt, cpd_args_doc, cpd_doc};
 
 
+/* XXX: this is temporary */
+static void __par_cpd(
+  int argc,
+  char ** argv)
+{
+  cpd_opts args;
+  args.ifname = NULL;
+  args.niters = 5;
+  args.rank = 10;
+  args.nthreads = 1;
+  args.tile = 0;
+  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  if(rank > 0) {
+    print_header();
+  }
+
+  sptensor_t * tt = mpi_tt_read(args.ifname);
+
+  tt_free(tt);
+}
+
 void splatt_cpd(
   int argc,
   char ** argv)
@@ -77,6 +104,13 @@ void splatt_cpd(
   args.rank = 10;
   args.nthreads = 1;
   args.tile = 0;
+
+  int size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  if(size > 1) {
+    __par_cpd(argc, argv);
+    return;
+  }
 
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 

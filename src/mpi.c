@@ -3,11 +3,95 @@
  * INCLUDES
  *****************************************************************************/
 #include "mpi.h"
+#include "io.h"
+#include <string.h>
+
+static void __get_dims(
+  char const * const fname,
+  idx_t * const outnnz,
+  idx_t * const outdims)
+{
+  FILE * fin;
+  if((fin = fopen(fname, "r")) == NULL) {
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
+    exit(1);
+  }
+
+  /* first count nnz in tensor */
+  char * ptr = NULL;
+  idx_t nnz = 0;
+  idx_t nmodes = 0;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+  while((read = getline(&line, &len, fin)) != -1) {
+    if(read > 1 && line[0] != '#') {
+      /* get nmodes from first nnz line */
+      if(nnz == 0) {
+        ptr = strtok(line, " \t");
+        while(ptr != NULL) {
+          ++nmodes;
+          ptr = strtok(NULL, " \t");
+        }
+      }
+      ++nnz;
+    }
+  }
+  --nmodes;
+
+  *outnnz = nnz;
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    outdims[m] = 0;
+  }
+
+  /* fill in tensor dimensions */
+  rewind(fin);
+  while((read = getline(&line, &len, fin)) != -1) {
+    /* skip empty and commented lines */
+    if(read > 1 && line[0] != '#') {
+      ptr = line;
+      for(idx_t m=0; m < nmodes; ++m) {
+        idx_t ind = strtoull(ptr, &ptr, 10);
+        outdims[m] = (ind > outdims[m]) ? ind : outdims[m];
+      }
+      /* skip over tensor val */
+      strtod(ptr, &ptr);
+    }
+  }
+}
+
 
 
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
+
+sptensor_t * mpi_tt_read(
+  char const * const ifname)
+{
+  int rank, size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  idx_t dims[MAX_NMODES];
+  idx_t nnz;
+
+  if(rank == 0) {
+    /* get tensor stats */
+    __get_dims(ifname, &nnz, dims);
+    printf("found %lu nnz and %lu %lu %lu\n", nnz, dims[0], dims[1], dims[2]);
+  } else {
+
+  }
+
+  sptensor_t * tt = tt_read(ifname);
+
+  return tt;
+}
+
+
+
 void tt_distribute_stats(
   sptensor_t * const tt,
   idx_t const nprocs)

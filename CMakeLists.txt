@@ -13,6 +13,9 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
   set(C_DEFINES "${C_DEFINES} -DVERSION_STR=\\\"${SPLATT_VERSION_STR}\\\"")
 endif()
 
+find_package(MPI)
+include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
