@@ -91,7 +91,7 @@ static void __par_cpd(
 
   sptensor_t * tt = mpi_tt_read(args.ifname);
 
-  tt_free(tt);
+  //tt_free(tt);
 }
 
 void splatt_cpd(

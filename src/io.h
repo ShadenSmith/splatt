@@ -10,6 +10,26 @@
 #include "graph.h"
 
 
+/**
+* @brief Open a file.
+*
+* @param fname The name of the file.
+* @param mode The mode for opening.
+*
+* @return A FILE pointer.
+*/
+static inline FILE * open_f(
+  char const * const fname,
+  char const * const mode)
+{
+  FILE * f;
+  if((f = fopen(fname, mode)) == NULL) {
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
+    exit(1);
+  }
+  return f;
+}
+
 /******************************************************************************
  * TENSOR FUNCTIONS
  *****************************************************************************/

@@ -30,7 +30,47 @@ static void __fill_ssizes(
     end = nnz;
   }
 
-  printf("r: %d %lu-%lu\n", rank, start, end);
+  char * ptr = NULL;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+
+  /* skip to start */
+  idx_t nlines = 0;
+  FILE * fin = open_f(fname, "r");
+  while(nlines < start && (read = getline(&line, &len, fin)) != -1) {
+    if(read > 1 && line[0] != '#') {
+      ++nlines;
+    }
+  }
+
+  /* start filling ssizes */
+  while(nlines < end && (read = getline(&line, &len, fin)) != -1) {
+    /* skip empty and commented lines */
+    if(read > 1 && line[0] != '#') {
+      ++nlines;
+      ptr = line;
+      for(idx_t m=0; m < nmodes; ++m) {
+        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
+        ssizes[m][ind] += 1;
+      }
+      /* skip over tensor val */
+      strtod(ptr, &ptr);
+    }
+  }
+  fclose(fin);
+
+  /* reduce to get total slice counts */
+  for(idx_t m=0; m < nmodes; ++m) {
+    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], dims[m], SS_MPI_IDX, MPI_SUM,
+        MPI_COMM_WORLD);
+
+    idx_t count = 0;
+    for(idx_t i=0; i < dims[m]; ++i) {
+      count += ssizes[m][i];
+    }
+    assert(count == nnz);
+  }
 }
 
 
@@ -40,11 +80,7 @@ static void __get_dims(
   idx_t * const outnmodes,
   idx_t * const outdims)
 {
-  FILE * fin;
-  if((fin = fopen(fname, "r")) == NULL) {
-    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
-    exit(1);
-  }
+  FILE * fin = open_f(fname, "r");
 
   char * ptr = NULL;
   idx_t nnz = 0;
@@ -88,6 +124,8 @@ static void __get_dims(
   }
   *outnnz = nnz;
   *outnmodes = nmodes;
+
+  fclose(fin);
 }
 
 
@@ -119,11 +157,9 @@ sptensor_t * mpi_tt_read(
   MPI_Bcast(&nmodes, 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
   MPI_Bcast(dims, nmodes, SS_MPI_IDX, 0, MPI_COMM_WORLD);
 
-  //tt = tt_read(ifname);
-
   idx_t * ssizes[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    ssizes[m] = (idx_t *) malloc(dims[m] * sizeof(idx_t));
+    ssizes[m] = (idx_t *) calloc(dims[m], sizeof(idx_t));
   }
 
   __fill_ssizes(ifname, ssizes, nnz, nmodes, dims);
@@ -156,9 +192,9 @@ void tt_distribute_stats(
 
   /* fill ssizes */
   for(idx_t n=0; n < nnz; ++n) {
-    ssizes[0][tt->ind[0][n]] += 1;
-    ssizes[1][tt->ind[1][n]] += 1;
-    ssizes[2][tt->ind[2][n]] += 1;
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      ssizes[m][tt->ind[m][n]] += 1;
+    }
   }
 
   for(idx_t m=0; m < tt->nmodes; ++m) {
