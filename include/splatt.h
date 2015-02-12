@@ -5,7 +5,10 @@
 
 typedef double splatt_val_t;
 #define SS_VAL "%f"
-typedef size_t splatt_idx_t;
+#define SS_MPI_VAL MPI_DOUBLE
+
+typedef unsigned long splatt_idx_t;
 #define SS_IDX "%lu"
+#define SS_MPI_IDX MPI_UNSIGNED_LONG
 
 #endif

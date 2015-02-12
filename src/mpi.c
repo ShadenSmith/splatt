@@ -12,9 +12,32 @@
  * PRIVATE FUNCTONS
  *****************************************************************************/
 
+static void __fill_ssizes(
+  char const * const fname,
+  idx_t ** const ssizes,
+  idx_t const nnz,
+  idx_t const nmodes,
+  idx_t const * const dims)
+{
+  int rank, size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  /* compute start/end nnz for counting */
+  idx_t const start = rank * nnz / size;
+  idx_t end = (rank + 1) * nnz / size;
+  if(end > nnz) {
+    end = nnz;
+  }
+
+  printf("r: %d %lu-%lu\n", rank, start, end);
+}
+
+
 static void __get_dims(
   char const * const fname,
   idx_t * const outnnz,
+  idx_t * const outnmodes,
   idx_t * const outdims)
 {
   FILE * fin;
@@ -64,6 +87,7 @@ static void __get_dims(
     }
   }
   *outnnz = nnz;
+  *outnmodes = nmodes;
 }
 
 
@@ -79,19 +103,35 @@ sptensor_t * mpi_tt_read(
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  idx_t dims[MAX_NMODES];
+  idx_t nmodes;
   idx_t nnz;
+  idx_t dims[MAX_NMODES];
+
+  sptensor_t * tt = NULL;
 
   if(rank == 0) {
     /* get tensor stats */
-    __get_dims(ifname, &nnz, dims);
+    __get_dims(ifname, &nnz, &nmodes, dims);
     printf("found %lu nnz and %lu %lu %lu\n", nnz, dims[0], dims[1], dims[2]);
-  } else {
-
   }
 
-  sptensor_t * tt = tt_read(ifname);
+  MPI_Bcast(&nnz, 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&nmodes, 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(dims, nmodes, SS_MPI_IDX, 0, MPI_COMM_WORLD);
 
+  //tt = tt_read(ifname);
+
+  idx_t * ssizes[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    ssizes[m] = (idx_t *) malloc(dims[m] * sizeof(idx_t));
+  }
+
+  __fill_ssizes(ifname, ssizes, nnz, nmodes, dims);
+
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    free(ssizes[m]);
+  }
   return tt;
 }
 
