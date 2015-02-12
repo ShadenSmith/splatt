@@ -12,6 +12,95 @@
  * PRIVATE FUNCTONS
  *****************************************************************************/
 
+static sptensor_t * __read_tt(
+  char const * const fname,
+  idx_t ** const ssizes,
+  idx_t const nnz,
+  idx_t const nmodes,
+  idx_t const * const dims)
+{
+  int rank, size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  idx_t sstarts[MAX_NMODES];
+  idx_t sends[MAX_NMODES];
+
+  int const p13 = size / 2;
+  int const p23 = size / 4;
+  idx_t const pnnz = nnz / 2;
+
+  if(rank == 0) {
+    printf("pnnz: %lu target nnz: %lu\n", pnnz, nnz/size);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  /* find start/end slices for my partition */
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* current processor */
+    int currp  = 0;
+    idx_t lastn = 0;
+    idx_t nnzcnt = 0;
+
+    sstarts[m] = 0;
+    sends[m] = dims[m];
+
+    for(idx_t s=0; s < dims[m]; ++s) {
+      if(nnzcnt >= lastn + pnnz) {
+        lastn = nnzcnt;
+        ++currp;
+        if(currp == rank/p13) {
+          sstarts[m] = s;
+        } else if(currp == (rank/p13)+1) {
+          sends[m] = s;
+          break;
+        }
+      }
+      nnzcnt += ssizes[m][s];
+    }
+  }
+
+  FILE * fin = open_f(fname, "r");
+
+  char * ptr = NULL;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+
+  sptensor_t * tt = NULL;
+  idx_t mynnz = 0;
+
+  /* count nnz in my partition */
+  while((read = getline(&line, &len, fin)) != -1) {
+    /* skip empty and commented lines */
+    if(read > 1 && line[0] != '#') {
+      int mine = 1;
+      ptr = line;
+      for(idx_t m=0; m < nmodes; ++m) {
+        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
+        if(ind < sstarts[m] || ind >= sends[m]) {
+          mine = 0;
+        }
+      }
+      if(mine) {
+        ++mynnz;
+      }
+      /* skip over tensor val */
+      strtod(ptr, &ptr);
+    }
+  }
+  fclose(fin);
+
+  printf("p: %d (%lu x %lu x %lu) (%lu x %lu x %lu) -> %lu\n", rank, 
+    sstarts[0], sstarts[1], sstarts[2],
+    sends[0], sends[1], sends[2],
+    mynnz);
+
+  return tt;
+}
+
+
+
 static void __fill_ssizes(
   char const * const fname,
   idx_t ** const ssizes,
@@ -145,8 +234,6 @@ sptensor_t * mpi_tt_read(
   idx_t nnz;
   idx_t dims[MAX_NMODES];
 
-  sptensor_t * tt = NULL;
-
   if(rank == 0) {
     /* get tensor stats */
     __get_dims(ifname, &nnz, &nmodes, dims);
@@ -163,6 +250,7 @@ sptensor_t * mpi_tt_read(
   }
 
   __fill_ssizes(ifname, ssizes, nnz, nmodes, dims);
+  sptensor_t * tt = __read_tt(ifname, ssizes, nnz, nmodes, dims);
 
 
   for(idx_t m=0; m < nmodes; ++m) {
