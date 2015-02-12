@@ -85,7 +85,7 @@ static void __par_cpd(
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  if(rank > 0) {
+  if(rank == 0) {
     print_header();
   }
 
