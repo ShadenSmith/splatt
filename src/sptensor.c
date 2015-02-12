@@ -147,6 +147,7 @@ sptensor_t * tt_alloc(
   tt->ind = (idx_t**) malloc(nmodes * sizeof(idx_t*));
   for(idx_t m=0; m < nmodes; ++m) {
     tt->ind[m] = (idx_t*) malloc(nnz * sizeof(idx_t));
+    tt->indmap[m] = NULL;
   }
 
   return tt;
