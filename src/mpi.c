@@ -84,21 +84,41 @@ static sptensor_t * __read_tt(
   }
   fclose(fin);
 
-  printf("p: %d (%lu x %lu x %lu) (%lu x %lu x %lu) -> %lu\n", rank,
-    sstarts[0], sstarts[1], sstarts[2],
-    sends[0], sends[1], sends[2],
-    mynnz);
-
   idx_t maxnnz;
   MPI_Reduce(&mynnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
   if(rank == 0) {
     idx_t target = nnz/size;
     double diff = 100. * ((double)(maxnnz - target)/(double)target);
-    printf("\n\nnnz: %lu\ttargetnnz: %lu\tmaxnnz: %lu\t(%0.02f%% diff)\n",
+    printf("nnz: %lu\ttargetnnz: %lu\tmaxnnz: %lu\t(%0.02f%% diff)\n",
         nnz, target, maxnnz, diff);
   }
 
+  /* allocate tensor! */
   sptensor_t * tt = tt_alloc(mynnz, nmodes);
+
+  /* now actually load values */
+  fin = open_f(fname, "r");
+  idx_t nnzread = 0;
+  while(nnzread < mynnz && (read = getline(&line, &len, fin)) != -1) {
+    /* skip empty and commented lines */
+    if(read > 1 && line[0] != '#') {
+      int mine = 1;
+      ptr = line;
+      for(idx_t m=0; m < nmodes; ++m) {
+        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
+        tt->ind[m][nnzread] = ind;
+        if(ind < sstarts[m] || ind >= sends[m]) {
+          mine = 0;
+        }
+      }
+      val_t const v = strtod(ptr, &ptr);
+      tt->vals[nnzread] = v;
+      if(mine) {
+        ++nnzread;
+      }
+    }
+  }
+  fclose(fin);
 
   return tt;
 }
@@ -244,6 +264,7 @@ void mpi_setup_comms(
     }
   }
   assert(p13 * p13 * p13 == rinfo->npes);
+  rinfo->np13 = p13;
 
   dims_3d[0] = dims_3d[1] = dims_3d[2] = p13;
   periods[0] = periods[1] = periods[2] = p13;
@@ -273,7 +294,6 @@ sptensor_t * mpi_tt_read(
   if(rank == 0) {
     /* get tensor stats */
     __get_dims(ifname, &nnz, &nmodes, dims);
-    printf("found %lu nnz and %lu %lu %lu\n", nnz, dims[0], dims[1], dims[2]);
   }
 
   MPI_Bcast(&nnz, 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
@@ -286,12 +306,36 @@ sptensor_t * mpi_tt_read(
   }
 
   __fill_ssizes(ifname, ssizes, nnz, nmodes, dims);
+
+  /* actually parse tensor */
   sptensor_t * tt = __read_tt(ifname, ssizes, nnz, nmodes, dims, rinfo);
-
-
   for(idx_t m=0; m < nmodes; ++m) {
     free(ssizes[m]);
+    tt->dims[m] = dims[m];
   }
+
+  /* clean up tensor */
+  tt_remove_dups(tt);
+  tt_remove_empty(tt);
+
+#if 0
+  /* each process outputs their own view of X for testing */
+  char name[256];
+  sprintf(name, "%d.part", rank);
+  FILE * fout = open_f(name, "w");
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(tt->indmap[m] != NULL) {
+        fprintf(fout, "%lu\t", 1+tt->indmap[m][tt->ind[m][n]]);
+      } else {
+        fprintf(fout, "%lu\t", 1+tt->ind[m][n]);
+      }
+    }
+    fprintf(fout, "%d\n", (int) tt->vals[n]);
+  }
+  fclose(fout);
+#endif
+
   return tt;
 }
 

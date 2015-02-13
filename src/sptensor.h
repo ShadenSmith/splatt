@@ -83,6 +83,26 @@ sptensor_t * tt_alloc(
 void tt_free(
   sptensor_t * tt);
 
+/**
+* @brief Remove the duplicate entries of a tensor. Duplicate values are
+*        repeatedly averaged.
+*
+* @param tt The modified tensor to work on. NOTE: data structures are not
+*           resized!
+*/
+void tt_remove_dups(
+  sptensor_t * const tt);
+
+
+/**
+* @brief Relabel tensor indices to remove empty slices. Local -> global mapping
+*        is written to tt->indmap.
+*
+* @param tt The tensor to relabel.
+*/
+void tt_remove_empty(
+  sptensor_t * const tt);
+
 
 /**
 * @brief Unfold a tensor to a sparse matrix in CSR format.
