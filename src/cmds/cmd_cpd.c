@@ -89,9 +89,11 @@ static void __par_cpd(
     print_header();
   }
 
-  sptensor_t * tt = mpi_tt_read(args.ifname);
+  rank_info rinfo;
+  mpi_setup_comms(&rinfo);
+  sptensor_t * tt = mpi_tt_read(args.ifname, &rinfo);
 
-  //tt_free(tt);
+  tt_free(tt);
 }
 
 void splatt_cpd(

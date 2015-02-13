@@ -5,6 +5,7 @@
 #include "mpi.h"
 #include "io.h"
 #include <string.h>
+#include <math.h>
 
 
 
@@ -17,23 +18,16 @@ static sptensor_t * __read_tt(
   idx_t ** const ssizes,
   idx_t const nnz,
   idx_t const nmodes,
-  idx_t const * const dims)
+  idx_t const * const dims,
+  rank_info * const rinfo)
 {
-  int rank, size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  int const rank = rinfo->rank_3d;
+  int const size = rinfo->npes;
+  int const p13 = rinfo->np13;
+  idx_t const pnnz = nnz / p13; /* nnz in a layer */
 
   idx_t sstarts[MAX_NMODES];
   idx_t sends[MAX_NMODES];
-
-  int const p13 = size / 2;
-  int const p23 = size / 4;
-  idx_t const pnnz = nnz / 2;
-
-  if(rank == 0) {
-    printf("pnnz: %lu target nnz: %lu\n", pnnz, nnz/size);
-  }
-  MPI_Barrier(MPI_COMM_WORLD);
 
   /* find start/end slices for my partition */
   for(idx_t m=0; m < nmodes; ++m) {
@@ -49,9 +43,9 @@ static sptensor_t * __read_tt(
       if(nnzcnt >= lastn + pnnz) {
         lastn = nnzcnt;
         ++currp;
-        if(currp == rank/p13) {
+        if(currp == rinfo->coords_3d[m]) {
           sstarts[m] = s;
-        } else if(currp == (rank/p13)+1) {
+        } else if(currp == rinfo->coords_3d[m]+1) {
           sends[m] = s;
           break;
         }
@@ -67,7 +61,6 @@ static sptensor_t * __read_tt(
   ssize_t read;
   size_t len = 0;
 
-  sptensor_t * tt = NULL;
   idx_t mynnz = 0;
 
   /* count nnz in my partition */
@@ -91,10 +84,21 @@ static sptensor_t * __read_tt(
   }
   fclose(fin);
 
-  printf("p: %d (%lu x %lu x %lu) (%lu x %lu x %lu) -> %lu\n", rank, 
+  printf("p: %d (%lu x %lu x %lu) (%lu x %lu x %lu) -> %lu\n", rank,
     sstarts[0], sstarts[1], sstarts[2],
     sends[0], sends[1], sends[2],
     mynnz);
+
+  idx_t maxnnz;
+  MPI_Reduce(&mynnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
+  if(rank == 0) {
+    idx_t target = nnz/size;
+    double diff = 100. * ((double)(maxnnz - target)/(double)target);
+    printf("\n\nnnz: %lu\ttargetnnz: %lu\tmaxnnz: %lu\t(%0.02f%% diff)\n",
+        nnz, target, maxnnz, diff);
+  }
+
+  sptensor_t * tt = tt_alloc(mynnz, nmodes);
 
   return tt;
 }
@@ -223,8 +227,40 @@ static void __get_dims(
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
+void mpi_setup_comms(
+  rank_info * const rinfo)
+{
+  MPI_Comm_size(MPI_COMM_WORLD, &(rinfo->npes));
+
+  int * const dims_3d = rinfo->dims_3d;
+  int periods[MAX_NMODES];
+
+  /* get 3D cart dimensions - this can be improved! */
+  int p13;
+  int sqnpes = (int) sqrt(rinfo->npes) + 1;
+  for(p13 = 1; p13 < sqnpes; ++p13) {
+    if(p13 * p13 * p13 == rinfo->npes) {
+      break;
+    }
+  }
+  assert(p13 * p13 * p13 == rinfo->npes);
+
+  dims_3d[0] = dims_3d[1] = dims_3d[2] = p13;
+  periods[0] = periods[1] = periods[2] = p13;
+
+  /* create new communicator and update global rank */
+  MPI_Cart_create(MPI_COMM_WORLD, 3, dims_3d, periods, 1, &(rinfo->comm_3d));
+  MPI_Comm_rank(MPI_COMM_WORLD, &(rinfo->rank));
+  MPI_Comm_rank(rinfo->comm_3d, &(rinfo->rank_3d));
+
+  /* get 3d coordinates */
+  MPI_Cart_coords(rinfo->comm_3d, rinfo->rank_3d, 3, rinfo->coords_3d);
+}
+
+
 sptensor_t * mpi_tt_read(
-  char const * const ifname)
+  char const * const ifname,
+  rank_info * const rinfo)
 {
   int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -250,7 +286,7 @@ sptensor_t * mpi_tt_read(
   }
 
   __fill_ssizes(ifname, ssizes, nnz, nmodes, dims);
-  sptensor_t * tt = __read_tt(ifname, ssizes, nnz, nmodes, dims);
+  sptensor_t * tt = __read_tt(ifname, ssizes, nnz, nmodes, dims, rinfo);
 
 
   for(idx_t m=0; m < nmodes; ++m) {
