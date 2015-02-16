@@ -428,6 +428,13 @@ void mpi_send_recv_stats(
       }
     }
 
+    if(local_rows == 0) {
+        printf("NO LOCALS: %d,%d,%d\t\t A: (%6lu - %6lu) X: (%6lu - %6lu)\n",
+        rinfo->coords_3d[0], rinfo->coords_3d[1], rinfo->coords_3d[2],
+        rinfo->mat_start[m], rinfo->mat_end[m],
+        tt->indmap[m][0], tt->indmap[m][tt->dims[m]-1]);
+    }
+
     MPI_Allreduce(MPI_IN_PLACE, precvs, size, SS_MPI_IDX, MPI_SUM,
         rinfo->comm_3d);
 
@@ -436,10 +443,10 @@ void mpi_send_recv_stats(
     double relsend = 100. * (double) sends / (double) max_sends;
     double relrecv = 100. * (double) recvs / (double) max_recvs;
     double pct_local = 100. * (double) local_rows / (double) tt->dims[m];
-    printf("p: %d\t\tsends: %3lu (max: %3lu  %4.1f%%)\t"
+    printf("p: %d,%d,%d\t\tsends: %3lu (max: %3lu  %4.1f%%)\t"
                     "recvs: %3lu (max: %3lu  %4.1f%%)\t"
                     "local: %6lu (%4.1f%%)\n",
-        rinfo->rank,
+        rinfo->coords_3d[0], rinfo->coords_3d[1], rinfo->coords_3d[2],
         sends, max_sends, relsend,
         recvs, max_recvs, relrecv,
         local_rows, pct_local);
