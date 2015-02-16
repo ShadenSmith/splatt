@@ -114,6 +114,31 @@ static void __par_cpd(
   printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],
       tt->dims[2], tt->nnz);
 
+  matrix_t * mats[MAX_NMODES+1];
+
+  /* now assign A/B/C */
+  idx_t max_dim = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    rinfo.mat_start[m] = rank * (rinfo.global_dims[m] / size);
+    rinfo.mat_end[m]   = (rank+1) * (rinfo.global_dims[m] / size);
+    mats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m] - 1, args.rank);
+    if(tt->dims[m] > max_dim) {
+      max_dim = tt->dims[m];
+    }
+  }
+  mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  printf("%d: (%6lu %6lu) (%6lu %6lu) (%6lu %6lu)\n", rank,
+      rinfo.mat_start[0], rinfo.mat_end[0],
+      rinfo.mat_start[1], rinfo.mat_end[1],
+      rinfo.mat_start[2], rinfo.mat_end[2]);
+
+  mat_free(mats[MAX_NMODES]);
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    mat_free(mats[m]);
+  }
   tt_free(tt);
 }
 
