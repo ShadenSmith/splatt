@@ -47,8 +47,4 @@ sptensor_t * mpi_tt_read(
 void mpi_setup_comms(
   rank_info * const rinfo);
 
-void tt_distribute_stats(
-  sptensor_t * const tt,
-  idx_t const nprocs);
-
 #endif
