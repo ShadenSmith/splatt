@@ -13,22 +13,54 @@
  * PRIVATE FUNCTONS
  *****************************************************************************/
 
-static sptensor_t * __read_tt(
-  char const * const fname,
+/**
+* @brief Write a tensor to file <rank>.part. All local indices are converted to
+*        global.
+*
+* @param tt The tensor to write.
+*/
+static void __write_part(
+  sptensor_t const * const tt,
+  int const rank)
+{
+  /* each process outputs their own view of X for testing */
+  char name[256];
+  sprintf(name, "%d.part", rank);
+  FILE * fout = open_f(name, "w");
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      if(tt->indmap[m] != NULL) {
+        fprintf(fout, "%lu\t", 1+tt->indmap[m][tt->ind[m][n]]);
+      } else {
+        fprintf(fout, "%lu\t", 1+tt->ind[m][n]);
+      }
+    }
+    fprintf(fout, "%d\n", (int) tt->vals[n]);
+  }
+  fclose(fout);
+}
+
+
+/**
+* @brief Find the start/end slices in each mode for my partition of X.
+*
+* @param ssizes The nnz in each slice.
+* @param nmodes The number of modes of X.
+* @param nnz The number of nonzeros in total.
+* @param rinfo MPI information.
+* @param sstarts Array of slice starts, inclusive (one for each mode).
+* @param sends Array of slice ends, exclusive (one for each mode).
+*/
+static void __find_my_slices(
   idx_t ** const ssizes,
   idx_t const nmodes,
-  rank_info * const rinfo)
+  idx_t const nnz,
+  rank_info const * const rinfo,
+  idx_t * const sstarts,
+  idx_t * const sends)
 {
-  int const rank = rinfo->rank_3d;
-  int const size = rinfo->npes;
-  int const p13 = rinfo->np13;
-  idx_t const nnz = rinfo->global_nnz;
+  idx_t const pnnz = nnz / rinfo->np13; /* nnz in a layer */
   idx_t const * const dims = rinfo->global_dims;
-
-  idx_t const pnnz = nnz / p13; /* nnz in a layer */
-
-  idx_t sstarts[MAX_NMODES];
-  idx_t sends[MAX_NMODES];
 
   /* find start/end slices for my partition */
   for(idx_t m=0; m < nmodes; ++m) {
@@ -54,7 +86,25 @@ static sptensor_t * __read_tt(
       nnzcnt += ssizes[m][s];
     }
   }
+}
 
+
+/**
+* @brief Count the nonzero values in a partition of X.
+*
+* @param fname The name of the file containing X.
+* @param nmodes The number of modes of X.
+* @param sstarts Array of slice starts, inclusive (one for each mode).
+* @param sends Array of slice ends, exclusive (one for each mode).
+*
+* @return The number of nonzeros in the intersection of all sstarts and sends.
+*/
+static idx_t __count_my_nnz(
+  char const * const fname,
+  idx_t const nmodes,
+  idx_t const * const sstarts,
+  idx_t const * const sends)
+{
   FILE * fin = open_f(fname, "r");
 
   char * ptr = NULL;
@@ -62,9 +112,8 @@ static sptensor_t * __read_tt(
   ssize_t read;
   size_t len = 0;
 
-  idx_t mynnz = 0;
-
   /* count nnz in my partition */
+  idx_t mynnz = 0;
   while((read = getline(&line, &len, fin)) != -1) {
     /* skip empty and commented lines */
     if(read > 1 && line[0] != '#') {
@@ -85,22 +134,35 @@ static sptensor_t * __read_tt(
   }
   fclose(fin);
 
-  idx_t maxnnz;
-  MPI_Reduce(&mynnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
-  if(rank == 0) {
-    idx_t target = nnz/size;
-    double diff = 100. * ((double)(maxnnz - target)/(double)target);
-    printf("nnz: %lu\ttargetnnz: %lu\tmaxnnz: %lu\t(%0.02f%% diff)\n",
-        nnz, target, maxnnz, diff);
-  }
+  return mynnz;
+}
 
-  /* allocate tensor! */
-  sptensor_t * tt = tt_alloc(mynnz, nmodes);
 
-  /* now actually load values */
-  fin = open_f(fname, "r");
+/**
+* @brief Read a partition of X into tt.
+*
+* @param fname The file containing X.
+* @param tt The tensor structure (must be pre-allocated).
+* @param sstarts Array of starting slices, inclusive (one for each mode).
+* @param sends Array of ending slices, exclusive (one for each mode).
+*/
+static void __read_tt_part(
+  char const * const fname,
+  sptensor_t * const tt,
+  idx_t const * const sstarts,
+  idx_t const * const sends)
+{
+  idx_t const nnz = tt->nnz;
+  idx_t const nmodes = tt->nmodes;
+
+  char * ptr = NULL;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+
+  FILE * fin = open_f(fname, "r");
   idx_t nnzread = 0;
-  while(nnzread < mynnz && (read = getline(&line, &len, fin)) != -1) {
+  while(nnzread < nnz && (read = getline(&line, &len, fin)) != -1) {
     /* skip empty and commented lines */
     if(read > 1 && line[0] != '#') {
       int mine = 1;
@@ -120,6 +182,43 @@ static sptensor_t * __read_tt(
     }
   }
   fclose(fin);
+}
+
+
+static sptensor_t * __read_tt(
+  char const * const fname,
+  idx_t ** const ssizes,
+  idx_t const nmodes,
+  rank_info * const rinfo)
+{
+  int const rank = rinfo->rank_3d;
+  int const size = rinfo->npes;
+  int const p13 = rinfo->np13;
+  idx_t const nnz = rinfo->global_nnz;
+  idx_t const * const dims = rinfo->global_dims;
+
+  idx_t sstarts[MAX_NMODES];
+  idx_t sends[MAX_NMODES];
+
+  /* find start/end slices for my partition */
+  __find_my_slices(ssizes, nmodes, nnz, rinfo, sstarts, sends);
+
+  /* count nnz in my partition and allocate */
+  idx_t const mynnz = __count_my_nnz(fname, nmodes, sstarts, sends);
+  sptensor_t * tt = tt_alloc(mynnz, nmodes);
+
+  /* compute partition balance */
+  idx_t maxnnz;
+  MPI_Reduce(&mynnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
+  if(rank == 0) {
+    idx_t target = nnz/size;
+    double diff = 100. * ((double)(maxnnz - target)/(double)target);
+    printf("nnz: %lu\ttargetnnz: %lu\tmaxnnz: %lu\t(%0.02f%% diff)\n",
+        nnz, target, maxnnz, diff);
+  }
+
+  /* now actually load values */
+  __read_tt_part(fname, tt, sstarts, sends);
 
   return tt;
 }
@@ -318,24 +417,6 @@ sptensor_t * mpi_tt_read(
   /* clean up tensor */
   tt_remove_dups(tt);
   tt_remove_empty(tt);
-
-#if 0
-  /* each process outputs their own view of X for testing */
-  char name[256];
-  sprintf(name, "%d.part", rank);
-  FILE * fout = open_f(name, "w");
-  for(idx_t n=0; n < tt->nnz; ++n) {
-    for(idx_t m=0; m < nmodes; ++m) {
-      if(tt->indmap[m] != NULL) {
-        fprintf(fout, "%lu\t", 1+tt->indmap[m][tt->ind[m][n]]);
-      } else {
-        fprintf(fout, "%lu\t", 1+tt->ind[m][n]);
-      }
-    }
-    fprintf(fout, "%d\n", (int) tt->vals[n]);
-  }
-  fclose(fout);
-#endif
 
   return tt;
 }

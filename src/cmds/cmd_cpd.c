@@ -89,6 +89,9 @@ static void __par_cpd(
     print_header();
   }
 
+  /* XXX: this should probably be improved... */
+  srand(rank);
+
   rank_info rinfo;
   mpi_setup_comms(&rinfo);
   sptensor_t * tt = mpi_tt_read(args.ifname, &rinfo);
@@ -98,7 +101,7 @@ static void __par_cpd(
       rinfo.global_dims[0],
       rinfo.global_dims[1],
       rinfo.global_dims[2],
-      rinfo.global_nnz / size);
+      rinfo.global_nnz);
     printf("max dims:\t\t%8lu %8lu %8lu\n",
       rinfo.global_dims[0] / rinfo.np13,
       rinfo.global_dims[1] / rinfo.np13,
@@ -130,7 +133,7 @@ static void __par_cpd(
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  printf("%d: (%6lu %6lu) (%6lu %6lu) (%6lu %6lu)\n", rank,
+  printf("%d:\t\t(%6lu %6lu)\t(%6lu %6lu)\t(%6lu %6lu)\n", rank,
       rinfo.mat_start[0], rinfo.mat_end[0],
       rinfo.mat_start[1], rinfo.mat_end[1],
       rinfo.mat_start[2], rinfo.mat_end[2]);
