@@ -185,6 +185,16 @@ static void __read_tt_part(
 }
 
 
+/**
+* @brief Read my portion of X from a file.
+*
+* @param fname The file containing X.
+* @param ssizes The nonzero counts in each slice.
+* @param nmodes The number of modes in X.
+* @param rinfo MPI information (nnz, 3D comm, etc.).
+*
+* @return My portion of the sparse tensor read from fname.
+*/
 static sptensor_t * __read_tt(
   char const * const fname,
   idx_t ** const ssizes,
@@ -225,6 +235,14 @@ static sptensor_t * __read_tt(
 
 
 
+/**
+* @brief Count the nonzeros in each slice of X.
+*
+* @param fname The filename containing nonzeros.
+* @param ssizes A 2D array for counting slice 'sizes'.
+* @param nmodes The number of modes in X.
+* @param rinfo MPI information (containing global dims, nnz, etc.).
+*/
 static void __fill_ssizes(
   char const * const fname,
   idx_t ** const ssizes,
@@ -289,6 +307,15 @@ static void __fill_ssizes(
 }
 
 
+
+/**
+* @brief Get dimensions and nonzero count from tensor file.
+*
+* @param fname Filename of tensor.
+* @param outnnz Number of nonzeros found in X.
+* @param outnmodes Number of modes found in X.
+* @param outdims The dimensions found in X.
+*/
 static void __get_dims(
   char const * const fname,
   idx_t * const outnnz,
@@ -424,6 +451,47 @@ void mpi_send_recv_stats(
     }
     MPI_Barrier(MPI_COMM_WORLD);
   }
+
+  idx_t * pop = NULL;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    pop = (idx_t *) realloc(pop, rinfo->global_dims[m] * sizeof(idx_t));
+    memset(pop, 0, rinfo->global_dims[m] * sizeof(idx_t));
+
+    /* mark all idxs local to me */
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      pop[tt->indmap[m][tt->ind[m][n]]] = 1;
+    }
+    MPI_Allreduce(MPI_IN_PLACE, pop, rinfo->global_dims[m], SS_MPI_IDX, MPI_SUM,
+      rinfo->comm_3d);
+
+    /* count u=1; u=2, u > 2 */
+    idx_t u1 = 1;
+    idx_t u2 = 1;
+    idx_t u3 = 1;
+    for(idx_t i=0; i < rinfo->global_dims[m]; ++i) {
+      switch(pop[i]) {
+      case 0:
+        break;
+      case 1:
+        ++u1;
+        break;
+      case 2:
+        ++u2;
+        break;
+      default:
+        ++u3;
+        break;
+      }
+    }
+    if(rank == 0) {
+      double pct1 = 100. * (double) u1 / rinfo->global_dims[m];
+      double pct2 = 100. * (double) u2 / rinfo->global_dims[m];
+      double pct3 = 100. * (double) u3 / rinfo->global_dims[m];
+      printf("u1: %6lu (%4.1f%%)  u2: %6lu  (%4.1f%%)  u3: %6lu (%4.1f%%)\n",
+        u1, pct1, u2, pct2, u3, pct3);
+    }
+  }
+  free(pop);
 
   free(psends);
   free(precvs);
