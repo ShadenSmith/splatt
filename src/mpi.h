@@ -14,7 +14,7 @@
  *****************************************************************************/
 
 /**
-* @brief A structure for MPI rank structurse (communicators, etc.).
+* @brief A structure for MPI rank structures (communicators, etc.).
 */
 typedef struct
 {
@@ -46,5 +46,9 @@ sptensor_t * mpi_tt_read(
 
 void mpi_setup_comms(
   rank_info * const rinfo);
+
+void mpi_send_recv_stats(
+  rank_info const * const rinfo,
+  sptensor_t const * const tt);
 
 #endif

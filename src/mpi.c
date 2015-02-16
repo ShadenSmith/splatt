@@ -349,6 +349,87 @@ static void __get_dims(
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
+void mpi_send_recv_stats(
+  rank_info const * const rinfo,
+  sptensor_t const * const tt)
+{
+  int const rank = rinfo->rank_3d;
+  int const size = rinfo->npes;
+
+  idx_t max_sends = rinfo->np13 * rinfo->np13;
+  idx_t max_recvs = rinfo->np13 * rinfo->np13;
+
+  idx_t * psends = (idx_t *) malloc(size * sizeof(idx_t));
+  idx_t * precvs = (idx_t *) malloc(size * sizeof(idx_t));
+
+  if(rank == 0) {
+    printf("\n\n");
+  }
+
+  /* count sends */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    memset(psends, 0, size * sizeof(idx_t));
+    memset(precvs, 0, size * sizeof(idx_t));
+
+    idx_t sends = 0;
+    idx_t recvs = 0;
+    idx_t local_rows = 0;
+
+    /* lets us statically assign indices to ranks */
+    idx_t const msize = rinfo->global_dims[m] / size;
+
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      /* grab global index */
+      idx_t const gi = tt->indmap[m][i];
+
+      /* see if it can't be found locally */
+      if(gi < rinfo->mat_start[m] || gi >= rinfo->mat_end[m]) {
+        /* Compute the destination rank. The last rank handles the leftover
+         * indices, so account for that. */
+        int pdest = (int) (gi / msize);
+        if(pdest == size) {
+          --pdest;
+        }
+        assert(pdest < size);
+        if(psends[pdest]++ == 0) {
+          ++sends;
+        }
+
+        precvs[pdest] = 1;
+      } else {
+        ++local_rows;
+      }
+    }
+
+    MPI_Allreduce(MPI_IN_PLACE, precvs, size, SS_MPI_IDX, MPI_SUM,
+        rinfo->comm_3d);
+
+    recvs = precvs[rank];
+
+    double relsend = 100. * (double) sends / (double) max_sends;
+    double relrecv = 100. * (double) recvs / (double) max_recvs;
+    double pct_local = 100. * (double) local_rows / (double) tt->dims[m];
+    printf("p: %d\t\tsends: %3lu (max: %3lu  %4.1f%%)\t"
+                    "recvs: %3lu (max: %3lu  %4.1f%%)\t"
+                    "local: %6lu (%4.1f%%)\n",
+        rinfo->rank,
+        sends, max_sends, relsend,
+        recvs, max_recvs, relrecv,
+        local_rows, pct_local);
+
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    if(rank == 0) {
+      printf("\n\n");
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+
+  free(psends);
+  free(precvs);
+}
+
+
 void mpi_setup_comms(
   rank_info * const rinfo)
 {

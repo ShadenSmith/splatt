@@ -106,7 +106,7 @@ static void __par_cpd(
       rinfo.global_dims[0] / rinfo.np13,
       rinfo.global_dims[1] / rinfo.np13,
       rinfo.global_dims[2] / rinfo.np13);
-    printf("target dims:\t\t%8lu %8lu %8lu %8lu\n",
+    printf("rank dims:\t\t%8lu %8lu %8lu %8lu\n",
       rinfo.global_dims[0] / size,
       rinfo.global_dims[1] / size,
       rinfo.global_dims[2] / size,
@@ -137,6 +137,10 @@ static void __par_cpd(
       rinfo.mat_start[0], rinfo.mat_end[0],
       rinfo.mat_start[1], rinfo.mat_end[1],
       rinfo.mat_start[2], rinfo.mat_end[2]);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  mpi_send_recv_stats(&rinfo, tt);
 
   mat_free(mats[MAX_NMODES]);
   for(idx_t m=0; m < tt->nmodes; ++m) {
