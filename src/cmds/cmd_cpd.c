@@ -93,6 +93,27 @@ static void __par_cpd(
   mpi_setup_comms(&rinfo);
   sptensor_t * tt = mpi_tt_read(args.ifname, &rinfo);
 
+  if(rank == 0) {
+    printf("global dims:\t\t%8lu %8lu %8lu %8lu\n",
+      rinfo.global_dims[0],
+      rinfo.global_dims[1],
+      rinfo.global_dims[2],
+      rinfo.global_nnz / size);
+    printf("max dims:\t\t%8lu %8lu %8lu\n",
+      rinfo.global_dims[0] / rinfo.np13,
+      rinfo.global_dims[1] / rinfo.np13,
+      rinfo.global_dims[2] / rinfo.np13);
+    printf("target dims:\t\t%8lu %8lu %8lu %8lu\n",
+      rinfo.global_dims[0] / size,
+      rinfo.global_dims[1] / size,
+      rinfo.global_dims[2] / size,
+      rinfo.global_nnz / size);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],
+      tt->dims[2], tt->nnz);
+
   tt_free(tt);
 }
 

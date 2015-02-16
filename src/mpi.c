@@ -16,14 +16,15 @@
 static sptensor_t * __read_tt(
   char const * const fname,
   idx_t ** const ssizes,
-  idx_t const nnz,
   idx_t const nmodes,
-  idx_t const * const dims,
   rank_info * const rinfo)
 {
   int const rank = rinfo->rank_3d;
   int const size = rinfo->npes;
   int const p13 = rinfo->np13;
+  idx_t const nnz = rinfo->global_nnz;
+  idx_t const * const dims = rinfo->global_dims;
+
   idx_t const pnnz = nnz / p13; /* nnz in a layer */
 
   idx_t sstarts[MAX_NMODES];
@@ -128,13 +129,15 @@ static sptensor_t * __read_tt(
 static void __fill_ssizes(
   char const * const fname,
   idx_t ** const ssizes,
-  idx_t const nnz,
   idx_t const nmodes,
-  idx_t const * const dims)
+  rank_info const * const rinfo)
 {
   int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  idx_t const nnz = rinfo->global_nnz;
+  idx_t const * const dims = rinfo->global_dims;
 
   /* compute start/end nnz for counting */
   idx_t const start = rank * nnz / size;
@@ -288,30 +291,28 @@ sptensor_t * mpi_tt_read(
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   idx_t nmodes;
-  idx_t nnz;
-  idx_t dims[MAX_NMODES];
 
   if(rank == 0) {
     /* get tensor stats */
-    __get_dims(ifname, &nnz, &nmodes, dims);
+    __get_dims(ifname, &(rinfo->global_nnz), &nmodes, rinfo->global_dims);
   }
 
-  MPI_Bcast(&nnz, 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(rinfo->global_nnz), 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
   MPI_Bcast(&nmodes, 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
-  MPI_Bcast(dims, nmodes, SS_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(rinfo->global_dims, nmodes, SS_MPI_IDX, 0, MPI_COMM_WORLD);
 
   idx_t * ssizes[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    ssizes[m] = (idx_t *) calloc(dims[m], sizeof(idx_t));
+    ssizes[m] = (idx_t *) calloc(rinfo->global_dims[m], sizeof(idx_t));
   }
 
-  __fill_ssizes(ifname, ssizes, nnz, nmodes, dims);
+  __fill_ssizes(ifname, ssizes, nmodes, rinfo);
 
   /* actually parse tensor */
-  sptensor_t * tt = __read_tt(ifname, ssizes, nnz, nmodes, dims, rinfo);
+  sptensor_t * tt = __read_tt(ifname, ssizes, nmodes, rinfo);
   for(idx_t m=0; m < nmodes; ++m) {
     free(ssizes[m]);
-    tt->dims[m] = dims[m];
+    tt->dims[m] = rinfo->global_dims[m];
   }
 
   /* clean up tensor */

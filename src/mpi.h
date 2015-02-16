@@ -23,6 +23,9 @@ typedef struct
   int np13; /* cube root of npes */
   MPI_Status status;
 
+  idx_t global_nnz;
+  idx_t global_dims[MAX_NMODES];
+
   MPI_Comm comm_3d;
   int rank_3d;
   int dims_3d[MAX_NMODES];
