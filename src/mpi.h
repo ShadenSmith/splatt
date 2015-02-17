@@ -44,6 +44,19 @@ sptensor_t * mpi_tt_read(
   char const * const ifname,
   rank_info * const rinfo);
 
+
+/**
+* @brief Compute a distribution of factor matrices that minimizes communication
+*        volume.
+*
+* @param rinfo MPI structure containing rank and communicator information.
+* @param tt A partition of the tensor. NOTE: indices will be reordered after
+*           distribution to ensure contiguous matrix partitions.
+*/
+void mpi_distribute_mats(
+  rank_info * const rinfo,
+  sptensor_t * const tt);
+
 void mpi_setup_comms(
   rank_info * const rinfo);
 

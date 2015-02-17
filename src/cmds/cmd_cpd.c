@@ -114,40 +114,29 @@ static void __par_cpd(
   }
   MPI_Barrier(MPI_COMM_WORLD);
 
+#if 0
   printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],
       tt->dims[2], tt->nnz);
+#endif
 
-  matrix_t * mats[MAX_NMODES+1];
+  MPI_Barrier(MPI_COMM_WORLD);
 
-  /* now assign A/B/C */
-  idx_t max_dim = 0;
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    int const layer_id = rinfo.coords_3d[m];
-    idx_t const layer_size = rinfo.global_dims[m] / rinfo.np13;
-    idx_t const start = layer_id * layer_size;
-    idx_t end = (layer_id + 1) * layer_size;
-    /* account for last layer having extras */
-    if(layer_id == rinfo.np13 - 1) {
-      end = rinfo.global_dims[m];
-    }
-
-    /* target nrows = layer_size / npes in a layer */
-    idx_t const psize = (end - start) / (rinfo.np13 * rinfo.np13);
-
-    /* map coord within layer to 1D */
-    int const coord1d = rinfo.coords_3d[(m+1)%tt->nmodes] * rinfo.np13 +
-                        rinfo.coords_3d[(m+2)%tt->nmodes];
-
-    rinfo.mat_start[m] = start + (coord1d * psize);
-    rinfo.mat_end[m]   = start + ((coord1d + 1) * psize);
-    if(coord1d == (rinfo.np13 * rinfo.np13) - 1) {
-      rinfo.mat_end[m] = end;
-    }
+  /* determine matrix distribution */
+  mpi_distribute_mats(&rinfo, tt);
 
 #if 0
-    rinfo.mat_start[m] = rank * (rinfo.global_dims[m] / size);
-    rinfo.mat_end[m]   = (rank+1) * (rinfo.global_dims[m] / size);
-#endif
+  printf("%d:\t\t(%6lu %6lu)\t(%6lu %6lu)\t(%6lu %6lu)\n", rank,
+      rinfo.mat_start[0], rinfo.mat_end[0],
+      rinfo.mat_start[1], rinfo.mat_end[1],
+      rinfo.mat_start[2], rinfo.mat_end[2]);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  //mpi_send_recv_stats(&rinfo, tt);
+
+  /* allocate / initialize matrices */
+  matrix_t * mats[MAX_NMODES+1];
+  idx_t max_dim = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
     mats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m] - 1, args.rank);
     if(tt->dims[m] > max_dim) {
       max_dim = tt->dims[m];
@@ -155,21 +144,12 @@ static void __par_cpd(
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  printf("%d:\t\t(%6lu %6lu)\t(%6lu %6lu)\t(%6lu %6lu)\n", rank,
-      rinfo.mat_start[0], rinfo.mat_end[0],
-      rinfo.mat_start[1], rinfo.mat_end[1],
-      rinfo.mat_start[2], rinfo.mat_end[2]);
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  mpi_send_recv_stats(&rinfo, tt);
-
   mat_free(mats[MAX_NMODES]);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mat_free(mats[m]);
   }
+#endif
+
   tt_free(tt);
 }
 
