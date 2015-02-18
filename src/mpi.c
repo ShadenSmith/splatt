@@ -48,16 +48,12 @@ static void __write_part(
 * @param nmodes The number of modes of X.
 * @param nnz The number of nonzeros in total.
 * @param rinfo MPI information.
-* @param sstarts Array of slice starts, inclusive (one for each mode).
-* @param sends Array of slice ends, exclusive (one for each mode).
 */
 static void __find_my_slices(
   idx_t ** const ssizes,
   idx_t const nmodes,
   idx_t const nnz,
-  rank_info const * const rinfo,
-  idx_t * const sstarts,
-  idx_t * const sends)
+  rank_info * const rinfo)
 {
   idx_t const pnnz = nnz / rinfo->np13; /* nnz in a layer */
   idx_t const * const dims = rinfo->global_dims;
@@ -69,17 +65,17 @@ static void __find_my_slices(
     idx_t lastn = 0;
     idx_t nnzcnt = 0;
 
-    sstarts[m] = 0;
-    sends[m] = dims[m];
+    rinfo->layer_starts[m] = 0;
+    rinfo->layer_ends[m] = dims[m];
 
     for(idx_t s=0; s < dims[m]; ++s) {
       if(nnzcnt >= lastn + pnnz) {
         lastn = nnzcnt;
         ++currp;
         if(currp == rinfo->coords_3d[m]) {
-          sstarts[m] = s;
+          rinfo->layer_starts[m] = s;
         } else if(currp == rinfo->coords_3d[m]+1) {
-          sends[m] = s;
+          rinfo->layer_ends[m] = s;
           break;
         }
       }
@@ -94,8 +90,6 @@ static void __find_my_slices(
 *
 * @param fname The name of the file containing X.
 * @param nmodes The number of modes of X.
-* @param sstarts Array of slice starts, inclusive (one for each mode).
-* @param sends Array of slice ends, exclusive (one for each mode).
 *
 * @return The number of nonzeros in the intersection of all sstarts and sends.
 */
@@ -207,14 +201,11 @@ static sptensor_t * __read_tt(
   idx_t const nnz = rinfo->global_nnz;
   idx_t const * const dims = rinfo->global_dims;
 
-  idx_t sstarts[MAX_NMODES];
-  idx_t sends[MAX_NMODES];
-
   /* find start/end slices for my partition */
-  __find_my_slices(ssizes, nmodes, nnz, rinfo, sstarts, sends);
+  __find_my_slices(ssizes, nmodes, nnz, rinfo);
 
   /* count nnz in my partition and allocate */
-  idx_t const mynnz = __count_my_nnz(fname, nmodes, sstarts, sends);
+  idx_t const mynnz = __count_my_nnz(fname, nmodes, rinfo->layer_starts, rinfo->layer_ends);
   sptensor_t * tt = tt_alloc(mynnz, nmodes);
 
   /* compute partition balance */
@@ -228,7 +219,7 @@ static sptensor_t * __read_tt(
   }
 
   /* now actually load values */
-  __read_tt_part(fname, tt, sstarts, sends);
+  __read_tt_part(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
 
   return tt;
 }
@@ -384,19 +375,15 @@ void mpi_distribute_mats(
     printf("\n");
   }
 
-#if 0
+#if 1
   for(idx_t m=0; m < tt->nmodes; ++m) {
     int const layer_id = rinfo->coords_3d[m];
-    idx_t const layer_size = rinfo->global_dims[m] / rinfo->np13;
-    idx_t const start = layer_id * layer_size;
-    idx_t end = (layer_id + 1) * layer_size;
-    /* account for last layer having extras */
-    if(layer_id == rinfo->np13 - 1) {
-      end = rinfo->global_dims[m];
-    }
+    idx_t const start = rinfo->layer_starts[m];
+    idx_t const end = rinfo->layer_ends[m];
+    idx_t const layer_size = end - start;
 
     /* target nrows = layer_size / npes in a layer */
-    idx_t const psize = (end - start) / (rinfo->np13 * rinfo->np13);
+    idx_t const psize = layer_size / (rinfo->np13 * rinfo->np13);
 
     /* map coord within layer to 1D */
     int const coord1d = rinfo->coords_3d[(m+1)%tt->nmodes] * rinfo->np13 +
@@ -404,11 +391,12 @@ void mpi_distribute_mats(
 
     rinfo->mat_start[m] = start + (coord1d * psize);
     rinfo->mat_end[m]   = start + ((coord1d + 1) * psize);
+    /* account for being the last process in a layer */
     if(coord1d == (rinfo->np13 * rinfo->np13) - 1) {
       rinfo->mat_end[m] = end;
     }
   }
-#endif
+#else
 
   idx_t max_dim = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -445,7 +433,6 @@ void mpi_distribute_mats(
       }
     }
 
-#if 1
     /* count u=1; u=2, u > 2 */
     idx_t u1 = 1;
     idx_t u2 = 1;
@@ -472,10 +459,10 @@ void mpi_distribute_mats(
       printf("u1: %6lu (%4.1f%%)  u2: %6lu  (%4.1f%%)  u3: %6lu (%4.1f%%)\n",
         u1, pct1, u2, pct2, u3, pct3);
     }
-#endif
   }
   free(pop);
   free(mine);
+#endif
 }
 
 
@@ -515,6 +502,7 @@ void mpi_send_recv_stats(
 
       /* see if it can't be found locally */
       if(gi < rinfo->mat_start[m] || gi >= rinfo->mat_end[m]) {
+        /* XXX: THIS IS WRONG EXCEPT FOR BASIC STATIC PARTITIONING OF MATS */
         /* Compute the destination rank. The last rank handles the leftover
          * indices, so account for that. */
         int pdest = (int) (gi / msize);
@@ -522,11 +510,10 @@ void mpi_send_recv_stats(
           --pdest;
         }
         assert(pdest < size);
+        precvs[pdest] = 1;
         if(psends[pdest]++ == 0) {
           ++sends;
         }
-
-        precvs[pdest] = 1;
       } else {
         ++local_rows;
       }

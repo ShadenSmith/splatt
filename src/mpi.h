@@ -29,6 +29,13 @@ typedef struct
   idx_t mat_start[MAX_NMODES];
   idx_t mat_end[MAX_NMODES];
 
+  /* start/end idxs for each process */
+  idx_t * mat_starts[MAX_NMODES];
+  idx_t * mat_ends[MAX_NMODES];
+
+  idx_t layer_starts[MAX_NMODES];
+  idx_t layer_ends[MAX_NMODES];
+
   MPI_Comm comm_3d;
   int rank_3d;
   int dims_3d[MAX_NMODES];

@@ -114,25 +114,23 @@ static void __par_cpd(
   }
   MPI_Barrier(MPI_COMM_WORLD);
 
-#if 0
   printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],
       tt->dims[2], tt->nnz);
-#endif
 
   MPI_Barrier(MPI_COMM_WORLD);
 
   /* determine matrix distribution */
   mpi_distribute_mats(&rinfo, tt);
 
-#if 0
+  MPI_Barrier(MPI_COMM_WORLD);
+  mpi_send_recv_stats(&rinfo, tt);
+
   printf("%d:\t\t(%6lu %6lu)\t(%6lu %6lu)\t(%6lu %6lu)\n", rank,
       rinfo.mat_start[0], rinfo.mat_end[0],
       rinfo.mat_start[1], rinfo.mat_end[1],
       rinfo.mat_start[2], rinfo.mat_end[2]);
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  //mpi_send_recv_stats(&rinfo, tt);
-
+#if 0
   /* allocate / initialize matrices */
   matrix_t * mats[MAX_NMODES+1];
   idx_t max_dim = 0;
