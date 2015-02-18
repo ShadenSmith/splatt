@@ -49,11 +49,11 @@ static void __stats_basic(
 {
   printf("Tensor information ---------------------------------------------\n");
   printf("FILE=%s\n", ifname);
-  printf("DIMS="SS_IDX, tt->dims[0]);
+  printf("DIMS=%"SS_IDX, tt->dims[0]);
   for(idx_t m=1; m < tt->nmodes; ++m) {
-    printf("x" SS_IDX, tt->dims[m]);
+    printf("x%"SS_IDX, tt->dims[m]);
   }
-  printf(" NNZ=" SS_IDX, tt->nnz);
+  printf(" NNZ=%"SS_IDX, tt->nnz);
   printf(" DENSITY=%e" , __tt_density(tt));
   printf("\n\n");
 }
@@ -109,8 +109,8 @@ static void __stats_hparts(
 
   printf("Partition information ------------------------------------------\n");
   printf("FILE=%s\n", pfname);
-  printf("NVTXS="SS_IDX" NHEDGES="SS_IDX"\n", nvtxs, nhedges);
-  printf("NPARTS="SS_IDX" LIGHTEST="SS_IDX" HEAVIEST="SS_IDX" AVG=%0.1f\n",
+  printf("NVTXS=%"SS_IDX" NHEDGES=%"SS_IDX"\n", nvtxs, nhedges);
+  printf("NPARTS=%"SS_IDX" LIGHTEST=%"SS_IDX" HEAVIEST=%"SS_IDX" AVG=%0.1f\n",
     nparts, minp, maxp, (val_t)(ft->nnz) / (val_t) nparts);
   printf("\n");
 
@@ -159,15 +159,15 @@ static void __stats_hparts(
       }
     }
 
-    printf(SS_IDX"  ", p);
-    printf("fibs: "SS_IDX"(%4.1f%%)  ", pptr[p+1] - pptr[p],
+    printf("%"SS_IDX"  ", p);
+    printf("fibs: %"SS_IDX"(%4.1f%%)  ", pptr[p+1] - pptr[p],
       100. * (val_t)(pptr[p+1]-pptr[p]) / nvtxs);
-    printf("nnz: "SS_IDX" (%4.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
-    printf("I: "SS_IDX" (%4.1f%%)  ", nunique[0],
+    printf("nnz: %"SS_IDX" (%4.1f%%)  ", nnz, 100. * (val_t)nnz / (val_t) tt->nnz);
+    printf("I: %"SS_IDX" (%4.1f%%)  ", nunique[0],
       100. * (val_t)nunique[0] / (val_t) ft->dims[mode]);
-    printf("K: "SS_IDX" (%4.1f%%)  ", nunique[1],
+    printf("K: %"SS_IDX" (%4.1f%%)  ", nunique[1],
       100. * (val_t)nunique[1] / (val_t) ft->dims[ft->dim_perms[mode][1]]);
-    printf("J: "SS_IDX" (%4.1f%%)\n", nunique[2],
+    printf("J: %"SS_IDX" (%4.1f%%)\n", nunique[2],
       100. * (val_t)nunique[2] / (val_t) ft->dims[ft->dim_perms[mode][2]]);
   }
 

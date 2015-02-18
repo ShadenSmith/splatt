@@ -121,7 +121,7 @@ void cpd(
     val_t fit = 1 - (residual / sqrt(xnorm));
 
     timer_stop(&itertime);
-    printf("    its = " SS_IDX " (%0.3fs)  fit = %0.3f\n", it+1, itertime.seconds, fit);
+    printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.3f\n", it+1, itertime.seconds, fit);
   }
 
   ften_free(ft);

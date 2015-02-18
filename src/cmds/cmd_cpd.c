@@ -188,7 +188,7 @@ void splatt_cpd(
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
   printf("Factoring ------------------------------------------------------\n");
-  printf("RANK="SS_IDX" MAXITS="SS_IDX"\n", args.rank, args.niters);
+  printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX"\n", args.rank, args.niters);
 
   cpd(tt, mats, &args);
 

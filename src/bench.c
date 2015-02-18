@@ -77,7 +77,7 @@ void bench_splatt(
     idx_t const nthreads = threads[t];
     omp_set_num_threads(nthreads);
     if(nruns > 1) {
-      printf("## THREADS " SS_IDX "\n", nthreads);
+      printf("## THREADS %" SS_IDX "\n", nthreads);
     }
 
     for(idx_t i=0; i < niters; ++i) {
@@ -87,17 +87,17 @@ void bench_splatt(
         timer_fstart(&modetime);
         mttkrp_splatt(ft, mats, m, thds, nthreads);
         timer_stop(&modetime);
-        printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
+        printf("  mode %" SS_IDX " %0.3fs\n", m+1, modetime.seconds);
         if(opts->write && t == 0 && i == 0) {
           idx_t oldI = mats[MAX_NMODES]->I;
           mats[MAX_NMODES]->I = tt->dims[m];
-          sprintf(matname, "splatt_mode"SS_IDX".mat", m+1);
+          sprintf(matname, "splatt_mode%"SS_IDX".mat", m+1);
           __log_mat(matname, mats[MAX_NMODES], opts->perm->iperms[m]);
           mats[MAX_NMODES]->I = oldI;
         }
       }
       timer_stop(&itertime);
-      printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
+      printf("    its = %3"SS_IDX" (%0.3fs)\n", i+1, itertime.seconds);
     }
 
     /* output load balance info */
@@ -150,7 +150,7 @@ void bench_giga(
     idx_t const nthreads = threads[t];
     omp_set_num_threads(nthreads);
     if(nruns > 1) {
-      printf("## THREADS " SS_IDX "\n", nthreads);
+      printf("## THREADS %"SS_IDX"\n", nthreads);
     }
 
     for(idx_t i=0; i < niters; ++i) {
@@ -159,15 +159,15 @@ void bench_giga(
         timer_fstart(&modetime);
         mttkrp_giga(unfolds[m], colmats, m, scratch);
         timer_stop(&modetime);
-        printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
+        printf("  mode %"SS_IDX" %0.3fs\n", m+1, modetime.seconds);
         if(opts->write && t == 0 && i == 0) {
           colmats[MAX_NMODES]->I = tt->dims[m];
-          sprintf(matname, "giga_mode"SS_IDX".mat", m+1);
+          sprintf(matname, "giga_mode%"SS_IDX".mat", m+1);
           __log_mat(matname, colmats[MAX_NMODES], opts->perm->iperms[m]);
         }
       }
       timer_stop(&itertime);
-      printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
+      printf("    its = %3"SS_IDX" (%0.3fs)\n", i+1, itertime.seconds);
     }
 
     /* output load balance info */
@@ -226,7 +226,7 @@ void bench_ttbox(
     idx_t const nthreads = threads[t];
     omp_set_num_threads(nthreads);
     if(nruns > 1) {
-      printf("## THREADS " SS_IDX "\n", nthreads);
+      printf("## THREADS %"SS_IDX"\n", nthreads);
     }
 
     for(idx_t i=0; i < niters; ++i) {
@@ -235,15 +235,15 @@ void bench_ttbox(
         timer_fstart(&modetime);
         mttkrp_ttbox(tt, colmats, m, scratch);
         timer_stop(&modetime);
-        printf("  mode " SS_IDX " %0.3fs\n", m+1, modetime.seconds);
+        printf("  mode %"SS_IDX" %0.3fs\n", m+1, modetime.seconds);
         if(opts->write && t == 0 && i == 0) {
           colmats[MAX_NMODES]->I = tt->dims[m];
-          sprintf(matname, "ttbox_mode"SS_IDX".mat", m+1);
+          sprintf(matname, "ttbox_mode%"SS_IDX".mat", m+1);
           __log_mat(matname, colmats[MAX_NMODES], opts->perm->iperms[m]);
         }
       }
       timer_stop(&itertime);
-      printf("    its = " SS_IDX " (%0.3fs)\n", i+1, itertime.seconds);
+      printf("    its = %3"SS_IDX" (%0.3fs)\n", i+1, itertime.seconds);
     }
 
 

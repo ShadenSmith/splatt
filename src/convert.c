@@ -119,17 +119,17 @@ static void __convert_ijk_graph(
   nedges /= 2;
 
   /* print header */
-  fprintf(fout, SS_IDX" "SS_IDX" 001\n", nvtxs, nedges);
+  fprintf(fout, "%"SS_IDX" %"SS_IDX" 001\n", nvtxs, nedges);
 
   /* now write adj list */
   for(idx_t u=0; u < nvtxs; ++u) {
     for(idx_t v=0; v < adjmkr[u]; ++v) {
-      fprintf(fout, SS_IDX" %u ", 1+adj[u][v].v, adj[u][v].cnt);
+      fprintf(fout, "%"SS_IDX" %u ", 1+adj[u][v].v, adj[u][v].cnt);
     }
     fprintf(fout, "\n");
   }
 
-  printf("reallocs: "SS_IDX"\n", nreallocs);
+  printf("reallocs: %"SS_IDX"\n", nreallocs);
 
   /* cleanup */
   if(ofname != NULL || strcmp(ofname, "-") != 0) {
