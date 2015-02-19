@@ -377,6 +377,9 @@ void mpi_distribute_mats(
 
 #if 1
   for(idx_t m=0; m < tt->nmodes; ++m) {
+    /* allocate space for start/end idxs */
+    rinfo->mat_ptrs[m] = (idx_t *) calloc(rinfo->npes + 1, sizeof(idx_t));
+
     int const layer_id = rinfo->coords_3d[m];
     idx_t const start = rinfo->layer_starts[m];
     idx_t const end = rinfo->layer_ends[m];
@@ -395,6 +398,26 @@ void mpi_distribute_mats(
     if(coord1d == (rinfo->np13 * rinfo->np13) - 1) {
       rinfo->mat_end[m] = end;
     }
+    rinfo->mat_ptrs[m][rinfo->rank_3d]  = start + (coord1d * psize);
+
+    MPI_Allreduce(MPI_IN_PLACE, rinfo->mat_ptrs[m], rinfo->npes, SS_MPI_IDX,
+      MPI_SUM, rinfo->comm_3d);
+    rinfo->mat_ptrs[m][rinfo->npes] = rinfo->global_dims[m];
+
+    if(rinfo->rank == 0) {
+      for(int p=0; p <= rinfo->npes; ++p) {
+        printf("%lu ", rinfo->mat_ptrs[m][p]);
+      }
+      printf("\n");
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if(rinfo->mat_ptrs[m][rinfo->rank_3d + 1] != rinfo->mat_end[m]) {
+      printf("WRONG: %d expecting: %5lu found %5lu\n", rinfo->rank_3d,
+         rinfo->mat_end[m], rinfo->mat_ptrs[m][rinfo->rank_3d + 1]);
+      //assert(rinfo->mat_ptrs[m][rinfo->rank_3d + 1] == rinfo->mat_end[m]);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
   }
 #else
 

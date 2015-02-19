@@ -30,8 +30,7 @@ typedef struct
   idx_t mat_end[MAX_NMODES];
 
   /* start/end idxs for each process */
-  idx_t * mat_starts[MAX_NMODES];
-  idx_t * mat_ends[MAX_NMODES];
+  idx_t * mat_ptrs[MAX_NMODES];
 
   idx_t layer_starts[MAX_NMODES];
   idx_t layer_ends[MAX_NMODES];
@@ -47,6 +46,26 @@ typedef struct
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
+
+/**
+* @brief Fill rinfo with process' MPI rank information. Includes rank, 3D
+*        communicator, etc.
+*
+* @param rinfo The rank data structure.
+*/
+void mpi_setup_comms(
+  rank_info * const rinfo);
+
+
+/**
+* @brief Each rank reads their 3D partition of a tensor.
+*
+* @param ifname The file containing the tensor.
+* @param rinfo Rank information, assumes mpi_setup_comms() has been called
+*              first!
+*
+* @return The rank's subtensor.
+*/
 sptensor_t * mpi_tt_read(
   char const * const ifname,
   rank_info * const rinfo);
@@ -64,8 +83,6 @@ void mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt);
 
-void mpi_setup_comms(
-  rank_info * const rinfo);
 
 void mpi_send_recv_stats(
   rank_info const * const rinfo,
