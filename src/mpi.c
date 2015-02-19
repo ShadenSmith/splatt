@@ -371,7 +371,8 @@ void mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt)
 {
-  if(rinfo->rank == 0) {
+  int const rank = rinfo->rank_3d;
+  if(rank == 0) {
     printf("\n");
   }
 
@@ -392,33 +393,38 @@ void mpi_distribute_mats(
     int const coord1d = rinfo->coords_3d[(m+1)%tt->nmodes] * rinfo->np13 +
                         rinfo->coords_3d[(m+2)%tt->nmodes];
 
+    printf("p: %d  c: %d\n", rank, coord1d);
+
+    idx_t * const mat_ptrs = rinfo->mat_ptrs[m];
+
     rinfo->mat_start[m] = start + (coord1d * psize);
     rinfo->mat_end[m]   = start + ((coord1d + 1) * psize);
     /* account for being the last process in a layer */
     if(coord1d == (rinfo->np13 * rinfo->np13) - 1) {
       rinfo->mat_end[m] = end;
     }
-    rinfo->mat_ptrs[m][rinfo->rank_3d]  = start + (coord1d * psize);
+    mat_ptrs[rank] = start + (coord1d * psize);
+    mat_ptrs[rinfo->npes] = rinfo->global_dims[m];
 
-    MPI_Allreduce(MPI_IN_PLACE, rinfo->mat_ptrs[m], rinfo->npes, SS_MPI_IDX,
-      MPI_SUM, rinfo->comm_3d);
-    rinfo->mat_ptrs[m][rinfo->npes] = rinfo->global_dims[m];
+    MPI_Allgather(MPI_IN_PLACE, 1, SS_MPI_IDX, mat_ptrs, 1,
+        SS_MPI_IDX, rinfo->comm_3d);
 
-    if(rinfo->rank == 0) {
+    if(rank == 0) {
       for(int p=0; p <= rinfo->npes; ++p) {
-        printf("%lu ", rinfo->mat_ptrs[m][p]);
+        printf("%lu ", mat_ptrs[p]);
       }
       printf("\n");
     }
     MPI_Barrier(MPI_COMM_WORLD);
 
-    if(rinfo->mat_ptrs[m][rinfo->rank_3d + 1] != rinfo->mat_end[m]) {
-      printf("WRONG: %d expecting: %5lu found %5lu\n", rinfo->rank_3d,
-         rinfo->mat_end[m], rinfo->mat_ptrs[m][rinfo->rank_3d + 1]);
+    if(mat_ptrs[rank] != rinfo->mat_start[m]) {
+      printf("WRONG: %d expecting: %5lu found %5lu\n", rank,
+         rinfo->mat_end[m], mat_ptrs[rank + 1]);
       //assert(rinfo->mat_ptrs[m][rinfo->rank_3d + 1] == rinfo->mat_end[m]);
     }
     MPI_Barrier(MPI_COMM_WORLD);
   }
+
 #else
 
   idx_t max_dim = 0;
@@ -557,9 +563,10 @@ void mpi_send_recv_stats(
     double relsend = 100. * (double) sends / (double) max_sends;
     double relrecv = 100. * (double) recvs / (double) max_recvs;
     double pct_local = 100. * (double) local_rows / (double) tt->dims[m];
-    printf("p: %d,%d,%d\t\tsends: %3lu (max: %3lu  %4.1f%%)\t"
+    printf("p: %d -> %d,%d,%d\t\tsends: %3lu (max: %3lu  %4.1f%%)\t"
                     "recvs: %3lu (max: %3lu  %4.1f%%)\t"
                     "local: %6lu (%4.1f%%)\n",
+        rinfo->rank_3d,
         rinfo->coords_3d[0], rinfo->coords_3d[1], rinfo->coords_3d[2],
         sends, max_sends, relsend,
         recvs, max_recvs, relrecv,
