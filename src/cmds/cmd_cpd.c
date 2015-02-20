@@ -125,11 +125,6 @@ static void __par_cpd(
   MPI_Barrier(MPI_COMM_WORLD);
   mpi_send_recv_stats(&rinfo, tt);
 
-  printf("%d:\t\t(%6lu %6lu)\t(%6lu %6lu)\t(%6lu %6lu)\n", rank,
-      rinfo.mat_start[0], rinfo.mat_end[0],
-      rinfo.mat_start[1], rinfo.mat_end[1],
-      rinfo.mat_start[2], rinfo.mat_end[2]);
-
 #if 0
   /* allocate / initialize matrices */
   matrix_t * mats[MAX_NMODES+1];

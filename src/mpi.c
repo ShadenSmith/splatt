@@ -531,26 +531,13 @@ void mpi_send_recv_stats(
 
       /* if it is non-local */
       if(pdest != rinfo->mode_rank[m]) {
-
-        int rank_dest = rinfo->plookup[m][pdest];
+        /* get the actual rank from its mode-relative one */
+        int const rank_dest = rinfo->plookup[m][pdest];
         precvs[rank_dest] += 1;
         ++sends;
-#if 0
-        precvs[pdest] += 1;
-        if(psends[pdest]++ == 0) {
-          ++sends;
-        }
-#endif
       } else {
         ++local_rows;
       }
-    }
-
-    if(local_rows == 0) {
-      printf("NO LOCALS: %d,%d,%d\t\t A: (%6lu - %6lu) X: (%6lu - %6lu)\n",
-        rinfo->coords_3d[0], rinfo->coords_3d[1], rinfo->coords_3d[2],
-        rinfo->mat_start[m], rinfo->mat_end[m],
-        tt->indmap[m][0], tt->indmap[m][tt->dims[m]-1]);
     }
 
     MPI_Allreduce(MPI_IN_PLACE, precvs, size, SS_MPI_IDX, MPI_SUM,
@@ -562,14 +549,17 @@ void mpi_send_recv_stats(
     double relrecv = 100. * (double) recvs / (double) max_recvs;
     double pct_local = 100. * (double) local_rows / (double) tt->dims[m];
     printf("p: %d -> %d,%d,%d\t\tsends: %3lu (max: %3lu  %4.1f%%)\t"
+                    "ratio: %0.1fx\t"
                     "recvs: %3lu (max: %3lu  %4.1f%%)\t"
+                    "ratio: %0.1fx\t"
                     "local: %6lu (%4.1f%%)\n",
         rinfo->rank_3d,
         rinfo->coords_3d[0], rinfo->coords_3d[1], rinfo->coords_3d[2],
         sends, max_sends, relsend,
+        3. * (double) tt->nnz / (double) sends,
         recvs, max_recvs, relrecv,
+        3. * (double) tt->nnz / (double) recvs,
         local_rows, pct_local);
-
 
     MPI_Barrier(MPI_COMM_WORLD);
     if(rank == 0) {
