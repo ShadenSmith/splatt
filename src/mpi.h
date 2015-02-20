@@ -23,6 +23,12 @@ typedef struct
   int np13; /* cube root of npes */
   MPI_Status status;
 
+  MPI_Comm comm_3d;
+  int rank_3d;
+  int mode_rank[MAX_NMODES];
+  int dims_3d[MAX_NMODES];
+  int coords_3d[MAX_NMODES];
+
   idx_t global_nnz;
   idx_t global_dims[MAX_NMODES];
 
@@ -31,14 +37,11 @@ typedef struct
 
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
+  /* mark owners of mat partitions in each mode */
+  int * plookup[MAX_NMODES];
 
   idx_t layer_starts[MAX_NMODES];
   idx_t layer_ends[MAX_NMODES];
-
-  MPI_Comm comm_3d;
-  int rank_3d;
-  int dims_3d[MAX_NMODES];
-  int coords_3d[MAX_NMODES];
 } rank_info;
 
 

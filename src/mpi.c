@@ -372,30 +372,27 @@ void mpi_distribute_mats(
   sptensor_t * const tt)
 {
   int const rank = rinfo->rank_3d;
-  if(rank == 0) {
-    printf("\n");
-  }
 
 #if 1
   for(idx_t m=0; m < tt->nmodes; ++m) {
     /* allocate space for start/end idxs */
     rinfo->mat_ptrs[m] = (idx_t *) calloc(rinfo->npes + 1, sizeof(idx_t));
+    rinfo->plookup[m]  = (int *)   calloc(rinfo->npes,     sizeof(int));
+    idx_t * const mat_ptrs = rinfo->mat_ptrs[m];
+    int * const plookup = rinfo->plookup[m];
 
-    int const layer_id = rinfo->coords_3d[m];
+    /* slice start/end of layer */
     idx_t const start = rinfo->layer_starts[m];
     idx_t const end = rinfo->layer_ends[m];
-    idx_t const layer_size = end - start;
 
     /* target nrows = layer_size / npes in a layer */
-    idx_t const psize = layer_size / (rinfo->np13 * rinfo->np13);
+    idx_t const psize = (end - start) / (rinfo->np13 * rinfo->np13);
 
     /* map coord within layer to 1D */
     int const coord1d = rinfo->coords_3d[(m+1)%tt->nmodes] * rinfo->np13 +
                         rinfo->coords_3d[(m+2)%tt->nmodes];
-
-    printf("p: %d  c: %d\n", rank, coord1d);
-
-    idx_t * const mat_ptrs = rinfo->mat_ptrs[m];
+    /* relative rank in this mode */
+    int const mode_rank = rinfo->mode_rank[m];
 
     rinfo->mat_start[m] = start + (coord1d * psize);
     rinfo->mat_end[m]   = start + ((coord1d + 1) * psize);
@@ -403,26 +400,18 @@ void mpi_distribute_mats(
     if(coord1d == (rinfo->np13 * rinfo->np13) - 1) {
       rinfo->mat_end[m] = end;
     }
-    mat_ptrs[rank] = start + (coord1d * psize);
+    mat_ptrs[mode_rank] = start + (coord1d * psize);
     mat_ptrs[rinfo->npes] = rinfo->global_dims[m];
+    plookup[mode_rank] = rank;
 
-    MPI_Allgather(MPI_IN_PLACE, 1, SS_MPI_IDX, mat_ptrs, 1,
-        SS_MPI_IDX, rinfo->comm_3d);
+    /* Doing a reduce instead of a gather lets us set location mode_rank
+     * instead of the rank in this communicator */
+    MPI_Allreduce(MPI_IN_PLACE, mat_ptrs, rinfo->npes, SS_MPI_IDX, MPI_SUM,
+      rinfo->comm_3d);
+    MPI_Allreduce(MPI_IN_PLACE, plookup, rinfo->npes, MPI_INT, MPI_SUM,
+      rinfo->comm_3d);
 
-    if(rank == 0) {
-      for(int p=0; p <= rinfo->npes; ++p) {
-        printf("%lu ", mat_ptrs[p]);
-      }
-      printf("\n");
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    if(mat_ptrs[rank] != rinfo->mat_start[m]) {
-      printf("WRONG: %d expecting: %5lu found %5lu\n", rank,
-         rinfo->mat_end[m], mat_ptrs[rank + 1]);
-      //assert(rinfo->mat_ptrs[m][rinfo->rank_3d + 1] == rinfo->mat_end[m]);
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
+    assert(rinfo->mat_ptrs[m][mode_rank + 1] == rinfo->mat_end[m]);
   }
 
 #else
@@ -503,9 +492,6 @@ void mpi_send_recv_stats(
   int const rank = rinfo->rank_3d;
   int const size = rinfo->npes;
 
-  idx_t max_sends = rinfo->np13 * rinfo->np13;
-  idx_t max_recvs = rinfo->np13 * rinfo->np13;
-
   idx_t * psends = (idx_t *) malloc(size * sizeof(idx_t));
   idx_t * precvs = (idx_t *) malloc(size * sizeof(idx_t));
 
@@ -518,31 +504,43 @@ void mpi_send_recv_stats(
     memset(psends, 0, size * sizeof(idx_t));
     memset(precvs, 0, size * sizeof(idx_t));
 
+    idx_t const max_sends = tt->dims[m];
+    idx_t const max_recvs = tt->dims[m] * size;
+
+
     idx_t sends = 0;
     idx_t recvs = 0;
     idx_t local_rows = 0;
 
-    /* lets us statically assign indices to ranks */
-    idx_t const msize = rinfo->global_dims[m] / size;
+    idx_t const * const mat_ptrs = rinfo->mat_ptrs[m];
+
+    int pdest = 0;
 
     for(idx_t i=0; i < tt->dims[m]; ++i) {
       /* grab global index */
       idx_t const gi = tt->indmap[m][i];
 
-      /* see if it can't be found locally */
-      if(gi < rinfo->mat_start[m] || gi >= rinfo->mat_end[m]) {
-        /* XXX: THIS IS WRONG EXCEPT FOR BASIC STATIC PARTITIONING OF MATS */
-        /* Compute the destination rank. The last rank handles the leftover
-         * indices, so account for that. */
-        int pdest = (int) (gi / msize);
-        if(pdest == size) {
-          --pdest;
-        }
-        assert(pdest < size);
-        precvs[pdest] = 1;
+      /* move to the next processor if necessary */
+      while(gi >= mat_ptrs[pdest+1]) {
+        ++pdest;
+      }
+
+      assert(pdest < size);
+      assert(gi >= mat_ptrs[pdest]);
+      assert(gi < mat_ptrs[pdest+1]);
+
+      /* if it is non-local */
+      if(pdest != rinfo->mode_rank[m]) {
+
+        int rank_dest = rinfo->plookup[m][pdest];
+        precvs[rank_dest] += 1;
+        ++sends;
+#if 0
+        precvs[pdest] += 1;
         if(psends[pdest]++ == 0) {
           ++sends;
         }
+#endif
       } else {
         ++local_rows;
       }
@@ -614,6 +612,16 @@ void mpi_setup_comms(
 
   /* get 3d coordinates */
   MPI_Cart_coords(rinfo->comm_3d, rinfo->rank_3d, 3, rinfo->coords_3d);
+
+  /* compute ranks relative to tensor mode */
+  for(idx_t m=0; m < 3; ++m) {
+    /* map coord within layer to 1D */
+    int const coord1d = rinfo->coords_3d[(m+1) % 3] * rinfo->np13 +
+                        rinfo->coords_3d[(m+2) % 3];
+    int const layer_id = rinfo->coords_3d[m];
+    /* relative rank in this mode */
+    rinfo->mode_rank[m] = (rinfo->np13 * rinfo->np13 * layer_id) + coord1d;
+  }
 }
 
 
