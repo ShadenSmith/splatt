@@ -26,7 +26,7 @@ void mat_matmul(
   assert(C->J == B->J);
 
   idx_t const I = A->I;
-  idx_t const J = B->J:
+  idx_t const J = B->J;
   idx_t const aj = A->J;
 
   val_t * const restrict cv = C->vals;
