@@ -74,7 +74,8 @@ static void __find_my_slices(
         ++currp;
         if(currp == rinfo->coords_3d[m]) {
           rinfo->layer_starts[m] = s;
-        } else if(currp == rinfo->coords_3d[m]+1) {
+        } else if(currp == rinfo->coords_3d[m]+1 && currp != rinfo->np13) {
+          /* only set layer_end if we aren't at the end of the tensor */
           rinfo->layer_ends[m] = s;
           break;
         }
@@ -411,6 +412,7 @@ void mpi_distribute_mats(
     MPI_Allreduce(MPI_IN_PLACE, plookup, rinfo->npes, MPI_INT, MPI_SUM,
       rinfo->comm_3d);
 
+    assert(rinfo->mat_ptrs[m][mode_rank] == rinfo->mat_start[m]);
     assert(rinfo->mat_ptrs[m][mode_rank + 1] == rinfo->mat_end[m]);
   }
 
