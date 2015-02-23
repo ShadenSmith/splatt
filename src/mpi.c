@@ -7,6 +7,7 @@
 #include <string.h>
 #include <math.h>
 
+#include <time.h>
 
 
 /******************************************************************************
@@ -419,6 +420,163 @@ static void __naive_mat_distribution(
 }
 
 
+static void __make_job(
+  int const npes,
+  idx_t * const pvols,
+  rank_info * const rinfo,
+  MPI_Comm const comm,
+  idx_t const left)
+{
+  /* grab 2 smallest processes */
+  int p0 = 0;
+  int p1 = 1;
+  for(int p=0; p < npes; ++p) {
+    if(pvols[p] < pvols[p0]) {
+      p1 = p0;
+      p0 = p;
+    }
+  }
+
+  idx_t catchup = SS_MIN(pvols[p1] - pvols[p0], left);
+  if(catchup == 0) {
+    catchup = SS_MAX(left / npes, 1);
+  }
+
+  //printf("m: %lu p: %d p1: %d catch: %lu left: %lu\n", m, p0, p1, catchup, *left);
+  MPI_Isend(&catchup, 1, SS_MPI_IDX, p0, TAG_YOURTURN, comm, &(rinfo->req));
+  for(int p=0; p < npes; ++p) {
+    if(p != p0) {
+      MPI_Isend(NULL, 0, SS_MPI_IDX, p, TAG_STANDBY, comm, &(rinfo->req));
+    }
+  }
+}
+
+
+static void __check_job(
+  int const npes,
+  idx_t * const pvols,
+  rank_info * const rinfo,
+  MPI_Comm const comm,
+  idx_t * const left)
+{
+  MPI_Probe(MPI_ANY_SOURCE, TAG_SENDBACK, comm, &(rinfo->status));
+
+  int const proc_up = rinfo->status.MPI_SOURCE;
+  int nclaimed;
+  MPI_Get_count(&(rinfo->status), SS_MPI_IDX, &nclaimed);
+
+#if 0
+  idx_t * rmv = (idx_t *) malloc(nclaimed * sizeof(idx_t));
+  MPI_Recv(rmv, nclaimed, SS_MPI_IDX, proc_up, TAG_SENDBACK, comm,
+    &(rinfo->status));
+  free(rmv);
+#endif
+
+  /* XXX */
+  pvols[proc_up] += nclaimed;
+  *left -= nclaimed;
+  if(*left == 0) {
+    for(int p=0; p < npes; ++p) {
+      MPI_Isend(NULL, 0, MPI_INT, p, TAG_FINISHED, comm, &(rinfo->req));
+    }
+  }
+}
+
+
+
+static void __distribute_u3_rows(
+  idx_t const m,
+  int const * const pcount,
+  idx_t * const pvols,
+  idx_t const * const rconns,
+  idx_t * const mine,
+  idx_t * const nrows,
+  rank_info * const rinfo)
+{
+  MPI_Comm const lcomm = rinfo->layer_comm[m];
+  int const rank = rinfo->layer_rank[m];
+  int npes;
+  MPI_Comm_size(lcomm, &npes);
+
+  idx_t left = rconns[2];
+
+  while(1) {
+    if(rank == 0) {
+      __make_job(npes, pcount, rinfo, lcomm, left);
+    }
+
+    MPI_Probe(0, MPI_ANY_TAG, lcomm, &(rinfo->status));
+    if(rinfo->status.MPI_TAG == TAG_YOURTURN) {
+      /* do stuff */
+      printf("p: %d it's my turn!\n", rank);
+    }
+
+    if(rank == 0) {
+      __check_job(npes, pcount, rinfo, lcomm, left);
+    }
+    MPI_Probe(0, MPI_ANY_TAG, lcomm, &(rinfo->status));
+    if(rinfo->status.MPI_TAG == TAG_FINISHED) {
+      printf("done\n");
+      break;
+    }
+  }
+}
+
+
+
+/**
+* @brief Fill communication volume statistics (connectivity factor rows) and
+*        store in rconns.
+*
+* @param m The mode to operate on.
+* @param pcount An array of size 'ldim' which stores the count of how many
+*               ranks have a nonzero in this slice.
+* @param ldim The size (number of slices) of my layer.
+* @param rinfo MPI rank information.
+* @param rconns Row connectivity information. rconns[0] stores the number of
+*               rows that only appear in 1 rank, rconns[1] stores the number of
+*               rows that appear in 2 ranks, and rconns[3] stores the number of
+*               rows that appear in >2 ranks.
+*/
+static void __fill_volume_stats(
+  idx_t const m,
+  int const * const pcount,
+  idx_t const ldim,
+  rank_info const * const rinfo,
+  idx_t * const rconns)
+{
+  /* count u=1; u=2, u > 2 */
+  rconns[0] = rconns[1] = rconns[2] = 0;
+  int tot = 0;
+  for(idx_t i=0; i < ldim; ++i) {
+    assert(pcount[i] <= (rinfo->np13 * rinfo->np13));
+    tot += pcount[i];
+    switch(pcount[i]) {
+    case 0:
+      /* this only happens with empty slices */
+      break;
+    case 1:
+      rconns[0] += 1;
+      break;
+    case 2:
+      //rconns[1] += 1;
+    default:
+      rconns[2] += 1;
+      break;
+    }
+  }
+  if(rinfo->layer_rank[m] == 0) {
+    double pavg = (double) tot / (double) ldim;
+    double pct1 = 100. * (double) rconns[0] / ldim;
+    double pct2 = 100. * (double) rconns[1] / ldim;
+    double pct3 = 100. * (double) rconns[2] / ldim;
+    printf("layer: %d uavg: %0.1f  u1: %6lu (%4.1f%%)  u2: %6lu  (%4.1f%%)  u3: %6lu (%4.1f%%)\n",
+      rinfo->coords_3d[m], pavg, rconns[0], pct1, rconns[1], pct2,
+      rconns[2], pct3);
+  }
+}
+
+
 /**
 * @brief Computes a factor matrix distribution using a greedy method. Each rank
 *        claims all rows foind only in its own partition and contested rows are
@@ -445,15 +603,19 @@ static void __greedy_mat_distribution(
   }
 
   /* count of appearances for each idx across all ranks */
-  idx_t * pcount = (idx_t *) malloc(max_dim * sizeof(idx_t));
+  idx_t rconns[3];
+  int * pcount = (int *) malloc(max_dim * sizeof(int));
   idx_t * mine = (idx_t *) malloc(max_dim * sizeof(idx_t));
+
+  int lnpes; /* npes in layer */
+  idx_t * pvols; /* volumes of each rank */
 
   for(idx_t m=0; m < tt->nmodes; ++m) {
     idx_t const lstart = rinfo->layer_starts[m];
     idx_t const lend = rinfo->layer_ends[m];
     idx_t const ldim = lend - lstart;
 
-    memset(pcount, 0, ldim * sizeof(idx_t));
+    memset(pcount, 0, ldim * sizeof(int));
     memset(mine, 0, ldim * sizeof(idx_t));
 
     /* mark all idxs that are local to me */
@@ -465,51 +627,44 @@ static void __greedy_mat_distribution(
     }
 
     /* sum appearances to get communication volume */
-    MPI_Allreduce(MPI_IN_PLACE, pcount, (int) ldim, SS_MPI_IDX, MPI_SUM,
+    MPI_Allreduce(MPI_IN_PLACE, pcount, (int) ldim, MPI_INT, MPI_SUM,
         rinfo->layer_comm[m]);
 
-    /* count u=1; u=2, u > 2 */
-    idx_t u0 = 0;
-    idx_t u1 = 0;
-    idx_t u2 = 0;
-    idx_t u3 = 0;
-    for(idx_t i=0; i < ldim; ++i) {
-      switch(pcount[i]) {
-      case 0:
-        ++u0;
-        break;
-      case 1:
-        ++u1;
-        break;
-      case 2:
-        ++u2;
-        break;
-      default:
-        ++u3;
-        break;
-      }
-    }
-    if(rinfo->layer_rank[m] == 0) {
-      double pct1 = 100. * (double) u1 / ldim;
-      double pct2 = 100. * (double) u2 / ldim;
-      double pct3 = 100. * (double) u3 / ldim;
-      printf("layer: %d u1: %6lu (%4.1f%%)  u2: %6lu  (%4.1f%%)  u3: %6lu (%4.1f%%)\n",
-        rinfo->coords_3d[m], u1, pct1, u2, pct2, u3, pct3);
-    }
-    assert(u0 + u1 + u2 + u3 == ldim);
+    /* communication volume */
+    idx_t myvol = 0;
 
-#if 0
     /* number of rows I own */
     idx_t nrows = 0;
 
     /* claim all rows that are entirely local to me */
     for(idx_t i=0; i < tt->dims[m]; ++i) {
       idx_t const gi = tt->indmap[m][i] - lstart;
-      if(pcount[gi] == 1) {
+      switch(pcount[gi]) {
+      case 0:
+        break;
+      case 1:
         mine[nrows++] = gi;
+        break;
+      default:
+        ++myvol;
+        break;
       }
     }
-#endif
+
+    /* get size of layer and allocate volumes */
+    MPI_Comm_size(rinfo->layer_comm[m], &lnpes);
+    pvols = (idx_t *) malloc(lnpes * sizeof(idx_t));
+
+    /* root process gathers all communication volumes */
+    MPI_Gather(&myvol, 1, SS_MPI_IDX, pvols, 1, SS_MPI_IDX,
+      0, rinfo->layer_comm[m]);
+
+    /* now distribute rows with >=3 pcount in a greedy fashion */
+    __fill_volume_stats(m, pcount, ldim, rinfo, rconns);
+    __distribute_u3_rows(m, pcount, pvols, rconns, mine, &nrows, rinfo);
+
+
+    free(pvols);
   }
 
   free(pcount);

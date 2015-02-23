@@ -49,8 +49,18 @@ typedef struct
 
   /* Miscellaneous */
   MPI_Status status;
+  MPI_Request req;
 } rank_info;
 
+
+/******************************************************************************
+ * PUBLIC DEFINES
+ *****************************************************************************/
+
+static int const TAG_FINISHED = 0;
+static int const TAG_YOURTURN = 1;
+static int const TAG_SENDBACK = 2;
+static int const TAG_STANDBY  = 3;
 
 
 /******************************************************************************
