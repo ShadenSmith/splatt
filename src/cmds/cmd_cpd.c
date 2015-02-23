@@ -122,10 +122,10 @@ static void __par_cpd(
   /* determine matrix distribution */
   mpi_distribute_mats(&rinfo, tt);
 
+#if 0
   MPI_Barrier(MPI_COMM_WORLD);
   mpi_send_recv_stats(&rinfo, tt);
 
-#if 0
   /* allocate / initialize matrices */
   matrix_t * mats[MAX_NMODES+1];
   idx_t max_dim = 0;

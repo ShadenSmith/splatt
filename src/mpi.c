@@ -287,7 +287,7 @@ static void __fill_ssizes(
 
   /* reduce to get total slice counts */
   for(idx_t m=0; m < nmodes; ++m) {
-    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], dims[m], SS_MPI_IDX, MPI_SUM,
+    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) dims[m], SS_MPI_IDX, MPI_SUM,
         MPI_COMM_WORLD);
 
     idx_t count = 0;
@@ -363,18 +363,19 @@ static void __get_dims(
 }
 
 
-
-/******************************************************************************
- * PUBLIC FUNCTONS
- *****************************************************************************/
-
-void mpi_distribute_mats(
+/**
+* @brief Computes a factor matrix distribution using a naive method. Each
+*        layer is defined as N / (p^0.3) slices is distributed in a contiguous
+*        fashion to all processes with nonzeros in that layer.
+*
+* @param rinfo The MPI rank information to fill in.
+* @param tt The distributed tensor.
+*/
+static void __naive_mat_distribution(
   rank_info * const rinfo,
-  sptensor_t * const tt)
+  sptensor_t const * const tt)
 {
   int const rank = rinfo->rank_3d;
-
-#if 1
   for(idx_t m=0; m < tt->nmodes; ++m) {
     /* allocate space for start/end idxs */
     rinfo->mat_ptrs[m] = (idx_t *) calloc(rinfo->npes + 1, sizeof(idx_t));
@@ -415,51 +416,67 @@ void mpi_distribute_mats(
     assert(rinfo->mat_ptrs[m][mode_rank] == rinfo->mat_start[m]);
     assert(rinfo->mat_ptrs[m][mode_rank + 1] == rinfo->mat_end[m]);
   }
+}
 
-#else
 
+/**
+* @brief Computes a factor matrix distribution using a greedy method. Each rank
+*        claims all rows foind only in its own partition and contested rows are
+*        given in a greedy manner which attempts to minimize total volume.
+*
+*        NOTE: Since ranks can end up with non-contiguous partitions we reorder
+*        the tensor after distribution to have nice contiguous blocks of the
+*        factor matrices! tt->indmap will be updated accordingly.
+*
+* @param rinfo The MPI rank information to fill in.
+* @param tt The distributed tensor which MAY be reordered.
+*/
+static void __greedy_mat_distribution(
+  rank_info * const rinfo,
+  sptensor_t * const tt)
+{
+  /* get the maximum dimension size for my layer */
   idx_t max_dim = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    if(rinfo->global_dims[m] > max_dim) {
-      max_dim = rinfo->global_dims[m];
+    idx_t const dsize = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+    if(dsize > max_dim) {
+      max_dim = dsize;
     }
   }
 
-  idx_t * pop = (idx_t *) malloc(max_dim * sizeof(idx_t));
+  /* count of appearances for each idx across all ranks */
+  idx_t * pcount = (idx_t *) malloc(max_dim * sizeof(idx_t));
   idx_t * mine = (idx_t *) malloc(max_dim * sizeof(idx_t));
+
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    memset(pop, 0, rinfo->global_dims[m] * sizeof(idx_t));
-    memset(mine, 0, rinfo->global_dims[m] * sizeof(idx_t));
+    idx_t const lstart = rinfo->layer_starts[m];
+    idx_t const lend = rinfo->layer_ends[m];
+    idx_t const ldim = lend - lstart;
 
-    /* communication volume */
-    idx_t vol = 0;
+    memset(pcount, 0, ldim * sizeof(idx_t));
+    memset(mine, 0, ldim * sizeof(idx_t));
 
-    /* number of rows I own */
-    idx_t nrows = 0;
-
-    /* mark all idxs that local to me */
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      pop[tt->indmap[m][tt->ind[m][n]]] = 1;
-    }
-    /* sum appearances to get communication volume */
-    MPI_Allreduce(MPI_IN_PLACE, pop, rinfo->global_dims[m], SS_MPI_IDX, MPI_SUM,
-      rinfo->comm_3d);
-
+    /* mark all idxs that are local to me */
     for(idx_t i=0; i < tt->dims[m]; ++i) {
-      idx_t const gi = tt->indmap[m][i];
-      /* claim all rows that are entirely local to me */
-      if(pop[gi] == 1) {
-        mine[nrows++] = gi;
-      }
+      assert(tt->indmap[m][i] >= lstart);
+      assert(tt->indmap[m][i] < lend);
+      idx_t const gi = tt->indmap[m][i] - lstart;
+      pcount[gi] = 1;
     }
+
+    /* sum appearances to get communication volume */
+    MPI_Allreduce(MPI_IN_PLACE, pcount, (int) ldim, SS_MPI_IDX, MPI_SUM,
+        rinfo->layer_comm[m]);
 
     /* count u=1; u=2, u > 2 */
-    idx_t u1 = 1;
-    idx_t u2 = 1;
-    idx_t u3 = 1;
-    for(idx_t i=0; i < rinfo->global_dims[m]; ++i) {
-      switch(pop[i]) {
+    idx_t u0 = 0;
+    idx_t u1 = 0;
+    idx_t u2 = 0;
+    idx_t u3 = 0;
+    for(idx_t i=0; i < ldim; ++i) {
+      switch(pcount[i]) {
       case 0:
+        ++u0;
         break;
       case 1:
         ++u1;
@@ -472,19 +489,46 @@ void mpi_distribute_mats(
         break;
       }
     }
-    if(rinfo->rank == 0) {
-      double pct1 = 100. * (double) u1 / rinfo->global_dims[m];
-      double pct2 = 100. * (double) u2 / rinfo->global_dims[m];
-      double pct3 = 100. * (double) u3 / rinfo->global_dims[m];
-      printf("u1: %6lu (%4.1f%%)  u2: %6lu  (%4.1f%%)  u3: %6lu (%4.1f%%)\n",
-        u1, pct1, u2, pct2, u3, pct3);
+    if(rinfo->layer_rank[m] == 0) {
+      double pct1 = 100. * (double) u1 / ldim;
+      double pct2 = 100. * (double) u2 / ldim;
+      double pct3 = 100. * (double) u3 / ldim;
+      printf("layer: %d u1: %6lu (%4.1f%%)  u2: %6lu  (%4.1f%%)  u3: %6lu (%4.1f%%)\n",
+        rinfo->coords_3d[m], u1, pct1, u2, pct2, u3, pct3);
     }
-  }
-  free(pop);
-  free(mine);
+    assert(u0 + u1 + u2 + u3 == ldim);
+
+#if 0
+    /* number of rows I own */
+    idx_t nrows = 0;
+
+    /* claim all rows that are entirely local to me */
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      idx_t const gi = tt->indmap[m][i] - lstart;
+      if(pcount[gi] == 1) {
+        mine[nrows++] = gi;
+      }
+    }
 #endif
+  }
+
+  free(pcount);
+  free(mine);
 }
 
+
+
+/******************************************************************************
+ * PUBLIC FUNCTONS
+ *****************************************************************************/
+
+void mpi_distribute_mats(
+  rank_info * const rinfo,
+  sptensor_t * const tt)
+{
+  //__naive_mat_distribution(rinfo, tt);
+  __greedy_mat_distribution(rinfo, tt);
+}
 
 
 void mpi_send_recv_stats(
@@ -613,6 +657,10 @@ void mpi_setup_comms(
     int const layer_id = rinfo->coords_3d[m];
     /* relative rank in this mode */
     rinfo->mode_rank[m] = (rinfo->np13 * rinfo->np13 * layer_id) + coord1d;
+
+    /* now split 3D communicator into layers */
+    MPI_Comm_split(rinfo->comm_3d, layer_id, 0, &(rinfo->layer_comm[m]));
+    MPI_Comm_rank(rinfo->layer_comm[m], &(rinfo->layer_rank[m]));
   }
 }
 
