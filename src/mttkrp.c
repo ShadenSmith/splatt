@@ -8,8 +8,6 @@
 #include "tile.h"
 #include <omp.h>
 
-#define dmin(x,y) ((x) < (y) ? (x) : (y))
-
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
@@ -229,7 +227,7 @@ void mttkrp_splatt_coop_tiled(
       }
 
       idx_t const start = s * TILE_SIZES[0];
-      idx_t const stop  = dmin((s+1) * TILE_SIZES[0], ft->dims[mode]);
+      idx_t const stop  = SS_MIN((s+1) * TILE_SIZES[0], ft->dims[mode]);
 
       #pragma omp for schedule(static)
       for(idx_t i=start; i < stop; ++i) {

@@ -16,4 +16,7 @@
 
 #define MAX_NMODES ((idx_t)8)
 
+#define SS_MIN(x,y) ((x) < (y) ? (x) : (y))
+#define SS_MAX(x,y) ((x) > (y) ? (x) : (y))
+
 #endif
