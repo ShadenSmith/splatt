@@ -57,10 +57,11 @@ typedef struct
  * PUBLIC DEFINES
  *****************************************************************************/
 
-static int const TAG_FINISHED = 0;
-static int const TAG_YOURTURN = 1;
-static int const TAG_SENDBACK = 2;
-static int const TAG_STANDBY  = 3;
+static int const MSG_FINISHED = 0;
+static int const MSG_YOURTURN = 1;
+static int const MSG_SENDBACK = 2;
+static int const MSG_STANDBY  = 3;
+static int const MSG_UPDATES  = 4;
 
 
 /******************************************************************************

@@ -443,10 +443,11 @@ static void __make_job(
   }
 
   //printf("m: %lu p: %d p1: %d catch: %lu left: %lu\n", m, p0, p1, catchup, *left);
-  MPI_Isend(&catchup, 1, SS_MPI_IDX, p0, TAG_YOURTURN, comm, &(rinfo->req));
+  MPI_Isend(&MSG_YOURTURN, 1, MPI_INT, p0, 0, comm, &(rinfo->req));
+  MPI_Isend(&catchup, 1, SS_MPI_IDX, p0, 0, comm, &(rinfo->req));
   for(int p=0; p < npes; ++p) {
     if(p != p0) {
-      MPI_Isend(NULL, 0, SS_MPI_IDX, p, TAG_STANDBY, comm, &(rinfo->req));
+      MPI_Isend(&MSG_STANDBY, 1, MPI_INT, p, 0, comm, &(rinfo->req));
     }
   }
 }
@@ -459,13 +460,26 @@ static void __check_job(
   MPI_Comm const comm,
   idx_t * const left)
 {
-  MPI_Probe(MPI_ANY_SOURCE, TAG_SENDBACK, comm, &(rinfo->status));
+  MPI_Probe(MPI_ANY_SOURCE, 0, comm, &(rinfo->status));
 
   int const proc_up = rinfo->status.MPI_SOURCE;
-  int nclaimed;
-  MPI_Get_count(&(rinfo->status), SS_MPI_IDX, &nclaimed);
+  idx_t nclaimed;
+  MPI_Recv(&nclaimed, 1, SS_MPI_IDX, proc_up, 0, comm, &(rinfo->status));
+
+  pvols[proc_up] += nclaimed;
+
+  //printf("new vol: %lu %lu %lu %lu\n", pvols[0], pvols[1], pvols[2], pvols[3]);
+  *left -= nclaimed;
+  for(int p=0; p < npes; ++p) {
+    if(*left == 0) {
+      MPI_Isend(&MSG_FINISHED, 1, MPI_INT, p, 0, comm, &(rinfo->req));
+    } else {
+      MPI_Isend(&MSG_UPDATES, 1, MPI_INT, p, 0, comm, &(rinfo->req));
+    }
+  }
 
 #if 0
+  MPI_Get_count(&(rinfo->status), SS_MPI_IDX, &nclaimed);
   idx_t * rmv = (idx_t *) malloc(nclaimed * sizeof(idx_t));
   MPI_Recv(rmv, nclaimed, SS_MPI_IDX, proc_up, TAG_SENDBACK, comm,
     &(rinfo->status));
@@ -473,6 +487,7 @@ static void __check_job(
 #endif
 
   /* XXX */
+#if 0
   pvols[proc_up] += nclaimed;
   *left -= nclaimed;
   if(*left == 0) {
@@ -480,6 +495,7 @@ static void __check_job(
       MPI_Isend(NULL, 0, MPI_INT, p, TAG_FINISHED, comm, &(rinfo->req));
     }
   }
+#endif
 }
 
 
@@ -493,30 +509,39 @@ static void __distribute_u3_rows(
   idx_t * const nrows,
   rank_info * const rinfo)
 {
-  MPI_Comm const lcomm = rinfo->layer_comm[m];
+  MPI_Comm const comm = rinfo->layer_comm[m];
   int const rank = rinfo->layer_rank[m];
   int npes;
-  MPI_Comm_size(lcomm, &npes);
+  MPI_Comm_size(comm, &npes);
 
   idx_t left = rconns[2];
 
+  MPI_Request req;
+
+  int msg;
+
   while(1) {
     if(rank == 0) {
-      __make_job(npes, pcount, rinfo, lcomm, left);
+      __make_job(npes, pvols, rinfo, comm, left);
     }
 
-    MPI_Probe(0, MPI_ANY_TAG, lcomm, &(rinfo->status));
-    if(rinfo->status.MPI_TAG == TAG_YOURTURN) {
+    MPI_Recv(&msg, 1, MPI_INT, 0, 0, comm, &(rinfo->status));
+    if(msg == MSG_YOURTURN) {
       /* do stuff */
-      printf("p: %d it's my turn!\n", rank);
+      idx_t amt;
+      MPI_Recv(&amt, 1, SS_MPI_IDX, 0, 0, comm, &(rinfo->status));
+      MPI_Isend(&amt, 1, SS_MPI_IDX, 0, 0, comm, &req);
     }
 
+    /* check for updated rows, completion, etc. */
     if(rank == 0) {
-      __check_job(npes, pcount, rinfo, lcomm, left);
+      __check_job(npes, pvols, rinfo, comm, &left);
     }
-    MPI_Probe(0, MPI_ANY_TAG, lcomm, &(rinfo->status));
-    if(rinfo->status.MPI_TAG == TAG_FINISHED) {
-      printf("done\n");
+
+    MPI_Recv(&msg, 1, MPI_INT, 0, 0, comm, &(rinfo->status));
+    if(msg == MSG_UPDATES) {
+      /* get new rows */
+    } else if(msg == MSG_FINISHED) {
       break;
     }
   }
@@ -683,6 +708,8 @@ void mpi_distribute_mats(
 {
   //__naive_mat_distribution(rinfo, tt);
   __greedy_mat_distribution(rinfo, tt);
+
+  MPI_Barrier(MPI_COMM_WORLD);
 }
 
 
