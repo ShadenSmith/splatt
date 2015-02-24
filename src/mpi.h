@@ -54,17 +54,6 @@ typedef struct
 
 
 /******************************************************************************
- * PUBLIC DEFINES
- *****************************************************************************/
-
-static int const MSG_FINISHED = 0;
-static int const MSG_YOURTURN = 1;
-static int const MSG_SENDBACK = 2;
-static int const MSG_STANDBY  = 3;
-static int const MSG_UPDATES  = 4;
-
-
-/******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
 

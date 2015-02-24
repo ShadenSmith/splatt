@@ -11,6 +11,18 @@
 
 
 /******************************************************************************
+ * PRIVATE DEFINES
+ *****************************************************************************/
+static int const MSG_FINISHED  = 0;
+static int const MSG_TRYCLAIM  = 1;
+static int const MSG_MUSTCLAIM = 2;
+static int const MSG_SENDBACK  = 3;
+static int const MSG_STANDBY   = 4;
+static int const MSG_UPDATES   = 5;
+
+
+
+/******************************************************************************
  * PRIVATE FUNCTONS
  *****************************************************************************/
 
@@ -420,17 +432,19 @@ static void __naive_mat_distribution(
 }
 
 
-static void __make_job(
+static int __make_job(
   int const npes,
+  int const lastp,
   idx_t * const pvols,
   rank_info * const rinfo,
   MPI_Comm const comm,
+  int const mustclaim,
   idx_t const left)
 {
   /* grab 2 smallest processes */
-  int p0 = 0;
-  int p1 = 1;
-  for(int p=0; p < npes; ++p) {
+  int p0 = (lastp+1) % npes;
+  int p1 = (lastp+2) % npes;
+  for(int p = 0; p < npes; ++p) {
     if(pvols[p] < pvols[p0]) {
       p1 = p0;
       p0 = p;
@@ -442,22 +456,30 @@ static void __make_job(
     catchup = SS_MAX(left / npes, 1);
   }
 
-  //printf("m: %lu p: %d p1: %d catch: %lu left: %lu\n", m, p0, p1, catchup, *left);
-  MPI_Isend(&MSG_YOURTURN, 1, MPI_INT, p0, 0, comm, &(rinfo->req));
+  if(!mustclaim) {
+    MPI_Isend(&MSG_TRYCLAIM, 1, MPI_INT, p0, 0, comm, &(rinfo->req));
+  } else {
+    MPI_Isend(&MSG_MUSTCLAIM, 1, MPI_INT, p0, 0, comm, &(rinfo->req));
+  }
+
+  //printf("lastp: %d p: %d p1: %d catch: %lu left: %lu\n", lastp, p0, p1, catchup, left);
   MPI_Isend(&catchup, 1, SS_MPI_IDX, p0, 0, comm, &(rinfo->req));
   for(int p=0; p < npes; ++p) {
     if(p != p0) {
       MPI_Isend(&MSG_STANDBY, 1, MPI_INT, p, 0, comm, &(rinfo->req));
     }
   }
+
+  return p0;
 }
 
 
-static void __check_job(
+static idx_t __check_job(
   int const npes,
   idx_t * const pvols,
   rank_info * const rinfo,
   MPI_Comm const comm,
+  idx_t * const rowbuf,
   idx_t * const left)
 {
   MPI_Probe(MPI_ANY_SOURCE, 0, comm, &(rinfo->status));
@@ -465,11 +487,12 @@ static void __check_job(
   int const proc_up = rinfo->status.MPI_SOURCE;
   idx_t nclaimed;
   MPI_Recv(&nclaimed, 1, SS_MPI_IDX, proc_up, 0, comm, &(rinfo->status));
+  MPI_Recv(rowbuf, nclaimed, SS_MPI_IDX, proc_up, 0, comm, &(rinfo->status));
 
   pvols[proc_up] += nclaimed;
 
-  //printf("new vol: %lu %lu %lu %lu\n", pvols[0], pvols[1], pvols[2], pvols[3]);
   *left -= nclaimed;
+  /* send new status message */
   for(int p=0; p < npes; ++p) {
     if(*left == 0) {
       MPI_Isend(&MSG_FINISHED, 1, MPI_INT, p, 0, comm, &(rinfo->req));
@@ -478,26 +501,67 @@ static void __check_job(
     }
   }
 
-#if 0
-  MPI_Get_count(&(rinfo->status), SS_MPI_IDX, &nclaimed);
-  idx_t * rmv = (idx_t *) malloc(nclaimed * sizeof(idx_t));
-  MPI_Recv(rmv, nclaimed, SS_MPI_IDX, proc_up, TAG_SENDBACK, comm,
-    &(rinfo->status));
-  free(rmv);
-#endif
-
-  /* XXX */
-#if 0
-  pvols[proc_up] += nclaimed;
-  *left -= nclaimed;
-  if(*left == 0) {
-    for(int p=0; p < npes; ++p) {
-      MPI_Isend(NULL, 0, MPI_INT, p, TAG_FINISHED, comm, &(rinfo->req));
-    }
-  }
-#endif
+  return nclaimed;
 }
 
+
+
+static idx_t __tryclaim_rows(
+  idx_t const amt,
+  sptensor_t const * const tt,
+  rank_info const * const rinfo,
+  idx_t const mode,
+  char const * const claimed,
+  idx_t const dim,
+  idx_t * const newclaims)
+{
+  idx_t newrows = 0;
+
+  idx_t const offset = rinfo->layer_starts[mode];
+
+  /* find at most amt unclaimed rows in my partition */
+  for(idx_t i=0; i < tt->dims[mode]; ++i) {
+    idx_t const gi = tt->indmap[mode][i] - offset;
+    assert(gi < dim);
+    if(claimed[gi] == 0) {
+      newclaims[newrows++] = gi;
+      if(newrows == amt) {
+        break;
+      }
+    }
+  }
+
+  return newrows;
+}
+
+
+static idx_t __mustclaim_rows(
+  idx_t const amt,
+  sptensor_t const * const tt,
+  rank_info const * const rinfo,
+  idx_t const mode,
+  char const * const claimed,
+  idx_t const dim,
+  idx_t * const newclaims)
+{
+  idx_t newrows = 0;
+
+  idx_t const offset = rinfo->layer_starts[mode];
+
+  /* just grab the first amt unclaimed rows */
+  for(idx_t i=0; i < dim; ++i) {
+    if(claimed[i] == 0) {
+      newclaims[newrows++] = i;
+      if(newrows == amt) {
+        break;
+      }
+    }
+  }
+
+  assert(newrows == amt);
+
+  return newrows;
+}
 
 
 static void __distribute_u3_rows(
@@ -507,44 +571,97 @@ static void __distribute_u3_rows(
   idx_t const * const rconns,
   idx_t * const mine,
   idx_t * const nrows,
+  sptensor_t * const tt,
   rank_info * const rinfo)
 {
   MPI_Comm const comm = rinfo->layer_comm[m];
+  MPI_Request req;
   int const rank = rinfo->layer_rank[m];
   int npes;
   MPI_Comm_size(comm, &npes);
+  int msg;
+  idx_t amt;
 
   idx_t left = rconns[2];
+  idx_t const dim = rinfo->layer_ends[m] - rinfo->layer_starts[m];
 
-  MPI_Request req;
+  /* mark if row claimed[i] has been claimed */
+  char * claimed = (char *) calloc(dim, sizeof(char));
 
-  int msg;
+  /* a list of all rows I just claimed */
+  idx_t * myclaims = (idx_t *) malloc(left * sizeof(idx_t));
+
+  /* incoming new assignments */
+  idx_t * bufclaims = (idx_t *) malloc(left * sizeof(idx_t));
+
+  /* mark the rows already claimed */
+  for(idx_t i=0; i < *nrows; ++i) {
+    assert(mine[i] < dim);
+    claimed[mine[i]] = 1;
+  }
+
+  /* Everyone gets a consistent set of claimed rows */
+  MPI_Allreduce(MPI_IN_PLACE, claimed, dim, MPI_CHAR, MPI_SUM, comm);
+  for(idx_t i=0; i < dim; ++i) {
+    assert(claimed[i] <= 1);
+  }
+
+  /* lets root know which process was chosen last for grabbing rows */
+  int newp = 0;
+
+  int mustclaim = 0;
 
   while(1) {
     if(rank == 0) {
-      __make_job(npes, pvols, rinfo, comm, left);
+      newp = __make_job(npes, newp, pvols, rinfo, comm, mustclaim, left);
     }
 
     MPI_Recv(&msg, 1, MPI_INT, 0, 0, comm, &(rinfo->status));
-    if(msg == MSG_YOURTURN) {
-      /* do stuff */
-      idx_t amt;
+    if(msg == MSG_TRYCLAIM || msg == MSG_MUSTCLAIM) {
+      /* get target number of rows */
       MPI_Recv(&amt, 1, SS_MPI_IDX, 0, 0, comm, &(rinfo->status));
-      MPI_Isend(&amt, 1, SS_MPI_IDX, 0, 0, comm, &req);
+      /* see how many I can claim */
+      idx_t nclaimed = 0;
+      if(msg == MSG_TRYCLAIM) {
+        nclaimed = __tryclaim_rows(amt, tt, rinfo, m, claimed, dim, myclaims);
+      } else {
+        nclaimed = __mustclaim_rows(amt, tt, rinfo, m, claimed, dim, myclaims);
+      }
+
+      /* send new claims to root process */
+      MPI_Isend(&nclaimed, 1, SS_MPI_IDX, 0, 0, comm, &req);
+      MPI_Isend(myclaims, nclaimed, SS_MPI_IDX, 0, 0, comm, &req);
+      /* now mark as mine */
+      for(idx_t i=0; i < nclaimed; ++i) {
+        mine[(*nrows)++] = claimed[i];
+      }
     }
 
     /* check for updated rows, completion, etc. */
     if(rank == 0) {
-      __check_job(npes, pvols, rinfo, comm, &left);
+      amt = __check_job(npes, pvols, rinfo, comm, bufclaims, &left);
+      /* force claim next turn if no progress made this time */
+      mustclaim = (amt > 0);
     }
 
     MPI_Recv(&msg, 1, MPI_INT, 0, 0, comm, &(rinfo->status));
     if(msg == MSG_UPDATES) {
       /* get new rows */
+      MPI_Bcast(&amt, 1, SS_MPI_IDX, 0, comm);
+      MPI_Bcast(bufclaims, amt, SS_MPI_IDX, 0, comm);
+
+      /* mark as claimed */
+      for(idx_t i=0; i < amt; ++i) {
+        claimed[bufclaims[i]] = 1;
+      }
     } else if(msg == MSG_FINISHED) {
       break;
     }
   }
+
+  free(bufclaims);
+  free(myclaims);
+  free(claimed);
 }
 
 
@@ -684,10 +801,22 @@ static void __greedy_mat_distribution(
     MPI_Gather(&myvol, 1, SS_MPI_IDX, pvols, 1, SS_MPI_IDX,
       0, rinfo->layer_comm[m]);
 
+    idx_t const justme = nrows;
+
     /* now distribute rows with >=3 pcount in a greedy fashion */
     __fill_volume_stats(m, pcount, ldim, rinfo, rconns);
-    __distribute_u3_rows(m, pcount, pvols, rconns, mine, &nrows, rinfo);
+    __distribute_u3_rows(m, pcount, pvols, rconns, mine, &nrows, tt, rinfo);
 
+    /* prefix sum to get our new mat_start */
+    idx_t rowoffset;
+    MPI_Scan(&nrows, &rowoffset, 1, SS_MPI_IDX, MPI_SUM, rinfo->layer_comm[m]);
+
+    printf("p: %d rows: %lu  internal: %lu\n", rinfo->layer_rank[m], nrows, justme);
+
+    if(rinfo->layer_rank[m] == (rinfo->np13 * rinfo->np13) - 1) {
+      assert(rowoffset == rinfo->layer_ends[m] - rinfo->layer_starts[m]);
+    }
+    rowoffset -= nrows;
 
     free(pvols);
   }
