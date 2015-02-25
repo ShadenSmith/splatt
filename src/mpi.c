@@ -4,10 +4,9 @@
  *****************************************************************************/
 #include "mpi.h"
 #include "io.h"
+#include "sort.h"
 #include <string.h>
 #include <math.h>
-
-#include <time.h>
 
 
 /******************************************************************************
@@ -662,6 +661,8 @@ static void __distribute_u3_rows(
   free(bufclaims);
   free(myclaims);
   free(claimed);
+
+  MPI_Barrier(comm);
 }
 
 
@@ -749,6 +750,9 @@ static void __greedy_mat_distribution(
   int * pcount = (int *) malloc(max_dim * sizeof(int));
   idx_t * mine = (idx_t *) malloc(max_dim * sizeof(idx_t));
 
+  /* we relabel after distribution to ensure contiguous partitions */
+  idx_t * newlabels = (idx_t *) malloc(max_dim * sizeof(idx_t));
+
   int lnpes; /* npes in layer */
   idx_t * pvols; /* volumes of each rank */
 
@@ -818,9 +822,40 @@ static void __greedy_mat_distribution(
     }
     rowoffset -= nrows;
 
+    /* store matrix info */
+    rinfo->mat_start[m] = rowoffset;
+    rinfo->mat_end[m] = rowoffset + nrows;
+
+    /* assign new labels */
+    for(idx_t i=0; i < nrows; ++i) {
+      newlabels[rowoffset+i] = mine[i];
+    }
+    MPI_Allreduce(MPI_IN_PLACE, newlabels, ldim, SS_MPI_IDX, MPI_SUM,
+        rinfo->layer_comm[m]);
+
+    /* allocate a fresh indmap and replace it */
+    idx_t * newmap = (idx_t *) malloc(tt->dims[m] * sizeof(idx_t));
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      /* XXX: wrong */
+      idx_t const newlab = newlabels[i];
+      newmap[newlab] = tt->indmap[m][i];
+    }
+
+    /* now update tt with new labels */
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      idx_t const idx = tt->ind[m][n];
+      if(idx >= rinfo->layer_starts[m] && idx < rinfo->layer_ends[m]) {
+        tt->ind[m][n] = newlabels[idx - rinfo->layer_starts[m]];
+      }
+    }
+
+
     free(pvols);
   }
 
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  free(newlabels);
   free(pcount);
   free(mine);
 }
