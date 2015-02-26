@@ -81,16 +81,6 @@ void tt_remove_empty(
     }
 
     /* Now scan to remove empty slices */
-#if 0
-    idx_t ptr = 0;
-    for(idx_t i=0; i < dim_sizes[m]; ++i) {
-      /* move ptr to the next non-empty slice */
-      while(scounts[ptr] == 0) {
-        ++ptr;
-      }
-      scounts[ptr] = i;
-    }
-#endif
     idx_t ptr = 0;
     for(idx_t i=0; i < tt->dims[m]; ++i) {
       if(scounts[i] == 1) {

@@ -752,6 +752,7 @@ static void __greedy_mat_distribution(
 
   /* we relabel after distribution to ensure contiguous partitions */
   idx_t * newlabels = (idx_t *) malloc(max_dim * sizeof(idx_t));
+  idx_t * inewlabels = (idx_t *) malloc(max_dim * sizeof(idx_t));
 
   int lnpes; /* npes in layer */
   idx_t * pvols; /* volumes of each rank */
@@ -785,6 +786,7 @@ static void __greedy_mat_distribution(
     /* claim all rows that are entirely local to me */
     for(idx_t i=0; i < tt->dims[m]; ++i) {
       idx_t const gi = tt->indmap[m][i] - lstart;
+      assert(gi < ldim);
       switch(pcount[gi]) {
       case 0:
         break;
@@ -822,42 +824,71 @@ static void __greedy_mat_distribution(
     }
     rowoffset -= nrows;
 
-    /* store matrix info */
-    rinfo->mat_start[m] = rowoffset;
-    rinfo->mat_end[m] = rowoffset + nrows;
-
     /* assign new labels */
     for(idx_t i=0; i < nrows; ++i) {
+      assert(rowoffset+i < ldim);
+      assert(mine[i] < ldim);
       newlabels[rowoffset+i] = mine[i];
     }
     MPI_Allreduce(MPI_IN_PLACE, newlabels, ldim, SS_MPI_IDX, MPI_SUM,
         rinfo->layer_comm[m]);
 
-    /* allocate a fresh indmap and replace it */
-    idx_t * newmap = (idx_t *) malloc(tt->dims[m] * sizeof(idx_t));
-    for(idx_t i=0; i < tt->dims[m]; ++i) {
-      /* XXX: wrong */
-      idx_t const newlab = newlabels[i];
-      newmap[newlab] = tt->indmap[m][i];
+    for(idx_t i=0; i < nrows; ++i) {
+      assert(rowoffset+i < ldim);
+      assert(newlabels[rowoffset+i] < ldim);
+    }
+
+    /* fill inverse labels: inewlabels[oldlayerindex] = newlayerindex */
+    for(idx_t i=0; i < ldim; ++i) {
+      //assert(newlabels[i] < ldim);
+      //inewlabels[newlabels[i]] = i;
     }
 
     /* now update tt with new labels */
+#if 0
     for(idx_t n=0; n < tt->nnz; ++n) {
-      idx_t const idx = tt->ind[m][n];
-      if(idx >= rinfo->layer_starts[m] && idx < rinfo->layer_ends[m]) {
-        tt->ind[m][n] = newlabels[idx - rinfo->layer_starts[m]];
-      }
+      assert(tt->indmap[m] != NULL);
+      assert(tt->ind[m][n] < tt->dims[m]);
+      idx_t const gi = tt->indmap[m][tt->ind[m][n]];
+      assert(gi >= rinfo->layer_starts[m]);
+      assert(gi < rinfo->layer_ends[m]);
+      //tt->ind[m][n] = newlabels[idx - rinfo->layer_starts[m]];
     }
+#endif
 
+#if 0
+    /* allocate a fresh indmap and replace it */
+    idx_t * newmap = (idx_t *) malloc(tt->dims[m] * sizeof(idx_t));
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      /* map my local tt index to the global (layer) index */
+      idx_t const gi = tt->indmap[m][i];
+      idx_t const layeri = gi - rinfo->layer_starts[m];
+      assert(gi >= rinfo->layer_starts[m]);
+      assert(layeri < ldim);
+
+      /* now map old local index to the new index and update with actual
+       * global index */
+      idx_t const newind = inewlabels[layeri];
+      assert(newind < tt->dims[m]);
+      newmap[newind] = gi;
+    }
+    free(tt->indmap[m]);
+    tt->indmap[m] = newmap;
+#endif
+
+    /* store matrix info */
+    rinfo->mat_start[m] = rowoffset + rinfo->layer_starts[m];
+    rinfo->mat_end[m] = rinfo->mat_start[m] + nrows;
 
     free(pvols);
-  }
-
-  MPI_Barrier(MPI_COMM_WORLD);
+  } /* foreach mode */
 
   free(newlabels);
+  free(inewlabels);
   free(pcount);
   free(mine);
+
+  MPI_Barrier(MPI_COMM_WORLD);
 }
 
 
