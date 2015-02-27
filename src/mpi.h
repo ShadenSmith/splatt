@@ -50,6 +50,7 @@ typedef struct
   /* Miscellaneous */
   MPI_Status status;
   MPI_Request req;
+  idx_t worksize;
 } rank_info;
 
 

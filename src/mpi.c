@@ -450,9 +450,9 @@ static int __make_job(
     }
   }
 
-  idx_t catchup = SS_MIN(pvols[p1] - pvols[p0], left);
-  if(catchup == 0) {
-    catchup = SS_MAX(left / npes, 1);
+  rinfo->worksize = SS_MIN(pvols[p1] - pvols[p0], left);
+  if(rinfo->worksize == 0) {
+    rinfo->worksize = SS_MAX(left / npes, 1);
   }
 
   if(!mustclaim) {
@@ -461,8 +461,8 @@ static int __make_job(
     MPI_Isend(&MSG_MUSTCLAIM, 1, MPI_INT, p0, 0, comm, &(rinfo->req));
   }
 
-  //printf("lastp: %d p: %d p1: %d catch: %lu left: %lu\n", lastp, p0, p1, catchup, left);
-  MPI_Isend(&catchup, 1, SS_MPI_IDX, p0, 0, comm, &(rinfo->req));
+  MPI_Isend(&(rinfo->worksize), 1, SS_MPI_IDX, p0, 0, comm, &(rinfo->req));
+
   for(int p=0; p < npes; ++p) {
     if(p != p0) {
       MPI_Isend(&MSG_STANDBY, 1, MPI_INT, p, 0, comm, &(rinfo->req));
@@ -556,7 +556,6 @@ static idx_t __mustclaim_rows(
       }
     }
   }
-
   assert(newrows == amt);
 
   return newrows;
@@ -609,6 +608,7 @@ static void __distribute_u3_rows(
   int newp = 0;
 
   int mustclaim = 0;
+  idx_t nclaimed = 0;
 
   while(1) {
     if(rank == 0) {
@@ -620,7 +620,6 @@ static void __distribute_u3_rows(
       /* get target number of rows */
       MPI_Recv(&amt, 1, SS_MPI_IDX, 0, 0, comm, &(rinfo->status));
       /* see how many I can claim */
-      idx_t nclaimed = 0;
       if(msg == MSG_TRYCLAIM) {
         nclaimed = __tryclaim_rows(amt, tt, rinfo, m, claimed, dim, myclaims);
       } else {
@@ -817,31 +816,30 @@ static void __greedy_mat_distribution(
     idx_t rowoffset;
     MPI_Scan(&nrows, &rowoffset, 1, SS_MPI_IDX, MPI_SUM, rinfo->layer_comm[m]);
 
-    printf("p: %d rows: %lu  internal: %lu\n", rinfo->layer_rank[m], nrows, justme);
+    //printf("p: %d rows: %lu  internal: %lu\n", rinfo->layer_rank[m], nrows, justme);
 
+    /* ensure all rows are accounted for */
     if(rinfo->layer_rank[m] == (rinfo->np13 * rinfo->np13) - 1) {
       assert(rowoffset == rinfo->layer_ends[m] - rinfo->layer_starts[m]);
     }
     rowoffset -= nrows;
 
     /* assign new labels */
+    memset(newlabels, 0, ldim * sizeof(idx_t));
     for(idx_t i=0; i < nrows; ++i) {
       assert(rowoffset+i < ldim);
       assert(mine[i] < ldim);
       newlabels[rowoffset+i] = mine[i];
-    }
-    MPI_Allreduce(MPI_IN_PLACE, newlabels, ldim, SS_MPI_IDX, MPI_SUM,
-        rinfo->layer_comm[m]);
-
-    for(idx_t i=0; i < nrows; ++i) {
-      assert(rowoffset+i < ldim);
       assert(newlabels[rowoffset+i] < ldim);
     }
 
+    MPI_Allreduce(MPI_IN_PLACE, newlabels, ldim, SS_MPI_IDX, MPI_SUM,
+        rinfo->layer_comm[m]);
+
     /* fill inverse labels: inewlabels[oldlayerindex] = newlayerindex */
     for(idx_t i=0; i < ldim; ++i) {
-      //assert(newlabels[i] < ldim);
-      //inewlabels[newlabels[i]] = i;
+      assert(newlabels[i] < ldim);
+      inewlabels[newlabels[i]] = i;
     }
 
     /* now update tt with new labels */
