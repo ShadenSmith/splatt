@@ -507,23 +507,21 @@ static idx_t __check_job(
 
 static idx_t __tryclaim_rows(
   idx_t const amt,
-  sptensor_t const * const tt,
+  idx_t const * const inds,
+  idx_t const localdim,
   rank_info const * const rinfo,
   idx_t const mode,
   char const * const claimed,
-  idx_t const dim,
+  idx_t const layerdim,
   idx_t * const newclaims)
 {
   idx_t newrows = 0;
 
-  idx_t const offset = rinfo->layer_starts[mode];
-
   /* find at most amt unclaimed rows in my partition */
-  for(idx_t i=0; i < tt->dims[mode]; ++i) {
-    idx_t const gi = tt->indmap[mode][i] - offset;
-    assert(gi < dim);
-    if(claimed[gi] == 0) {
-      newclaims[newrows++] = gi;
+  for(idx_t i=0; i < localdim; ++i) {
+    assert(inds[i] < layerdim);
+    if(claimed[inds[i]] == 0) {
+      newclaims[newrows++] = inds[i];
       if(newrows == amt) {
         break;
       }
@@ -536,19 +534,16 @@ static idx_t __tryclaim_rows(
 
 static idx_t __mustclaim_rows(
   idx_t const amt,
-  sptensor_t const * const tt,
   rank_info const * const rinfo,
   idx_t const mode,
   char const * const claimed,
-  idx_t const dim,
+  idx_t const layerdim,
   idx_t * const newclaims)
 {
   idx_t newrows = 0;
 
-  idx_t const offset = rinfo->layer_starts[mode];
-
   /* just grab the first amt unclaimed rows */
-  for(idx_t i=0; i < dim; ++i) {
+  for(idx_t i=0; i < layerdim; ++i) {
     if(claimed[i] == 0) {
       newclaims[newrows++] = i;
       if(newrows == amt) {
@@ -569,7 +564,8 @@ static void __distribute_u3_rows(
   idx_t const * const rconns,
   idx_t * const mine,
   idx_t * const nrows,
-  sptensor_t * const tt,
+  idx_t const * const inds,
+  idx_t const localdim,
   rank_info * const rinfo)
 {
   MPI_Comm const comm = rinfo->layer_comm[m];
@@ -621,9 +617,10 @@ static void __distribute_u3_rows(
       MPI_Recv(&amt, 1, SS_MPI_IDX, 0, 0, comm, &(rinfo->status));
       /* see how many I can claim */
       if(msg == MSG_TRYCLAIM) {
-        nclaimed = __tryclaim_rows(amt, tt, rinfo, m, claimed, dim, myclaims);
+        nclaimed = __tryclaim_rows(amt, inds, localdim, rinfo, m, claimed, dim,
+            myclaims);
       } else {
-        nclaimed = __mustclaim_rows(amt, tt, rinfo, m, claimed, dim, myclaims);
+        nclaimed = __mustclaim_rows(amt, rinfo, m, claimed, dim, myclaims);
       }
 
       /* send new claims to root process */
@@ -733,7 +730,8 @@ static void __fill_volume_stats(
 */
 static void __greedy_mat_distribution(
   rank_info * const rinfo,
-  sptensor_t * const tt)
+  sptensor_t const * const tt,
+  permutation_t * const perm)
 {
   /* get the maximum dimension size for my layer */
   idx_t max_dim = 0;
@@ -749,31 +747,27 @@ static void __greedy_mat_distribution(
   int * pcount = (int *) malloc(max_dim * sizeof(int));
   idx_t * mine = (idx_t *) malloc(max_dim * sizeof(idx_t));
 
-  /* we relabel after distribution to ensure contiguous partitions */
-  idx_t * newlabels = (idx_t *) malloc(max_dim * sizeof(idx_t));
-  idx_t * inewlabels = (idx_t *) malloc(max_dim * sizeof(idx_t));
-
   int lnpes; /* npes in layer */
   idx_t * pvols; /* volumes of each rank */
 
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    idx_t const lstart = rinfo->layer_starts[m];
-    idx_t const lend = rinfo->layer_ends[m];
-    idx_t const ldim = lend - lstart;
+    /* layer dimensions */
+    idx_t const layerdim = tt->dims[m];
 
-    memset(pcount, 0, ldim * sizeof(int));
-    memset(mine, 0, ldim * sizeof(idx_t));
+    /* get local idxs */
+    idx_t localdim;
+    idx_t * inds = tt_get_slices(tt, m, &localdim);
+
+    memset(pcount, 0, layerdim * sizeof(int));
+    memset(mine, 0, layerdim * sizeof(idx_t));
 
     /* mark all idxs that are local to me */
-    for(idx_t i=0; i < tt->dims[m]; ++i) {
-      assert(tt->indmap[m][i] >= lstart);
-      assert(tt->indmap[m][i] < lend);
-      idx_t const gi = tt->indmap[m][i] - lstart;
-      pcount[gi] = 1;
+    for(idx_t i=0; i < localdim; ++i) {
+      pcount[inds[i]] = 1;
     }
 
     /* sum appearances to get communication volume */
-    MPI_Allreduce(MPI_IN_PLACE, pcount, (int) ldim, MPI_INT, MPI_SUM,
+    MPI_Allreduce(MPI_IN_PLACE, pcount, layerdim, MPI_INT, MPI_SUM,
         rinfo->layer_comm[m]);
 
     /* communication volume */
@@ -783,14 +777,12 @@ static void __greedy_mat_distribution(
     idx_t nrows = 0;
 
     /* claim all rows that are entirely local to me */
-    for(idx_t i=0; i < tt->dims[m]; ++i) {
-      idx_t const gi = tt->indmap[m][i] - lstart;
-      assert(gi < ldim);
-      switch(pcount[gi]) {
+    for(idx_t i=0; i < localdim; ++i) {
+      switch(pcount[inds[i]]) {
       case 0:
         break;
       case 1:
-        mine[nrows++] = gi;
+        mine[nrows++] = inds[i];
         break;
       default:
         ++myvol;
@@ -809,8 +801,9 @@ static void __greedy_mat_distribution(
     idx_t const justme = nrows;
 
     /* now distribute rows with >=3 pcount in a greedy fashion */
-    __fill_volume_stats(m, pcount, ldim, rinfo, rconns);
-    __distribute_u3_rows(m, pcount, pvols, rconns, mine, &nrows, tt, rinfo);
+    __fill_volume_stats(m, pcount, layerdim, rinfo, rconns);
+    __distribute_u3_rows(m, pcount, pvols, rconns, mine, &nrows,
+        inds, localdim, rinfo);
 
     /* prefix sum to get our new mat_start */
     idx_t rowoffset;
@@ -824,65 +817,35 @@ static void __greedy_mat_distribution(
     }
     rowoffset -= nrows;
 
-    /* assign new labels */
-    memset(newlabels, 0, ldim * sizeof(idx_t));
+    /* assign new labels -- iperm is easier to do first */
+    idx_t * const restrict newlabels = perm->perms[m];
+    idx_t * const restrict inewlabels = perm->iperms[m];
+    memset(inewlabels, 0, layerdim * sizeof(idx_t));
+    memset(newlabels, 0, layerdim * sizeof(idx_t));
     for(idx_t i=0; i < nrows; ++i) {
-      assert(rowoffset+i < ldim);
-      assert(mine[i] < ldim);
-      newlabels[rowoffset+i] = mine[i];
-      assert(newlabels[rowoffset+i] < ldim);
+      assert(rowoffset+i < layerdim);
+      assert(mine[i] < layerdim);
+      inewlabels[rowoffset+i] = mine[i];
     }
 
-    MPI_Allreduce(MPI_IN_PLACE, newlabels, ldim, SS_MPI_IDX, MPI_SUM,
+    MPI_Allreduce(MPI_IN_PLACE, inewlabels, layerdim, SS_MPI_IDX, MPI_SUM,
         rinfo->layer_comm[m]);
 
     /* fill inverse labels: inewlabels[oldlayerindex] = newlayerindex */
-    for(idx_t i=0; i < ldim; ++i) {
-      assert(newlabels[i] < ldim);
-      inewlabels[newlabels[i]] = i;
+    for(idx_t i=0; i < layerdim; ++i) {
+      assert(inewlabels[i] < layerdim);
+      newlabels[inewlabels[i]] = i;
     }
-
-    /* now update tt with new labels */
-#if 0
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      assert(tt->indmap[m] != NULL);
-      assert(tt->ind[m][n] < tt->dims[m]);
-      idx_t const gi = tt->indmap[m][tt->ind[m][n]];
-      assert(gi >= rinfo->layer_starts[m]);
-      assert(gi < rinfo->layer_ends[m]);
-      //tt->ind[m][n] = newlabels[idx - rinfo->layer_starts[m]];
-    }
-#endif
-
-#if 0
-    /* allocate a fresh indmap and replace it */
-    idx_t * newmap = (idx_t *) malloc(tt->dims[m] * sizeof(idx_t));
-    for(idx_t i=0; i < tt->dims[m]; ++i) {
-      /* map my local tt index to the global (layer) index */
-      idx_t const gi = tt->indmap[m][i];
-      idx_t const layeri = gi - rinfo->layer_starts[m];
-      assert(gi >= rinfo->layer_starts[m]);
-      assert(layeri < ldim);
-
-      /* now map old local index to the new index and update with actual
-       * global index */
-      idx_t const newind = inewlabels[layeri];
-      assert(newind < tt->dims[m]);
-      newmap[newind] = gi;
-    }
-    free(tt->indmap[m]);
-    tt->indmap[m] = newmap;
-#endif
 
     /* store matrix info */
     rinfo->mat_start[m] = rowoffset + rinfo->layer_starts[m];
     rinfo->mat_end[m] = rinfo->mat_start[m] + nrows;
 
+    free(inds);
     free(pvols);
+    MPI_Barrier(rinfo->layer_comm[m]);
   } /* foreach mode */
 
-  free(newlabels);
-  free(inewlabels);
   free(pcount);
   free(mine);
 
@@ -895,14 +858,23 @@ static void __greedy_mat_distribution(
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
-void mpi_distribute_mats(
+permutation_t * mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt)
 {
+  permutation_t * perm = perm_alloc(tt->dims, tt->nmodes);
+
+  /* XXX: add perm for naive */
   //__naive_mat_distribution(rinfo, tt);
-  __greedy_mat_distribution(rinfo, tt);
+  __greedy_mat_distribution(rinfo, tt, perm);
 
   MPI_Barrier(MPI_COMM_WORLD);
+
+  //for(idx_t n=0; n < tt->nnz; ++n) {
+
+  perm_apply(tt, perm->perms);
+
+  return perm;
 }
 
 
@@ -1066,16 +1038,17 @@ sptensor_t * mpi_tt_read(
 
   __fill_ssizes(ifname, ssizes, nmodes, rinfo);
 
-  /* actually parse tensor */
+  /* actually parse tensor and then map to local (layer) coordinates  */
   sptensor_t * tt = __read_tt(ifname, ssizes, nmodes, rinfo);
   for(idx_t m=0; m < nmodes; ++m) {
     free(ssizes[m]);
-    tt->dims[m] = rinfo->global_dims[m];
+    tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      assert(tt->ind[m][n] >= rinfo->layer_starts[m]);
+      assert(tt->ind[m][n] < rinfo->layer_ends[m]);
+      tt->ind[m][n] -= rinfo->layer_starts[m];
+    }
   }
-
-  /* clean up tensor */
-  tt_remove_dups(tt);
-  tt_remove_empty(tt);
 
   return tt;
 }

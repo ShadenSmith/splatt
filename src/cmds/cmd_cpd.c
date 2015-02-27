@@ -120,7 +120,13 @@ static void __par_cpd(
   MPI_Barrier(MPI_COMM_WORLD);
 
   /* determine matrix distribution */
-  mpi_distribute_mats(&rinfo, tt);
+  permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
+
+  /* clean up tensor */
+  tt_remove_dups(tt);
+  tt_remove_empty(tt);
+
+  printf("p: %d dim: %lu %lu %lu\n", rinfo.rank, tt->dims[0], tt->dims[1], tt->dims[2]);
 
 #if 0
   MPI_Barrier(MPI_COMM_WORLD);

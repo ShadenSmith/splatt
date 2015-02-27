@@ -6,6 +6,7 @@
  *****************************************************************************/
 #include "base.h"
 #include "sptensor.h"
+#include "reorder.h"
 #include <mpi.h>
 
 
@@ -89,8 +90,10 @@ sptensor_t * mpi_tt_read(
 * @param rinfo MPI structure containing rank and communicator information.
 * @param tt A partition of the tensor. NOTE: indices will be reordered after
 *           distribution to ensure contiguous matrix partitions.
+*
+* @return The permutation that was applied to tt.
 */
-void mpi_distribute_mats(
+permutation_t *  mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt);
 
