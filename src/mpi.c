@@ -817,24 +817,23 @@ static void __greedy_mat_distribution(
     }
     rowoffset -= nrows;
 
-    /* assign new labels -- iperm is easier to do first */
+    /* assign new labels */
     idx_t * const restrict newlabels = perm->perms[m];
     idx_t * const restrict inewlabels = perm->iperms[m];
-    memset(inewlabels, 0, layerdim * sizeof(idx_t));
     memset(newlabels, 0, layerdim * sizeof(idx_t));
     for(idx_t i=0; i < nrows; ++i) {
       assert(rowoffset+i < layerdim);
       assert(mine[i] < layerdim);
-      inewlabels[rowoffset+i] = mine[i];
+      newlabels[rowoffset+i] = mine[i];
     }
 
-    MPI_Allreduce(MPI_IN_PLACE, inewlabels, layerdim, SS_MPI_IDX, MPI_SUM,
+    MPI_Allreduce(MPI_IN_PLACE, newlabels, layerdim, SS_MPI_IDX, MPI_SUM,
         rinfo->layer_comm[m]);
 
     /* fill inverse labels: inewlabels[oldlayerindex] = newlayerindex */
     for(idx_t i=0; i < layerdim; ++i) {
-      assert(inewlabels[i] < layerdim);
-      newlabels[inewlabels[i]] = i;
+      assert(newlabels[i] < layerdim);
+      inewlabels[newlabels[i]] = i;
     }
 
     /* store matrix info */
@@ -848,8 +847,6 @@ static void __greedy_mat_distribution(
 
   free(pcount);
   free(mine);
-
-  MPI_Barrier(MPI_COMM_WORLD);
 }
 
 
@@ -868,11 +865,32 @@ permutation_t * mpi_distribute_mats(
   //__naive_mat_distribution(rinfo, tt);
   __greedy_mat_distribution(rinfo, tt, perm);
 
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  //for(idx_t n=0; n < tt->nnz; ++n) {
-
   perm_apply(tt, perm->perms);
+
+  //tt_remove_dups(tt);
+  tt_remove_empty(tt);
+
+  /* XXX: test */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      idx_t const idx = tt->ind[m][n];
+      tt->ind[m][n] = tt->indmap[m][idx];
+    }
+  }
+
+  perm_apply(tt, perm->iperms);
+
+  /* XXX: test */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      tt->ind[m][n] += rinfo->layer_starts[m];
+    }
+    tt->indmap[m] = NULL;
+  }
+
+  __write_part(tt, rinfo->rank);
+
+  MPI_Barrier(MPI_COMM_WORLD);
 
   return perm;
 }

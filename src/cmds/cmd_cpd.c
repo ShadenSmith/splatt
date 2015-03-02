@@ -122,9 +122,11 @@ static void __par_cpd(
   /* determine matrix distribution */
   permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
 
+#if 0
   /* clean up tensor */
   tt_remove_dups(tt);
   tt_remove_empty(tt);
+#endif
 
   printf("p: %d dim: %lu %lu %lu\n", rinfo.rank, tt->dims[0], tt->dims[1], tt->dims[2]);
 
