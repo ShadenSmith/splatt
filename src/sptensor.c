@@ -13,14 +13,7 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-/**
-* @brief Remove the duplicate entries of a tensor. Duplicate values are
-*        repeatedly averaged.
-*
-* @param tt The modified tensor to work on. NOTE: data structures are not
-*           resized!
-*/
-static void __tt_remove_dups(
+idx_t tt_remove_dups(
   sptensor_t * const tt)
 {
   tt_sort(tt, 0, NULL);
@@ -37,17 +30,88 @@ static void __tt_remove_dups(
       }
     }
     if(same) {
+      printf("DUPLICATE NONZERO: ");
       tt->vals[n] = (tt->vals[n] + tt->vals[n+1]) / 2;
       for(idx_t m=0; m < nmodes; ++m) {
+        printf(SS_IDX" ", tt->ind[m][n]);
         memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]),
           (nnz-n-1)*sizeof(idx_t));
       }
       --n;
       nnz -= 1;
+      printf("\n");
     }
   }
+  idx_t const diff = tt->nnz - nnz;
   tt->nnz = nnz;
+  return diff;
 }
+
+
+idx_t tt_remove_empty(
+  sptensor_t * const tt)
+{
+  idx_t dim_sizes[MAX_NMODES];
+
+  idx_t nremoved = 0;
+
+  /* Allocate indmap */
+  idx_t const nmodes = tt->nmodes;
+  idx_t const nnz = tt->nnz;
+
+  idx_t maxdim = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    maxdim = tt->dims[m] > maxdim ? tt->dims[m] : maxdim;
+  }
+  idx_t * scounts = (idx_t *) malloc(maxdim * sizeof(idx_t));
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    dim_sizes[m] = 0;
+    memset(scounts, 0, maxdim * sizeof(idx_t));
+
+    /* Fill in indmap */
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      /* keep track of #unique slices */
+      if(scounts[tt->ind[m][n]] == 0) {
+        scounts[tt->ind[m][n]] = 1;
+        ++dim_sizes[m];
+      }
+    }
+
+    /* move on if no remapping is necessary */
+    if(dim_sizes[m] == tt->dims[m]) {
+      tt->indmap[m] = NULL;
+      continue;
+    }
+
+    nremoved += tt->dims[m] - dim_sizes[m];
+
+    /* Now scan to remove empty slices */
+    idx_t ptr = 0;
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      if(scounts[i] == 1) {
+        scounts[i] = ptr++;
+      }
+    }
+
+    tt->indmap[m] = (idx_t *) malloc(dim_sizes[m] * sizeof(idx_t));
+
+    /* relabel all indices in mode m */
+    tt->dims[m] = dim_sizes[m];
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      idx_t const global = tt->ind[m][n];
+      idx_t const local = scounts[global];
+      assert(local < dim_sizes[m]);
+      tt->indmap[m][local] = global; /* store local -> global mapping */
+      tt->ind[m][n] = local;
+    }
+  }
+
+  free(scounts);
+  return nremoved;
+}
+
+
 
 /******************************************************************************
  * PUBLIC FUNCTONS
@@ -56,7 +120,6 @@ sptensor_t * tt_read(
   char const * const ifname)
 {
   sptensor_t * tt = tt_read_file(ifname);
-  __tt_remove_dups(tt);
   return tt;
 }
 

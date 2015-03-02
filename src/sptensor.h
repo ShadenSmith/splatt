@@ -40,6 +40,8 @@ typedef struct
                       ..., ind[m][n]. */
   val_t * vals;   /** An array containing the values of each nonzero. */
   int tiled;      /** Whether sptensor_t has been tiled. Used by ftensor_t. */
+
+  idx_t * indmap[MAX_NMODES]; /** Maps local -> global indices. */
 } sptensor_t;
 
 
@@ -80,6 +82,31 @@ sptensor_t * tt_alloc(
 */
 void tt_free(
   sptensor_t * tt);
+
+
+/**
+* @brief Remove the duplicate entries of a tensor. Duplicate values are
+*        repeatedly averaged.
+*
+* @param tt The modified tensor to work on. NOTE: data structures are not
+*           resized!
+*
+* @return The number of nonzeros removed.
+*/
+idx_t tt_remove_dups(
+  sptensor_t * const tt);
+
+
+/**
+* @brief Relabel tensor indices to remove empty slices. Local -> global mapping
+*        is written to tt->indmap.
+*
+* @param tt The tensor to relabel.
+*
+* @return The number of empty slices removed.
+*/
+idx_t tt_remove_empty(
+  sptensor_t * const tt);
 
 
 /**
