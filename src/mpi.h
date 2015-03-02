@@ -29,8 +29,6 @@ typedef struct
 
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
-  /* mark owners of mat partitions in each mode */
-  int * plookup[MAX_NMODES];
 
 
   /* Communicators */

@@ -41,7 +41,7 @@ PERM_ERROR	reorder.h	/^  PERM_ERROR,$/;"	e	enum:__anon13
 PERM_FIBSCHED	reorder.h	/^  PERM_FIBSCHED,    \/** Not done. *\/$/;"	e	enum:__anon13
 PERM_GRAPH	reorder.h	/^  PERM_GRAPH,       \/** Reordering based on an n-partite graph partitioning. *\/$/;"	e	enum:__anon13
 PERM_HGRAPH	reorder.h	/^  PERM_HGRAPH,      \/** Reordering based on an hypergraph partitioning. *\/$/;"	e	enum:__anon13
-SPLATT_3MODE	sptensor.h	/^  SPLATT_3MODE,   \/** Three-mode tensors. *\/$/;"	e	enum:__anon3
+SPLATT_3MODE	sptensor.h	/^  SPLATT_3MODE,   \/** Three-mode tensors. *\/$/;"	e	enum:__anon1
 SPLATT_BASE_H	base.h	2;"	d
 SPLATT_BENCH_H	bench.h	2;"	d
 SPLATT_CMDS_H	cmds/splatt_cmds.h	2;"	d
@@ -54,7 +54,7 @@ SPLATT_LONG_FIB	ftensor.h	13;"	d
 SPLATT_MATRIX_H	matrix.h	2;"	d
 SPLATT_MPI_H	mpi.h	2;"	d
 SPLATT_MTTKRP_H	mttkrp.h	2;"	d
-SPLATT_NMODE	sptensor.h	/^  SPLATT_NMODE,   \/** Tensors of with arbitrary numbers of modes.$/;"	e	enum:__anon3
+SPLATT_NMODE	sptensor.h	/^  SPLATT_NMODE,   \/** Tensors of with arbitrary numbers of modes.$/;"	e	enum:__anon1
 SPLATT_REORDER_H	reorder.h	2;"	d
 SPLATT_SORT_H	sort.h	2;"	d
 SPLATT_SPTENSOR_H	sptensor.h	2;"	d
@@ -121,6 +121,7 @@ __read_tt_part	mpi.c	/^static void __read_tt_part($/;"	f	file:
 __reorder_fibs	reorder.c	/^static void __reorder_fibs($/;"	f	file:
 __reorder_inds	reorder.c	/^static void __reorder_inds($/;"	f	file:
 __reorder_slices	reorder.c	/^static void __reorder_slices($/;"	f	file:
+__setup_mat_ptrs	mpi.c	/^static void __setup_mat_ptrs($/;"	f	file:
 __shuffle_mats	bench.c	/^static void __shuffle_mats($/;"	f	file:
 __stats_basic	stats.c	/^static void __stats_basic($/;"	f	file:
 __stats_hparts	stats.c	/^static void __stats_hparts($/;"	f	file:
@@ -154,6 +155,11 @@ bench_splatt	bench.c	/^void bench_splatt($/;"	f
 bench_ttbox	bench.c	/^void bench_ttbox($/;"	f
 build_pptr	reorder.c	/^void build_pptr($/;"	f
 bytes_str	util.c	/^char * bytes_str($/;"	f
+check_argp	cmds/cmd_check.c	/^static struct argp check_argp =$/;"	v	typeref:struct:argp	file:
+check_args	cmds/cmd_check.c	/^} check_args;$/;"	t	typeref:struct:__anon1	file:
+check_args_doc	cmds/cmd_check.c	/^static char check_args_doc[] = "TENSOR";$/;"	v	file:
+check_doc	cmds/cmd_check.c	/^static char check_doc[] =$/;"	v	file:
+check_options	cmds/cmd_check.c	/^static struct argp_option check_options[] = {$/;"	v	typeref:struct:argp_option	file:
 cmd	cmds/splatt_bin.c	/^  splatt_cmd cmd;$/;"	m	struct:splatt_args	file:
 cmd_argp	cmds/splatt_bin.c	/^static struct argp cmd_argp = { 0, parse_cmd, cmd_args_doc, cmd_doc };$/;"	v	typeref:struct:argp	file:
 cmd_args_doc	cmds/splatt_cmds.h	/^static char cmd_args_doc[] = "CMD";$/;"	v
@@ -177,12 +183,13 @@ cpd_options	cmds/cmd_cpd.c	/^static struct argp_option cpd_options[] = {$/;"	v	t
 cpd_opts	cpd.h	/^} cpd_opts;$/;"	t	typeref:struct:__anon15
 dim_perms	ftensor.h	/^  idx_t dim_perms[MAX_NMODES][MAX_NMODES];$/;"	m	struct:__anon12
 dims	ftensor.h	/^  idx_t dims[MAX_NMODES];$/;"	m	struct:__anon12
-dims	sptensor.h	/^  idx_t * dims;   \/** An array containing the dimension of each mode. *\/$/;"	m	struct:__anon4
+dims	sptensor.h	/^  idx_t * dims;   \/** An array containing the dimension of each mode. *\/$/;"	m	struct:__anon2
 dims_3d	mpi.h	/^  int dims_3d[MAX_NMODES];$/;"	m	struct:__anon1
 eind	graph.h	/^  idx_t * eind;$/;"	m	struct:__anon23
 eptr	graph.h	/^  idx_t * eptr;$/;"	m	struct:__anon23
 fib_mode_order	ftensor.c	/^void fib_mode_order($/;"	f
 fids	ftensor.h	/^  idx_t * fids[MAX_NMODES];$/;"	m	struct:__anon12
+fix	cmds/cmd_check.c	/^  int fix;$/;"	m	struct:__anon1	file:
 fptr	ftensor.h	/^  idx_t * fptr[MAX_NMODES];$/;"	m	struct:__anon12
 ften_alloc	ftensor.c	/^ftensor_t * ften_alloc($/;"	f
 ften_free	ftensor.c	/^void ften_free($/;"	f
@@ -200,12 +207,13 @@ hgraph_write	io.c	/^void hgraph_write($/;"	f
 hgraph_write_file	io.c	/^void hgraph_write_file($/;"	f
 idx_t	base.h	15;"	d
 ifname	cmds/cmd_bench.c	/^  char * ifname;$/;"	m	struct:__anon20	file:
+ifname	cmds/cmd_check.c	/^  char * ifname;$/;"	m	struct:__anon1	file:
 ifname	cmds/cmd_convert.c	/^  char * ifname;$/;"	m	struct:__anon18	file:
 ifname	cmds/cmd_reorder.c	/^  char * ifname;$/;"	m	struct:__anon16	file:
 ifname	cmds/cmd_stats.c	/^  char * ifname;$/;"	m	struct:__anon17	file:
 ifname	cpd.h	/^  char * ifname;$/;"	m	struct:__anon15
-ind	sptensor.h	/^  idx_t ** ind;   \/** An m x nnz matrix containing the coordinates of each$/;"	m	struct:__anon4
-indmap	sptensor.h	/^  idx_t * indmap[MAX_NMODES]; \/** Maps local -> global indices. *\/$/;"	m	struct:__anon4
+ind	sptensor.h	/^  idx_t ** ind;   \/** An m x nnz matrix containing the coordinates of each$/;"	m	struct:__anon2
+indmap	sptensor.h	/^  idx_t * indmap[MAX_NMODES]; \/** Maps local -> global indices. *\/$/;"	m	struct:__anon2
 inds	ftensor.h	/^  idx_t * inds[MAX_NMODES];$/;"	m	struct:__anon12
 init_timers	timer.c	/^void init_timers(void)$/;"	f
 insertion_sort	sort.c	/^void insertion_sort($/;"	f
@@ -236,7 +244,7 @@ mode	cmds/cmd_convert.c	/^  idx_t mode;$/;"	m	struct:__anon18	file:
 mode	cmds/cmd_reorder.c	/^  idx_t mode;$/;"	m	struct:__anon16	file:
 mode	cmds/cmd_stats.c	/^  idx_t mode;$/;"	m	struct:__anon17	file:
 mode_rank	mpi.h	/^  int mode_rank[MAX_NMODES];$/;"	m	struct:__anon1
-mpi_distribute_mats	mpi.c	/^void mpi_distribute_mats($/;"	f
+mpi_distribute_mats	mpi.c	/^permutation_t * mpi_distribute_mats($/;"	f
 mpi_send_recv_stats	mpi.c	/^void mpi_send_recv_stats($/;"	f
 mpi_setup_comms	mpi.c	/^void mpi_setup_comms($/;"	f
 mpi_tt_read	mpi.c	/^sptensor_t * mpi_tt_read($/;"	f
@@ -252,10 +260,10 @@ niters	bench.h	/^  idx_t niters;$/;"	m	struct:__anon21
 niters	cmds/cmd_bench.c	/^  idx_t niters;$/;"	m	struct:__anon20	file:
 niters	cpd.h	/^  idx_t niters;$/;"	m	struct:__anon15
 nmodes	ftensor.h	/^  idx_t nmodes;$/;"	m	struct:__anon12
-nmodes	sptensor.h	/^  idx_t nmodes;   \/** The number of modes in the tensor, denoted 'm'. *\/$/;"	m	struct:__anon4
+nmodes	sptensor.h	/^  idx_t nmodes;   \/** The number of modes in the tensor, denoted 'm'. *\/$/;"	m	struct:__anon2
 nnz	ftensor.h	/^  idx_t nnz;$/;"	m	struct:__anon12
 nnz	matrix.h	/^  idx_t nnz;$/;"	m	struct:__anon7
-nnz	sptensor.h	/^  idx_t nnz;      \/** The number of nonzeros in the tensor. *\/$/;"	m	struct:__anon4
+nnz	sptensor.h	/^  idx_t nnz;      \/** The number of nonzeros in the tensor. *\/$/;"	m	struct:__anon2
 np13	mpi.h	/^  int np13; \/* cube root of npes *\/$/;"	m	struct:__anon1
 npes	mpi.h	/^  int npes;$/;"	m	struct:__anon1
 nreallocs	convert.c	/^static idx_t nreallocs;$/;"	v	file:
@@ -266,10 +274,12 @@ nthreads	cmds/cmd_bench.c	/^  idx_t nthreads;$/;"	m	struct:__anon20	file:
 nthreads	cpd.h	/^  idx_t nthreads;$/;"	m	struct:__anon15
 nvtxs	graph.h	/^  idx_t nvtxs;$/;"	m	struct:__anon22
 nvtxs	graph.h	/^  idx_t nvtxs;$/;"	m	struct:__anon23
+ofname	cmds/cmd_check.c	/^  char * ofname;$/;"	m	struct:__anon1	file:
 ofname	cmds/cmd_convert.c	/^  char * ofname;$/;"	m	struct:__anon18	file:
 ofname	cmds/cmd_reorder.c	/^  char * ofname;$/;"	m	struct:__anon16	file:
 open_f	io.h	/^static inline FILE * open_f($/;"	f
 parse_bench_opt	cmds/cmd_bench.c	/^static error_t parse_bench_opt($/;"	f	file:
+parse_check_opt	cmds/cmd_check.c	/^static error_t parse_check_opt($/;"	f	file:
 parse_cmd	cmds/splatt_bin.c	/^static error_t parse_cmd($/;"	f	file:
 parse_convert_opt	cmds/cmd_convert.c	/^static error_t parse_convert_opt($/;"	f	file:
 parse_cpd_opt	cmds/cmd_cpd.c	/^static error_t parse_cpd_opt($/;"	f	file:
@@ -296,7 +306,6 @@ permutation_t	reorder.h	/^} permutation_t;$/;"	t	typeref:struct:__anon14
 pfname	cmds/cmd_bench.c	/^  char * pfname;$/;"	m	struct:__anon20	file:
 pfname	cmds/cmd_reorder.c	/^  char * pfname;$/;"	m	struct:__anon16	file:
 pfname	cmds/cmd_stats.c	/^  char * pfname;$/;"	m	struct:__anon17	file:
-plookup	mpi.h	/^  int * plookup[MAX_NMODES];$/;"	m	struct:__anon1
 print_footer	cmds/splatt_bin.c	/^static inline void print_footer(void)$/;"	f	file:
 print_header	cmds/splatt_cmds.h	/^static inline void print_header(void)$/;"	f
 quicksort	sort.c	/^void quicksort($/;"	f
@@ -325,6 +334,7 @@ splatt_algs	cmds/cmd_bench.c	/^} splatt_algs;$/;"	t	typeref:enum:__anon19	file:
 splatt_args	cmds/splatt_bin.c	/^typedef struct splatt_args$/;"	s	file:
 splatt_args	cmds/splatt_bin.c	/^} splatt_args;$/;"	t	typeref:struct:splatt_args	file:
 splatt_bench	cmds/cmd_bench.c	/^void splatt_bench($/;"	f
+splatt_check	cmds/cmd_check.c	/^void splatt_check($/;"	f
 splatt_cmd	cmds/splatt_cmds.h	/^typedef enum splatt_cmd$/;"	g
 splatt_cmd	cmds/splatt_cmds.h	/^} splatt_cmd;$/;"	t	typeref:enum:splatt_cmd
 splatt_cmds	cmds/splatt_cmds.h	/^static void (*splatt_cmds[CMD_NCMDS]) (int argc, char ** argv) = {$/;"	v
@@ -341,7 +351,7 @@ spmat_free	matrix.c	/^void spmat_free($/;"	f
 spmat_write	io.c	/^void spmat_write($/;"	f
 spmat_write_file	io.c	/^void spmat_write_file($/;"	f
 spmatrix_t	matrix.h	/^} spmatrix_t;$/;"	t	typeref:struct:__anon7
-sptensor_t	sptensor.h	/^} sptensor_t;$/;"	t	typeref:struct:__anon4
+sptensor_t	sptensor.h	/^} sptensor_t;$/;"	t	typeref:struct:__anon2
 sptr	ftensor.h	/^  idx_t * sptr[MAX_NMODES];$/;"	m	struct:__anon12
 start	timer.h	/^  struct timespec start;$/;"	m	struct:__anon10	typeref:struct:__anon10::timespec
 stats_argp	cmds/cmd_stats.c	/^static struct argp stats_argp =$/;"	v	typeref:struct:argp	file:
@@ -362,7 +372,7 @@ tile	bench.h	/^  int tile;$/;"	m	struct:__anon21
 tile	cmds/cmd_bench.c	/^  int tile;$/;"	m	struct:__anon20	file:
 tile	cpd.h	/^  int tile;$/;"	m	struct:__anon15
 tiled	ftensor.h	/^  int tiled;$/;"	m	struct:__anon12
-tiled	sptensor.h	/^  int tiled;      \/** Whether sptensor_t has been tiled. Used by ftensor_t. *\/$/;"	m	struct:__anon4
+tiled	sptensor.h	/^  int tiled;      \/** Whether sptensor_t has been tiled. Used by ftensor_t. *\/$/;"	m	struct:__anon2
 timer_fstart	timer.h	/^static inline void timer_fstart(sp_timer_t * const timer)$/;"	f
 timer_id	timer.h	/^} timer_id;$/;"	t	typeref:enum:__anon11
 timer_names	timer.c	/^static char const * const timer_names[] = {$/;"	v	file:
@@ -373,14 +383,15 @@ timers	timer.c	/^sp_timer_t timers[TIMER_NTIMERS];$/;"	v
 tt_alloc	sptensor.c	/^sptensor_t * tt_alloc($/;"	f
 tt_convert	convert.c	/^void tt_convert($/;"	f
 tt_free	sptensor.c	/^void tt_free($/;"	f
+tt_get_slices	sptensor.c	/^idx_t * tt_get_slices($/;"	f
 tt_perm	reorder.c	/^permutation_t * tt_perm($/;"	f
 tt_read	sptensor.c	/^sptensor_t * tt_read($/;"	f
 tt_read_file	io.c	/^sptensor_t * tt_read_file($/;"	f
-tt_remove_dups	sptensor.c	/^void tt_remove_dups($/;"	f
-tt_remove_empty	sptensor.c	/^void tt_remove_empty($/;"	f
+tt_remove_dups	sptensor.c	/^idx_t tt_remove_dups($/;"	f
+tt_remove_empty	sptensor.c	/^idx_t tt_remove_empty($/;"	f
 tt_sort	sort.c	/^void tt_sort($/;"	f
 tt_tile	tile.c	/^void tt_tile($/;"	f
-tt_type	sptensor.h	/^} tt_type;$/;"	t	typeref:enum:__anon3
+tt_type	sptensor.h	/^} tt_type;$/;"	t	typeref:enum:__anon1
 tt_unfold	sptensor.c	/^spmatrix_t * tt_unfold($/;"	f
 tt_write	io.c	/^void tt_write($/;"	f
 tt_write_file	io.c	/^void tt_write_file($/;"	f
@@ -388,14 +399,14 @@ ttime	thd_info.h	/^  sp_timer_t ttime;$/;"	m	struct:__anon9
 type	cmds/cmd_convert.c	/^  splatt_convert_type type;$/;"	m	struct:__anon18	file:
 type	cmds/cmd_reorder.c	/^  splatt_perm_type type;$/;"	m	struct:__anon16	file:
 type	cmds/cmd_stats.c	/^  splatt_stats_type type;$/;"	m	struct:__anon17	file:
-type	sptensor.h	/^  tt_type type;   \/** Type of tensor represented *\/$/;"	m	struct:__anon4
+type	sptensor.h	/^  tt_type type;   \/** Type of tensor represented *\/$/;"	m	struct:__anon2
 typestr	cmds/cmd_reorder.c	/^  char * typestr;$/;"	m	struct:__anon16	file:
 v	convert.c	/^  idx_t v;$/;"	m	struct:__anon24	file:
 val_t	base.h	14;"	d
 vals	ftensor.h	/^  val_t * vals[MAX_NMODES];$/;"	m	struct:__anon12
 vals	matrix.h	/^  val_t * vals;$/;"	m	struct:__anon7
 vals	matrix.h	/^  val_t *vals;$/;"	m	struct:__anon6
-vals	sptensor.h	/^  val_t * vals;   \/** An array containing the values of each nonzero. *\/$/;"	m	struct:__anon4
+vals	sptensor.h	/^  val_t * vals;   \/** An array containing the values of each nonzero. *\/$/;"	m	struct:__anon2
 vmax	util.h	/^static inline val_t vmax($/;"	f
 vmin	util.h	/^static inline val_t vmin($/;"	f
 vwts	graph.h	/^  idx_t * vwts;$/;"	m	struct:__anon23

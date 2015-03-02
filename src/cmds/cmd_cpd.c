@@ -122,18 +122,16 @@ static void __par_cpd(
   /* determine matrix distribution */
   permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
 
-#if 0
-  /* clean up tensor */
-  tt_remove_dups(tt);
+  /* compress tensor to own local coordinate system */
   tt_remove_empty(tt);
-#endif
 
-  printf("p: %d dim: %lu %lu %lu\n", rinfo.rank, tt->dims[0], tt->dims[1], tt->dims[2]);
+  printf("p: %d dim: %lu %lu %lu\n", rinfo.rank, tt->dims[0], tt->dims[1],
+      tt->dims[2]);
 
-#if 0
   MPI_Barrier(MPI_COMM_WORLD);
   mpi_send_recv_stats(&rinfo, tt);
 
+#if 0
   /* allocate / initialize matrices */
   matrix_t * mats[MAX_NMODES+1];
   idx_t max_dim = 0;
@@ -143,7 +141,7 @@ static void __par_cpd(
       max_dim = tt->dims[m];
     }
   }
-  mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
+intmats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
   mat_free(mats[MAX_NMODES]);
   for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -151,6 +149,7 @@ static void __par_cpd(
   }
 #endif
 
+  perm_free(perm);
   tt_free(tt);
 }
 

@@ -382,51 +382,42 @@ static void __get_dims(
 *
 * @param rinfo The MPI rank information to fill in.
 * @param tt The distributed tensor.
+* @param perm The resulting permutation (set to identity).
 */
 static void __naive_mat_distribution(
   rank_info * const rinfo,
-  sptensor_t const * const tt)
+  sptensor_t const * const tt,
+  permutation_t * const perm)
 {
-  int const rank = rinfo->rank_3d;
+  MPI_Comm lcomm;
+  int lrank;
+  int npes;
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    /* allocate space for start/end idxs */
-    rinfo->mat_ptrs[m] = (idx_t *) calloc(rinfo->npes + 1, sizeof(idx_t));
-    rinfo->plookup[m]  = (int *)   calloc(rinfo->npes,     sizeof(int));
-    idx_t * const mat_ptrs = rinfo->mat_ptrs[m];
-    int * const plookup = rinfo->plookup[m];
+    lcomm = rinfo->layer_comm[m];
+    MPI_Comm_size(lcomm, &npes);
+    MPI_Comm_rank(lcomm, &lrank);
 
     /* slice start/end of layer */
     idx_t const start = rinfo->layer_starts[m];
     idx_t const end = rinfo->layer_ends[m];
 
     /* target nrows = layer_size / npes in a layer */
-    idx_t const psize = (end - start) / (rinfo->np13 * rinfo->np13);
+    idx_t const psize = (end - start) / npes;
 
-    /* map coord within layer to 1D */
-    int const coord1d = rinfo->coords_3d[(m+1)%tt->nmodes] * rinfo->np13 +
-                        rinfo->coords_3d[(m+2)%tt->nmodes];
-    /* relative rank in this mode */
-    int const mode_rank = rinfo->mode_rank[m];
-
-    rinfo->mat_start[m] = start + (coord1d * psize);
-    rinfo->mat_end[m]   = start + ((coord1d + 1) * psize);
+    rinfo->mat_start[m] = lrank * psize;
+    rinfo->mat_end[m]   = (lrank + 1) * psize;
     /* account for being the last process in a layer */
-    if(coord1d == (rinfo->np13 * rinfo->np13) - 1) {
-      rinfo->mat_end[m] = end;
+    if(lrank == npes - 1) {
+      rinfo->mat_end[m] = end - start;
     }
-    mat_ptrs[mode_rank] = start + (coord1d * psize);
-    mat_ptrs[rinfo->npes] = rinfo->global_dims[m];
-    plookup[mode_rank] = rank;
+  }
 
-    /* Doing a reduce instead of a gather lets us set location mode_rank
-     * instead of the rank in this communicator */
-    MPI_Allreduce(MPI_IN_PLACE, mat_ptrs, rinfo->npes, SS_MPI_IDX, MPI_SUM,
-      rinfo->comm_3d);
-    MPI_Allreduce(MPI_IN_PLACE, plookup, rinfo->npes, MPI_INT, MPI_SUM,
-      rinfo->comm_3d);
-
-    assert(rinfo->mat_ptrs[m][mode_rank] == rinfo->mat_start[m]);
-    assert(rinfo->mat_ptrs[m][mode_rank + 1] == rinfo->mat_end[m]);
+  /* set perm to identity */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      perm->perms[m][i] = i;
+      perm->iperms[m][i] = i;
+    }
   }
 }
 
@@ -628,7 +619,7 @@ static void __distribute_u3_rows(
       MPI_Isend(myclaims, nclaimed, SS_MPI_IDX, 0, 0, comm, &req);
       /* now mark as mine */
       for(idx_t i=0; i < nclaimed; ++i) {
-        mine[(*nrows)++] = claimed[i];
+        mine[(*nrows)++] = myclaims[i];
       }
     }
 
@@ -809,8 +800,6 @@ static void __greedy_mat_distribution(
     idx_t rowoffset;
     MPI_Scan(&nrows, &rowoffset, 1, SS_MPI_IDX, MPI_SUM, rinfo->layer_comm[m]);
 
-    //printf("p: %d rows: %lu  internal: %lu\n", rinfo->layer_rank[m], nrows, justme);
-
     /* ensure all rows are accounted for */
     if(rinfo->layer_rank[m] == (rinfo->np13 * rinfo->np13) - 1) {
       assert(rowoffset == rinfo->layer_ends[m] - rinfo->layer_starts[m]);
@@ -818,8 +807,8 @@ static void __greedy_mat_distribution(
     rowoffset -= nrows;
 
     /* assign new labels */
-    idx_t * const restrict newlabels = perm->perms[m];
-    idx_t * const restrict inewlabels = perm->iperms[m];
+    idx_t * const newlabels = perm->perms[m];
+    idx_t * const inewlabels = perm->iperms[m];
     memset(newlabels, 0, layerdim * sizeof(idx_t));
     for(idx_t i=0; i < nrows; ++i) {
       assert(rowoffset+i < layerdim);
@@ -837,8 +826,8 @@ static void __greedy_mat_distribution(
     }
 
     /* store matrix info */
-    rinfo->mat_start[m] = rowoffset + rinfo->layer_starts[m];
-    rinfo->mat_end[m] = rinfo->mat_start[m] + nrows;
+    rinfo->mat_start[m] = rowoffset;
+    rinfo->mat_end[m] = SS_MIN(rinfo->mat_start[m] + nrows, layerdim);
 
     free(inds);
     free(pvols);
@@ -849,6 +838,35 @@ static void __greedy_mat_distribution(
   free(mine);
 }
 
+
+static void __setup_mat_ptrs(
+  rank_info * const rinfo,
+  sptensor_t const * const tt)
+{
+  /* number of procs in layer */
+  int npes;
+  int lrank;
+  MPI_Comm lcomm;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    lcomm = rinfo->layer_comm[m];
+    MPI_Comm_size(lcomm, &npes);
+    MPI_Comm_rank(lcomm, &lrank);
+
+    /* allocate space for start/end idxs */
+    rinfo->mat_ptrs[m] = (idx_t *) calloc(npes + 1, sizeof(idx_t));
+    idx_t * const mat_ptrs = rinfo->mat_ptrs[m];
+
+    mat_ptrs[lrank] = rinfo->mat_start[m];
+    mat_ptrs[npes] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+
+    /* Doing a reduce instead of a gather lets us set location mode_rank
+     * instead of the rank in this communicator */
+    MPI_Allreduce(MPI_IN_PLACE, mat_ptrs, npes, SS_MPI_IDX, MPI_SUM, lcomm);
+
+    assert(rinfo->mat_ptrs[m][lrank] == rinfo->mat_start[m]);
+    assert(rinfo->mat_ptrs[m][lrank + 1] == rinfo->mat_end[m]);
+  }
+}
 
 
 /******************************************************************************
@@ -861,36 +879,43 @@ permutation_t * mpi_distribute_mats(
 {
   permutation_t * perm = perm_alloc(tt->dims, tt->nmodes);
 
-  /* XXX: add perm for naive */
-  //__naive_mat_distribution(rinfo, tt);
+  //__naive_mat_distribution(rinfo, tt, perm);
   __greedy_mat_distribution(rinfo, tt, perm);
+  __setup_mat_ptrs(rinfo, tt);
 
+  perm_apply(tt, perm->perms);
+
+#if 0
   perm_apply(tt, perm->perms);
 
   //tt_remove_dups(tt);
   tt_remove_empty(tt);
 
-  /* XXX: test */
+  /* XXX: put empties back */
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      idx_t const idx = tt->ind[m][n];
-      tt->ind[m][n] = tt->indmap[m][idx];
+    if(tt->indmap[m] == NULL) {
+      continue;
     }
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      tt->ind[m][n] = tt->indmap[m][tt->ind[m][n]];
+    }
+    free(tt->indmap[m]);
+    tt->indmap[m] = NULL;
   }
 
   perm_apply(tt, perm->iperms);
 
-  /* XXX: test */
+  /* XXX: remove -layer_start offset */
   for(idx_t m=0; m < tt->nmodes; ++m) {
     for(idx_t n=0; n < tt->nnz; ++n) {
+      assert(tt->ind[m][n] < rinfo->layer_ends[m] - rinfo->layer_starts[m]);
       tt->ind[m][n] += rinfo->layer_starts[m];
     }
-    tt->indmap[m] = NULL;
   }
 
+  /* try writing */
   __write_part(tt, rinfo->rank);
-
-  MPI_Barrier(MPI_COMM_WORLD);
+#endif
 
   return perm;
 }
@@ -900,24 +925,35 @@ void mpi_send_recv_stats(
   rank_info const * const rinfo,
   sptensor_t const * const tt)
 {
-  int const rank = rinfo->rank_3d;
-  int const size = rinfo->npes;
+  idx_t * psends = NULL;
+  idx_t * precvs = NULL;
 
-  idx_t * psends = (idx_t *) malloc(size * sizeof(idx_t));
-  idx_t * precvs = (idx_t *) malloc(size * sizeof(idx_t));
-
-  if(rank == 0) {
+  if(rinfo->rank == 0) {
     printf("\n\n");
   }
 
+  /* layer-specific MPI info */
+  MPI_Comm comm;
+  int rank;
+  int size;
+
   /* count sends */
   for(idx_t m=0; m < tt->nmodes; ++m) {
+    comm = rinfo->layer_comm[m];
+    MPI_Comm_size(comm, &size);
+    MPI_Comm_rank(comm, &rank);
+
+    psends = (idx_t *) realloc(psends, size * sizeof(idx_t));
+    precvs = (idx_t *) realloc(precvs, size * sizeof(idx_t));
+
+    assert(psends != NULL);
+    assert(precvs != NULL);
+
     memset(psends, 0, size * sizeof(idx_t));
     memset(precvs, 0, size * sizeof(idx_t));
 
     idx_t const max_sends = tt->dims[m];
     idx_t const max_recvs = tt->dims[m] * size;
-
 
     idx_t sends = 0;
     idx_t recvs = 0;
@@ -929,11 +965,17 @@ void mpi_send_recv_stats(
 
     for(idx_t i=0; i < tt->dims[m]; ++i) {
       /* grab global index */
-      idx_t const gi = tt->indmap[m][i];
+      idx_t gi = i;
+      if(tt->indmap[m] != NULL) {
+        gi = tt->indmap[m][i];
+      }
+      assert(gi >= mat_ptrs[0]);
+      assert(gi < mat_ptrs[size]);
 
       /* move to the next processor if necessary */
       while(gi >= mat_ptrs[pdest+1]) {
         ++pdest;
+        assert(pdest < size);
       }
 
       assert(pdest < size);
@@ -941,20 +983,20 @@ void mpi_send_recv_stats(
       assert(gi < mat_ptrs[pdest+1]);
 
       /* if it is non-local */
-      if(pdest != rinfo->mode_rank[m]) {
-        /* get the actual rank from its mode-relative one */
-        int const rank_dest = rinfo->plookup[m][pdest];
-        precvs[rank_dest] += 1;
+      if(pdest != rank) {
+        precvs[pdest] += 1;
         ++sends;
       } else {
         ++local_rows;
       }
     }
 
-    MPI_Allreduce(MPI_IN_PLACE, precvs, size, SS_MPI_IDX, MPI_SUM,
-        rinfo->comm_3d);
+    MPI_Allreduce(MPI_IN_PLACE, precvs, size, SS_MPI_IDX, MPI_SUM, comm);
 
+    assert(rank < size);
     recvs = precvs[rank];
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     double relsend = 100. * (double) sends / (double) max_sends;
     double relrecv = 100. * (double) recvs / (double) max_recvs;
