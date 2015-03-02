@@ -64,7 +64,7 @@ idx_t * tt_get_slices(
 }
 
 
-void tt_remove_dups(
+idx_t tt_remove_dups(
   sptensor_t * const tt)
 {
   tt_sort(tt, 0, NULL);
@@ -81,23 +81,30 @@ void tt_remove_dups(
       }
     }
     if(same) {
+      printf("DUPLICATE NONZERO: ");
       tt->vals[n] = (tt->vals[n] + tt->vals[n+1]) / 2;
       for(idx_t m=0; m < nmodes; ++m) {
+        printf("%"SS_IDX" ", tt->ind[m][n]);
         memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]),
           (nnz-n-1)*sizeof(idx_t));
       }
       --n;
       nnz -= 1;
+      printf("\n");
     }
   }
+  idx_t const diff = tt->nnz - nnz;
   tt->nnz = nnz;
+  return diff;
 }
 
 
-void tt_remove_empty(
+idx_t tt_remove_empty(
   sptensor_t * const tt)
 {
   idx_t dim_sizes[MAX_NMODES];
+
+  idx_t nremoved = 0;
 
   /* Allocate indmap */
   idx_t const nmodes = tt->nmodes;
@@ -128,6 +135,8 @@ void tt_remove_empty(
       continue;
     }
 
+    nremoved += tt->dims[m] - dim_sizes[m];
+
     /* Now scan to remove empty slices */
     idx_t ptr = 0;
     for(idx_t i=0; i < tt->dims[m]; ++i) {
@@ -150,18 +159,18 @@ void tt_remove_empty(
   }
 
   free(scounts);
+  return nremoved;
 }
 
 
+
+/******************************************************************************
+ * PUBLIC FUNCTONS
+ *****************************************************************************/
 sptensor_t * tt_read(
   char const * const ifname)
 {
   sptensor_t * tt = tt_read_file(ifname);
-
-  /* remove duplicates and empty slices */
-  tt_remove_dups(tt);
-  tt_remove_empty(tt);
-
   return tt;
 }
 

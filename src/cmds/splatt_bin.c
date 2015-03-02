@@ -31,6 +31,8 @@ static splatt_cmd read_cmd(char const * const str)
     cmd = CMD_CPD;
   } else if(strcmp(str, "bench") == 0) {
     cmd = CMD_BENCH;
+  } else if(strcmp(str, "check") == 0) {
+    cmd = CMD_CHECK;
   } else if(strcmp(str, "convert") == 0) {
     cmd = CMD_CONVERT;
   } else if(strcmp(str, "reorder") == 0) {

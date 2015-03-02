@@ -19,6 +19,7 @@ static char cmd_doc[] =
   "The available commands are:\n"
   "  cpd\t\tCompute the Canonical Polyadic Decomposition\n"
   "  bench\t\tBenchmark MTTKRP algorithms\n"
+  "  check\t\tCheck a tensor file for correctness.\n"
   "  convert\tConvert a tensor to different formats\n"
   "  reorder\t\tReorder a tensor using one of several methods\n"
   "  stats\t\tPrint tensor statistics\n"
@@ -44,6 +45,7 @@ static inline void cmd_not_implemented(int argc, char ** argv)
 /* prototypes */
 void splatt_cpd(int argc, char ** argv);
 void splatt_bench(int argc, char ** argv);
+void splatt_check(int argc, char ** argv);
 void splatt_convert(int argc, char ** argv);
 void splatt_reorder(int argc, char ** argv);
 void splatt_stats(int argc, char ** argv);
@@ -53,6 +55,7 @@ typedef enum splatt_cmd
 {
   CMD_CPD,
   CMD_BENCH,
+  CMD_CHECK,
   CMD_CONVERT,
   CMD_REORDER,
   CMD_STATS,
@@ -65,6 +68,7 @@ typedef enum splatt_cmd
 static void (*splatt_cmds[CMD_NCMDS]) (int argc, char ** argv) = {
   [CMD_CPD]     = splatt_cpd,
   [CMD_BENCH]   = splatt_bench,
+  [CMD_CHECK]   = splatt_check,
   [CMD_CONVERT] = splatt_convert,
   [CMD_REORDER] = splatt_reorder,
   [CMD_STATS]   = splatt_stats,
