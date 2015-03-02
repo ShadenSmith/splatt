@@ -80,7 +80,7 @@ void splatt_check(
     printf("NO ERRORS FOUND.\n");
   } else {
     printf("%"SS_IDX " DUPLICATES FOUND.\n", rnnz);
-    printf("%"SS_IDX " EMPTY SILCES FOUND.\n", rslices);
+    printf("%"SS_IDX " EMPTY SLICES FOUND.\n", rslices);
 
     if(args.fix == 1) {
       /* write fixed tensor */
