@@ -114,9 +114,6 @@ static void __par_cpd(
   }
   MPI_Barrier(MPI_COMM_WORLD);
 
-  printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],
-      tt->dims[2], tt->nnz);
-
   MPI_Barrier(MPI_COMM_WORLD);
 
   /* determine matrix distribution */
@@ -125,26 +122,35 @@ static void __par_cpd(
   /* compress tensor to own local coordinate system */
   tt_remove_empty(tt);
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  mpi_send_recv_stats(&rinfo, tt);
-
 #if 0
+  printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],
+      tt->dims[2], tt->nnz);
+  mpi_send_recv_stats(&rinfo, tt);
+#endif
+
   /* allocate / initialize matrices */
   matrix_t * mats[MAX_NMODES+1];
+  matrix_t * globmats[MAX_NMODES];
   idx_t max_dim = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    mats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m] - 1, args.rank);
+    /* for multiplication */
+    mats[m] = mat_alloc(tt->dims[m], args.rank);
+
+    /* for actual factor matrix */
+    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m], rank);
+
     if(tt->dims[m] > max_dim) {
       max_dim = tt->dims[m];
     }
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
+
   mat_free(mats[MAX_NMODES]);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mat_free(mats[m]);
+    mat_free(globmats[m]);
   }
-#endif
 
   rank_free(rinfo, tt->nmodes);
   perm_free(perm);

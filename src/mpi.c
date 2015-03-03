@@ -714,6 +714,7 @@ static void __fill_volume_stats(
       break;
     }
   }
+#if 0
   if(rinfo->layer_rank[m] == 0) {
     double pavg = (double) tot / (double) ldim;
     double pct1 = 100. * (double) rconns[0] / ldim;
@@ -723,6 +724,7 @@ static void __fill_volume_stats(
       rinfo->coords_3d[m], pavg, rconns[0], pct1, rconns[1], pct2,
       rconns[2], pct3);
   }
+#endif
 }
 
 
@@ -906,9 +908,10 @@ permutation_t * mpi_distribute_mats(
   perm_apply(tt, perm->perms);
 
 #if 0
-  /* try writing */
   __write_part(tt, perm, rinfo);
 #endif
+
+  MPI_Barrier(MPI_COMM_WORLD);
 
   return perm;
 }
