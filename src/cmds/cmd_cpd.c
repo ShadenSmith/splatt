@@ -125,9 +125,6 @@ static void __par_cpd(
   /* compress tensor to own local coordinate system */
   tt_remove_empty(tt);
 
-  printf("p: %d dim: %lu %lu %lu\n", rinfo.rank, tt->dims[0], tt->dims[1],
-      tt->dims[2]);
-
   MPI_Barrier(MPI_COMM_WORLD);
   mpi_send_recv_stats(&rinfo, tt);
 

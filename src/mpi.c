@@ -806,9 +806,10 @@ static void __greedy_mat_distribution(
     }
     rowoffset -= nrows;
 
-    /* assign new labels */
-    idx_t * const newlabels = perm->perms[m];
-    idx_t * const inewlabels = perm->iperms[m];
+    /* assign new labels - IPERM is easier to fill first.
+     * newlabels[newindex] = oldindex */
+    idx_t * const newlabels = perm->iperms[m];
+    idx_t * const inewlabels = perm->perms[m];
     memset(newlabels, 0, layerdim * sizeof(idx_t));
     for(idx_t i=0; i < nrows; ++i) {
       assert(rowoffset+i < layerdim);
@@ -819,7 +820,7 @@ static void __greedy_mat_distribution(
     MPI_Allreduce(MPI_IN_PLACE, newlabels, layerdim, SS_MPI_IDX, MPI_SUM,
         rinfo->layer_comm[m]);
 
-    /* fill inverse labels: inewlabels[oldlayerindex] = newlayerindex */
+    /* fill perm: inewlabels[oldlayerindex] = newlayerindex */
     for(idx_t i=0; i < layerdim; ++i) {
       assert(newlabels[i] < layerdim);
       inewlabels[newlabels[i]] = i;
@@ -879,15 +880,17 @@ permutation_t * mpi_distribute_mats(
 {
   permutation_t * perm = perm_alloc(tt->dims, tt->nmodes);
 
-  //__naive_mat_distribution(rinfo, tt, perm);
+#if 0
+  __naive_mat_distribution(rinfo, tt, perm);
+#else
   __greedy_mat_distribution(rinfo, tt, perm);
+#endif
+
   __setup_mat_ptrs(rinfo, tt);
 
   perm_apply(tt, perm->perms);
 
 #if 0
-  perm_apply(tt, perm->perms);
-
   //tt_remove_dups(tt);
   tt_remove_empty(tt);
 
@@ -1001,13 +1004,13 @@ void mpi_send_recv_stats(
     double relsend = 100. * (double) sends / (double) max_sends;
     double relrecv = 100. * (double) recvs / (double) max_recvs;
     double pct_local = 100. * (double) local_rows / (double) tt->dims[m];
-    printf("p: %d -> %d,%d,%d\t\tsends: %3lu (max: %3lu  %4.1f%%)\t"
+    printf("p: %d\tsends: %3lu (max: %3lu  %4.1f%%)\t"
                     "ratio: %0.1fx\t"
                     "recvs: %3lu (max: %3lu  %4.1f%%)\t"
                     "ratio: %0.1fx\t"
                     "local: %6lu (%4.1f%%)\n",
         rinfo->rank_3d,
-        rinfo->coords_3d[0], rinfo->coords_3d[1], rinfo->coords_3d[2],
+        //rinfo->coords_3d[0], rinfo->coords_3d[1], rinfo->coords_3d[2],
         sends, max_sends, relsend,
         3. * (double) tt->nnz / (double) sends,
         recvs, max_recvs, relrecv,
