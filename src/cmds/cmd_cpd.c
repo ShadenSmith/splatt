@@ -146,6 +146,7 @@ static void __par_cpd(
   }
 #endif
 
+  rank_free(rinfo, tt->nmodes);
   perm_free(perm);
   tt_free(tt);
 }

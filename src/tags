@@ -315,6 +315,7 @@ rank	cmds/cmd_bench.c	/^  idx_t rank;$/;"	m	struct:__anon20	file:
 rank	cpd.h	/^  idx_t rank;$/;"	m	struct:__anon15
 rank	mpi.h	/^  int rank;$/;"	m	struct:__anon1
 rank_3d	mpi.h	/^  int rank_3d;$/;"	m	struct:__anon1
+rank_free	mpi.c	/^void rank_free($/;"	f
 rank_info	mpi.h	/^} rank_info;$/;"	t	typeref:struct:__anon1
 read_cmd	cmds/splatt_bin.c	/^static splatt_cmd read_cmd(char const * const str)$/;"	f	file:
 report_times	timer.c	/^void report_times(void)$/;"	f

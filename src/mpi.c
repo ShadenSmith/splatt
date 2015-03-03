@@ -153,6 +153,8 @@ static idx_t __count_my_nnz(
   }
   fclose(fin);
 
+  free(line);
+
   return mynnz;
 }
 
@@ -201,6 +203,7 @@ static void __read_tt_part(
     }
   }
   fclose(fin);
+  free(line);
 }
 
 
@@ -309,6 +312,8 @@ static void __fill_ssizes(
   }
   fclose(fin);
 
+  free(line);
+
   /* reduce to get total slice counts */
   for(idx_t m=0; m < nmodes; ++m) {
     MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) dims[m], SS_MPI_IDX, MPI_SUM,
@@ -382,6 +387,8 @@ static void __get_dims(
   }
   *outnnz = nnz;
   *outnmodes = nmodes;
+
+  free(line);
 
   fclose(fin);
 }
@@ -1100,4 +1107,14 @@ sptensor_t * mpi_tt_read(
 }
 
 
+void rank_free(
+  rank_info rinfo,
+  idx_t const nmodes)
+{
+  MPI_Comm_free(&rinfo.comm_3d);
+  for(idx_t m=0; m < nmodes; ++m) {
+    free(rinfo.mat_ptrs[m]);
+    MPI_Comm_free(&rinfo.layer_comm[m]);
+  }
+}
 

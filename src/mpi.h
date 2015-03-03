@@ -107,4 +107,16 @@ void mpi_send_recv_stats(
   rank_info const * const rinfo,
   sptensor_t const * const tt);
 
+
+/**
+* @brief Free structures allocated inside rank_info.
+*
+* @param rinfo The rank structure to free.
+* @param nmodes The number of modes that have been allocated.
+*/
+void rank_free(
+  rank_info rinfo,
+  idx_t const nmodes);
+
+
 #endif
