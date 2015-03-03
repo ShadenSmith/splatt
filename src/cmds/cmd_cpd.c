@@ -138,7 +138,7 @@ static void __par_cpd(
       max_dim = tt->dims[m];
     }
   }
-intmats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
+  mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
   mat_free(mats[MAX_NMODES]);
   for(idx_t m=0; m < tt->nmodes; ++m) {

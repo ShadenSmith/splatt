@@ -30,24 +30,36 @@ static int const MSG_UPDATES   = 5;
 *        global.
 *
 * @param tt The tensor to write.
+* @param perm Any permutations that have been done on the tensor
+*             (before compression).
+* @param rinfo MPI rank information.
 */
 static void __write_part(
   sptensor_t const * const tt,
-  int const rank)
+  permutation_t const * const perm,
+  rank_info const * const rinfo)
 {
-  /* each process outputs their own view of X for testing */
+  /* file name is <rank>.part */
   char name[256];
-  sprintf(name, "%d.part", rank);
+  sprintf(name, "%d.part", rinfo->rank);
+
   FILE * fout = open_f(name, "w");
   for(idx_t n=0; n < tt->nnz; ++n) {
     for(idx_t m=0; m < tt->nmodes; ++m) {
+      /* map idx to original global coordinate */
+      idx_t idx = tt->ind[m][n];
       if(tt->indmap[m] != NULL) {
-        fprintf(fout, "%lu\t", 1+tt->indmap[m][tt->ind[m][n]]);
-      } else {
-        fprintf(fout, "%lu\t", 1+tt->ind[m][n]);
+        idx = tt->indmap[m][idx];
       }
+      if(perm->iperms[m] != NULL) {
+        idx = perm->iperms[m][idx];
+      }
+      idx += rinfo->layer_starts[m];
+
+      /* write index */
+      fprintf(fout, "%"SS_IDX" ", 1+idx);
     }
-    fprintf(fout, "%d\n", (int) tt->vals[n]);
+    fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
   }
   fclose(fout);
 }
@@ -880,44 +892,15 @@ permutation_t * mpi_distribute_mats(
 {
   permutation_t * perm = perm_alloc(tt->dims, tt->nmodes);
 
-#if 0
-  __naive_mat_distribution(rinfo, tt, perm);
-#else
   __greedy_mat_distribution(rinfo, tt, perm);
-#endif
 
   __setup_mat_ptrs(rinfo, tt);
 
   perm_apply(tt, perm->perms);
 
 #if 0
-  //tt_remove_dups(tt);
-  tt_remove_empty(tt);
-
-  /* XXX: put empties back */
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    if(tt->indmap[m] == NULL) {
-      continue;
-    }
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      tt->ind[m][n] = tt->indmap[m][tt->ind[m][n]];
-    }
-    free(tt->indmap[m]);
-    tt->indmap[m] = NULL;
-  }
-
-  perm_apply(tt, perm->iperms);
-
-  /* XXX: remove -layer_start offset */
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      assert(tt->ind[m][n] < rinfo->layer_ends[m] - rinfo->layer_starts[m]);
-      tt->ind[m][n] += rinfo->layer_starts[m];
-    }
-  }
-
   /* try writing */
-  __write_part(tt, rinfo->rank);
+  __write_part(tt, perm, rinfo);
 #endif
 
   return perm;
