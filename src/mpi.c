@@ -914,7 +914,37 @@ void mpi_cpd(
   MPI_Barrier(rinfo->comm_3d);
   timer_start(&timers[TIMER_CPD]);
 
+  idx_t const nfactors = opts->rank;
 
+  idx_t maxsends = 0;
+  idx_t maxrecvs = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    maxsends = SS_MAX(maxsends, rinfo->sends[m]);
+    maxrecvs = SS_MAX(maxrecvs, rinfo->recvs[m]);
+  }
+
+  val_t * gsendbuf = (val_t *) malloc(maxsends * nfactors * sizeof(val_t));
+  val_t * grecvbuf = (val_t *) malloc(maxrecvs * nfactors * sizeof(val_t));
+
+  /* exchange initial matrices */
+  for(idx_t m=1; m < tt->nmodes; ++m) {
+    /* copy my portion of the global matrix into a buffer */
+    idx_t idx = 0;
+    for(idx_t s=0; s < rinfo->sends[m]; ++s) {
+      idx_t const row = rinfo->isend[m][s];
+      for(idx_t r=0; r < nfactors; ++r) {
+        gsendbuf[idx++] = globmats[m]->vals[r+(row*nfactors)];
+      }
+    }
+
+    /* exchange rows */
+    MPI_Alltoallv(gsendbuf, rinfo->isendptr[m], rinfo->isenddisp[m], SS_MPI_VAL,
+                  grecvbuf, rinfo->ineedptr[m], rinfo->ineeddisp[m], SS_MPI_VAL,
+                  rinfo->layer_comm[m]);
+  }
+
+  free(gsendbuf);
+  free(grecvbuf);
 
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_CPD]);

@@ -33,12 +33,12 @@ typedef struct
 
   idx_t sends[MAX_NMODES];
   idx_t recvs[MAX_NMODES];
+  idx_t * ineed[MAX_NMODES]; /** indices I need from each rank in layer */
+  idx_t * isend[MAX_NMODES]; /** indices I must send to each rank in layer */
   int * ineedptr[MAX_NMODES];
   int * isendptr[MAX_NMODES];
   int * ineeddisp[MAX_NMODES];
   int * isenddisp[MAX_NMODES];
-  idx_t * ineed[MAX_NMODES];
-  idx_t * isend[MAX_NMODES];
 
 
   /* Communicators */

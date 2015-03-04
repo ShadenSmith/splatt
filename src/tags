@@ -216,13 +216,13 @@ ifname	cpd.h	/^  char * ifname;$/;"	m	struct:__anon1
 ind	sptensor.h	/^  idx_t ** ind;   \/** An m x nnz matrix containing the coordinates of each$/;"	m	struct:__anon2
 indmap	sptensor.h	/^  idx_t * indmap[MAX_NMODES]; \/** Maps local -> global indices. *\/$/;"	m	struct:__anon2
 inds	ftensor.h	/^  idx_t * inds[MAX_NMODES];$/;"	m	struct:__anon12
-ineed	mpi.h	/^  idx_t * ineed[MAX_NMODES];$/;"	m	struct:__anon1
+ineed	mpi.h	/^  idx_t * ineed[MAX_NMODES]; \/** indices I need from each rank in layer *\/$/;"	m	struct:__anon1
 ineeddisp	mpi.h	/^  int * ineeddisp[MAX_NMODES];$/;"	m	struct:__anon1
 ineedptr	mpi.h	/^  int * ineedptr[MAX_NMODES];$/;"	m	struct:__anon1
 init_timers	timer.c	/^void init_timers(void)$/;"	f
 insertion_sort	sort.c	/^void insertion_sort($/;"	f
 iperms	reorder.h	/^  idx_t * iperms[MAX_NMODES];$/;"	m	struct:__anon14
-isend	mpi.h	/^  idx_t * isend[MAX_NMODES];$/;"	m	struct:__anon1
+isend	mpi.h	/^  idx_t * isend[MAX_NMODES]; \/** indices I must send to each rank in layer *\/$/;"	m	struct:__anon1
 isenddisp	mpi.h	/^  int * isenddisp[MAX_NMODES];$/;"	m	struct:__anon1
 isendptr	mpi.h	/^  int * isendptr[MAX_NMODES];$/;"	m	struct:__anon1
 kvp_t	convert.c	/^} kvp_t;$/;"	t	typeref:struct:__anon24	file:
