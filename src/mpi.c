@@ -5,6 +5,7 @@
 #include "mpi.h"
 #include "io.h"
 #include "sort.h"
+#include "timer.h"
 #include <string.h>
 #include <math.h>
 
@@ -861,6 +862,14 @@ static void __greedy_mat_distribution(
 }
 
 
+
+/**
+* @brief Allocate + fill mat_ptrs, an array marking the start index for each
+*        rank. Indices are local to the layer.
+*
+* @param rinfo The structure containing MPI information.
+* @param tt The tensor we are operating on.
+*/
 static void __setup_mat_ptrs(
   rank_info * const rinfo,
   sptensor_t const * const tt)
@@ -894,6 +903,142 @@ static void __setup_mat_ptrs(
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
+
+void mpi_cpd(
+  sptensor_t * const tt,
+  matrix_t ** mats,
+  matrix_t ** globmats,
+  rank_info * const rinfo,
+  cpd_opts const * const opts)
+{
+  MPI_Barrier(rinfo->comm_3d);
+  timer_start(&timers[TIMER_CPD]);
+
+
+
+  MPI_Barrier(rinfo->comm_3d);
+  timer_stop(&timers[TIMER_CPD]);
+}
+
+
+void mpi_compute_ineed(
+  rank_info * const rinfo,
+  sptensor_t const * const tt)
+{
+  int size;
+  int rank;
+  MPI_Comm comm;
+
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    comm = rinfo->layer_comm[m];
+    MPI_Comm_size(comm, &size);
+    MPI_Comm_rank(comm, &rank);
+
+    rinfo->ineedptr[m] = (int *) calloc(size+1, sizeof(int));
+    rinfo->isendptr[m] = (int *) malloc((size+1) * sizeof(int));
+    int * const ineedptr = rinfo->ineedptr[m];
+    int * const isendptr = rinfo->isendptr[m];
+    idx_t const * const mat_ptrs = rinfo->mat_ptrs[m];
+
+    int pdest = 0;
+    idx_t recvs = 0;
+    idx_t sends = 0;
+
+    /* count recvs for each process */
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      /* grab global index */
+      idx_t gi = i;
+      if(tt->indmap[m] != NULL) {
+        gi = tt->indmap[m][i];
+      }
+      assert(gi >= mat_ptrs[0]);
+      assert(gi < mat_ptrs[size]);
+
+      /* move to the next processor if necessary */
+      while(gi >= mat_ptrs[pdest+1]) {
+        ++pdest;
+        assert(pdest < size);
+      }
+
+      assert(pdest < size);
+      assert(gi >= mat_ptrs[pdest]);
+      assert(gi < mat_ptrs[pdest+1]);
+
+      /* if it is non-local */
+      if(pdest != rank) {
+        ineedptr[pdest] += 1;
+        ++recvs;
+      }
+    }
+
+    /* communicate ineedptr and store in isendptr */
+    MPI_Alltoall(ineedptr, 1, MPI_INT, isendptr, 1, MPI_INT, comm);
+
+    /* total number of sends */
+    for(int p=0; p < size; ++p) {
+      sends += isendptr[p];
+    }
+
+    rinfo->ineed[m] = (idx_t *) malloc(recvs * sizeof(idx_t));
+    rinfo->isend[m] = (idx_t *) malloc(sends * sizeof(idx_t));
+    rinfo->sends[m] = sends;
+    rinfo->recvs[m] = recvs;
+    idx_t * const ineed = rinfo->ineed[m];
+    idx_t * const isend = rinfo->isend[m];
+
+    /* fill ineed */
+    recvs = 0;
+    pdest = 0;
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      /* grab global index */
+      idx_t gi = i;
+      if(tt->indmap[m] != NULL) {
+        gi = tt->indmap[m][i];
+      }
+      assert(gi >= mat_ptrs[0]);
+      assert(gi < mat_ptrs[size]);
+
+      /* move to the next processor if necessary */
+      while(gi >= mat_ptrs[pdest+1]) {
+        ++pdest;
+        assert(pdest < size);
+      }
+
+      assert(pdest < size);
+      assert(gi >= mat_ptrs[pdest]);
+      assert(gi < mat_ptrs[pdest+1]);
+
+      /* if it is non-local */
+      if(pdest != rank) {
+        ineed[recvs++] = gi;
+      }
+    }
+
+    rinfo->ineeddisp[m] = (int *) malloc(size * sizeof(int));
+    rinfo->isenddisp[m] = (int *) malloc(size * sizeof(int));
+    int * const ineeddisp = rinfo->ineeddisp[m];
+    int * const isenddisp = rinfo->isenddisp[m];
+
+    ineeddisp[0] = 0;
+    isenddisp[0] = 0;
+    for(int p=1; p < size; ++p) {
+      ineeddisp[p] = ineeddisp[p-1] + ineedptr[p-1];
+      isenddisp[p] = isenddisp[p-1] + isendptr[p-1];
+    }
+
+    assert((int)sends == isenddisp[size-1] + isendptr[size-1]);
+
+    /* communicate indices */
+    MPI_Alltoallv(ineed, ineedptr, ineeddisp, SS_MPI_IDX, isend, isendptr,
+        isenddisp, SS_MPI_IDX, comm);
+
+    for(idx_t i=0; i < sends; ++i) {
+      assert(isend[i] >= rinfo->mat_start[m]);
+      assert(isend[i] < rinfo->mat_end[m]);
+    }
+  }
+}
+
 
 permutation_t * mpi_distribute_mats(
   rank_info * const rinfo,
@@ -1072,6 +1217,7 @@ sptensor_t * mpi_tt_read(
   char const * const ifname,
   rank_info * const rinfo)
 {
+  timer_start(&timers[TIMER_IO]);
   int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -1106,6 +1252,8 @@ sptensor_t * mpi_tt_read(
     }
   }
 
+  timer_stop(&timers[TIMER_IO]);
+
   return tt;
 }
 
@@ -1116,6 +1264,12 @@ void rank_free(
 {
   MPI_Comm_free(&rinfo.comm_3d);
   for(idx_t m=0; m < nmodes; ++m) {
+    free(rinfo.ineedptr[m]);
+    free(rinfo.isendptr[m]);
+    free(rinfo.ineeddisp[m]);
+    free(rinfo.isenddisp[m]);
+    free(rinfo.ineed[m]);
+    free(rinfo.isend[m]);
     free(rinfo.mat_ptrs[m]);
     MPI_Comm_free(&rinfo.layer_comm[m]);
   }

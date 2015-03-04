@@ -69,20 +69,21 @@ STATS_BASIC	stats.h	/^  STATS_BASIC,    \/** Dimensions, nonzero count, and dens
 STATS_ERROR	stats.h	/^  STATS_ERROR,$/;"	e	enum:__anon5
 STATS_HPARTS	stats.h	/^  STATS_HPARTS,   \/** Hypergraph partitioning information. Requires MODE *\/$/;"	e	enum:__anon5
 TILE_SIZES	tile.h	/^static idx_t const TILE_SIZES[] = { 2048, 2048, 2048 };$/;"	v
-TIMER_ALL	timer.h	/^  TIMER_ALL,$/;"	e	enum:__anon11
-TIMER_CONVERT	timer.h	/^  TIMER_CONVERT,$/;"	e	enum:__anon11
-TIMER_DFACTO	timer.h	/^  TIMER_DFACTO,$/;"	e	enum:__anon11
-TIMER_GIGA	timer.h	/^  TIMER_GIGA,$/;"	e	enum:__anon11
-TIMER_INV	timer.h	/^  TIMER_INV,$/;"	e	enum:__anon11
-TIMER_IO	timer.h	/^  TIMER_IO,$/;"	e	enum:__anon11
-TIMER_MISC	timer.h	/^  TIMER_MISC,$/;"	e	enum:__anon11
-TIMER_MTTKRP	timer.h	/^  TIMER_MTTKRP,$/;"	e	enum:__anon11
-TIMER_NTIMERS	timer.h	/^  TIMER_NTIMERS$/;"	e	enum:__anon11
-TIMER_REORDER	timer.h	/^  TIMER_REORDER,$/;"	e	enum:__anon11
-TIMER_SORT	timer.h	/^  TIMER_SORT,$/;"	e	enum:__anon11
-TIMER_SPLATT	timer.h	/^  TIMER_SPLATT,$/;"	e	enum:__anon11
-TIMER_TILE	timer.h	/^  TIMER_TILE,$/;"	e	enum:__anon11
-TIMER_TTBOX	timer.h	/^  TIMER_TTBOX,$/;"	e	enum:__anon11
+TIMER_ALL	timer.h	/^  TIMER_ALL,$/;"	e	enum:__anon2
+TIMER_CONVERT	timer.h	/^  TIMER_CONVERT,$/;"	e	enum:__anon2
+TIMER_CPD	timer.h	/^  TIMER_CPD,$/;"	e	enum:__anon2
+TIMER_DFACTO	timer.h	/^  TIMER_DFACTO,$/;"	e	enum:__anon2
+TIMER_GIGA	timer.h	/^  TIMER_GIGA,$/;"	e	enum:__anon2
+TIMER_INV	timer.h	/^  TIMER_INV,$/;"	e	enum:__anon2
+TIMER_IO	timer.h	/^  TIMER_IO,$/;"	e	enum:__anon2
+TIMER_MISC	timer.h	/^  TIMER_MISC,$/;"	e	enum:__anon2
+TIMER_MTTKRP	timer.h	/^  TIMER_MTTKRP,$/;"	e	enum:__anon2
+TIMER_NTIMERS	timer.h	/^  TIMER_NTIMERS$/;"	e	enum:__anon2
+TIMER_REORDER	timer.h	/^  TIMER_REORDER,$/;"	e	enum:__anon2
+TIMER_SORT	timer.h	/^  TIMER_SORT,$/;"	e	enum:__anon2
+TIMER_SPLATT	timer.h	/^  TIMER_SPLATT,$/;"	e	enum:__anon2
+TIMER_TILE	timer.h	/^  TIMER_TILE,$/;"	e	enum:__anon2
+TIMER_TTBOX	timer.h	/^  TIMER_TTBOX,$/;"	e	enum:__anon2
 TT_TILE	cmds/cmd_bench.c	64;"	d	file:
 TT_TILE	cmds/cmd_cpd.c	21;"	d	file:
 _GNU_SOURCE	base.h	6;"	d
@@ -180,7 +181,7 @@ cpd_argp	cmds/cmd_cpd.c	/^static struct argp cpd_argp =$/;"	v	typeref:struct:arg
 cpd_args_doc	cmds/cmd_cpd.c	/^static char cpd_args_doc[] = "TENSOR";$/;"	v	file:
 cpd_doc	cmds/cmd_cpd.c	/^static char cpd_doc[] =$/;"	v	file:
 cpd_options	cmds/cmd_cpd.c	/^static struct argp_option cpd_options[] = {$/;"	v	typeref:struct:argp_option	file:
-cpd_opts	cpd.h	/^} cpd_opts;$/;"	t	typeref:struct:__anon15
+cpd_opts	cpd.h	/^} cpd_opts;$/;"	t	typeref:struct:__anon1
 dim_perms	ftensor.h	/^  idx_t dim_perms[MAX_NMODES][MAX_NMODES];$/;"	m	struct:__anon12
 dims	ftensor.h	/^  idx_t dims[MAX_NMODES];$/;"	m	struct:__anon12
 dims	sptensor.h	/^  idx_t * dims;   \/** An array containing the dimension of each mode. *\/$/;"	m	struct:__anon2
@@ -211,13 +212,19 @@ ifname	cmds/cmd_check.c	/^  char * ifname;$/;"	m	struct:__anon1	file:
 ifname	cmds/cmd_convert.c	/^  char * ifname;$/;"	m	struct:__anon18	file:
 ifname	cmds/cmd_reorder.c	/^  char * ifname;$/;"	m	struct:__anon16	file:
 ifname	cmds/cmd_stats.c	/^  char * ifname;$/;"	m	struct:__anon17	file:
-ifname	cpd.h	/^  char * ifname;$/;"	m	struct:__anon15
+ifname	cpd.h	/^  char * ifname;$/;"	m	struct:__anon1
 ind	sptensor.h	/^  idx_t ** ind;   \/** An m x nnz matrix containing the coordinates of each$/;"	m	struct:__anon2
 indmap	sptensor.h	/^  idx_t * indmap[MAX_NMODES]; \/** Maps local -> global indices. *\/$/;"	m	struct:__anon2
 inds	ftensor.h	/^  idx_t * inds[MAX_NMODES];$/;"	m	struct:__anon12
+ineed	mpi.h	/^  idx_t * ineed[MAX_NMODES];$/;"	m	struct:__anon1
+ineeddisp	mpi.h	/^  int * ineeddisp[MAX_NMODES];$/;"	m	struct:__anon1
+ineedptr	mpi.h	/^  int * ineedptr[MAX_NMODES];$/;"	m	struct:__anon1
 init_timers	timer.c	/^void init_timers(void)$/;"	f
 insertion_sort	sort.c	/^void insertion_sort($/;"	f
 iperms	reorder.h	/^  idx_t * iperms[MAX_NMODES];$/;"	m	struct:__anon14
+isend	mpi.h	/^  idx_t * isend[MAX_NMODES];$/;"	m	struct:__anon1
+isenddisp	mpi.h	/^  int * isenddisp[MAX_NMODES];$/;"	m	struct:__anon1
+isendptr	mpi.h	/^  int * isendptr[MAX_NMODES];$/;"	m	struct:__anon1
 kvp_t	convert.c	/^} kvp_t;$/;"	t	typeref:struct:__anon24	file:
 layer_comm	mpi.h	/^  MPI_Comm layer_comm[MAX_NMODES];$/;"	m	struct:__anon1
 layer_ends	mpi.h	/^  idx_t layer_ends[MAX_NMODES];$/;"	m	struct:__anon1
@@ -244,6 +251,8 @@ mode	cmds/cmd_convert.c	/^  idx_t mode;$/;"	m	struct:__anon18	file:
 mode	cmds/cmd_reorder.c	/^  idx_t mode;$/;"	m	struct:__anon16	file:
 mode	cmds/cmd_stats.c	/^  idx_t mode;$/;"	m	struct:__anon17	file:
 mode_rank	mpi.h	/^  int mode_rank[MAX_NMODES];$/;"	m	struct:__anon1
+mpi_compute_ineed	mpi.c	/^void mpi_compute_ineed($/;"	f
+mpi_cpd	mpi.c	/^void mpi_cpd($/;"	f
 mpi_distribute_mats	mpi.c	/^permutation_t * mpi_distribute_mats($/;"	f
 mpi_send_recv_stats	mpi.c	/^void mpi_send_recv_stats($/;"	f
 mpi_setup_comms	mpi.c	/^void mpi_setup_comms($/;"	f
@@ -258,7 +267,7 @@ nfibs	ftensor.h	/^  idx_t  nfibs[MAX_NMODES];$/;"	m	struct:__anon12
 nhedges	graph.h	/^  idx_t nhedges;$/;"	m	struct:__anon23
 niters	bench.h	/^  idx_t niters;$/;"	m	struct:__anon21
 niters	cmds/cmd_bench.c	/^  idx_t niters;$/;"	m	struct:__anon20	file:
-niters	cpd.h	/^  idx_t niters;$/;"	m	struct:__anon15
+niters	cpd.h	/^  idx_t niters;$/;"	m	struct:__anon1
 nmodes	ftensor.h	/^  idx_t nmodes;$/;"	m	struct:__anon12
 nmodes	sptensor.h	/^  idx_t nmodes;   \/** The number of modes in the tensor, denoted 'm'. *\/$/;"	m	struct:__anon2
 nnz	ftensor.h	/^  idx_t nnz;$/;"	m	struct:__anon12
@@ -271,7 +280,7 @@ nruns	bench.h	/^  idx_t nruns;$/;"	m	struct:__anon21
 nslabs	ftensor.h	/^  idx_t    nslabs[MAX_NMODES];$/;"	m	struct:__anon12
 nslcs	ftensor.h	/^  idx_t  nslcs[MAX_NMODES];$/;"	m	struct:__anon12
 nthreads	cmds/cmd_bench.c	/^  idx_t nthreads;$/;"	m	struct:__anon20	file:
-nthreads	cpd.h	/^  idx_t nthreads;$/;"	m	struct:__anon15
+nthreads	cpd.h	/^  idx_t nthreads;$/;"	m	struct:__anon1
 nvtxs	graph.h	/^  idx_t nvtxs;$/;"	m	struct:__anon22
 nvtxs	graph.h	/^  idx_t nvtxs;$/;"	m	struct:__anon23
 ofname	cmds/cmd_check.c	/^  char * ofname;$/;"	m	struct:__anon1	file:
@@ -312,25 +321,27 @@ quicksort	sort.c	/^void quicksort($/;"	f
 rand_idx	util.c	/^idx_t rand_idx(void)$/;"	f
 rand_val	util.c	/^val_t rand_val(void)$/;"	f
 rank	cmds/cmd_bench.c	/^  idx_t rank;$/;"	m	struct:__anon20	file:
-rank	cpd.h	/^  idx_t rank;$/;"	m	struct:__anon15
+rank	cpd.h	/^  idx_t rank;$/;"	m	struct:__anon1
 rank	mpi.h	/^  int rank;$/;"	m	struct:__anon1
 rank_3d	mpi.h	/^  int rank_3d;$/;"	m	struct:__anon1
 rank_free	mpi.c	/^void rank_free($/;"	f
 rank_info	mpi.h	/^} rank_info;$/;"	t	typeref:struct:__anon1
 read_cmd	cmds/splatt_bin.c	/^static splatt_cmd read_cmd(char const * const str)$/;"	f	file:
+recvs	mpi.h	/^  idx_t recvs[MAX_NMODES];$/;"	m	struct:__anon1
 report_times	timer.c	/^void report_times(void)$/;"	f
 req	mpi.h	/^  MPI_Request req;$/;"	m	struct:__anon1
 rowmajor	matrix.h	/^  int rowmajor;$/;"	m	struct:__anon6
 rowptr	matrix.h	/^  idx_t * rowptr;$/;"	m	struct:__anon7
 rtype	cmds/cmd_bench.c	/^  splatt_perm_type rtype;$/;"	m	struct:__anon20	file:
-running	timer.h	/^  int running;$/;"	m	struct:__anon10
+running	timer.h	/^  int running;$/;"	m	struct:__anon1
 scale	cmds/cmd_bench.c	/^  int scale;$/;"	m	struct:__anon20	file:
 scratch	thd_info.h	/^  void * scratch;$/;"	m	struct:__anon9
 scratch2	thd_info.h	/^  void * scratch2;$/;"	m	struct:__anon9
-seconds	timer.h	/^  double seconds;$/;"	m	struct:__anon10
+seconds	timer.h	/^  double seconds;$/;"	m	struct:__anon1
+sends	mpi.h	/^  idx_t sends[MAX_NMODES];$/;"	m	struct:__anon1
 sids	ftensor.h	/^  idx_t * sids[MAX_NMODES];$/;"	m	struct:__anon12
 slabptr	ftensor.h	/^  idx_t * slabptr[MAX_NMODES];$/;"	m	struct:__anon12
-sp_timer_t	timer.h	/^} sp_timer_t;$/;"	t	typeref:struct:__anon10
+sp_timer_t	timer.h	/^} sp_timer_t;$/;"	t	typeref:struct:__anon1
 splatt_algs	cmds/cmd_bench.c	/^} splatt_algs;$/;"	t	typeref:enum:__anon19	file:
 splatt_args	cmds/splatt_bin.c	/^typedef struct splatt_args$/;"	s	file:
 splatt_args	cmds/splatt_bin.c	/^} splatt_args;$/;"	t	typeref:struct:splatt_args	file:
@@ -354,7 +365,7 @@ spmat_write_file	io.c	/^void spmat_write_file($/;"	f
 spmatrix_t	matrix.h	/^} spmatrix_t;$/;"	t	typeref:struct:__anon7
 sptensor_t	sptensor.h	/^} sptensor_t;$/;"	t	typeref:struct:__anon2
 sptr	ftensor.h	/^  idx_t * sptr[MAX_NMODES];$/;"	m	struct:__anon12
-start	timer.h	/^  struct timespec start;$/;"	m	struct:__anon10	typeref:struct:__anon10::timespec
+start	timer.h	/^  struct timespec start;$/;"	m	struct:__anon1	typeref:struct:__anon1::timespec
 stats_argp	cmds/cmd_stats.c	/^static struct argp stats_argp =$/;"	v	typeref:struct:argp	file:
 stats_args	cmds/cmd_stats.c	/^} stats_args;$/;"	t	typeref:struct:__anon17	file:
 stats_args_doc	cmds/cmd_stats.c	/^static char stats_args_doc[] = "TENSOR";$/;"	v	file:
@@ -362,7 +373,7 @@ stats_doc	cmds/cmd_stats.c	/^static char stats_doc[] =$/;"	v	file:
 stats_options	cmds/cmd_stats.c	/^static struct argp_option stats_options[] = {$/;"	v	typeref:struct:argp_option	file:
 stats_tt	stats.c	/^void stats_tt($/;"	f
 status	mpi.h	/^  MPI_Status status;$/;"	m	struct:__anon1
-stop	timer.h	/^  struct timespec stop;$/;"	m	struct:__anon10	typeref:struct:__anon10::timespec
+stop	timer.h	/^  struct timespec stop;$/;"	m	struct:__anon1	typeref:struct:__anon1::timespec
 thd_free	thd_info.c	/^void thd_free($/;"	f
 thd_info	thd_info.h	/^} thd_info;$/;"	t	typeref:struct:__anon9
 thd_init	thd_info.c	/^thd_info * thd_init($/;"	f
@@ -371,11 +382,11 @@ thd_times	thd_info.c	/^void thd_times($/;"	f
 threads	bench.h	/^  idx_t * threads;$/;"	m	struct:__anon21
 tile	bench.h	/^  int tile;$/;"	m	struct:__anon21
 tile	cmds/cmd_bench.c	/^  int tile;$/;"	m	struct:__anon20	file:
-tile	cpd.h	/^  int tile;$/;"	m	struct:__anon15
+tile	cpd.h	/^  int tile;$/;"	m	struct:__anon1
 tiled	ftensor.h	/^  int tiled;$/;"	m	struct:__anon12
 tiled	sptensor.h	/^  int tiled;      \/** Whether sptensor_t has been tiled. Used by ftensor_t. *\/$/;"	m	struct:__anon2
 timer_fstart	timer.h	/^static inline void timer_fstart(sp_timer_t * const timer)$/;"	f
-timer_id	timer.h	/^} timer_id;$/;"	t	typeref:enum:__anon11
+timer_id	timer.h	/^} timer_id;$/;"	t	typeref:enum:__anon2
 timer_names	timer.c	/^static char const * const timer_names[] = {$/;"	v	file:
 timer_reset	timer.h	/^static inline void timer_reset(sp_timer_t * const timer)$/;"	f
 timer_start	timer.h	/^static inline void timer_start(sp_timer_t * const timer)$/;"	f

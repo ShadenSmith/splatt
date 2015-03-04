@@ -31,6 +31,7 @@ typedef struct
 typedef enum
 {
   TIMER_ALL,
+  TIMER_CPD,
   TIMER_IO,
   TIMER_MTTKRP,
   TIMER_INV,

@@ -122,6 +122,9 @@ static void __par_cpd(
   /* compress tensor to own local coordinate system */
   tt_remove_empty(tt);
 
+  /* determine isend and ineed lists */
+  mpi_compute_ineed(&rinfo, tt);
+
 #if 0
   printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],
       tt->dims[2], tt->nnz);
@@ -137,7 +140,7 @@ static void __par_cpd(
     mats[m] = mat_alloc(tt->dims[m], args.rank);
 
     /* for actual factor matrix */
-    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m], rank);
+    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m], args.rank);
 
     if(tt->dims[m] > max_dim) {
       max_dim = tt->dims[m];
@@ -145,6 +148,15 @@ static void __par_cpd(
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
+  if(rank == 0) {
+    printf("\n");
+    printf("Factoring "
+           "------------------------------------------------------\n");
+    printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX"\n", args.rank, args.niters);
+  }
+
+  /* do the actual factorization */
+  mpi_cpd(tt, mats, globmats, &rinfo, &args);
 
   mat_free(mats[MAX_NMODES]);
   for(idx_t m=0; m < tt->nmodes; ++m) {

@@ -7,6 +7,7 @@
 #include "base.h"
 #include "sptensor.h"
 #include "reorder.h"
+#include "cpd.h"
 #include <mpi.h>
 
 
@@ -29,6 +30,15 @@ typedef struct
 
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
+
+  idx_t sends[MAX_NMODES];
+  idx_t recvs[MAX_NMODES];
+  int * ineedptr[MAX_NMODES];
+  int * isendptr[MAX_NMODES];
+  int * ineeddisp[MAX_NMODES];
+  int * isenddisp[MAX_NMODES];
+  idx_t * ineed[MAX_NMODES];
+  idx_t * isend[MAX_NMODES];
 
 
   /* Communicators */
@@ -57,15 +67,33 @@ typedef struct
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
-/**
-* @brief Fill rinfo with process' MPI rank information. Includes rank, 3D
-*        communicator, etc.
-*
-* @param rinfo The rank data structure.
-*/
-void mpi_setup_comms(
-  rank_info * const rinfo);
 
+/**
+* @brief
+*
+* @param tt
+* @param mats
+* @param globmats
+* @param rinfo
+* @param opts
+*/
+void mpi_cpd(
+  sptensor_t * const tt,
+  matrix_t ** mats,
+  matrix_t ** globmats,
+  rank_info * const rinfo,
+  cpd_opts const * const opts);
+
+
+/**
+* @brief
+*
+* @param rinfo
+* @param tt
+*/
+void mpi_compute_ineed(
+  rank_info * const rinfo,
+  sptensor_t const * const tt);
 
 /**
 * @brief Each rank reads their 3D partition of a tensor.
@@ -95,17 +123,14 @@ permutation_t *  mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt);
 
-
 /**
-* @brief Print send/recieve information to STDOUT.
+* @brief Fill rinfo with process' MPI rank information. Includes rank, 3D
+*        communicator, etc.
 *
-* @param rinfo MPI rank information. Assumes mpi_distribute_mats() has already
-*              been called.
-* @param tt The distributed tensor.
+* @param rinfo The rank data structure.
 */
-void mpi_send_recv_stats(
-  rank_info const * const rinfo,
-  sptensor_t const * const tt);
+void mpi_setup_comms(
+  rank_info * const rinfo);
 
 
 /**
@@ -118,5 +143,16 @@ void rank_free(
   rank_info rinfo,
   idx_t const nmodes);
 
+
+/**
+* @brief Print send/recieve information to STDOUT.
+*
+* @param rinfo MPI rank information. Assumes mpi_distribute_mats() has already
+*              been called.
+* @param tt The distributed tensor.
+*/
+void mpi_send_recv_stats(
+  rank_info const * const rinfo,
+  sptensor_t const * const tt);
 
 #endif
