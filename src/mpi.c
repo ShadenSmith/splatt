@@ -931,7 +931,7 @@ void mpi_cpd(
     /* copy my portion of the global matrix into a buffer */
     idx_t idx = 0;
     for(idx_t s=0; s < rinfo->sends[m]; ++s) {
-      idx_t const row = rinfo->isend[m][s];
+      idx_t const row = rinfo->isend[m][s] - rinfo->mat_start[m];
       for(idx_t r=0; r < nfactors; ++r) {
         gsendbuf[idx++] = globmats[m]->vals[r+(row*nfactors)];
       }
@@ -1025,18 +1025,11 @@ void mpi_compute_ineed(
       if(tt->indmap[m] != NULL) {
         gi = tt->indmap[m][i];
       }
-      assert(gi >= mat_ptrs[0]);
-      assert(gi < mat_ptrs[size]);
 
       /* move to the next processor if necessary */
       while(gi >= mat_ptrs[pdest+1]) {
         ++pdest;
-        assert(pdest < size);
       }
-
-      assert(pdest < size);
-      assert(gi >= mat_ptrs[pdest]);
-      assert(gi < mat_ptrs[pdest+1]);
 
       /* if it is non-local */
       if(pdest != rank) {

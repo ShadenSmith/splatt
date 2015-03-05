@@ -114,11 +114,8 @@ static void __par_cpd(
   }
   MPI_Barrier(MPI_COMM_WORLD);
 
-  MPI_Barrier(MPI_COMM_WORLD);
-
   /* determine matrix distribution */
   permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
-
   /* compress tensor to own local coordinate system */
   tt_remove_empty(tt);
 
