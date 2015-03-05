@@ -31,15 +31,17 @@ typedef struct
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
 
+  /* MPI_Alltoallv info */
   idx_t sends[MAX_NMODES];
   idx_t recvs[MAX_NMODES];
-  idx_t * ineed[MAX_NMODES]; /** indices I need from each rank in layer */
-  idx_t * isend[MAX_NMODES]; /** indices I must send to each rank in layer */
-  int * ineedptr[MAX_NMODES];
-  int * isendptr[MAX_NMODES];
-  int * ineeddisp[MAX_NMODES];
-  int * isenddisp[MAX_NMODES];
-
+  idx_t * nbrind[MAX_NMODES];   /** inds that I compute for but others own */
+  idx_t * localind[MAX_NMODES]; /** inds that others compute for but I own */
+  int   * nbrptr[MAX_NMODES];
+  int   * nbrdisp[MAX_NMODES];
+  int   * localptr[MAX_NMODES];
+  int   * localdisp[MAX_NMODES];
+  idx_t * nbrmap[MAX_NMODES];   /** map nbrind into my local coord space */
+  idx_t * localmap[MAX_NMODES]; /** map localind into my local coord space */
 
   /* Communicators */
   MPI_Comm comm_3d;
@@ -93,7 +95,8 @@ void mpi_cpd(
 */
 void mpi_compute_ineed(
   rank_info * const rinfo,
-  sptensor_t const * const tt);
+  sptensor_t const * const tt,
+  idx_t const nfactors);
 
 /**
 * @brief Each rank reads their 3D partition of a tensor.

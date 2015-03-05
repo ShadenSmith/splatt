@@ -931,18 +931,32 @@ void mpi_cpd(
     /* copy my portion of the global matrix into a buffer */
     idx_t idx = 0;
     for(idx_t s=0; s < rinfo->sends[m]; ++s) {
-      idx_t const row = rinfo->isend[m][s] - rinfo->mat_start[m];
+      /* XXX: need to map to local coordinates */
+      idx_t const row = rinfo->localind[m][s] - rinfo->mat_start[m];
       for(idx_t r=0; r < nfactors; ++r) {
         gsendbuf[idx++] = globmats[m]->vals[r+(row*nfactors)];
       }
     }
 
     /* exchange rows */
-    MPI_Alltoallv(gsendbuf, rinfo->isendptr[m], rinfo->isenddisp[m], SS_MPI_VAL,
-                  grecvbuf, rinfo->ineedptr[m], rinfo->ineeddisp[m], SS_MPI_VAL,
+    MPI_Alltoallv(gsendbuf, rinfo->localptr[m], rinfo->localdisp[m], SS_MPI_VAL,
+                  grecvbuf, rinfo->nbrptr[m], rinfo->nbrdisp[m], SS_MPI_VAL,
                   rinfo->layer_comm[m]);
+
+#if 0
+    idx = 0;
+    for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
+      idx_t const row = rinfo->nbrind[m][r] - rinfo->mat_start[m];
+    }
+#endif
   }
 
+  /* allocate tensor */
+  ftensor_t * ft = ften_alloc(tt, opts->tile);
+
+
+  /* clean up */
+  ften_free(ft);
   free(gsendbuf);
   free(grecvbuf);
 
@@ -953,7 +967,8 @@ void mpi_cpd(
 
 void mpi_compute_ineed(
   rank_info * const rinfo,
-  sptensor_t const * const tt)
+  sptensor_t const * const tt,
+  idx_t const nfactors)
 {
   int size;
   int rank;
@@ -964,10 +979,11 @@ void mpi_compute_ineed(
     MPI_Comm_size(comm, &size);
     MPI_Comm_rank(comm, &rank);
 
-    rinfo->ineedptr[m] = (int *) calloc(size+1, sizeof(int));
-    rinfo->isendptr[m] = (int *) malloc((size+1) * sizeof(int));
-    int * const ineedptr = rinfo->ineedptr[m];
-    int * const isendptr = rinfo->isendptr[m];
+    rinfo->nbrptr[m] = (int *) calloc(size+1, sizeof(int));
+    rinfo->localptr[m] = (int *) malloc((size+1) * sizeof(int));
+
+    int * const nbrptr = rinfo->nbrptr[m];
+    int * const localptr = rinfo->localptr[m];
     idx_t const * const mat_ptrs = rinfo->mat_ptrs[m];
 
     int pdest = 0;
@@ -996,27 +1012,34 @@ void mpi_compute_ineed(
 
       /* if it is non-local */
       if(pdest != rank) {
-        ineedptr[pdest] += 1;
+        nbrptr[pdest] += 1;
         ++recvs;
       }
     }
 
-    /* communicate ineedptr and store in isendptr */
-    MPI_Alltoall(ineedptr, 1, MPI_INT, isendptr, 1, MPI_INT, comm);
+    /* communicate nbrptr and store in localptr */
+    MPI_Alltoall(nbrptr, 1, MPI_INT, localptr, 1, MPI_INT, comm);
 
     /* total number of sends */
     for(int p=0; p < size; ++p) {
-      sends += isendptr[p];
+      sends += localptr[p];
     }
-
-    rinfo->ineed[m] = (idx_t *) malloc(recvs * sizeof(idx_t));
-    rinfo->isend[m] = (idx_t *) malloc(sends * sizeof(idx_t));
     rinfo->sends[m] = sends;
     rinfo->recvs[m] = recvs;
-    idx_t * const ineed = rinfo->ineed[m];
-    idx_t * const isend = rinfo->isend[m];
 
-    /* fill ineed */
+    localptr[size] = sends;
+
+    /* allocate space for all communicated indices */
+    rinfo->nbrind[m]   = (idx_t *) malloc(recvs * sizeof(idx_t));
+    rinfo->nbrmap[m]   = (idx_t *) malloc(recvs * sizeof(idx_t));
+    rinfo->localind[m] = (idx_t *) malloc(sends * sizeof(idx_t));
+    rinfo->localmap[m] = (idx_t *) malloc(sends * sizeof(idx_t));
+    idx_t * const nbrind = rinfo->nbrind[m];
+    idx_t * const localind = rinfo->localind[m];
+    idx_t * const nbrmap = rinfo->nbrmap[m];
+    idx_t * const localmap = rinfo->localmap[m];
+
+    /* fill nbrptr */
     recvs = 0;
     pdest = 0;
     for(idx_t i=0; i < tt->dims[m]; ++i) {
@@ -1025,41 +1048,103 @@ void mpi_compute_ineed(
       if(tt->indmap[m] != NULL) {
         gi = tt->indmap[m][i];
       }
-
       /* move to the next processor if necessary */
       while(gi >= mat_ptrs[pdest+1]) {
         ++pdest;
       }
-
       /* if it is non-local */
       if(pdest != rank) {
-        ineed[recvs++] = gi;
+        nbrind[recvs] = gi;
+        nbrmap[recvs] = i;
+        ++recvs;
       }
     }
 
-    rinfo->ineeddisp[m] = (int *) malloc(size * sizeof(int));
-    rinfo->isenddisp[m] = (int *) malloc(size * sizeof(int));
-    int * const ineeddisp = rinfo->ineeddisp[m];
-    int * const isenddisp = rinfo->isenddisp[m];
+    rinfo->nbrdisp[m]   = (int *) malloc(size * sizeof(int));
+    rinfo->localdisp[m] = (int *) malloc(size * sizeof(int));
+    int * const nbrdisp = rinfo->nbrdisp[m];
+    int * const localdisp = rinfo->localdisp[m];
 
-    ineeddisp[0] = 0;
-    isenddisp[0] = 0;
+    nbrdisp[0] = 0;
+    localdisp[0] = 0;
     for(int p=1; p < size; ++p) {
-      ineeddisp[p] = ineeddisp[p-1] + ineedptr[p-1];
-      isenddisp[p] = isenddisp[p-1] + isendptr[p-1];
+      nbrdisp[p] = nbrdisp[p-1] + nbrptr[p-1];
+      localdisp[p] = localdisp[p-1] + localptr[p-1];
     }
 
-    assert((int)sends == isenddisp[size-1] + isendptr[size-1]);
+    assert((int)sends == localdisp[size-1] + localptr[size-1]);
 
     /* communicate indices */
-    MPI_Alltoallv(ineed, ineedptr, ineeddisp, SS_MPI_IDX, isend, isendptr,
-        isenddisp, SS_MPI_IDX, comm);
+    MPI_Alltoallv(nbrind, nbrptr, nbrdisp, SS_MPI_IDX, localind, localptr,
+        localdisp, SS_MPI_IDX, comm);
 
     for(idx_t i=0; i < sends; ++i) {
-      assert(isend[i] >= rinfo->mat_start[m]);
-      assert(isend[i] < rinfo->mat_end[m]);
+      assert(localind[i] >= rinfo->mat_start[m]);
+      assert(localind[i] < rinfo->mat_end[m]);
     }
-  }
+
+    /* we need to map localind back to local coordinates */
+    if(tt->indmap[m] != NULL) {
+      for(int p=0; p < size; ++p) {
+        idx_t localidx = 0;
+        for(int s=0; s < localptr[p]; ++s) {
+          int const loc = localdisp[p] + s;
+          assert(loc < (int)sends);
+#if 0
+          /* continue until we reach the local coordinate */
+          while(tt->indmap[m][localidx] != localind[loc]) {
+            ++localidx;
+          }
+#endif
+          for(localidx = 0; localidx < tt->dims[m]; ++localidx) {
+            if(tt->indmap[m][localidx] == localind[loc]) {
+              break;
+            }
+          }
+          assert(localidx < tt->dims[m]);
+          if(tt->indmap[m][localidx] != localind[loc]) {
+            printf("idx: %d  gi: %lu map: %lu\n", loc, localind[loc],
+                tt->indmap[m][localidx]);
+          }
+          localmap[loc] = localidx;
+        }
+      }
+    } else {
+      /* local and layer coordinates are the same */
+      memcpy(localmap, localind, sends * sizeof(idx_t));
+    }
+
+    /* sanity check on maps */
+    if(tt->indmap[m] != NULL) {
+      for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
+        assert(rinfo->nbrind[m][r] == tt->indmap[m][rinfo->nbrmap[m][r]]);
+      }
+      for(idx_t s=0; s < rinfo->sends[m]; ++s) {
+        assert(rinfo->localind[m][s] == tt->indmap[m][rinfo->localmap[m][s]]);
+      }
+    } else {
+      for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
+        assert(rinfo->nbrind[m][r] == rinfo->nbrmap[m][r]);
+      }
+      for(idx_t s=0; s < rinfo->recvs[m]; ++s) {
+        assert(rinfo->localind[m][s] == rinfo->localmap[m][s]);
+      }
+    }
+
+    /* now fill in perm ptr and disp with nfactors */
+    for(int p=0; p < size; ++p) {
+      nbrptr[p] *= nfactors;
+      localptr[p] *= nfactors;
+    }
+    nbrdisp[0] = 0;
+    localdisp[0] = 0;
+    for(int p=1; p < size; ++p) {
+      nbrdisp[p] = nbrdisp[p-1] + nbrptr[p-1];
+      localdisp[p] = localdisp[p-1] + localptr[p-1];
+    }
+
+
+  } /* foreach mode */
 }
 
 
@@ -1287,12 +1372,12 @@ void rank_free(
 {
   MPI_Comm_free(&rinfo.comm_3d);
   for(idx_t m=0; m < nmodes; ++m) {
-    free(rinfo.ineedptr[m]);
-    free(rinfo.isendptr[m]);
-    free(rinfo.ineeddisp[m]);
-    free(rinfo.isenddisp[m]);
-    free(rinfo.ineed[m]);
-    free(rinfo.isend[m]);
+    free(rinfo.nbrind[m]);
+    free(rinfo.nbrptr[m]);
+    free(rinfo.nbrdisp[m]);
+    free(rinfo.localind[m]);
+    free(rinfo.localptr[m]);
+    free(rinfo.localdisp[m]);
     free(rinfo.mat_ptrs[m]);
     MPI_Comm_free(&rinfo.layer_comm[m]);
   }

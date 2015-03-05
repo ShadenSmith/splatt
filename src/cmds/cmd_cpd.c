@@ -120,7 +120,7 @@ static void __par_cpd(
   tt_remove_empty(tt);
 
   /* determine isend and ineed lists */
-  mpi_compute_ineed(&rinfo, tt);
+  mpi_compute_ineed(&rinfo, tt, args.rank);
 
 #if 0
   printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],

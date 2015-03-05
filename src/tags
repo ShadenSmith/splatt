@@ -216,20 +216,18 @@ ifname	cpd.h	/^  char * ifname;$/;"	m	struct:__anon1
 ind	sptensor.h	/^  idx_t ** ind;   \/** An m x nnz matrix containing the coordinates of each$/;"	m	struct:__anon2
 indmap	sptensor.h	/^  idx_t * indmap[MAX_NMODES]; \/** Maps local -> global indices. *\/$/;"	m	struct:__anon2
 inds	ftensor.h	/^  idx_t * inds[MAX_NMODES];$/;"	m	struct:__anon12
-ineed	mpi.h	/^  idx_t * ineed[MAX_NMODES]; \/** indices I need from each rank in layer *\/$/;"	m	struct:__anon1
-ineeddisp	mpi.h	/^  int * ineeddisp[MAX_NMODES];$/;"	m	struct:__anon1
-ineedptr	mpi.h	/^  int * ineedptr[MAX_NMODES];$/;"	m	struct:__anon1
 init_timers	timer.c	/^void init_timers(void)$/;"	f
 insertion_sort	sort.c	/^void insertion_sort($/;"	f
 iperms	reorder.h	/^  idx_t * iperms[MAX_NMODES];$/;"	m	struct:__anon14
-isend	mpi.h	/^  idx_t * isend[MAX_NMODES]; \/** indices I must send to each rank in layer *\/$/;"	m	struct:__anon1
-isenddisp	mpi.h	/^  int * isenddisp[MAX_NMODES];$/;"	m	struct:__anon1
-isendptr	mpi.h	/^  int * isendptr[MAX_NMODES];$/;"	m	struct:__anon1
 kvp_t	convert.c	/^} kvp_t;$/;"	t	typeref:struct:__anon24	file:
 layer_comm	mpi.h	/^  MPI_Comm layer_comm[MAX_NMODES];$/;"	m	struct:__anon1
 layer_ends	mpi.h	/^  idx_t layer_ends[MAX_NMODES];$/;"	m	struct:__anon1
 layer_rank	mpi.h	/^  int layer_rank[MAX_NMODES];$/;"	m	struct:__anon1
 layer_starts	mpi.h	/^  idx_t layer_starts[MAX_NMODES];$/;"	m	struct:__anon1
+localdisp	mpi.h	/^  int   * localdisp[MAX_NMODES];$/;"	m	struct:__anon1
+localind	mpi.h	/^  idx_t * localind[MAX_NMODES]; \/** inds that others compute for but I own *\/$/;"	m	struct:__anon1
+localmap	mpi.h	/^  idx_t * localmap[MAX_NMODES]; \/** map localind into my local coord space *\/$/;"	m	struct:__anon1
+localptr	mpi.h	/^  int   * localptr[MAX_NMODES];$/;"	m	struct:__anon1
 main	cmds/splatt_bin.c	/^int main($/;"	f
 mat_aTa	matrix.c	/^void mat_aTa($/;"	f
 mat_aTa_hada	matrix.c	/^void mat_aTa_hada($/;"	f
@@ -262,6 +260,10 @@ mttkrp_splatt	mttkrp.c	/^void mttkrp_splatt($/;"	f
 mttkrp_splatt_coop_tiled	mttkrp.c	/^void mttkrp_splatt_coop_tiled($/;"	f
 mttkrp_splatt_tiled	mttkrp.c	/^void mttkrp_splatt_tiled($/;"	f
 mttkrp_ttbox	mttkrp.c	/^void mttkrp_ttbox($/;"	f
+nbrdisp	mpi.h	/^  int   * nbrdisp[MAX_NMODES];$/;"	m	struct:__anon1
+nbrind	mpi.h	/^  idx_t * nbrind[MAX_NMODES];   \/** inds that I compute for but others own *\/$/;"	m	struct:__anon1
+nbrmap	mpi.h	/^  idx_t * nbrmap[MAX_NMODES];   \/** map nbrind into my local coord space *\/$/;"	m	struct:__anon1
+nbrptr	mpi.h	/^  int   * nbrptr[MAX_NMODES];$/;"	m	struct:__anon1
 nedges	graph.h	/^  idx_t nedges;$/;"	m	struct:__anon22
 nfibs	ftensor.h	/^  idx_t  nfibs[MAX_NMODES];$/;"	m	struct:__anon12
 nhedges	graph.h	/^  idx_t nhedges;$/;"	m	struct:__anon23
