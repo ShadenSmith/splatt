@@ -4,10 +4,16 @@
  *****************************************************************************/
 #include "mpi.h"
 #include "io.h"
+#include "mttkrp.h"
 #include "sort.h"
+#include "tile.h"
 #include "timer.h"
+#include "thd_info.h"
+
+
 #include <string.h>
 #include <math.h>
+#include <omp.h>
 
 
 /******************************************************************************
@@ -900,6 +906,87 @@ static void __setup_mat_ptrs(
 }
 
 
+/**
+* @brief Do an all-to-all communication of exchanging updated rows with other
+*        ranks. We send globmats[mode] to the needing ranks and receive other
+*        ranks' globmats entries which we store in mats[mode].
+*
+* @param sendbuf Buffer at least as large as as there are rows to send (for
+*                each rank).
+* @param recvbuf Buffer at least as large as there are rows to receive.
+* @param mats Local factor matrices which receive updated values.
+* @param globmats Global factor matrices (owned by me) which are sent to ranks.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the factor matrices.
+* @param mode The mode to exchange along.
+*/
+static void __update_rows(
+  val_t * const sendbuf,
+  val_t * const recvbuf,
+  matrix_t ** mats,
+  matrix_t ** globmats,
+  rank_info const * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode)
+{
+  idx_t const m = mode;
+
+  /* copy my portion of the global matrix into a buffer */
+  idx_t idx = 0;
+  for(idx_t s=0; s < rinfo->sends[m]; ++s) {
+    idx_t const row = rinfo->localind[m][s] - rinfo->mat_start[m];
+    assert(rinfo->localind[m][s] >= rinfo->mat_start[m]);
+    assert(rinfo->localind[m][s] < rinfo->mat_end[m]);
+    for(idx_t f=0; f < nfactors; ++f) {
+      sendbuf[idx++] = globmats[m]->vals[f+(row*nfactors)];
+    }
+  }
+
+  /* exchange rows */
+  MPI_Alltoallv(sendbuf, rinfo->localptr[m], rinfo->localdisp[m], SS_MPI_VAL,
+                recvbuf, rinfo->nbrptr[m], rinfo->nbrdisp[m], SS_MPI_VAL,
+                rinfo->layer_comm[m]);
+
+  idx_t const * const nbrind = rinfo->nbrind[m];
+  idx_t const * const nbrmap = rinfo->nbrmap[m];
+  idx = 0;
+  for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
+    idx_t const row = nbrmap[r];
+    for(idx_t f=0; f < nfactors; ++f) {
+      mats[m]->vals[f + (row*nfactors)] = recvbuf[idx++];
+    }
+  }
+}
+
+
+static void __reduce_rows(
+  val_t * const sendbuf,
+  val_t * const recvbuf,
+  matrix_t ** mats,
+  matrix_t ** globmats,
+  rank_info const * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode)
+{
+#if 0
+  idx_t const m = mode;
+  /* copy my computed rows into the sendbuf */
+  for(idx_t s=0; s < rinfo->recvs[m]; ++s) {
+    idx_t const offset = s * nfactors;
+    idx_t const row = rinfo->nbrmap[m][s];
+    for(idx_t f=0; f < nfactors; ++f) {
+      sendbuf[f + offset] = mats[m]->vals[f + (row*nfactors)];
+    }
+  }
+
+  /* exchange rows */
+  MPI_Alltoallv(sendbuf, rinfo->nbrptr[m], rinfo->nbrdisp[m], SS_MPI_VAL,
+                recvbuf, rinfo->localptr[m], rinfo->localdisp[m], SS_MPI_VAL,
+                rinfo->layer_comm[m]);
+#endif
+}
+
+
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
@@ -923,42 +1010,75 @@ void mpi_cpd(
     maxrecvs = SS_MAX(maxrecvs, rinfo->recvs[m]);
   }
 
-  val_t * gsendbuf = (val_t *) malloc(maxsends * nfactors * sizeof(val_t));
-  val_t * grecvbuf = (val_t *) malloc(maxrecvs * nfactors * sizeof(val_t));
+  val_t * sendbuf = (val_t *) malloc(maxsends * nfactors * sizeof(val_t));
+  val_t * recvbuf = (val_t *) malloc(maxrecvs * nfactors * sizeof(val_t));
 
   /* exchange initial matrices */
   for(idx_t m=1; m < tt->nmodes; ++m) {
-    /* copy my portion of the global matrix into a buffer */
-    idx_t idx = 0;
-    for(idx_t s=0; s < rinfo->sends[m]; ++s) {
-      /* XXX: need to map to local coordinates */
-      idx_t const row = rinfo->localind[m][s] - rinfo->mat_start[m];
-      for(idx_t r=0; r < nfactors; ++r) {
-        gsendbuf[idx++] = globmats[m]->vals[r+(row*nfactors)];
-      }
-    }
-
-    /* exchange rows */
-    MPI_Alltoallv(gsendbuf, rinfo->localptr[m], rinfo->localdisp[m], SS_MPI_VAL,
-                  grecvbuf, rinfo->nbrptr[m], rinfo->nbrdisp[m], SS_MPI_VAL,
-                  rinfo->layer_comm[m]);
-
-#if 0
-    idx = 0;
-    for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
-      idx_t const row = rinfo->nbrind[m][r] - rinfo->mat_start[m];
-    }
-#endif
+    __update_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
   }
 
   /* allocate tensor */
   ftensor_t * ft = ften_alloc(tt, opts->tile);
 
+  /* setup thread structures */
+  omp_set_num_threads(opts->nthreads);
+  thd_info * thds;
+  if(opts->tile) {
+    thds = thd_init(opts->nthreads, nfactors * sizeof(val_t) + 64,
+      TILE_SIZES[0] * nfactors * sizeof(val_t) + 64);
+  } else {
+    thds = thd_init(opts->nthreads, nfactors * sizeof(val_t) + 64, 0);
+  }
+
+  sp_timer_t itertime;
+
+  for(idx_t it=0; it < opts->niters; ++it) {
+    timer_fstart(&itertime);
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      mats[MAX_NMODES]->I = ft->dims[m];
+
+      /* M1 = X * (C o B) */
+      timer_start(&timers[TIMER_MTTKRP]);
+      mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
+      timer_stop(&timers[TIMER_MTTKRP]);
+
+      val_t * const restrict matv = mats[m]->vals;
+      val_t * const restrict gmatv = globmats[m]->vals;
+      idx_t const mat_start = rinfo->mat_start[m];
+      idx_t const mat_end = rinfo->mat_end[m];
+
+      /* now add partials to my global matrix */
+      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
+      for(idx_t i=0; i < tt->dims[m]; ++i) {
+        idx_t const gi = (tt->indmap[m] == NULL) ? i : tt->indmap[m][i];
+        /* if index is owned locally */
+        if(gi >= mat_start && gi < mat_end) {
+          idx_t const row = gi - mat_start;
+          for(idx_t f=0; f < nfactors; ++f) {
+            gmatv[f+(row*nfactors)] = matv[f+(i*nfactors)];
+          }
+        }
+      }
+
+      /* incorporate neighbors' partials */
+      __reduce_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
+
+      __update_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
+    } /* foreach mode */
+
+    MPI_Barrier(rinfo->comm_3d);
+    timer_stop(&itertime);
+    if(rinfo->rank == 0) {
+      printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.3f\n", it+1,
+          itertime.seconds, 0.1);
+    }
+  } /* foreach iteration */
 
   /* clean up */
   ften_free(ft);
-  free(gsendbuf);
-  free(grecvbuf);
+  free(sendbuf);
+  free(recvbuf);
 
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_CPD]);
@@ -1033,11 +1153,9 @@ void mpi_compute_ineed(
     rinfo->nbrind[m]   = (idx_t *) malloc(recvs * sizeof(idx_t));
     rinfo->nbrmap[m]   = (idx_t *) malloc(recvs * sizeof(idx_t));
     rinfo->localind[m] = (idx_t *) malloc(sends * sizeof(idx_t));
-    rinfo->localmap[m] = (idx_t *) malloc(sends * sizeof(idx_t));
     idx_t * const nbrind = rinfo->nbrind[m];
     idx_t * const localind = rinfo->localind[m];
     idx_t * const nbrmap = rinfo->nbrmap[m];
-    idx_t * const localmap = rinfo->localmap[m];
 
     /* fill nbrptr */
     recvs = 0;
@@ -1083,51 +1201,14 @@ void mpi_compute_ineed(
       assert(localind[i] < rinfo->mat_end[m]);
     }
 
-    /* we need to map localind back to local coordinates */
-    if(tt->indmap[m] != NULL) {
-      for(int p=0; p < size; ++p) {
-        idx_t localidx = 0;
-        for(int s=0; s < localptr[p]; ++s) {
-          int const loc = localdisp[p] + s;
-          assert(loc < (int)sends);
-#if 0
-          /* continue until we reach the local coordinate */
-          while(tt->indmap[m][localidx] != localind[loc]) {
-            ++localidx;
-          }
-#endif
-          for(localidx = 0; localidx < tt->dims[m]; ++localidx) {
-            if(tt->indmap[m][localidx] == localind[loc]) {
-              break;
-            }
-          }
-          assert(localidx < tt->dims[m]);
-          if(tt->indmap[m][localidx] != localind[loc]) {
-            printf("idx: %d  gi: %lu map: %lu\n", loc, localind[loc],
-                tt->indmap[m][localidx]);
-          }
-          localmap[loc] = localidx;
-        }
-      }
-    } else {
-      /* local and layer coordinates are the same */
-      memcpy(localmap, localind, sends * sizeof(idx_t));
-    }
-
     /* sanity check on maps */
     if(tt->indmap[m] != NULL) {
       for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
         assert(rinfo->nbrind[m][r] == tt->indmap[m][rinfo->nbrmap[m][r]]);
       }
-      for(idx_t s=0; s < rinfo->sends[m]; ++s) {
-        assert(rinfo->localind[m][s] == tt->indmap[m][rinfo->localmap[m][s]]);
-      }
     } else {
       for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
         assert(rinfo->nbrind[m][r] == rinfo->nbrmap[m][r]);
-      }
-      for(idx_t s=0; s < rinfo->recvs[m]; ++s) {
-        assert(rinfo->localind[m][s] == rinfo->localmap[m][s]);
       }
     }
 
@@ -1142,7 +1223,6 @@ void mpi_compute_ineed(
       nbrdisp[p] = nbrdisp[p-1] + nbrptr[p-1];
       localdisp[p] = localdisp[p-1] + localptr[p-1];
     }
-
 
   } /* foreach mode */
 }

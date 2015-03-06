@@ -41,7 +41,6 @@ typedef struct
   int   * localptr[MAX_NMODES];
   int   * localdisp[MAX_NMODES];
   idx_t * nbrmap[MAX_NMODES];   /** map nbrind into my local coord space */
-  idx_t * localmap[MAX_NMODES]; /** map localind into my local coord space */
 
   /* Communicators */
   MPI_Comm comm_3d;
