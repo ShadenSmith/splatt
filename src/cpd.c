@@ -79,6 +79,8 @@ void cpd(
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 
+      if(m == 0) mat_write(mats[MAX_NMODES], "gold.mat");
+
       timer_start(&timers[TIMER_INV]);
       /* M2 = (CtC * BtB * ...) */
       mat_aTa_hada(mats, (m+1) % nmodes, nmodes-1, nmodes, atabuf, ata);
@@ -138,7 +140,8 @@ void cpd(
     val_t fit = 1 - (residual / sqrt(xnorm));
 
     timer_stop(&itertime);
-    printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.3f\n", it+1, itertime.seconds, fit);
+    printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.3f\n", it+1,
+        itertime.seconds, fit);
   }
 
   ften_free(ft);

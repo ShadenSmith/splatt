@@ -119,6 +119,7 @@ __pack_slab	tile.c	/^static void __pack_slab($/;"	f	file:
 __par_cpd	cmds/cmd_cpd.c	/^static void __par_cpd($/;"	f	file:
 __read_tt	mpi.c	/^static sptensor_t * __read_tt($/;"	f	file:
 __read_tt_part	mpi.c	/^static void __read_tt_part($/;"	f	file:
+__reduce_rows	mpi.c	/^static void __reduce_rows($/;"	f	file:
 __reorder_fibs	reorder.c	/^static void __reorder_fibs($/;"	f	file:
 __reorder_inds	reorder.c	/^static void __reorder_inds($/;"	f	file:
 __reorder_slices	reorder.c	/^static void __reorder_slices($/;"	f	file:
@@ -140,6 +141,7 @@ __ttqcmp	sort.c	/^static inline int __ttqcmp($/;"	f	file:
 __ttqcmp3	sort.c	/^static inline int __ttqcmp3($/;"	f	file:
 __ttswap	sort.c	/^static inline void __ttswap($/;"	f	file:
 __update_adj	convert.c	/^static inline void __update_adj($/;"	f	file:
+__update_rows	mpi.c	/^static void __update_rows($/;"	f	file:
 __write_part	mpi.c	/^static void __write_part($/;"	f	file:
 algerr	cmds/cmd_bench.c	/^  char * algerr;$/;"	m	struct:__anon20	file:
 argp_program_bug_address	cmds/splatt_bin.c	/^char const *argp_program_bug_address = "Shaden Smith <shaden@cs.umn.edu>";$/;"	v
@@ -177,6 +179,7 @@ convert_doc	cmds/cmd_convert.c	/^static char convert_doc[] =$/;"	v	file:
 convert_options	cmds/cmd_convert.c	/^static struct argp_option convert_options[] = {$/;"	v	typeref:struct:argp_option	file:
 coords_3d	mpi.h	/^  int coords_3d[MAX_NMODES];$/;"	m	struct:__anon1
 cpd	cpd.c	/^void cpd($/;"	f
+cpd_als	cpd.c	/^void cpd_als($/;"	f
 cpd_argp	cmds/cmd_cpd.c	/^static struct argp cpd_argp =$/;"	v	typeref:struct:argp	file:
 cpd_args_doc	cmds/cmd_cpd.c	/^static char cpd_args_doc[] = "TENSOR";$/;"	v	file:
 cpd_doc	cmds/cmd_cpd.c	/^static char cpd_doc[] =$/;"	v	file:

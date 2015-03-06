@@ -968,22 +968,29 @@ static void __reduce_rows(
   idx_t const nfactors,
   idx_t const mode)
 {
-#if 0
   idx_t const m = mode;
   /* copy my computed rows into the sendbuf */
-  for(idx_t s=0; s < rinfo->recvs[m]; ++s) {
-    idx_t const offset = s * nfactors;
-    idx_t const row = rinfo->nbrmap[m][s];
+  for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
+    idx_t const offset = r * nfactors;
+    idx_t const row = rinfo->nbrmap[m][r];
     for(idx_t f=0; f < nfactors; ++f) {
-      sendbuf[f + offset] = mats[m]->vals[f + (row*nfactors)];
+      recvbuf[f + offset] = mats[MAX_NMODES]->vals[f + (row*nfactors)];
     }
   }
 
   /* exchange rows */
-  MPI_Alltoallv(sendbuf, rinfo->nbrptr[m], rinfo->nbrdisp[m], SS_MPI_VAL,
-                recvbuf, rinfo->localptr[m], rinfo->localdisp[m], SS_MPI_VAL,
+  MPI_Alltoallv(recvbuf, rinfo->nbrptr[m], rinfo->nbrdisp[m], SS_MPI_VAL,
+                sendbuf, rinfo->localptr[m], rinfo->localdisp[m], SS_MPI_VAL,
                 rinfo->layer_comm[m]);
-#endif
+
+  /* now add received rows to globmats */
+  for(idx_t s=0; s < rinfo->sends[m]; ++s) {
+    idx_t const offset = s * nfactors;
+    idx_t const row = rinfo->localind[m][s] - rinfo->mat_start[m];
+    for(idx_t f=0; f < nfactors; ++f) {
+      globmats[m]->vals[f+(row*nfactors)] += sendbuf[f + offset];
+    }
+  }
 }
 
 
@@ -1043,11 +1050,12 @@ void mpi_cpd(
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 
-      val_t * const restrict matv = mats[m]->vals;
+      val_t * const restrict matv = mats[MAX_NMODES]->vals;
       val_t * const restrict gmatv = globmats[m]->vals;
       idx_t const mat_start = rinfo->mat_start[m];
       idx_t const mat_end = rinfo->mat_end[m];
 
+      /* XXX: this probably is not correct */
       /* now add partials to my global matrix */
       memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
       for(idx_t i=0; i < tt->dims[m]; ++i) {
@@ -1064,7 +1072,7 @@ void mpi_cpd(
       /* incorporate neighbors' partials */
       __reduce_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
 
-      __update_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
+      //__update_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
     } /* foreach mode */
 
     MPI_Barrier(rinfo->comm_3d);
@@ -1074,6 +1082,12 @@ void mpi_cpd(
           itertime.seconds, 0.1);
     }
   } /* foreach iteration */
+
+  /* XXX: write mat to file */
+  /* file name is <rank>.part */
+  char name[256];
+  sprintf(name, "%d.part", rinfo->rank);
+  mat_write(globmats[0], name);
 
   /* clean up */
   ften_free(ft);
