@@ -27,7 +27,6 @@ static int const MSG_STANDBY   = 4;
 static int const MSG_UPDATES   = 5;
 
 
-
 /******************************************************************************
  * PRIVATE FUNCTONS
  *****************************************************************************/
@@ -528,7 +527,7 @@ static idx_t __tryclaim_rows(
   idx_t const localdim,
   rank_info const * const rinfo,
   idx_t const mode,
-  char const * const claimed,
+  char * const claimed,
   idx_t const layerdim,
   idx_t * const newclaims)
 {
@@ -539,6 +538,8 @@ static idx_t __tryclaim_rows(
     assert(inds[i] < layerdim);
     if(claimed[inds[i]] == 0) {
       newclaims[newrows++] = inds[i];
+      claimed[inds[i]] = 1;
+
       if(newrows == amt) {
         break;
       }
@@ -551,18 +552,27 @@ static idx_t __tryclaim_rows(
 
 static idx_t __mustclaim_rows(
   idx_t const amt,
+  idx_t const * const inds,
+  idx_t const localdim,
   rank_info const * const rinfo,
   idx_t const mode,
-  char const * const claimed,
+  char * const claimed,
   idx_t const layerdim,
   idx_t * const newclaims)
 {
-  idx_t newrows = 0;
+  /* first try local rows */
+  idx_t newrows = __tryclaim_rows(amt, inds, localdim, rinfo, mode, claimed,
+      layerdim, newclaims);
+
+  if(newrows == amt) {
+    return newrows;
+  }
 
   /* just grab the first amt unclaimed rows */
   for(idx_t i=0; i < layerdim; ++i) {
     if(claimed[i] == 0) {
       newclaims[newrows++] = i;
+      claimed[i] = 1;
       if(newrows == amt) {
         break;
       }
@@ -637,7 +647,8 @@ static void __distribute_u3_rows(
         nclaimed = __tryclaim_rows(amt, inds, localdim, rinfo, m, claimed, dim,
             myclaims);
       } else {
-        nclaimed = __mustclaim_rows(amt, rinfo, m, claimed, dim, myclaims);
+        nclaimed = __mustclaim_rows(amt, inds, localdim, rinfo, m, claimed,
+            dim, myclaims);
       }
 
       /* send new claims to root process */
@@ -691,7 +702,7 @@ static void __distribute_u3_rows(
 * @param rinfo MPI rank information.
 * @param rconns Row connectivity information. rconns[0] stores the number of
 *               rows that only appear in 1 rank, rconns[1] stores the number of
-*               rows that appear in 2 ranks, and rconns[3] stores the number of
+*               rows that appear in 2 ranks, and rconns[2] stores the number of
 *               rows that appear in >2 ranks.
 */
 static void __fill_volume_stats(
@@ -817,8 +828,6 @@ static void __greedy_mat_distribution(
     MPI_Gather(&myvol, 1, SS_MPI_IDX, pvols, 1, SS_MPI_IDX,
       0, rinfo->layer_comm[m]);
 
-    idx_t const justme = nrows;
-
     /* now distribute rows with >=3 pcount in a greedy fashion */
     __fill_volume_stats(m, pcount, layerdim, rinfo, rconns);
     __distribute_u3_rows(m, pcount, pvols, rconns, mine, &nrows,
@@ -934,9 +943,9 @@ static void __update_rows(
   /* copy my portion of the global matrix into a buffer */
   idx_t idx = 0;
   for(idx_t s=0; s < rinfo->sends[m]; ++s) {
-    idx_t const row = rinfo->localind[m][s] - rinfo->mat_start[m];
     assert(rinfo->localind[m][s] >= rinfo->mat_start[m]);
     assert(rinfo->localind[m][s] < rinfo->mat_end[m]);
+    idx_t const row = rinfo->localind[m][s] - rinfo->mat_start[m];
     for(idx_t f=0; f < nfactors; ++f) {
       sendbuf[idx++] = globmats[m]->vals[f+(row*nfactors)];
     }
@@ -957,6 +966,7 @@ static void __update_rows(
     }
   }
 }
+
 
 
 static void __reduce_rows(
@@ -989,6 +999,37 @@ static void __reduce_rows(
     idx_t const row = rinfo->localind[m][s] - rinfo->mat_start[m];
     for(idx_t f=0; f < nfactors; ++f) {
       globmats[m]->vals[f+(row*nfactors)] += sendbuf[f + offset];
+    }
+  }
+}
+
+
+static void __add_my_partials(
+  sptensor_t const * const tt,
+  matrix_t const * const localmat,
+  matrix_t * const globmat,
+  rank_info const * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode)
+{
+  idx_t const m = mode;
+  val_t * const restrict gmatv = globmat->vals;
+  val_t const * const restrict matv = localmat->vals;
+
+  idx_t const mat_start = rinfo->mat_start[m];
+  idx_t const mat_end = rinfo->mat_end[m];
+  idx_t const start = rinfo->ownstart[m];
+  idx_t const end = rinfo->ownend[m];
+
+  memset(gmatv, 0, globmat->I * nfactors * sizeof(val_t));
+
+  /* now add partials to my global matrix */
+  for(idx_t i=start; i < end; ++i) {
+    idx_t const gi = (tt->indmap[m] == NULL) ? i : tt->indmap[m][i];
+    assert(gi >= mat_start && gi < mat_end);
+    idx_t const row = gi - mat_start;
+    for(idx_t f=0; f < nfactors; ++f) {
+      gmatv[f+(row*nfactors)] = matv[f+(i*nfactors)];
     }
   }
 }
@@ -1050,29 +1091,14 @@ void mpi_cpd(
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 
-      val_t * const restrict matv = mats[MAX_NMODES]->vals;
-      val_t * const restrict gmatv = globmats[m]->vals;
-      idx_t const mat_start = rinfo->mat_start[m];
-      idx_t const mat_end = rinfo->mat_end[m];
-
-      /* XXX: this probably is not correct */
-      /* now add partials to my global matrix */
-      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
-      for(idx_t i=0; i < tt->dims[m]; ++i) {
-        idx_t const gi = (tt->indmap[m] == NULL) ? i : tt->indmap[m][i];
-        /* if index is owned locally */
-        if(gi >= mat_start && gi < mat_end) {
-          idx_t const row = gi - mat_start;
-          for(idx_t f=0; f < nfactors; ++f) {
-            gmatv[f+(row*nfactors)] = matv[f+(i*nfactors)];
-          }
-        }
-      }
+      /* add my partial multiplications to globmats[m] */
+      __add_my_partials(tt, mats[MAX_NMODES], globmats[m], rinfo, nfactors, m);
 
       /* incorporate neighbors' partials */
       __reduce_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
 
-      //__update_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
+      /* send updated rows to neighbors */
+      __update_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
     } /* foreach mode */
 
     MPI_Barrier(rinfo->comm_3d);
@@ -1086,7 +1112,7 @@ void mpi_cpd(
   /* XXX: write mat to file */
   /* file name is <rank>.part */
   char name[256];
-  sprintf(name, "%d.part", rinfo->rank);
+  sprintf(name, "%d.mat", rinfo->rank);
   mat_write(globmats[0], name);
 
   /* clean up */
@@ -1250,11 +1276,40 @@ permutation_t * mpi_distribute_mats(
 
   __greedy_mat_distribution(rinfo, tt, perm);
 
-  __setup_mat_ptrs(rinfo, tt);
-
   perm_apply(tt, perm->perms);
 
+  /* compress tensor to own local coordinate system */
+  tt_remove_empty(tt);
+
+  __setup_mat_ptrs(rinfo, tt);
+
+  /* count # owned rows which are found in my tensor */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    idx_t const start = rinfo->mat_start[m];
+    idx_t const end = rinfo->mat_end[m];
+    idx_t const * const indmap = tt->indmap[m];
+
+    rinfo->ownstart[m]= tt->dims[m];
+    rinfo->ownend[m] = 0;
+    rinfo->nowned[m] = 0;
+    for(idx_t i=0; i < tt->dims[m]; ++i) {
+      idx_t gi = (indmap == NULL) ? i : indmap[i];
+      if(gi >= start && gi < end) {
+        rinfo->nowned[m] += 1;
+        rinfo->ownstart[m] = SS_MIN(rinfo->ownstart[m], i);
+        rinfo->ownend[m] = SS_MAX(rinfo->ownend[m], i);
+      }
+    }
+    rinfo->ownend[m] += 1;
+
 #if 0
+    val_t pct = 100. * ((double) rinfo->nowned[m] / (double) (end - start));
+    printf("p: %d local owned: %lu (%0.2f%%) %lu %lu\n", rinfo->rank,
+        rinfo->nowned[m], pct, rinfo->ownstart[m], rinfo->ownend[m]);
+#endif
+  }
+
+#if 1
   __write_part(tt, perm, rinfo);
 #endif
 

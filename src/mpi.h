@@ -28,6 +28,11 @@ typedef struct
   idx_t layer_starts[MAX_NMODES];
   idx_t layer_ends[MAX_NMODES];
 
+  idx_t nowned[MAX_NMODES];      /** number of rows owned */
+  idx_t ownstart[MAX_NMODES];    /** tt indices [ownstart, ownend) are mine */
+  idx_t ownend[MAX_NMODES];
+
+
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
 
@@ -41,6 +46,7 @@ typedef struct
   int   * localptr[MAX_NMODES];
   int   * localdisp[MAX_NMODES];
   idx_t * nbrmap[MAX_NMODES];   /** map nbrind into my local coord space */
+
 
   /* Communicators */
   MPI_Comm comm_3d;

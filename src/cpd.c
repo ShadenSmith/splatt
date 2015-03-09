@@ -79,7 +79,7 @@ void cpd(
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 
-      if(m == 0) mat_write(mats[MAX_NMODES], "gold.mat");
+      if(it == 0 && m == 0) mat_write(mats[MAX_NMODES], "gold.mat");
 
       timer_start(&timers[TIMER_INV]);
       /* M2 = (CtC * BtB * ...) */

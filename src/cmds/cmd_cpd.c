@@ -116,8 +116,6 @@ static void __par_cpd(
 
   /* determine matrix distribution */
   permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
-  /* compress tensor to own local coordinate system */
-  tt_remove_empty(tt);
 
   /* determine isend and ineed lists */
   mpi_compute_ineed(&rinfo, tt, args.rank);
