@@ -246,6 +246,15 @@ void mat_write(
     }
   }
 
+  mat_write_file(mat, fout);
+
+  fclose(fout);
+}
+
+void mat_write_file(
+  matrix_t const * const mat,
+  FILE * fout)
+{
   timer_start(&timers[TIMER_IO]);
   idx_t const I = mat->I;
   idx_t const J = mat->J;

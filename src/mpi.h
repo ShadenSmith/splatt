@@ -92,6 +92,13 @@ void mpi_cpd(
   cpd_opts const * const opts);
 
 
+void mpi_write_mats(
+  matrix_t ** mats,
+  rank_info const * const rinfo,
+  char const * const basename,
+  idx_t const nmodes);
+
+
 /**
 * @brief
 *

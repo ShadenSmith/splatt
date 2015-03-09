@@ -153,15 +153,22 @@ static void __par_cpd(
   /* do the actual factorization */
   mpi_cpd(tt, mats, globmats, &rinfo, &args);
 
+  idx_t const nmodes = tt->nmodes;
+  perm_free(perm);
+  tt_free(tt);
   mat_free(mats[MAX_NMODES]);
-  for(idx_t m=0; m < tt->nmodes; ++m) {
+  for(idx_t m=0; m < nmodes; ++m) {
     mat_free(mats[m]);
+  }
+
+  /* write output */
+  mpi_write_mats(globmats, &rinfo, "test", nmodes);
+
+  for(idx_t m=0; m < nmodes; ++m) {
     mat_free(globmats[m]);
   }
 
-  rank_free(rinfo, tt->nmodes);
-  perm_free(perm);
-  tt_free(tt);
+  rank_free(rinfo, nmodes);
 }
 
 void splatt_cpd(

@@ -63,6 +63,9 @@ void hgraph_write(
 void mat_write(
   matrix_t const * const mat,
   char const * const fname);
+void mat_write_file(
+  matrix_t const * const mat,
+  FILE * fout);
 
 
 

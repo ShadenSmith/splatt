@@ -1109,12 +1109,6 @@ void mpi_cpd(
     }
   } /* foreach iteration */
 
-  /* XXX: write mat to file */
-  /* file name is <rank>.part */
-  char name[256];
-  sprintf(name, "%d.mat", rinfo->rank);
-  mat_write(globmats[0], name);
-
   /* clean up */
   ften_free(ft);
   free(sendbuf);
@@ -1309,7 +1303,7 @@ permutation_t * mpi_distribute_mats(
 #endif
   }
 
-#if 1
+#if 0
   __write_part(tt, perm, rinfo);
 #endif
 
@@ -1513,6 +1507,74 @@ sptensor_t * mpi_tt_read(
 
   return tt;
 }
+
+
+
+void mpi_write_mats(
+  matrix_t ** mats,
+  rank_info const * const rinfo,
+  char const * const basename,
+  idx_t const nmodes)
+{
+  char * fname;
+  idx_t const nfactors = mats[0]->J;
+
+  MPI_Status status;
+
+  idx_t maxdim = 0;
+  matrix_t * buf = NULL;
+  for(idx_t m=0; m < nmodes; ++m) {
+    maxdim = SS_MAX(maxdim, rinfo->global_dims[m]);
+  }
+
+  if(rinfo->rank == 0) {
+    buf = mat_alloc(maxdim, nfactors);
+  }
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    idx_t const mat_start = rinfo->mat_start[m];
+    idx_t const layer_off = rinfo->layer_starts[m];
+
+    /* root handles the writing */
+    if(rinfo->rank == 0) {
+      asprintf(&fname, "%s%"SS_IDX".mat", basename, m);
+      buf->I = rinfo->global_dims[m];
+
+      /* copy root's matrix to buffer */
+      memcpy(buf->vals + layer_off + mat_start, mats[m]->vals,
+          mats[m]->I * mats[m]->J * sizeof(val_t));
+
+      /* receive matrix from each rank */
+      for(int p=1; p < rinfo->npes; ++p) {
+        idx_t start;
+        idx_t rows;
+        MPI_Recv(&start, 1, SS_MPI_IDX, p, 0, rinfo->comm_3d, &status);
+        MPI_Recv(&rows, 1, SS_MPI_IDX, p, 0, rinfo->comm_3d, &status);
+        MPI_Recv(buf->vals + start, rows * nfactors, SS_MPI_VAL, p, 0,
+            rinfo->comm_3d, &status);
+      }
+
+      /* write the factor matrix to disk */
+      mat_write(buf, fname);
+
+      /* clean up */
+      free(fname);
+    } else {
+      /* send matrix to root */
+      idx_t start = layer_off + mat_start;
+      MPI_Send(&start, 1, SS_MPI_IDX, 0, 0, rinfo->comm_3d);
+      MPI_Send(&(mats[m]->I), 1, SS_MPI_IDX, 0, 0, rinfo->comm_3d);
+      MPI_Send(mats[m]->vals, mats[m]->I * mats[m]->J, SS_MPI_VAL, 0, 0,
+        rinfo->comm_3d);
+    }
+  } /* foreach mode */
+
+
+  if(rinfo->rank == 0) {
+    mat_free(buf);
+  }
+}
+
 
 
 void rank_free(
