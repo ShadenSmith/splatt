@@ -9,4 +9,6 @@ Makefile
 CMakeFiles/
 cmake_install.cmake
 
+src/tags
+
 a.out
