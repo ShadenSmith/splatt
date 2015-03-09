@@ -1136,6 +1136,11 @@ void mpi_compute_ineed(
     rinfo->nbrptr[m] = (int *) calloc(size+1, sizeof(int));
     rinfo->localptr[m] = (int *) malloc((size+1) * sizeof(int));
 
+    rinfo->local2nbr_ptr[m] = (int *) calloc((size+1),  sizeof(int));
+    rinfo->nbr2globs_ptr[m] = (int *) malloc((size+1) * sizeof(int));
+    int * const local2nbr_ptr = rinfo->local2nbr_ptr[m];
+    int * const nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
+
     int * const nbrptr = rinfo->nbrptr[m];
     int * const localptr = rinfo->localptr[m];
     idx_t const * const mat_ptrs = rinfo->mat_ptrs[m];
@@ -1166,22 +1171,19 @@ void mpi_compute_ineed(
 
       /* if it is non-local */
       if(pdest != rank) {
-        nbrptr[pdest] += 1;
-        ++recvs;
+        local2nbr_ptr[pdest] += 1;
+        rinfo->nlocal2nbr[m] += 1;
       }
     }
 
     /* communicate nbrptr and store in localptr */
-    MPI_Alltoall(nbrptr, 1, MPI_INT, localptr, 1, MPI_INT, comm);
+    MPI_Alltoall(local2nbr_ptr, 1, MPI_INT, nbr2globs_ptr, 1, MPI_INT, comm);
 
     /* total number of sends */
     for(int p=0; p < size; ++p) {
-      sends += localptr[p];
+      rinfo->nnbr2globs[m] += nbr2globs_ptr[p];
     }
-    rinfo->sends[m] = sends;
-    rinfo->recvs[m] = recvs;
-
-    localptr[size] = sends;
+    nbr2globs_ptr[size] = rinfo->nnbr2globs[m];
 
     /* allocate space for all communicated indices */
     rinfo->nbrind[m]   = (idx_t *) malloc(recvs * sizeof(idx_t));
@@ -1190,6 +1192,14 @@ void mpi_compute_ineed(
     idx_t * const nbrind = rinfo->nbrind[m];
     idx_t * const localind = rinfo->localind[m];
     idx_t * const nbrmap = rinfo->nbrmap[m];
+
+    rinfo->nbr2globs_inds[m] = (idx_t *) malloc(rinfo->nnbr2globs[m] *
+        sizeof(idx_t));
+    rinfo->local2nbr_inds[m] = (idx_t *) malloc(rinfo->nlocal2nbr[m] *
+        sizeof(idx_t));
+    rinfo->nbr2local_inds[m] = (idx_t *) malloc(rinfo->nlocal2nbr[m] *
+        sizeof(idx_t));
+
 
     /* fill nbrptr */
     recvs = 0;

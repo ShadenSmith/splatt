@@ -48,6 +48,28 @@ typedef struct
   idx_t * nbrmap[MAX_NMODES];   /** map nbrind into my local coord space */
 
 
+  /* Send/Recv Structures
+   *
+   * local2nbr: These are rows that I compute for but do not own. These partial
+   *            products must be sent to neigbors.
+   *
+   * nbr2globs: These are rows that neigbors have but I own. These partial
+   *            products are received and I update global matrices with them.
+   *
+   * nbr2local: These are rows that I need to compute for local2nbr. For every
+   *            row in local2nbr I need their updated factor matrices.
+   */
+  idx_t nlocal2nbr[MAX_NMODES];
+  idx_t nnbr2globs[MAX_NMODES];
+  idx_t * nbr2globs_inds[MAX_NMODES];
+  idx_t * local2nbr_inds[MAX_NMODES];
+  idx_t * nbr2local_inds[MAX_NMODES];
+  int   * local2nbr_ptr[MAX_NMODES];
+  int   * nbr2globs_ptr[MAX_NMODES];
+  int   * local2nbr_disp[MAX_NMODES];
+  int   * nbr2globs_disp[MAX_NMODES];
+
+
   /* Communicators */
   MPI_Comm comm_3d;
   MPI_Comm layer_comm[MAX_NMODES];
