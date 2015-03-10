@@ -1085,8 +1085,8 @@ static void __fill_ineed_inds(
 * @param mode The mode to exchange along.
 */
 static void __update_rows(
-  val_t * const sendbuf,
-  val_t * const recvbuf,
+  val_t * const restrict local2nbr_buf,
+  val_t * const restrict nbr2globs_buf,
   matrix_t ** mats,
   matrix_t ** globmats,
   rank_info const * const rinfo,
@@ -1125,8 +1125,8 @@ static void __update_rows(
 
 
 static void __reduce_rows(
-  val_t * const sendbuf,
-  val_t * const recvbuf,
+  val_t * const restrict local2nbr_buf,
+  val_t * const restrict  nbr2globs_buf,
   matrix_t ** mats,
   matrix_t ** globmats,
   rank_info const * const rinfo,
@@ -1135,11 +1135,11 @@ static void __reduce_rows(
 {
   idx_t const m = mode;
   /* copy my computed rows into the sendbuf */
-  for(idx_t r=0; r < rinfo->recvs[m]; ++r) {
+  for(idx_t r=0; r < rinfo->nlocal2nbr[m]; ++r) {
     idx_t const offset = r * nfactors;
     idx_t const row = rinfo->nbrmap[m][r];
     for(idx_t f=0; f < nfactors; ++f) {
-      recvbuf[f + offset] = mats[MAX_NMODES]->vals[f + (row*nfactors)];
+      local2nbr_buf[f + offset] = mats[MAX_NMODES]->vals[f + (row*nfactors)];
     }
   }
 
@@ -1206,19 +1206,24 @@ void mpi_cpd(
 
   idx_t const nfactors = opts->rank;
 
-  idx_t maxsends = 0;
-  idx_t maxrecvs = 0;
+  idx_t maxlocal2nbr = 0;
+  idx_t maxnbr2globs = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    maxsends = SS_MAX(maxsends, rinfo->sends[m]);
-    maxrecvs = SS_MAX(maxrecvs, rinfo->recvs[m]);
+    maxlocal2nbr = SS_MAX(maxlocal2nbr, rinfo->nlocal2nbr[m]);
+    maxnbr2globs = SS_MAX(maxnbr2globs, rinfo->nnbr2globs[m]);
   }
+  maxlocal2nbr *= nfactors;
+  maxnbr2globs *= nfactors;
 
-  val_t * sendbuf = (val_t *) malloc(maxsends * nfactors * sizeof(val_t));
-  val_t * recvbuf = (val_t *) malloc(maxrecvs * nfactors * sizeof(val_t));
+  val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
+  val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
 
   /* exchange initial matrices */
   for(idx_t m=1; m < tt->nmodes; ++m) {
-    //__update_rows(sendbuf, recvbuf, mats, globmats, rinfo, nfactors, m);
+#if 0
+    __update_rows(local2nbr_buf, nbr2globs_buf, mats, globmats, rinfo,
+        nfactors, m);
+#endif
   }
 
   /* allocate tensor */
@@ -1266,8 +1271,8 @@ void mpi_cpd(
 
   /* clean up */
   ften_free(ft);
-  free(sendbuf);
-  free(recvbuf);
+  free(local2nbr_buf);
+  free(nbr2globs_buf);
 
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_CPD]);
