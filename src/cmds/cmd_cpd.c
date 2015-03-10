@@ -162,7 +162,7 @@ static void __par_cpd(
   }
 
   /* write output */
-  mpi_write_mats(globmats, &rinfo, "test", nmodes);
+  //mpi_write_mats(globmats, &rinfo, "test", nmodes);
 
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(globmats[m]);

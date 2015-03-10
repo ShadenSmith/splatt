@@ -1008,7 +1008,9 @@ static void __fill_ineed_inds(
     }
     /* if it is non-local */
     if(pdest != rank) {
-      local2nbr_inds[recvs++] = gi;
+      local2nbr_inds[recvs] = gi;
+      nbr2local_inds[recvs] = i;
+      ++recvs;
     }
   }
 
@@ -1085,8 +1087,8 @@ static void __fill_ineed_inds(
 * @param mode The mode to exchange along.
 */
 static void __update_rows(
-  val_t * const restrict local2nbr_buf,
   val_t * const restrict nbr2globs_buf,
+  val_t * const restrict nbr2local_buf,
   matrix_t ** mats,
   matrix_t ** globmats,
   rank_info const * const rinfo,
@@ -1094,23 +1096,42 @@ static void __update_rows(
   idx_t const mode)
 {
   idx_t const m = mode;
+  idx_t const mat_start = rinfo->mat_start[m];
+  idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
+  val_t const * const restrict gmatv = globmats[m]->vals;
 
-  /* copy my portion of the global matrix into a buffer */
-  idx_t idx = 0;
-  for(idx_t s=0; s < rinfo->sends[m]; ++s) {
-    assert(rinfo->localind[m][s] >= rinfo->mat_start[m]);
-    assert(rinfo->localind[m][s] < rinfo->mat_end[m]);
-    idx_t const row = rinfo->localind[m][s] - rinfo->mat_start[m];
+  /* first prepare all rows that I own and need to send */
+  for(idx_t s=0; s < rinfo->nnbr2globs[m]; ++s) {
+    idx_t const row = nbr2globs_inds[s] - mat_start;
     for(idx_t f=0; f < nfactors; ++f) {
-      sendbuf[idx++] = globmats[m]->vals[f+(row*nfactors)];
+      nbr2globs_buf[f+(s*nfactors)] = gmatv[f+(row*nfactors)];
     }
   }
 
+  /* grab ptr/disp from rinfo. nbr2local and local2nbr will have the same
+   * structure so we just reuse those */
+  int const * const restrict nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
+  int const * const restrict nbr2local_ptr = rinfo->local2nbr_ptr[m];
+  int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
+  int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
+
   /* exchange rows */
-  MPI_Alltoallv(sendbuf, rinfo->localptr[m], rinfo->localdisp[m], SS_MPI_VAL,
-                recvbuf, rinfo->nbrptr[m], rinfo->nbrdisp[m], SS_MPI_VAL,
+  MPI_Alltoallv(nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
+                nbr2local_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
                 rinfo->layer_comm[m]);
 
+  /* now write incoming nbr2locals to my local matrix */
+  if(rinfo->rank == 2) {
+    printf("mat_start: %lu mat_end: %lu ownstart: %lu ownend: %lu\n",
+      rinfo->mat_start[m], rinfo->mat_end[m],
+      rinfo->ownstart[m], rinfo->ownend[m]);
+    for(idx_t r=0; r < rinfo->nlocal2nbr[m]; ++r) {
+        printf("%lu ", rinfo->nbr2local_inds[m][r]);
+    }
+    printf("\n");
+  }
+
+#if 0
   idx_t const * const nbrind = rinfo->nbrind[m];
   idx_t const * const nbrmap = rinfo->nbrmap[m];
   idx = 0;
@@ -1120,6 +1141,7 @@ static void __update_rows(
       mats[m]->vals[f + (row*nfactors)] = recvbuf[idx++];
     }
   }
+#endif
 }
 
 
@@ -1133,6 +1155,7 @@ static void __reduce_rows(
   idx_t const nfactors,
   idx_t const mode)
 {
+#if 0
   idx_t const m = mode;
   /* copy my computed rows into the sendbuf */
   for(idx_t r=0; r < rinfo->nlocal2nbr[m]; ++r) {
@@ -1156,6 +1179,7 @@ static void __reduce_rows(
       globmats[m]->vals[f+(row*nfactors)] += sendbuf[f + offset];
     }
   }
+#endif
 }
 
 
@@ -1179,12 +1203,19 @@ static void __add_my_partials(
   memset(gmatv, 0, globmat->I * nfactors * sizeof(val_t));
 
   /* now add partials to my global matrix */
-  for(idx_t i=start; i < end; ++i) {
-    idx_t const gi = (tt->indmap[m] == NULL) ? i : tt->indmap[m][i];
-    assert(gi >= mat_start && gi < mat_end);
-    idx_t const row = gi - mat_start;
-    for(idx_t f=0; f < nfactors; ++f) {
-      gmatv[f+(row*nfactors)] = matv[f+(i*nfactors)];
+  if(tt->indmap[m] == NULL) {
+    for(idx_t i=start; i < end; ++i) {
+      idx_t const row = i - mat_start;
+      for(idx_t f=0; f < nfactors; ++f) {
+        gmatv[f+(row*nfactors)] = matv[f+(i*nfactors)];
+      }
+    }
+  } else {
+    for(idx_t i=start; i < end; ++i) {
+      idx_t const row = tt->indmap[m][i] - mat_start;
+      for(idx_t f=0; f < nfactors; ++f) {
+        gmatv[f+(row*nfactors)] = matv[f+(i*nfactors)];
+      }
     }
   }
 }
@@ -1220,10 +1251,8 @@ void mpi_cpd(
 
   /* exchange initial matrices */
   for(idx_t m=1; m < tt->nmodes; ++m) {
-#if 0
     __update_rows(local2nbr_buf, nbr2globs_buf, mats, globmats, rinfo,
         nfactors, m);
-#endif
   }
 
   /* allocate tensor */
