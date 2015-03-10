@@ -53,11 +53,11 @@ typedef struct
    * local2nbr: These are rows that I compute for but do not own. These partial
    *            products must be sent to neigbors.
    *
+   * nbr2local: These are neigbors' rows that I need for MTTKRP. For every row
+   *            in local2nbr I need their updated factor matrices.
+   *
    * nbr2globs: These are rows that neigbors have but I own. These partial
    *            products are received and I update global matrices with them.
-   *
-   * nbr2local: These are rows that I need to compute for local2nbr. For every
-   *            row in local2nbr I need their updated factor matrices.
    */
   idx_t nlocal2nbr[MAX_NMODES];
   idx_t nnbr2globs[MAX_NMODES];
