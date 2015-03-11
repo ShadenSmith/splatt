@@ -8,7 +8,7 @@
 #include "../stats.h"
 #include "../cpd.h"
 
-#include "../mpi.h"
+#include "../mpi/mpi.h"
 
 
 /******************************************************************************
@@ -154,7 +154,6 @@ static void __par_cpd(
   mpi_cpd(tt, mats, globmats, &rinfo, &args);
 
   idx_t const nmodes = tt->nmodes;
-  perm_free(perm);
   tt_free(tt);
   mat_free(mats[MAX_NMODES]);
   for(idx_t m=0; m < nmodes; ++m) {
@@ -162,12 +161,12 @@ static void __par_cpd(
   }
 
   /* write output */
-  //mpi_write_mats(globmats, &rinfo, "test", nmodes);
+  mpi_write_mats(globmats, perm, &rinfo, "test", nmodes);
 
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(globmats[m]);
   }
-
+  perm_free(perm);
   rank_free(rinfo, nmodes);
 }
 

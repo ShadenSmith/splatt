@@ -38,7 +38,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-file(GLOB SPLATT_SOURCES src/*.c)
+file(GLOB SPLATT_SOURCES src/*.c src/mpi/*.c)
 
 # Generate splatt library
 add_subdirectory(lib)

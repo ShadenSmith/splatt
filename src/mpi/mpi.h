@@ -4,10 +4,10 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include "base.h"
-#include "sptensor.h"
-#include "reorder.h"
-#include "cpd.h"
+#include "../base.h"
+#include "../sptensor.h"
+#include "../reorder.h"
+#include "../cpd.h"
 #include <mpi.h>
 
 
@@ -36,19 +36,14 @@ typedef struct
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
 
-  /* MPI_Alltoallv info */
-  idx_t sends[MAX_NMODES];
-  idx_t recvs[MAX_NMODES];
-  idx_t * nbrind[MAX_NMODES];   /** inds that I compute for but others own */
-  idx_t * localind[MAX_NMODES]; /** inds that others compute for but I own */
-  int   * nbrptr[MAX_NMODES];
-  int   * nbrdisp[MAX_NMODES];
-  int   * localptr[MAX_NMODES];
-  int   * localdisp[MAX_NMODES];
-  idx_t * nbrmap[MAX_NMODES];   /** map nbrind into my local coord space */
-
-
   /* Send/Recv Structures
+   * nlocal2nbr: This is the number of rows that I have in my tensor but do not
+   *             own. I must send nlocal2nbr partial products AND receive
+   *             nlocal2nbr updated rows after each iteration.
+   *
+   * nnbr2globs: This is the number of rows that other ranks use but I own,
+   *             summed across all ranks. I receive this many partial updates
+   *             and send this many updated rows after each iteration.
    *
    * local2nbr: These are rows that I compute for but do not own. These partial
    *            products must be sent to neigbors.
@@ -116,6 +111,7 @@ void mpi_cpd(
 
 void mpi_write_mats(
   matrix_t ** mats,
+  permutation_t const * const perm,
   rank_info const * const rinfo,
   char const * const basename,
   idx_t const nmodes);
