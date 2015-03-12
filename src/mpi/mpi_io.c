@@ -469,24 +469,16 @@ void mpi_write_mats(
   for(idx_t m=0; m < nmodes; ++m) {
     /* root handles the writing */
     if(rinfo->rank == 0) {
-      /* XXX */
-      memset(matbuf->vals, 0, maxdim * nfactors * sizeof(val_t));
-      printf("MODE\n");
-
       asprintf(&fname, "%s%"SS_IDX".mat", basename, m);
       matbuf->I = rinfo->global_dims[m];
 
       /* copy root's matrix to buffer */
-      printf("me:");
       for(idx_t i=0; i < mats[m]->I; ++i) {
         idx_t const gi = rinfo->layer_starts[m] + perm->iperms[m][i];
-        if(i < 30) printf(" %lu", gi);
         for(idx_t f=0; f < nfactors; ++f) {
-          assert(matbuf->vals[f+(gi*nfactors)] == 0);
           matbuf->vals[f + (gi*nfactors)] = mats[m]->vals[f+(i*nfactors)];
         }
       }
-      printf("\n");
 
       /* receive matrix from each rank */
       for(int p=1; p < rinfo->npes; ++p) {
@@ -499,16 +491,12 @@ void mpi_write_mats(
         MPI_Recv(loc_iperm, nrows, SS_MPI_IDX, p, 0, rinfo->comm_3d, &status);
 
         /* permute buffer and copy into matbuf */
-        printf("gi:");
         for(idx_t i=0; i < nrows; ++i) {
           idx_t const gi = layerstart + loc_iperm[i];
-          if(i < 30) printf(" %lu", gi);
           for(idx_t f=0; f < nfactors; ++f) {
-            //assert(matbuf->vals[f+(gi*nfactors)] == 0);
             matbuf->vals[f + (gi*nfactors)] = vbuf[f+(i*nfactors)];
           }
         }
-        printf("\n");
       }
 
       /* write the factor matrix to disk */
@@ -521,8 +509,9 @@ void mpi_write_mats(
       MPI_Send(&(rinfo->layer_starts[m]), 1, SS_MPI_IDX, 0, 0, rinfo->comm_3d);
       MPI_Send(&(mats[m]->I), 1, SS_MPI_IDX, 0, 0, rinfo->comm_3d);
       MPI_Send(mats[m]->vals, mats[m]->I * mats[m]->J, SS_MPI_VAL, 0, 0,
-        rinfo->comm_3d);
-      MPI_Send(perm->iperms[m] + rinfo->mat_start[m], mats[m]->I, SS_MPI_IDX, 0, 0, rinfo->comm_3d);
+          rinfo->comm_3d);
+      MPI_Send(perm->iperms[m] + rinfo->mat_start[m], mats[m]->I, SS_MPI_IDX,
+          0, 0, rinfo->comm_3d);
     }
   } /* foreach mode */
 
