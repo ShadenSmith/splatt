@@ -8,7 +8,6 @@
 #include <time.h>
 
 
-
 /******************************************************************************
  * STRUCTURES
  *****************************************************************************/
@@ -30,9 +29,12 @@ typedef struct
 */
 typedef enum
 {
+  TIMER_LVL0,   /* LEVEL 0 */
   TIMER_ALL,
+  TIMER_LVL1,   /* LEVEL 1 */
   TIMER_CPD,
   TIMER_IO,
+  TIMER_LVL2,   /* LEVEL 2 */
   TIMER_MTTKRP,
   TIMER_INV,
   TIMER_SPLATT,
@@ -45,9 +47,11 @@ typedef enum
   TIMER_TILE,
   TIMER_CONVERT,
   TIMER_MPI,
-  TIMER_NTIMERS
+  TIMER_NTIMERS /* LEVEL N */
 } timer_id;
 
+
+static int timer_lvl = TIMER_LVL2;
 extern sp_timer_t timers[];
 
 /******************************************************************************

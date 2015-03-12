@@ -47,7 +47,7 @@ void report_times(void)
 {
   printf("\n");
   printf("Timing information ---------------------------------------------\n");
-  for(int t=0; t < TIMER_NTIMERS; ++t) {
+  for(int t=0; t < timer_lvl; ++t) {
     if(timers[t].seconds > 0) {
       printf("  %-20s%0.3fs\n", timer_names[t], timers[t].seconds);
     }
