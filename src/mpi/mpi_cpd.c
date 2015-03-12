@@ -14,25 +14,77 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+
+/**
+* @brief Flush the updated values in globalmat to our local representation.
+*
+* @param tt The tensor we are operating on.
+* @param localmat The local matrix to update.
+* @param globalmat The recently updated global matrix.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the factor matrices.
+* @param mode The mode we are operating on.
+*/
+static void __flush_glob_to_local(
+  sptensor_t const * const tt,
+  matrix_t * const localmat,
+  matrix_t const * const globalmat,
+  rank_info const * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode)
+{
+  idx_t const m = mode;
+  val_t const * const restrict gmatv = globalmat->vals;
+  val_t * const restrict matv = localmat->vals;
+
+  idx_t const mat_start = rinfo->mat_start[m];
+  idx_t const mat_end = rinfo->mat_end[m];
+  idx_t const start = rinfo->ownstart[m];
+  idx_t const end = rinfo->ownend[m];
+
+  /* now add partials to my global matrix */
+  if(tt->indmap[m] == NULL) {
+    for(idx_t i=start; i < end; ++i) {
+      assert(i >= mat_start && i < mat_end);
+      idx_t const row = i - mat_start;
+      for(idx_t f=0; f < nfactors; ++f) {
+        matv[f+(i*nfactors)] = gmatv[f+(row*nfactors)];
+      }
+    }
+  } else {
+    idx_t const * const restrict indmap = tt->indmap[m];
+    for(idx_t i=start; i < end; ++i) {
+      assert(indmap[i] >= mat_start && indmap[i] < mat_end);
+      idx_t const row = indmap[i] - mat_start;
+      for(idx_t f=0; f < nfactors; ++f) {
+        matv[f+(i*nfactors)] = gmatv[f+(row*nfactors)];
+      }
+    }
+  }
+}
+
+
 /**
 * @brief Do an all-to-all communication of exchanging updated rows with other
 *        ranks. We send globmats[mode] to the needing ranks and receive other
 *        ranks' globmats entries which we store in mats[mode].
 *
+* @param tt The tensor we are operating on.
 * @param nbr2globs_buf Buffer at least as large as as there are rows to send
 *                      (for each rank).
 * @param nbr2local_buf Buffer at least as large as there are rows to receive.
-* @param mats Local factor matrices which receive updated values.
-* @param globmats Global factor matrices (owned by me) which are sent to ranks.
+* @param localmat Local factor matrix which receives updated values.
+* @param globalmat Global factor matrix (owned by me) which is sent to ranks.
 * @param rinfo MPI rank information.
 * @param nfactors The number of columns in the factor matrices.
 * @param mode The mode to exchange along.
 */
 static void __update_rows(
+  sptensor_t const * const tt,
   val_t * const restrict nbr2globs_buf,
   val_t * const restrict nbr2local_buf,
-  matrix_t ** mats,
-  matrix_t ** globmats,
+  matrix_t * const localmat,
+  matrix_t * const globalmat,
   rank_info const * const rinfo,
   idx_t const nfactors,
   idx_t const mode)
@@ -40,7 +92,7 @@ static void __update_rows(
   idx_t const m = mode;
   idx_t const mat_start = rinfo->mat_start[m];
   idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
-  val_t const * const restrict gmatv = globmats[m]->vals;
+  val_t const * const restrict gmatv = globalmat->vals;
 
   /* first prepare all rows that I own and need to send */
   for(idx_t s=0; s < rinfo->nnbr2globs[m]; ++s) {
@@ -64,13 +116,16 @@ static void __update_rows(
 
   /* now write incoming nbr2locals to my local matrix */
   idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
-  val_t * const restrict matv = mats[m]->vals;
+  val_t * const restrict matv = localmat->vals;
   for(idx_t r=0; r < rinfo->nlocal2nbr[m]; ++r) {
     idx_t const row = local2nbr_inds[r];
     for(idx_t f=0; f < nfactors; ++f) {
       matv[f+(row*nfactors)] = nbr2local_buf[f+(r*nfactors)];
     }
   }
+
+  /* ensure the local matrix is up to date too */
+  __flush_glob_to_local(tt, localmat, globalmat, rinfo, nfactors, m);
 }
 
 
@@ -175,44 +230,6 @@ static void __add_my_partials(
 }
 
 
-static void __flush_glob_to_local(
-  sptensor_t const * const tt,
-  matrix_t * const localmat,
-  matrix_t const * const globmat,
-  rank_info const * const rinfo,
-  idx_t const nfactors,
-  idx_t const mode)
-{
-  idx_t const m = mode;
-  val_t const * const restrict gmatv = globmat->vals;
-  val_t * const restrict matv = localmat->vals;
-
-  idx_t const mat_start = rinfo->mat_start[m];
-  idx_t const mat_end = rinfo->mat_end[m];
-  idx_t const start = rinfo->ownstart[m];
-  idx_t const end = rinfo->ownend[m];
-
-  /* now add partials to my global matrix */
-  if(tt->indmap[m] == NULL) {
-    for(idx_t i=start; i < end; ++i) {
-      assert(i >= mat_start && i < mat_end);
-      idx_t const row = i - mat_start;
-      for(idx_t f=0; f < nfactors; ++f) {
-        matv[f+(i*nfactors)] = gmatv[f+(row*nfactors)];
-      }
-    }
-  } else {
-    idx_t const * const restrict indmap = tt->indmap[m];
-    for(idx_t i=start; i < end; ++i) {
-      assert(indmap[i] >= mat_start && indmap[i] < mat_end);
-      idx_t const row = indmap[i] - mat_start;
-      for(idx_t f=0; f < nfactors; ++f) {
-        matv[f+(i*nfactors)] = gmatv[f+(row*nfactors)];
-      }
-    }
-  }
-}
-
 
 
 /******************************************************************************
@@ -231,23 +248,25 @@ void mpi_cpd(
 
   idx_t const nfactors = opts->rank;
 
+  idx_t maxdim = 0;
   idx_t maxlocal2nbr = 0;
   idx_t maxnbr2globs = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
     maxlocal2nbr = SS_MAX(maxlocal2nbr, rinfo->nlocal2nbr[m]);
     maxnbr2globs = SS_MAX(maxnbr2globs, rinfo->nnbr2globs[m]);
+    maxdim = SS_MAX(globmats[m]->I, maxdim);
   }
   maxlocal2nbr *= nfactors;
   maxnbr2globs *= nfactors;
 
   val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
   val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
+  matrix_t * m1 = mat_alloc(maxdim, nfactors);
 
   /* exchange initial matrices */
   for(idx_t m=1; m < tt->nmodes; ++m) {
-    __update_rows(nbr2globs_buf, local2nbr_buf, mats, globmats, rinfo,
-        nfactors, m);
-    __flush_glob_to_local(tt, mats[m], globmats[m], rinfo, nfactors, m);
+    __update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
+        rinfo, nfactors, m);
   }
 
   /* allocate tensor */
@@ -269,6 +288,7 @@ void mpi_cpd(
     timer_fstart(&itertime);
     for(idx_t m=0; m < tt->nmodes; ++m) {
       mats[MAX_NMODES]->I = ft->dims[m];
+      m1->I = globmats[m]->I;
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
@@ -276,16 +296,17 @@ void mpi_cpd(
       timer_stop(&timers[TIMER_MTTKRP]);
 
       /* add my partial multiplications to globmats[m] */
-      __add_my_partials(tt, mats[MAX_NMODES], globmats[m], rinfo, nfactors, m);
+      __add_my_partials(tt, mats[MAX_NMODES], m1, rinfo, nfactors, m);
 
       /* incorporate neighbors' partials */
       __reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES],
-          globmats[m], rinfo, nfactors, m);
+          m1, rinfo, nfactors, m);
+
+      memcpy(globmats[m]->vals, m1->vals, m1->I * m1->J * sizeof(val_t));
 
       /* send updated rows to neighbors */
-      __update_rows(nbr2globs_buf, local2nbr_buf, mats, globmats, rinfo,
-          nfactors, m);
-      __flush_glob_to_local(tt, mats[m], globmats[m], rinfo, nfactors, m);
+      __update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
+          rinfo, nfactors, m);
     } /* foreach mode */
 
     MPI_Barrier(rinfo->comm_3d);
@@ -298,6 +319,7 @@ void mpi_cpd(
 
   /* clean up */
   ften_free(ft);
+  mat_free(m1);
   free(local2nbr_buf);
   free(nbr2globs_buf);
 

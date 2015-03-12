@@ -40,6 +40,7 @@ void cpd(
   matrix_t ** mats,
   cpd_opts const * const opts)
 {
+  timer_start(&timers[TIMER_CPD]);
   idx_t const rank = opts->rank;
   idx_t const nmodes = tt->nmodes;
 
@@ -79,7 +80,15 @@ void cpd(
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 
-      //if(it == 0 && m == 0) mat_write(mats[MAX_NMODES], "gold.mat");
+#if 1
+      if(it == 0) {
+        char * fname = NULL;
+        asprintf(&fname, "gold%"SS_IDX".mat", m);
+        mat_write(mats[MAX_NMODES], fname);
+        free(fname);
+      }
+#endif
+      continue;
 
       timer_start(&timers[TIMER_INV]);
       /* M2 = (CtC * BtB * ...) */
@@ -101,6 +110,7 @@ void cpd(
       }
     }
 
+#if 0
     /* calculate fit */
     val_t norm_mats = 0;
     mat_aTa_hada(mats, 0, nmodes, nmodes, atabuf, ata);
@@ -138,6 +148,8 @@ void cpd(
 
     val_t residual = sqrt(xnorm + norm_mats - (2 * inner));
     val_t fit = 1 - (residual / sqrt(xnorm));
+#endif
+    val_t fit = 0.1;
 
     timer_stop(&itertime);
     printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.3f\n", it+1,
@@ -149,6 +161,7 @@ void cpd(
   mat_free(ata);
   mat_free(atabuf);
   free(lambda);
+  timer_stop(&timers[TIMER_CPD]);
 }
 
 
