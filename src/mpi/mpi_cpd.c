@@ -110,9 +110,11 @@ static void __update_rows(
   int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
 
   /* exchange rows */
+  timer_start(&timers[TIMER_MPI]);
   MPI_Alltoallv(nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
                 nbr2local_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
                 rinfo->layer_comm[m]);
+  timer_stop(&timers[TIMER_MPI]);
 
   /* now write incoming nbr2locals to my local matrix */
   idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
@@ -130,6 +132,18 @@ static void __update_rows(
 
 
 
+/**
+* @brief Do a reduction (sum) of all neighbor partial products which I own.
+*        Updates are written to globalmat.
+*
+* @param local2nbr_buf A buffer at least as large as nlocal2nbr.
+* @param nbr2globs_buf A buffer at least as large as nnbr2globs.
+* @param localmat My local matrix containing partial products for other ranks.
+* @param globalmat The global factor matrix to update.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the matrices.
+* @param mode The mode to operate on.
+*/
 static void __reduce_rows(
   val_t * const restrict local2nbr_buf,
   val_t * const restrict nbr2globs_buf,
@@ -160,9 +174,11 @@ static void __reduce_rows(
   int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
 
   /* exchange rows */
+  timer_start(&timers[TIMER_MPI]);
   MPI_Alltoallv(local2nbr_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
                 nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
                 rinfo->layer_comm[m]);
+  timer_stop(&timers[TIMER_MPI]);
 
 
   /* now add received rows to globmats */

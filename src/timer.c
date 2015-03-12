@@ -24,6 +24,7 @@ static char const * const timer_names[] = {
   [TIMER_SORT]    = "SORT",
   [TIMER_TILE]    = "TILE",
   [TIMER_CONVERT] = "CONVERT",
+  [TIMER_MPI]     = "MPI",
   [TIMER_MISC]    = "MISC"
 };
 

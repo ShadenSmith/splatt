@@ -44,6 +44,7 @@ typedef enum
   TIMER_REORDER,
   TIMER_TILE,
   TIMER_CONVERT,
+  TIMER_MPI,
   TIMER_NTIMERS
 } timer_id;
 
