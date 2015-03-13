@@ -131,6 +131,10 @@ static void __fill_ineed_inds(
                 nbr2globs_inds, nbr2globs_ptr, nbr2globs_disp, SS_MPI_IDX,
                 comm);
 
+  /* we don't need nbr2local_inds anymore */
+  free(rinfo->nbr2local_inds[m]);
+  rinfo->nbr2local_inds[m] = NULL;
+
   /* sanity check on nbr2globs_inds */
   for(idx_t i=0; i < rinfo->nnbr2globs[m]; ++i) {
     assert(nbr2globs_inds[i] >= rinfo->mat_start[m]);
