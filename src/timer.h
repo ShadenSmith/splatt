@@ -32,26 +32,29 @@ typedef enum
   TIMER_LVL0,   /* LEVEL 0 */
   TIMER_ALL,
   TIMER_LVL1,   /* LEVEL 1 */
-  TIMER_CPD,
   TIMER_IO,
+  /* COMMANDS */
+  TIMER_CPD,
+  TIMER_REORDER,
+  TIMER_TILE,
+  TIMER_CONVERT,
   TIMER_LVL2,   /* LEVEL 2 */
+  TIMER_MPI,
   TIMER_MTTKRP,
   TIMER_INV,
+  TIMER_SORT,
   TIMER_SPLATT,
   TIMER_GIGA,
   TIMER_DFACTO,
   TIMER_TTBOX,
-  TIMER_SORT,
   TIMER_MISC,
-  TIMER_REORDER,
-  TIMER_TILE,
-  TIMER_CONVERT,
-  TIMER_MPI,
+  TIMER_MPI_IDLE,
+  TIMER_MPI_COMM,
   TIMER_NTIMERS /* LEVEL N */
 } timer_id;
 
 
-static int timer_lvl = TIMER_LVL2;
+static int timer_lvl = TIMER_NTIMERS;
 extern sp_timer_t timers[];
 
 /******************************************************************************
