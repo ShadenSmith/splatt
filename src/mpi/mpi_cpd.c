@@ -271,8 +271,6 @@ void mpi_cpd(
   rank_info * const rinfo,
   cpd_opts const * const opts)
 {
-  MPI_Barrier(rinfo->comm_3d);
-
   idx_t const nfactors = opts->rank;
 
   idx_t maxdim = 0;
@@ -311,6 +309,7 @@ void mpi_cpd(
 
   sp_timer_t itertime;
 
+  MPI_Barrier(rinfo->comm_3d);
   timer_start(&timers[TIMER_CPD]);
   for(idx_t it=0; it < opts->niters; ++it) {
     timer_fstart(&itertime);
