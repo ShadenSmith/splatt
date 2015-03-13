@@ -356,6 +356,25 @@ void mpi_cpd(
 
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_CPD]);
+
+  /* get max MPI timings */
+  double max_mttkrp;
+  double max_mpi;
+  double max_idle;
+  double max_com;
+  MPI_Reduce(&timers[TIMER_MTTKRP].seconds, &max_mttkrp, 1, MPI_DOUBLE,
+      MPI_MAX, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI].seconds, &max_mpi, 1, MPI_DOUBLE,
+      MPI_MAX, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI_IDLE].seconds, &max_idle, 1, MPI_DOUBLE,
+      MPI_MAX, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI_COMM].seconds, &max_com, 1, MPI_DOUBLE,
+      MPI_MAX, 0, rinfo->comm_3d);
+
+  timers[TIMER_MTTKRP].seconds   = max_mttkrp;
+  timers[TIMER_MPI].seconds      = max_mpi;
+  timers[TIMER_MPI_IDLE].seconds = max_idle;
+  timers[TIMER_MPI_COMM].seconds = max_com;
 }
 
 
