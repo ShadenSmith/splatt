@@ -89,6 +89,7 @@ static void __update_rows(
   idx_t const nfactors,
   idx_t const mode)
 {
+  timer_start(&timers[TIMER_MPI]);
   idx_t const m = mode;
   idx_t const mat_start = rinfo->mat_start[m];
   idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
@@ -109,12 +110,16 @@ static void __update_rows(
   int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
   int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
 
+  timer_start(&timers[TIMER_MPI_IDLE]);
+  MPI_Barrier(rinfo->layer_comm[m]);
+  timer_stop(&timers[TIMER_MPI_IDLE]);
+
   /* exchange rows */
-  timer_start(&timers[TIMER_MPI]);
+  timer_start(&timers[TIMER_MPI_COMM]);
   MPI_Alltoallv(nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
                 nbr2local_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
                 rinfo->layer_comm[m]);
-  timer_stop(&timers[TIMER_MPI]);
+  timer_stop(&timers[TIMER_MPI_COMM]);
 
   /* now write incoming nbr2locals to my local matrix */
   idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
@@ -128,6 +133,7 @@ static void __update_rows(
 
   /* ensure the local matrix is up to date too */
   __flush_glob_to_local(tt, localmat, globalmat, rinfo, nfactors, m);
+  timer_stop(&timers[TIMER_MPI]);
 }
 
 
@@ -153,6 +159,7 @@ static void __reduce_rows(
   idx_t const nfactors,
   idx_t const mode)
 {
+  timer_start(&timers[TIMER_MPI]);
   idx_t const m = mode;
 
   val_t const * const restrict matv = localmat->vals;
@@ -173,12 +180,16 @@ static void __reduce_rows(
   int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
   int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
 
+  timer_start(&timers[TIMER_MPI_IDLE]);
+  MPI_Barrier(rinfo->layer_comm[m]);
+  timer_stop(&timers[TIMER_MPI_IDLE]);
+
+  timer_start(&timers[TIMER_MPI_COMM]);
   /* exchange rows */
-  timer_start(&timers[TIMER_MPI]);
   MPI_Alltoallv(local2nbr_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
                 nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
                 rinfo->layer_comm[m]);
-  timer_stop(&timers[TIMER_MPI]);
+  timer_stop(&timers[TIMER_MPI_COMM]);
 
 
   /* now add received rows to globmats */
@@ -191,6 +202,7 @@ static void __reduce_rows(
       gmatv[f+(row*nfactors)] += nbr2globs_buf[f+(r*nfactors)];
     }
   }
+  timer_stop(&timers[TIMER_MPI]);
 }
 
 
@@ -259,9 +271,6 @@ void mpi_cpd(
   rank_info * const rinfo,
   cpd_opts const * const opts)
 {
-  MPI_Barrier(rinfo->comm_3d);
-  timer_start(&timers[TIMER_CPD]);
-
   idx_t const nfactors = opts->rank;
 
   idx_t maxdim = 0;
@@ -300,6 +309,8 @@ void mpi_cpd(
 
   sp_timer_t itertime;
 
+  MPI_Barrier(rinfo->comm_3d);
+  timer_start(&timers[TIMER_CPD]);
   for(idx_t it=0; it < opts->niters; ++it) {
     timer_fstart(&itertime);
     for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -323,9 +334,12 @@ void mpi_cpd(
       /* send updated rows to neighbors */
       __update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
           rinfo, nfactors, m);
+
+      //timer_start(&timers[TIMER_MPI_IDLE]);
+      //MPI_Barrier(rinfo->comm_3d);
+      //timer_stop(&timers[TIMER_MPI_IDLE]);
     } /* foreach mode */
 
-    MPI_Barrier(rinfo->comm_3d);
     timer_stop(&itertime);
     if(rinfo->rank == 0) {
       printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.3f\n", it+1,
@@ -341,6 +355,25 @@ void mpi_cpd(
 
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_CPD]);
+
+  /* get max MPI timings */
+  double max_mttkrp;
+  double max_mpi;
+  double max_idle;
+  double max_com;
+  MPI_Reduce(&timers[TIMER_MTTKRP].seconds, &max_mttkrp, 1, MPI_DOUBLE,
+      MPI_MAX, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI].seconds, &max_mpi, 1, MPI_DOUBLE,
+      MPI_MAX, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI_IDLE].seconds, &max_idle, 1, MPI_DOUBLE,
+      MPI_MAX, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI_COMM].seconds, &max_com, 1, MPI_DOUBLE,
+      MPI_MAX, 0, rinfo->comm_3d);
+
+  timers[TIMER_MTTKRP].seconds   = max_mttkrp;
+  timers[TIMER_MPI].seconds      = max_mpi;
+  timers[TIMER_MPI_IDLE].seconds = max_idle;
+  timers[TIMER_MPI_COMM].seconds = max_com;
 }
 
 
