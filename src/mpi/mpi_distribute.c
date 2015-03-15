@@ -573,6 +573,14 @@ permutation_t * mpi_distribute_mats(
     }
     rinfo->ownend[m] += 1;
 
+    /* sanity check to ensure owned rows are contiguous */
+    if(indmap != NULL) {
+      for(idx_t i=rinfo->ownstart[m]+1; i < rinfo->ownend[m]; ++i) {
+        assert(indmap[i] >= start && indmap[i] < end);
+        assert(indmap[i] == indmap[i-1]+1);
+      }
+    }
+
 #if 0
     val_t pct = 100. * ((double) rinfo->nowned[m] / (double) (end - start));
     printf("p: %d local owned: %lu (%0.2f%%) %lu %lu\n", rinfo->rank,
