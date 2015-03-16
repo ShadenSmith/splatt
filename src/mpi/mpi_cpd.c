@@ -365,14 +365,14 @@ void mpi_cpd(
     }
   } /* foreach iteration */
 
+  MPI_Barrier(rinfo->comm_3d);
+  timer_stop(&timers[TIMER_CPD]);
+
   /* clean up */
   ften_free(ft);
   mat_free(m1);
   free(local2nbr_buf);
   free(nbr2globs_buf);
-
-  MPI_Barrier(rinfo->comm_3d);
-  timer_stop(&timers[TIMER_CPD]);
 
   /* get max MPI timings */
   double max_mttkrp;
