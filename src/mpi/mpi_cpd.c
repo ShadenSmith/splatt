@@ -43,6 +43,13 @@ static void __flush_glob_to_local(
   idx_t const start = rinfo->ownstart[m];
   idx_t const end = rinfo->ownend[m];
 
+  idx_t const goffset = (tt->indmap[m] == NULL) ?
+      start - mat_start : tt->indmap[m][start] - mat_start;
+
+  memcpy(matv + (start*nfactors),  gmatv + (goffset*nfactors),
+    (end - start) * nfactors * sizeof(val_t));
+
+#if 0
   /* now add partials to my global matrix */
   if(tt->indmap[m] == NULL) {
     for(idx_t i=start; i < end; ++i) {
@@ -62,6 +69,7 @@ static void __flush_glob_to_local(
       }
     }
   }
+#endif
   timer_stop(&timers[TIMER_MPI]);
 }
 
@@ -238,6 +246,13 @@ static void __add_my_partials(
 
   memset(gmatv, 0, globmat->I * nfactors * sizeof(val_t));
 
+  idx_t const goffset = (tt->indmap[m] == NULL) ?
+      start - mat_start : tt->indmap[m][start] - mat_start;
+
+  memcpy(gmatv + (goffset*nfactors), matv + (start*nfactors),
+    (end - start) * nfactors * sizeof(val_t));
+
+#if 0
   /* now add partials to my global matrix */
   if(tt->indmap[m] == NULL) {
     for(idx_t i=start; i < end; ++i) {
@@ -257,6 +272,7 @@ static void __add_my_partials(
       }
     }
   }
+#endif
 }
 
 
