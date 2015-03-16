@@ -148,6 +148,7 @@ static void __par_cpd(
     printf("Factoring "
            "------------------------------------------------------\n");
     printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX"\n", args.rank, args.niters);
+    printf("THREADS:%"SS_IDX"\n", args.nthreads);
   }
 
   /* do the actual factorization */
