@@ -39,6 +39,30 @@ typedef enum
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+
+/**
+* @brief Compute the Cholesky factorization of A.
+*
+* @param A The SPD matrix A.
+* @param L The lower-triangular result.
+*/
+void mat_cholesky(
+  matrix_t const * const A,
+  matrix_t * const L);
+
+
+/**
+* @brief Dense matrix-matrix multiplication, C = AB + C.
+*
+* @param A The left multiplication parameter.
+* @param B The right multiplication parameter.
+* @param C The result matrix. NOTE: C is not zeroed before multiplication!
+*/
+void mat_matmul(
+  matrix_t const * const A,
+  matrix_t const * const B,
+  matrix_t  * const C);
+
 /**
 * @brief Compute the 'inverse' of symmetric matrix A.
 *
@@ -46,8 +70,7 @@ typedef enum
 * @param Abuf FxF buffer space.
 */
 void mat_syminv(
-  matrix_t * const A,
-  matrix_t * const Abuf);
+  matrix_t * const A);
 
 /**
 * @brief Compute (A^T A * B^T B * C^T C ...) where * is the Khatri-Rao product.

@@ -6,55 +6,166 @@
 #include "base.h"
 #include "matrix.h"
 #include "util.h"
+#include "timer.h"
 
 #include <math.h>
 
 
 
 /******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
+
+/**
+* @brief Solve the system LX = B.
+*
+* @param L The lower triangular matrix of coefficients.
+* @param B The right-hand side which is overwritten with X.
+*/
+static void __mat_forwardsolve(
+  matrix_t const * const L,
+  matrix_t * const B)
+{
+  /* check dimensions */
+  idx_t const N = L->I;
+
+  val_t const * const restrict lv = L->vals;
+  val_t * const restrict bv = B->vals;
+
+  /* first row of X is easy */
+  for(idx_t j=0; j < N; ++j) {
+    bv[j] /= lv[0];
+  }
+
+  /* now do forward substitution */
+  for(idx_t i=1; i < N; ++i) {
+    /* X(i,f) = B(i,f) - \sum_{j=0}^{i-1} L(i,j)X(i,j) */
+    for(idx_t j=0; j < i; ++j) {
+      for(idx_t f=0; f < N; ++f) {
+        bv[f+(i*N)] -= lv[j+(i*N)] * bv[f+(j*N)];
+      }
+    }
+    for(idx_t f=0; f < N; ++f) {
+      bv[f+(i*N)] /= lv[i+(i*N)];
+    }
+  }
+}
+
+/**
+* @brief Solve the system UX = B.
+*
+* @param U The upper triangular matrix of coefficients.
+* @param B The right-hand side which is overwritten with X.
+*/
+static void __mat_backwardsolve(
+  matrix_t const * const U,
+  matrix_t * const B)
+{
+  /* check dimensions */
+  idx_t const N = U->I;
+
+  val_t const * const restrict rv = U->vals;
+  val_t * const restrict bv = B->vals;
+
+  /* last row of X is easy */
+  for(idx_t f=0; f < N; ++f) {
+    idx_t const i = N-1;
+    bv[f+(i*N)] /= rv[i+(i*N)];
+  }
+
+  /* now do backward substitution */
+  for(idx_t row=1; row <= N; ++row) {
+    /* operate with N-row to make unsigned comparisons easy */
+    idx_t const i = N-row;
+
+    /* X(i,f) = B(i,f) - \sum_{j=0}^{i-1} R(i,j)X(i,j) */
+    for(idx_t j=i+1; j < N; ++j) {
+      for(idx_t f=0; f < N; ++f) {
+        bv[f+(i*N)] -= rv[j+(i*N)] * bv[f+(j*N)];
+      }
+    }
+    for(idx_t f=0; f < N; ++f) {
+      bv[f+(i*N)] /= rv[i+(i*N)];
+    }
+  }
+}
+
+/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void mat_matmul(
-  matrix_t const * const A,
-  matrix_t const * const B,
-  matrix_t  * const C)
+void mat_syminv(
+  matrix_t * const A)
 {
   /* check dimensions */
-  assert(A->J == B->I);
-  assert(C->I == A->I);
-  assert(C->J == B->J);
+  assert(A->I == A->J);
 
-  idx_t const I = A->I;
-  idx_t const J = B->J;
-  idx_t const aj = A->J;
+  idx_t const N = A->I;
 
-  val_t * const restrict cv = C->vals;
-  memset(cv, 0, I * J * sizeof(val_t));
+  matrix_t * L = mat_alloc(N, N);
 
-  for(idx_t i=0; i < I; ++i) {
-    for(idx_t j=0; j < J; ++j) {
-      for(idx_t ii=0; ii < aj; ++ii) {
-      }
+  /* do a Cholesky factorization on A */
+  mat_cholesky(A, L);
+
+  /* setup identity matrix */
+  memset(A->vals, 0, N*N*sizeof(val_t));
+  for(idx_t n=0; n < N; ++n) {
+    A->vals[n+(n*N)] = 1.;
+  }
+
+  /* Solve L*Y = I */
+  __mat_forwardsolve(L, A);
+
+  /* transpose L */
+  for(idx_t i=0; i < N; ++i) {
+    for(idx_t j=i+1; j < N; ++j) {
+      L->vals[j+(i*N)] = L->vals[i+(j*N)];
+      L->vals[i+(j*N)] = 0.;
     }
   }
 
+  /* Solve U*A = Y */
+  __mat_backwardsolve(L, A);
+
+  mat_free(L);
 }
 
 
-void mat_syminv(
-  matrix_t * const A,
-  matrix_t * const Abuf)
+void mat_cholesky(
+  matrix_t const * const A,
+  matrix_t * const L)
 {
+  /* check dimensions */
+  assert(A->I == A->J);
+  assert(A->I == L->J);
+  assert(L->I == L->J);
 
+  idx_t const N = A->I;
+  val_t const * const restrict av = A->vals;
+  val_t * const lv = L->vals;
+
+  memset(lv, 0, N*N*sizeof(val_t));
+  for (idx_t i = 0; i < N; ++i) {
+    for (idx_t j = 0; j <= i; ++j) {
+      val_t inner = 0;
+      for (idx_t k = 0; k < j; ++k) {
+        inner += lv[k+(i*N)] * lv[k+(j*N)];
+      }
+
+      if(i == j) {
+        lv[j+(i*N)] = sqrt(av[i+(i*N)] - inner);
+      } else {
+        lv[j+(i*N)] = 1.0 / lv[j+(j*N)] * (av[j+(i*N)] - inner);
+      }
+    }
+  }
 }
-
 
 
 void mat_aTa_hada(
   matrix_t ** mats,
   idx_t const start,
-  idx_t const end,
+  idx_t const nmults,
   idx_t const nmats,
   matrix_t * const buf,
   matrix_t * const ret)
@@ -78,7 +189,8 @@ void mat_aTa_hada(
     }
   }
 
-  for(idx_t m=start; m != end; m = (m+1) % nmats) {
+  for(idx_t mode=0; mode < nmults; ++mode) {
+    idx_t const m = (start+mode) % nmats;
     idx_t const I  = mats[m]->I;
     val_t const * const Av = mats[m]->vals;
     memset(bufv, 0, F * F * sizeof(val_t));
@@ -143,6 +255,46 @@ void mat_aTa(
   }
 }
 
+void mat_matmul(
+  matrix_t const * const A,
+  matrix_t const * const B,
+  matrix_t  * const C)
+{
+  timer_start(&timers[TIMER_MISC]);
+  /* check dimensions */
+  assert(A->J == B->I);
+  assert(C->I == A->I);
+  assert(C->J == B->J);
+
+  val_t const * const restrict av = A->vals;
+  val_t const * const restrict bv = B->vals;
+  val_t * const restrict cv = C->vals;
+
+  idx_t const M  = A->I;
+  idx_t const N  = B->J;
+  idx_t const Na = A->J;
+
+  /* tiled matrix multiplication */
+  idx_t const TILE = 64;
+  for(idx_t i=0; i < M; ++i) {
+    for(idx_t jt=0; jt < N; jt += TILE) {
+      for(idx_t kt=0; kt < Na; kt += TILE) {
+        idx_t const JSTOP = vmin(jt+TILE, N);
+        for(idx_t j=jt; j < JSTOP; ++j) {
+          val_t accum = 0;
+          const idx_t KSTOP = vmin(kt+TILE,Na);
+          for(idx_t k=kt; k < KSTOP; ++k) {
+            accum += av[k + (i*Na)] * bv[j + (k*N)];
+          }
+          cv[j + (i*N)] += accum;
+        }
+      }
+    }
+  }
+
+  timer_stop(&timers[TIMER_MISC]);
+}
+
 void mat_normalize(
   matrix_t * const A,
   val_t * const lambda,
@@ -191,7 +343,6 @@ void mat_normalize(
     }
   }
 }
-
 
 
 matrix_t * mat_alloc(

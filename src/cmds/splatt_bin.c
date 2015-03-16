@@ -85,10 +85,10 @@ int main(
   int argc,
   char **argv)
 {
-  //srand(time(NULL));
+  srand(time(NULL));
+  //srand(1);
   init_timers();
   timer_start(&timers[TIMER_ALL]);
-  srand(1);
   splatt_args args;
   /* parse argv[0:1] */
   int nargs = argc > 1 ? 2 : 1;

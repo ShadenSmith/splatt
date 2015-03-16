@@ -13,6 +13,8 @@
 static char const * const timer_names[] = {
   [TIMER_ALL]     = "TOTAL",
   [TIMER_IO]      = "IO",
+  [TIMER_MTTKRP]  = "MTTKRP",
+  [TIMER_INV]     = "INVERSE",
   [TIMER_SPLATT]  = "SPLATT",
   [TIMER_GIGA]    = "GIGA",
   [TIMER_TTBOX]   = "TTBOX",
