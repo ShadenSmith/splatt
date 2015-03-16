@@ -33,6 +33,7 @@ static void __flush_glob_to_local(
   idx_t const nfactors,
   idx_t const mode)
 {
+  timer_start(&timers[TIMER_MPI]);
   idx_t const m = mode;
   val_t const * const restrict gmatv = globalmat->vals;
   val_t * const restrict matv = localmat->vals;
@@ -61,6 +62,7 @@ static void __flush_glob_to_local(
       }
     }
   }
+  timer_stop(&timers[TIMER_MPI]);
 }
 
 
