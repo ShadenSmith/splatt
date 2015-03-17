@@ -73,36 +73,42 @@ static val_t __kruskal_norm(
 /* Compute inner product of tensor with model
  * THIS OVERWRITES first row of aTa[MAX_NMODES] and mats[MAX_NMODES]*/
 static val_t __tt_kruskal_inner(
-  idx_t const nmodes,
   ftensor_t const * const ft,
   thd_info * const thds,
   idx_t const nthreads,
   val_t const * const restrict lambda,
-  matrix_t ** mats,
-  matrix_t ** aTa)
+  matrix_t ** mats)
 {
   idx_t const rank = mats[0]->J;
-  val_t inner = 0;
 
-  mats[MAX_NMODES]->I = mats[0]->I;
+  idx_t const dim = ft->dims[0];
+  mats[MAX_NMODES]->I = dim;
   mttkrp_splatt(ft, mats, 0, thds, nthreads);
 
   val_t const * const m0 = mats[0]->vals;
   val_t const * const mv = mats[MAX_NMODES]->vals;
-  val_t       * const av = aTa[MAX_NMODES]->vals;
 
-  for(idx_t r=0; r < rank; ++r) {
-    av[r] = 0.;
-  }
-  for(idx_t i=0; i < ft->dims[0]; ++i) {
+  val_t inner = 0;
+  #pragma omp parallel reduction(+:inner)
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch;
+
     for(idx_t r=0; r < rank; ++r) {
-      av[r] += m0[r+(i*rank)] * mv[r+(i*rank)];
+      accumF[r] = 0.;
+    }
+    #pragma omp for
+    for(idx_t i=0; i < dim; ++i) {
+      for(idx_t r=0; r < rank; ++r) {
+        accumF[r] += m0[r+(i*rank)] * mv[r+(i*rank)];
+      }
+    }
+    /* accumulate everything into 'inner' */
+    for(idx_t r=0; r < rank; ++r) {
+      inner += accumF[r] * lambda[r];
     }
   }
-  /* accumulate everything into 'inner' */
-  for(idx_t r=0; r < rank; ++r) {
-    inner += av[r] * lambda[r];
-  }
+
   return inner;
 }
 
@@ -123,8 +129,7 @@ static val_t __calc_fit(
   val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
 
   /* Compute inner product of tensor with new model */
-  val_t const inner = __tt_kruskal_inner(nmodes, ft, thds, nthreads, lambda,
-      mats, aTa);
+  val_t const inner = __tt_kruskal_inner(ft, thds, nthreads, lambda, mats);
 
   val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
   timer_stop(&timers[TIMER_MISC]);
