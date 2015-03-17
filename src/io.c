@@ -248,7 +248,9 @@ void mat_write(
 
   mat_write_file(mat, fout);
 
-  fclose(fout);
+  if(fout != stdout) {
+    fclose(fout);
+  }
 }
 
 void mat_write_file(
