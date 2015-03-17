@@ -141,14 +141,15 @@ static void __calc_M2(
   idx_t const rank = aTa[0]->J;
   val_t * const restrict av = aTa[MAX_NMODES]->vals;
 
+  /* ata[MAX_NMODES] = hada(aTa[0], aTa[1], ...) */
   for(idx_t x=0; x < rank*rank; ++x) {
     av[x] = 1.;
   }
   for(idx_t m=1; m < nmodes; ++m) {
     idx_t const madjust = (mode + m) % nmodes;
-    val_t const * const atavals = aTa[madjust]->vals;
+    val_t const * const vals = aTa[madjust]->vals;
     for(idx_t x=0; x < rank*rank; ++x) {
-      av[x] *= atavals[x];
+      av[x] *= vals[x];
     }
   }
 
