@@ -70,8 +70,6 @@ static val_t __kruskal_norm(
 }
 
 
-/* Compute inner product of tensor with model
- * THIS OVERWRITES first row of aTa[MAX_NMODES] and mats[MAX_NMODES]*/
 static val_t __tt_kruskal_inner(
   ftensor_t const * const ft,
   thd_info * const thds,
@@ -81,11 +79,10 @@ static val_t __tt_kruskal_inner(
 {
   idx_t const rank = mats[0]->J;
 
-  idx_t const dim = ft->dims[0];
-  mats[MAX_NMODES]->I = dim;
-  mttkrp_splatt(ft, mats, 0, thds, nthreads);
+  idx_t const lastm = ft->nmodes - 1;
+  idx_t const dim = ft->dims[lastm];
 
-  val_t const * const m0 = mats[0]->vals;
+  val_t const * const m0 = mats[lastm]->vals;
   val_t const * const mv = mats[MAX_NMODES]->vals;
 
   val_t inner = 0;
@@ -97,6 +94,7 @@ static val_t __tt_kruskal_inner(
     for(idx_t r=0; r < rank; ++r) {
       accumF[r] = 0.;
     }
+
     #pragma omp for
     for(idx_t i=0; i < dim; ++i) {
       for(idx_t r=0; r < rank; ++r) {
