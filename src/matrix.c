@@ -10,6 +10,7 @@
 #include "io.h"
 
 #include <math.h>
+#include <omp.h>
 
 
 
@@ -224,8 +225,11 @@ void mat_aTa_hada(
 
 void mat_aTa(
   matrix_t const * const A,
-  matrix_t * const ret)
+  matrix_t * const ret,
+  thd_info * const thds,
+  idx_t const nthreads)
 {
+  timer_start(&timers[TIMER_ATA]);
   /* check matrix dimensions */
   assert(ret->I == ret->J);
   assert(ret->I == A->J);
@@ -236,14 +240,38 @@ void mat_aTa(
   idx_t const I = A->I;
   idx_t const F = A->J;
   val_t const * const restrict Av = A->vals;
-  val_t       * const restrict rv = ret->vals;
 
-  /* compute upper triangular portion */
+  omp_set_num_threads(nthreads);
+
+  #pragma omp parallel
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const restrict accum = (val_t *) thds[tid].scratch;
+
+    /* compute upper triangular portion */
+    memset(accum, 0, F * F * sizeof(val_t));
+
+    /* compute each thread's partial matrix product */
+    #pragma omp for schedule(static)
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t mi=0; mi < F; ++mi) {
+        for(idx_t mj=mi; mj < F; ++mj) {
+          accum[mj + (mi*F)] += Av[mi + (i*F)] * Av[mj + (i*F)];
+        }
+      }
+    }
+  }
+
+  val_t * const restrict rv = ret->vals;
   memset(rv, 0, F * F * sizeof(val_t));
-  for(idx_t i=0; i < I; ++i) {
-    for(idx_t mi=0; mi < F; ++mi) {
-      for(idx_t mj=mi; mj < F; ++mj) {
-        rv[mj + (mi*F)] += Av[mi + (i*F)] * Av[mj + (i*F)];
+
+  /* sum the partial products
+   * TODO: make this a parallel reduction */
+  for(idx_t p=0; p < nthreads; ++p) {
+    val_t const * const restrict paccum = thds[p].scratch;
+    for(idx_t i=0; i < F; ++i) {
+      for(idx_t j=i; j < F; ++j) {
+        rv[j+(i*F)] += paccum[j+(i*F)];
       }
     }
   }
@@ -254,6 +282,8 @@ void mat_aTa(
       rv[j + (i*F)] = rv[i + (j*F)];
     }
   }
+
+  timer_stop(&timers[TIMER_ATA]);
 }
 
 void mat_matmul(

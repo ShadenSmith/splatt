@@ -191,17 +191,16 @@ void cpd(
   omp_set_num_threads(opts->nthreads);
   thd_info * thds;
   if(opts->tile) {
-    thds = thd_init(opts->nthreads, rank * sizeof(val_t) + 64,
+    thds = thd_init(opts->nthreads, (rank * rank * sizeof(val_t)) + 64,
       TILE_SIZES[0] * rank * sizeof(val_t) + 64);
   } else {
-    thds = thd_init(opts->nthreads, rank * sizeof(val_t) + 64, 0);
+    thds = thd_init(opts->nthreads, (rank * rank * sizeof(val_t)) + 64, 0);
   }
 
   /* Initialize first A^T * A mats. We skip the first because it will be
    * solved for. */
-  #pragma omp parallel for schedule(static, 1)
   for(idx_t m=1; m < nmodes; ++m) {
-    mat_aTa(mats[m], aTa[m]);
+    mat_aTa(mats[m], aTa[m], thds, opts->nthreads);
   }
 
   val_t const ttnormsq = tt_normsq(tt);
@@ -249,7 +248,7 @@ void cpd(
       }
 
       /* update A^T*A */
-      mat_aTa(mats[m], aTa[m]);
+      mat_aTa(mats[m], aTa[m], thds, opts->nthreads);
     } /* foreach mode */
 
     val_t const fit = __calc_fit(nmodes, ft, thds, opts->nthreads, ttnormsq,

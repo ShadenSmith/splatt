@@ -6,6 +6,8 @@
  *****************************************************************************/
 #include "base.h"
 
+#include "thd_info.h"
+
 
 /******************************************************************************
  * STRUCTURES
@@ -96,10 +98,13 @@ void mat_aTa_hada(
 *
 * @param A The input matrix.
 * @param ret The output matrix, A^T * A.
+* @param thds Data structure for thread scratch space.
 */
 void mat_aTa(
   matrix_t const * const A,
-  matrix_t * const ret);
+  matrix_t * const ret,
+  thd_info * const thds,
+  idx_t const nthreads);
 
 
 /**
