@@ -13,7 +13,8 @@
 val_t rand_val(void)
 {
   /* TODO: modify this to work based on the size of idx_t */
-  return (val_t) rand() / (val_t) RAND_MAX;
+  return 0.18;
+  //return (val_t) rand() / (val_t) RAND_MAX;
 }
 
 
@@ -36,7 +37,7 @@ char * bytes_str(
   }
   char * ret = NULL;
   if(asprintf(&ret, "%0.2f%s", size, suffix[suff]) == -1) {
-    fprintf(stderr, "SPLATT: asprintf failed with "SS_IDX" bytes.\n", bytes);
+    fprintf(stderr, "SPLATT: asprintf failed with%"SS_IDX" bytes.\n", bytes);
     ret = NULL;
   }
   return ret;

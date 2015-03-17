@@ -40,6 +40,7 @@ void cpd(
   matrix_t ** mats,
   cpd_opts const * const opts)
 {
+  timer_start(&timers[TIMER_CPD]);
   idx_t const rank = opts->rank;
   idx_t const nmodes = tt->nmodes;
 
@@ -97,6 +98,15 @@ void cpd(
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 
+#if 0
+      if(it == 0) {
+        char * fname = NULL;
+        asprintf(&fname, "gold%"SS_IDX".mat", m);
+        mat_write(mats[MAX_NMODES], fname);
+        free(fname);
+      }
+      continue;
+#endif
       /* M2 = (CtC .* BtB .* ...) */
       timer_start(&timers[TIMER_INV]);
       for(idx_t x=0; x < rank*rank; ++x) {
@@ -133,6 +143,7 @@ void cpd(
     /* CALCULATE FIT */
 
     /* First get fit of new model -- lambda^T * (hada aTa) * lambda. */
+    /* calculate fit */
     val_t norm_mats = 0;
     for(idx_t x=0; x < rank*rank; ++x) {
       av[x] = 1.;
@@ -180,8 +191,8 @@ void cpd(
 
     timer_stop(&itertime);
 
-    printf("    its = " SS_IDX " (%0.3fs)  fit = %0.5f  delta = %+0.5f\n", it+1,
-      itertime.seconds, fit, fit - oldfit);
+    printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
+        it+1, itertime.seconds, fit, fit - oldfit);
     oldfit = fit;
   }
 
@@ -193,4 +204,7 @@ void cpd(
   ften_free(ft);
   thd_free(thds, opts->nthreads);
   free(lambda);
+  timer_stop(&timers[TIMER_CPD]);
 }
+
+

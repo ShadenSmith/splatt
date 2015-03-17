@@ -7,11 +7,62 @@
 #include "matrix.h"
 #include "sort.h"
 #include "io.h"
+#include "mpi.h"
+#include "timer.h"
+
 
 
 /******************************************************************************
- * PRIVATE FUNCTIONS
+ * PUBLIC FUNCTONS
  *****************************************************************************/
+
+idx_t * tt_get_slices(
+  sptensor_t const * const tt,
+  idx_t const m,
+  idx_t * nunique)
+{
+  /* get maximum number of unique slices */
+  idx_t minidx = tt->dims[m];
+  idx_t maxidx = 0;
+
+  idx_t const nnz = tt->nnz;
+  idx_t const * const inds = tt->ind[m];
+
+  /* find maximum number of uniques */
+  for(idx_t n=0; n < nnz; ++n) {
+    minidx = SS_MIN(minidx, inds[n]);
+    maxidx = SS_MAX(maxidx, inds[n]);
+  }
+  /* +1 because maxidx is inclusive, not exclusive */
+  idx_t const maxrange = 1 + maxidx - minidx;
+
+  /* mark slices which are present and count uniques */
+  idx_t * slice_mkrs = (idx_t *) calloc(maxrange, sizeof(idx_t));
+  idx_t found = 0;
+  for(idx_t n=0; n < nnz; ++n) {
+    assert(inds[n] >= minidx);
+    idx_t const idx = inds[n] - minidx;
+    if(slice_mkrs[idx] == 0) {
+      slice_mkrs[idx] = 1;
+      ++found;
+    }
+  }
+  *nunique = found;
+
+  /* now copy unique slices */
+  idx_t * slices = (idx_t *) malloc(found * sizeof(idx_t));
+  idx_t ptr = 0;
+  for(idx_t i=0; i < maxrange; ++i) {
+    if(slice_mkrs[i] == 1) {
+      slices[ptr++] = i + minidx;
+    }
+  }
+
+  free(slice_mkrs);
+
+  return slices;
+}
+
 
 idx_t tt_remove_dups(
   sptensor_t * const tt)
@@ -33,7 +84,7 @@ idx_t tt_remove_dups(
       printf("DUPLICATE NONZERO: ");
       tt->vals[n] = (tt->vals[n] + tt->vals[n+1]) / 2;
       for(idx_t m=0; m < nmodes; ++m) {
-        printf(SS_IDX" ", tt->ind[m][n]);
+        printf("%"SS_IDX" ", tt->ind[m][n]);
         memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]),
           (nnz-n-1)*sizeof(idx_t));
       }
@@ -141,6 +192,7 @@ sptensor_t * tt_alloc(
   tt->ind = (idx_t**) malloc(nmodes * sizeof(idx_t*));
   for(idx_t m=0; m < nmodes; ++m) {
     tt->ind[m] = (idx_t*) malloc(nnz * sizeof(idx_t));
+    tt->indmap[m] = NULL;
   }
 
   return tt;
@@ -152,6 +204,7 @@ void tt_free(
   tt->nnz = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
     free(tt->ind[m]);
+    free(tt->indmap[m]);
   }
   tt->nmodes = 0;
   free(tt->dims);

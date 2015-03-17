@@ -79,8 +79,8 @@ void splatt_check(
   if(rnnz == 0 && rslices == 0) {
     printf("NO ERRORS FOUND.\n");
   } else {
-    printf(SS_IDX " DUPLICATES FOUND.\n", rnnz);
-    printf(SS_IDX " EMPTY SILCES FOUND.\n", rslices);
+    printf("%"SS_IDX " DUPLICATES FOUND.\n", rnnz);
+    printf("%"SS_IDX " EMPTY SLICES FOUND.\n", rslices);
 
     if(args.fix == 1) {
       /* write fixed tensor */
@@ -91,10 +91,10 @@ void splatt_check(
         idx_t const * const map = tt->indmap[m];
         if(map != NULL) {
           char * buf = NULL;
-          asprintf(&buf, "mode"SS_IDX".map", m+1);
+          asprintf(&buf, "mode%"SS_IDX".map", m+1);
           FILE * fout = fopen(buf, "w");
           for(idx_t i=0; i < tt->dims[m]; ++i) {
-            fprintf(fout, SS_IDX"\n", map[i]);
+            fprintf(fout, "%"SS_IDX"\n", map[i]);
           }
           fclose(fout);
           free(buf);

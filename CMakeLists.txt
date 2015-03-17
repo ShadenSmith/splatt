@@ -1,7 +1,7 @@
-
 project(CSPLATT)
 cmake_minimum_required(VERSION 2.6.0)
 
+# Get version string from git repo if possible
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
   execute_process(COMMAND git --git-dir=${CMAKE_CURRENT_SOURCE_DIR}/.git rev-parse --short HEAD
                   OUTPUT_VARIABLE SPLATT_COMMIT
@@ -13,9 +13,25 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
   set(C_DEFINES "${C_DEFINES} -DVERSION_STR=\\\"${SPLATT_VERSION_STR}\\\"")
 endif()
 
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
+
+# check for debug mode
+if (DEFINED DEBUG AND ${DEBUG} EQUAL 1)
+  add_definitions(-DDEBUG=${DEBUG})
+  set(CMAKE_BUILD_TYPE Debug)
+  message("Building in DEBUG mode. Assertions enabled.")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
+else()
+  set(CMAKE_BUILD_TYPE Release)
+  message("Building in RELEASE mode.")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
+endif()
+
+find_package(MPI)
+include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
@@ -35,7 +51,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-file(GLOB SPLATT_SOURCES src/*.c)
+file(GLOB SPLATT_SOURCES src/*.c src/mpi/*.c)
 
 # Generate splatt library
 add_subdirectory(lib)

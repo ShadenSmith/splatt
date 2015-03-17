@@ -75,6 +75,24 @@ sptensor_t * tt_alloc(
   idx_t const nmodes);
 
 
+
+/**
+* @brief Return a list of unique slice ids found in mode m. Slice i will be
+*        included if there is a nonzero in tt the mth index equal to i.
+*
+* @param tt The tensor to analyze.
+* @param mode The mode to operate on.
+* @param nunique The number of unique slices found.
+*
+* @return An array at least of size nunique containing the ids of each slice
+*         found in tt.
+*/
+idx_t * tt_get_slices(
+  sptensor_t const * const tt,
+  idx_t const mode,
+  idx_t * nunique);
+
+
 /**
 * @brief Free the fields AND pointer of a tensor.
 *

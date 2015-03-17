@@ -8,6 +8,7 @@
 #include "../stats.h"
 #include "../cpd.h"
 
+#include "../mpi/mpi.h"
 
 
 /******************************************************************************
@@ -67,6 +68,109 @@ static struct argp cpd_argp =
   {cpd_options, parse_cpd_opt, cpd_args_doc, cpd_doc};
 
 
+/* XXX: this is temporary */
+static void __par_cpd(
+  int argc,
+  char ** argv)
+{
+  cpd_opts args;
+  args.ifname = NULL;
+  args.niters = 5;
+  args.rank = 10;
+  args.nthreads = 1;
+  args.tile = 0;
+  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  if(rank == 0) {
+    print_header();
+  }
+
+  /* XXX: this should probably be improved... */
+  srand(rank);
+
+  rank_info rinfo;
+  mpi_setup_comms(&rinfo);
+  sptensor_t * tt = mpi_tt_read(args.ifname, &rinfo);
+
+  if(rank == 0) {
+    printf("global dims:\t\t%8lu %8lu %8lu %8lu\n",
+      rinfo.global_dims[0],
+      rinfo.global_dims[1],
+      rinfo.global_dims[2],
+      rinfo.global_nnz);
+    printf("max dims:\t\t%8lu %8lu %8lu\n",
+      rinfo.global_dims[0] / rinfo.np13,
+      rinfo.global_dims[1] / rinfo.np13,
+      rinfo.global_dims[2] / rinfo.np13);
+    printf("rank dims:\t\t%8lu %8lu %8lu %8lu\n",
+      rinfo.global_dims[0] / size,
+      rinfo.global_dims[1] / size,
+      rinfo.global_dims[2] / size,
+      rinfo.global_nnz / size);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  /* determine matrix distribution */
+  permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
+
+  /* determine isend and ineed lists */
+  mpi_compute_ineed(&rinfo, tt, args.rank);
+
+#if 0
+  printf("%d:\t\t\t%8lu %8lu %8lu %8lu\n", rank, tt->dims[0], tt->dims[1],
+      tt->dims[2], tt->nnz);
+  mpi_send_recv_stats(&rinfo, tt);
+#endif
+
+  /* allocate / initialize matrices */
+  matrix_t * mats[MAX_NMODES+1];
+  matrix_t * globmats[MAX_NMODES];
+  idx_t max_dim = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    /* for multiplication */
+    mats[m] = mat_alloc(tt->dims[m], args.rank);
+
+    /* for actual factor matrix */
+    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m], args.rank);
+
+    if(tt->dims[m] > max_dim) {
+      max_dim = tt->dims[m];
+    }
+  }
+  mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
+
+  if(rank == 0) {
+    printf("\n");
+    printf("Factoring "
+           "------------------------------------------------------\n");
+    printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX" THREADS=%"SS_IDX"\n",
+        args.rank, args.niters, args.nthreads);
+  }
+
+  /* do the actual factorization */
+  mpi_cpd(tt, mats, globmats, &rinfo, &args);
+
+  idx_t const nmodes = tt->nmodes;
+  tt_free(tt);
+  mat_free(mats[MAX_NMODES]);
+  for(idx_t m=0; m < nmodes; ++m) {
+    mat_free(mats[m]);
+  }
+
+  /* write output */
+  //mpi_write_mats(globmats, perm, &rinfo, "test", nmodes);
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    mat_free(globmats[m]);
+  }
+  perm_free(perm);
+  rank_free(rinfo, nmodes);
+}
+
 void splatt_cpd(
   int argc,
   char ** argv)
@@ -77,6 +181,13 @@ void splatt_cpd(
   args.rank = 10;
   args.nthreads = 1;
   args.tile = 0;
+
+  int size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  if(size > 1) {
+    __par_cpd(argc, argv);
+    return;
+  }
 
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
@@ -97,7 +208,7 @@ void splatt_cpd(
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
   printf("Factoring ------------------------------------------------------\n");
-  printf("RANK="SS_IDX" MAXITS="SS_IDX"\n", args.rank, args.niters);
+  printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX"\n", args.rank, args.niters);
 
   cpd(tt, mats, &args);
 

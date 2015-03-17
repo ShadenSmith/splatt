@@ -11,19 +11,23 @@
  * PRIVATE STRUCTURES
  *****************************************************************************/
 static char const * const timer_names[] = {
-  [TIMER_ALL]     = "TOTAL",
-  [TIMER_IO]      = "IO",
-  [TIMER_MTTKRP]  = "MTTKRP",
-  [TIMER_INV]     = "INVERSE",
-  [TIMER_SPLATT]  = "SPLATT",
-  [TIMER_GIGA]    = "GIGA",
-  [TIMER_TTBOX]   = "TTBOX",
-  [TIMER_DFACTO]  = "DFACTO",
-  [TIMER_REORDER] = "REORDER",
-  [TIMER_SORT]    = "SORT",
-  [TIMER_TILE]    = "TILE",
-  [TIMER_CONVERT] = "CONVERT",
-  [TIMER_MISC]    = "MISC"
+  [TIMER_ALL]       = "TOTAL",
+  [TIMER_CPD]       = "CPD",
+  [TIMER_IO]        = "IO",
+  [TIMER_MTTKRP]    = "MTTKRP",
+  [TIMER_INV]       = "INVERSE",
+  [TIMER_SPLATT]    = "SPLATT",
+  [TIMER_GIGA]      = "GIGA",
+  [TIMER_TTBOX]     = "TTBOX",
+  [TIMER_DFACTO]    = "DFACTO",
+  [TIMER_REORDER]   = "REORDER",
+  [TIMER_SORT]      = "SORT",
+  [TIMER_TILE]      = "TILE",
+  [TIMER_CONVERT]   = "CONVERT",
+  [TIMER_MPI]       = "MPI",
+  [TIMER_MPI_IDLE]  = "MPI IDLE",
+  [TIMER_MPI_COMM]  = "MPI COMM",
+  [TIMER_MISC]      = "MISC"
 };
 
 /* definition of global timers[] */
@@ -45,7 +49,7 @@ void report_times(void)
 {
   printf("\n");
   printf("Timing information ---------------------------------------------\n");
-  for(int t=0; t < TIMER_NTIMERS; ++t) {
+  for(int t=0; t < timer_lvl; ++t) {
     if(timers[t].seconds > 0) {
       printf("  %-20s%0.3fs\n", timer_names[t], timers[t].seconds);
     }

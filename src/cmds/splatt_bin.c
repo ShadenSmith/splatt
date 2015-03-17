@@ -5,6 +5,7 @@
 #include "splatt_cmds.h"
 #include "../timer.h"
 
+#include <mpi.h>
 
 /******************************************************************************
  * SPLATT GLOBAL INFO
@@ -85,20 +86,36 @@ int main(
   int argc,
   char **argv)
 {
+  MPI_Init(&argc, &argv);
+
+  int rank;
+  int size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
   srand(time(NULL));
-  //srand(1);
+
+  /* initialize timers */
   init_timers();
   timer_start(&timers[TIMER_ALL]);
-  splatt_args args;
+
   /* parse argv[0:1] */
+  splatt_args args;
   int nargs = argc > 1 ? 2 : 1;
   argp_parse(&cmd_argp, nargs, argv, ARGP_IN_ORDER, 0, &args);
 
+  /* execute the cmd! */
   splatt_cmds[args.cmd](argc-1, argv+1);
 
+  /* all done */
+  MPI_Barrier(MPI_COMM_WORLD);
   timer_stop(&timers[TIMER_ALL]);
-  print_footer();
 
+  if(rank == 0) {
+    print_footer();
+  }
+
+  MPI_Finalize();
   return EXIT_SUCCESS;
 }
 

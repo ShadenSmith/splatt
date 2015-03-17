@@ -83,7 +83,7 @@ static void __reorder_slices(
     }
   }
 
-  printf("placed: "SS_IDX"\n", sliceptr);
+  printf("placed: %"SS_IDX"\n", sliceptr);
   /* place untouched slices at end of permutation */
   for(idx_t s=0; s < nslices; ++s) {
     if(sliceperm[s] == nslices) {
@@ -165,7 +165,7 @@ static void __reorder_fibs(
   }
 
   /* place untouched slices at end of permutation */
-  printf("placed: "SS_IDX"\n", fidptr);
+  printf("placed: %"SS_IDX"\n", fidptr);
   for(idx_t s=0; s < nfids; ++s) {
     if(fidperm[s] == nfids) {
       fidiperm[fidptr] = s;
@@ -252,7 +252,7 @@ static void __reorder_inds(
   }
 
   /* place untouched slices at end of permutation */
-  printf("placed: "SS_IDX"\n", indptr);
+  printf("placed: %"SS_IDX"\n", indptr);
   for(idx_t s=0; s < ninds; ++s) {
     if(indperm[s] == ninds) {
       indiperm[indptr] = s;
@@ -374,13 +374,13 @@ permutation_t * perm_hgraph(
     nhedges += ft->dims[m];
   }
 
-  printf("nvtxs: "SS_IDX" nhedges: "SS_IDX"  nparts: "SS_IDX"\n",
+  printf("nvtxs: %"SS_IDX" nhedges: %"SS_IDX"  nparts: %"SS_IDX"\n",
     nvtxs, nhedges, nparts);
 
   idx_t ncut = 0;
   idx_t * uncuts  = hgraph_uncut(hg, parts, &ncut);
   hgraph_free(hg);
-  printf("cut: "SS_IDX"  notcut: "SS_IDX"\n", nhedges - ncut, ncut);
+  printf("cut: %"SS_IDX"  notcut: %"SS_IDX"\n", nhedges - ncut, ncut);
 
   idx_t nslices = 0;
   idx_t nfibs = 0;
@@ -394,7 +394,7 @@ permutation_t * perm_hgraph(
       ++ninds;
     }
   }
-  printf("slices: "SS_IDX"  fibs: "SS_IDX"  inds: "SS_IDX"\n", nslices, nfibs, ninds);
+  printf("slices: %"SS_IDX"  fibs: %"SS_IDX"  inds: %"SS_IDX"\n", nslices, nfibs, ninds);
 
   __reorder_slices(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
   __reorder_fibs(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
@@ -427,7 +427,7 @@ permutation_t * perm_graph(
       perm->iperms[m][n] = dims[m];
     }
   }
-  printf("nvtxs: "SS_IDX" nparts: "SS_IDX"\n", nvtxs, nparts);
+  printf("nvtxs: %"SS_IDX" nparts: %"SS_IDX"\n", nvtxs, nparts);
 
   idx_t * pptr = NULL;
   idx_t * plookup = NULL;

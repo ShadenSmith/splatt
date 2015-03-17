@@ -41,8 +41,9 @@ static sptensor_t * __tt_read_file(
   --nmodes;
 
   if(nmodes > MAX_NMODES) {
-    fprintf(stderr, "SPLATT ERROR: maximum " SS_IDX " modes supported. Found "
-                    SS_IDX ". Please recompile with MAX_NMODES=" SS_IDX".\n",
+    fprintf(stderr, "SPLATT ERROR: maximum %"SS_IDX" modes supported. "
+                    "Found %"SS_IDX". Please recompile with "
+                    "MAX_NMODES=%"SS_IDX".\n",
             MAX_NMODES, nmodes, nmodes);
     exit(1);
   }
@@ -131,9 +132,9 @@ void tt_write_file(
   for(idx_t n=0; n < tt->nnz; ++n) {
     for(idx_t m=0; m < tt->nmodes; ++m) {
       /* files are 1-indexed instead of 0 */
-      fprintf(fout, SS_IDX " ", tt->ind[m][n] + 1);
+      fprintf(fout, "%"SS_IDX" ", tt->ind[m][n] + 1);
     }
-    fprintf(fout, SS_VAL "\n", tt->vals[n]);
+    fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
   }
   timer_stop(&timers[TIMER_IO]);
 }
@@ -163,7 +164,7 @@ void hgraph_write_file(
 {
   timer_start(&timers[TIMER_IO]);
   /* print header */
-  fprintf(fout, SS_IDX" "SS_IDX, hg->nhedges, hg->nvtxs);
+  fprintf(fout, "%"SS_IDX" %"SS_IDX, hg->nhedges, hg->nvtxs);
   if(hg->vwts != NULL) {
     if(hg->hewts != NULL) {
       fprintf(fout, " 11");
@@ -178,10 +179,10 @@ void hgraph_write_file(
   /* print hyperedges */
   for(idx_t e=0; e < hg->nhedges; ++e) {
     if(hg->hewts != NULL) {
-      fprintf(fout, SS_IDX" ", hg->hewts[e]);
+      fprintf(fout, "%"SS_IDX" ", hg->hewts[e]);
     }
     for(idx_t v=hg->eptr[e]; v < hg->eptr[e+1]; ++v) {
-      fprintf(fout, SS_IDX" ", hg->eind[v]+1);
+      fprintf(fout, "%"SS_IDX" ", hg->eind[v]+1);
     }
     fprintf(fout, "\n");
   }
@@ -189,7 +190,7 @@ void hgraph_write_file(
   /* print vertex weights */
   if(hg->vwts != NULL) {
     for(idx_t v=0; v < hg->nvtxs; ++v) {
-      fprintf(fout, SS_IDX"\n", hg->vwts[v]);
+      fprintf(fout, "%"SS_IDX"\n", hg->vwts[v]);
     }
   }
   timer_stop(&timers[TIMER_IO]);
@@ -224,7 +225,7 @@ void spmat_write_file(
   /* write CSR matrix */
   for(idx_t i=0; i < mat->I; ++i) {
     for(idx_t j=mat->rowptr[i]; j < mat->rowptr[i+1]; ++j) {
-      fprintf(fout, SS_IDX " " SS_VAL " ", mat->colind[j], mat->vals[j]);
+      fprintf(fout, "%"SS_IDX" %"SS_VAL" ", mat->colind[j], mat->vals[j]);
     }
     fprintf(fout, "\n");
   }
@@ -245,6 +246,15 @@ void mat_write(
     }
   }
 
+  mat_write_file(mat, fout);
+
+  fclose(fout);
+}
+
+void mat_write_file(
+  matrix_t const * const mat,
+  FILE * fout)
+{
   timer_start(&timers[TIMER_IO]);
   idx_t const I = mat->I;
   idx_t const J = mat->J;
@@ -253,14 +263,14 @@ void mat_write(
   if(mat->rowmajor) {
     for(idx_t i=0; i < mat->I; ++i) {
       for(idx_t j=0; j < J; ++j) {
-        fprintf(fout, SS_VAL " ", vals[j + (i*J)]);
+        fprintf(fout, "%"SS_VAL" ", vals[j + (i*J)]);
       }
       fprintf(fout, "\n");
     }
   } else {
     for(idx_t i=0; i < mat->I; ++i) {
       for(idx_t j=0; j < J; ++j) {
-        fprintf(fout, SS_VAL " ", vals[i + (j*I)]);
+        fprintf(fout, "%"SS_VAL" ", vals[i + (j*I)]);
       }
       fprintf(fout, "\n");
     }
@@ -284,7 +294,7 @@ idx_t * part_read(
   idx_t ret;
   idx_t * arr = (idx_t *) malloc(nvtxs * sizeof(idx_t));
   for(idx_t i=0; i < nvtxs; ++i) {
-    if((ret = fscanf(pfile, SS_IDX, &(arr[i]))) == 0) {
+    if((ret = fscanf(pfile, "%"SS_IDX, &(arr[i]))) == 0) {
       fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n", ifname);
       exit(1);
     }
