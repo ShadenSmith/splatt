@@ -46,6 +46,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -funroll-loops")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftree-vectorize")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstrict-aliasing")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec-missed")
 
