@@ -261,7 +261,7 @@ void mat_matmul(
   matrix_t const * const B,
   matrix_t  * const C)
 {
-  timer_start(&timers[TIMER_MISC]);
+  timer_start(&timers[TIMER_MATMUL]);
   /* check dimensions */
   assert(A->J == B->I);
   assert(C->I == A->I);
@@ -269,7 +269,7 @@ void mat_matmul(
 
   val_t const * const restrict av = A->vals;
   val_t const * const restrict bv = B->vals;
-  val_t * const restrict cv = C->vals;
+  val_t       * const restrict cv = C->vals;
 
   idx_t const M  = A->I;
   idx_t const N  = B->J;
@@ -277,13 +277,14 @@ void mat_matmul(
 
   /* tiled matrix multiplication */
   idx_t const TILE = 64;
+  #pragma omp parallel for schedule(static)
   for(idx_t i=0; i < M; ++i) {
     for(idx_t jt=0; jt < N; jt += TILE) {
       for(idx_t kt=0; kt < Na; kt += TILE) {
-        idx_t const JSTOP = vmin(jt+TILE, N);
+        idx_t const JSTOP = SS_MIN(jt+TILE, N);
         for(idx_t j=jt; j < JSTOP; ++j) {
           val_t accum = 0;
-          const idx_t KSTOP = vmin(kt+TILE,Na);
+          idx_t const KSTOP = SS_MIN(kt+TILE, Na);
           for(idx_t k=kt; k < KSTOP; ++k) {
             accum += av[k + (i*Na)] * bv[j + (k*N)];
           }
@@ -293,7 +294,7 @@ void mat_matmul(
     }
   }
 
-  timer_stop(&timers[TIMER_MISC]);
+  timer_stop(&timers[TIMER_MATMUL]);
 }
 
 void mat_normalize(

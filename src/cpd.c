@@ -118,6 +118,7 @@ static val_t __calc_fit(
   matrix_t ** mats,
   matrix_t ** aTa)
 {
+  timer_start(&timers[TIMER_MISC]);
   idx_t const rank = aTa[0]->J;
 
   /* First get norm of new model: lambda^T * (hada aTa) * lambda. */
@@ -127,6 +128,7 @@ static val_t __calc_fit(
   val_t const inner = __tt_kruskal_inner(nmodes, tt, lambda, mats, aTa);
 
   val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
+  timer_stop(&timers[TIMER_MISC]);
   return 1 - (residual / sqrt(ttnorm));
 }
 

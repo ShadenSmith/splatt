@@ -13,20 +13,6 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-static inline val_t vmin(
-  val_t const v1,
-  val_t const v2)
-{
-  return v1 < v2 ? v1 : v2;
-}
-
-static inline val_t vmax(
-  val_t const v1,
-  val_t const v2)
-{
-  return v1 > v2 ? v1 : v2;
-}
-
 /**
 * @brief Generate a random val_t in the range [0, 1].
 *
