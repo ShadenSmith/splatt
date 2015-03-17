@@ -74,58 +74,57 @@ static val_t __kruskal_norm(
  * THIS OVERWRITES first row of aTa[MAX_NMODES] and mats[MAX_NMODES]*/
 static val_t __tt_kruskal_inner(
   idx_t const nmodes,
-  sptensor_t const * const tt,
+  ftensor_t const * const ft,
+  thd_info * const thds,
+  idx_t const nthreads,
   val_t const * const restrict lambda,
   matrix_t ** mats,
   matrix_t ** aTa)
 {
   idx_t const rank = mats[0]->J;
-  val_t * const restrict av = aTa[MAX_NMODES]->vals;
-  val_t * const restrict mv = mats[MAX_NMODES]->vals;
-
   val_t inner = 0;
+
+  mats[MAX_NMODES]->I = mats[0]->I;
+  mttkrp_splatt(ft, mats, 0, thds, nthreads);
+
+  val_t const * const m0 = mats[0]->vals;
+  val_t const * const mv = mats[MAX_NMODES]->vals;
+  val_t       * const av = aTa[MAX_NMODES]->vals;
+
   for(idx_t r=0; r < rank; ++r) {
-    mv[r] = 0.;
+    av[r] = 0.;
   }
-  /* m-way product with each nnz */
-  for(idx_t n=0; n < tt->nnz; ++n) {
+  for(idx_t i=0; i < ft->dims[0]; ++i) {
     for(idx_t r=0; r < rank; ++r) {
-      av[r] = tt->vals[n];
-    }
-    for(idx_t m=0; m < nmodes; ++m) {
-      for(idx_t r=0; r < rank; ++r) {
-        av[r] *= mats[m]->vals[r + (tt->ind[m][n] * rank)];
-      }
-    }
-    for(idx_t r=0; r < rank; ++r) {
-      mv[r] += av[r];
+      av[r] += m0[r+(i*rank)] * mv[r+(i*rank)];
     }
   }
   /* accumulate everything into 'inner' */
   for(idx_t r=0; r < rank; ++r) {
-    inner += mv[r] * lambda[r];
+    inner += av[r] * lambda[r];
   }
-
   return inner;
 }
 
 
 static val_t __calc_fit(
   idx_t const nmodes,
-  sptensor_t const * const tt,
+  ftensor_t const * const ft,
+  thd_info * const thds,
+  idx_t const nthreads,
   val_t const ttnorm,
   val_t const * const restrict lambda,
   matrix_t ** mats,
   matrix_t ** aTa)
 {
   timer_start(&timers[TIMER_MISC]);
-  idx_t const rank = aTa[0]->J;
 
   /* First get norm of new model: lambda^T * (hada aTa) * lambda. */
   val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
 
   /* Compute inner product of tensor with new model */
-  val_t const inner = __tt_kruskal_inner(nmodes, tt, lambda, mats, aTa);
+  val_t const inner = __tt_kruskal_inner(nmodes, ft, thds, nthreads, lambda,
+      mats, aTa);
 
   val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
   timer_stop(&timers[TIMER_MISC]);
@@ -248,7 +247,8 @@ void cpd(
       mat_aTa(mats[m], aTa[m]);
     } /* foreach mode */
 
-    val_t const fit = __calc_fit(nmodes, tt, ttnormsq, lambda, mats, aTa);
+    val_t const fit = __calc_fit(nmodes, ft, thds, opts->nthreads, ttnormsq,
+        lambda, mats, aTa);
     timer_stop(&itertime);
 
     printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",

@@ -318,8 +318,6 @@ void mttkrp_ttbox(
 
   memset(M->vals, 0, I * rank * sizeof(val_t));
 
-  val_t * const restrict m1vals = M->vals;
-
   idx_t const nnz = tt->nnz;
   idx_t const * const restrict indM = tt->ind[mode];
   idx_t const * const restrict indA =
