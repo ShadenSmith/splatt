@@ -13,8 +13,8 @@
 val_t rand_val(void)
 {
   /* TODO: modify this to work based on the size of idx_t */
-  return 0.18;
-  //return (val_t) rand() / (val_t) RAND_MAX;
+  return 2. * ((val_t) rand() / (val_t) RAND_MAX);
+  //return 0.18;
 }
 
 
