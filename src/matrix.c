@@ -7,6 +7,7 @@
 #include "matrix.h"
 #include "util.h"
 #include "timer.h"
+#include "io.h"
 
 #include <math.h>
 
@@ -75,8 +76,8 @@ static void __mat_backwardsolve(
 
   /* now do backward substitution */
   for(idx_t row=1; row <= N; ++row) {
-    /* operate with N-row to make unsigned comparisons easy */
-    idx_t const i = N-row;
+    /* operate with (N - row) to make unsigned comparisons easy */
+    idx_t const i = N - row;
 
     /* X(i,f) = B(i,f) - \sum_{j=0}^{i-1} R(i,j)X(i,j) */
     for(idx_t j=i+1; j < N; ++j) {
@@ -142,7 +143,7 @@ void mat_cholesky(
 
   idx_t const N = A->I;
   val_t const * const restrict av = A->vals;
-  val_t * const lv = L->vals;
+  val_t * const restrict lv = L->vals;
 
   memset(lv, 0, N*N*sizeof(val_t));
   for (idx_t i = 0; i < N; ++i) {
