@@ -33,6 +33,132 @@ void cpd_als(
 
 
 /******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
+
+static val_t __kruskal_norm(
+  idx_t const nmodes,
+  val_t const * const restrict lambda,
+  matrix_t ** aTa)
+{
+  idx_t const rank = aTa[0]->J;
+  val_t * const restrict av = aTa[MAX_NMODES]->vals;
+
+  val_t norm_mats = 0;
+
+  /* use aTa[MAX_NMODES] as scratch space */
+  for(idx_t x=0; x < rank*rank; ++x) {
+    av[x] = 1.;
+  }
+
+  /* aTa[MAX_NMODES] = hada(aTa) */
+  for(idx_t m=0; m < nmodes; ++m) {
+    val_t const * const restrict atavals = aTa[m]->vals;
+    for(idx_t x=0; x < rank*rank; ++x) {
+      av[x] *= atavals[x];
+    }
+  }
+
+  /* now compute lambda^T * aTa[MAX_NMODES] * lambda */
+  for(idx_t i=0; i < rank; ++i) {
+    for(idx_t j=0; j < rank; ++j) {
+      norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j];
+    }
+  }
+
+  return fabs(norm_mats);
+}
+
+
+/* Compute inner product of tensor with model
+ * THIS OVERWRITES first row of aTa[MAX_NMODES] and mats[MAX_NMODES]*/
+static val_t __tt_kruskal_inner(
+  idx_t const nmodes,
+  sptensor_t const * const tt,
+  val_t const * const restrict lambda,
+  matrix_t ** mats,
+  matrix_t ** aTa)
+{
+  idx_t const rank = mats[0]->J;
+  val_t * const restrict av = aTa[MAX_NMODES]->vals;
+  val_t * const restrict mv = mats[MAX_NMODES]->vals;
+
+  val_t inner = 0;
+  for(idx_t r=0; r < rank; ++r) {
+    mv[r] = 0.;
+  }
+  /* m-way product with each nnz */
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    for(idx_t r=0; r < rank; ++r) {
+      av[r] = tt->vals[n];
+    }
+    for(idx_t m=0; m < nmodes; ++m) {
+      for(idx_t r=0; r < rank; ++r) {
+        av[r] *= mats[m]->vals[r + (tt->ind[m][n] * rank)];
+      }
+    }
+    for(idx_t r=0; r < rank; ++r) {
+      mv[r] += av[r];
+    }
+  }
+  /* accumulate everything into 'inner' */
+  for(idx_t r=0; r < rank; ++r) {
+    inner += mv[r] * lambda[r];
+  }
+
+  return inner;
+}
+
+
+static val_t __calc_fit(
+  idx_t const nmodes,
+  sptensor_t const * const tt,
+  val_t const ttnorm,
+  val_t const * const restrict lambda,
+  matrix_t ** mats,
+  matrix_t ** aTa)
+{
+  idx_t const rank = aTa[0]->J;
+
+  /* First get norm of new model: lambda^T * (hada aTa) * lambda. */
+  val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
+
+  /* Compute inner product of tensor with new model */
+  val_t const inner = __tt_kruskal_inner(nmodes, tt, lambda, mats, aTa);
+
+  val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
+  return 1 - (residual / sqrt(ttnorm));
+}
+
+
+static void __calc_M2(
+  idx_t const mode,
+  idx_t const nmodes,
+  matrix_t ** aTa)
+{
+  timer_start(&timers[TIMER_INV]);
+
+  idx_t const rank = aTa[0]->J;
+  val_t * const restrict av = aTa[MAX_NMODES]->vals;
+
+  for(idx_t x=0; x < rank*rank; ++x) {
+    av[x] = 1.;
+  }
+  for(idx_t m=1; m < nmodes; ++m) {
+    idx_t const madjust = (mode + m) % nmodes;
+    val_t const * const atavals = aTa[madjust]->vals;
+    for(idx_t x=0; x < rank*rank; ++x) {
+      av[x] *= atavals[x];
+    }
+  }
+
+  /* M2 = M2^-1 */
+  mat_syminv(aTa[MAX_NMODES]);
+  timer_stop(&timers[TIMER_INV]);
+}
+
+
+/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void cpd(
@@ -40,7 +166,6 @@ void cpd(
   matrix_t ** mats,
   cpd_opts const * const opts)
 {
-  timer_start(&timers[TIMER_CPD]);
   idx_t const rank = opts->rank;
   idx_t const nmodes = tt->nmodes;
 
@@ -51,16 +176,6 @@ void cpd(
   }
   /* used as buffer space */
   aTa[MAX_NMODES] = mat_alloc(rank, rank);
-
-  /* Initialize first A^T * A mats. We skip the first because it will be
-   * solved for. */
-  for(idx_t m=1; m < nmodes; ++m) {
-    mat_aTa(mats[m], aTa[m]);
-  }
-
-  /* make accessing our buffers little easier */
-  val_t * const mv = mats[MAX_NMODES]->vals;
-  val_t * const av = aTa[MAX_NMODES]->vals;
 
   val_t * lambda = (val_t *) malloc(rank * sizeof(val_t));
   ftensor_t * ft = ften_alloc(tt, opts->tile);
@@ -75,14 +190,18 @@ void cpd(
     thds = thd_init(opts->nthreads, rank * sizeof(val_t) + 64, 0);
   }
 
-  val_t xnorm = 0.;
-  val_t const * const restrict xv = tt->vals;
-  #pragma omp parallel for reduction(+:xnorm)
-  for(idx_t n=0; n < tt->nnz; ++n) {
-    xnorm += xv[n] * xv[n];
+  /* Initialize first A^T * A mats. We skip the first because it will be
+   * solved for. */
+  #pragma omp parallel for schedule(static, 1)
+  for(idx_t m=1; m < nmodes; ++m) {
+    mat_aTa(mats[m], aTa[m]);
   }
 
+  val_t const ttnormsq = tt_normsq(tt);
+  val_t const * const restrict xv = tt->vals;
   val_t oldfit = 0;
+
+  timer_start(&timers[TIMER_CPD]);
 
   /* setup timers */
   sp_timer_t itertime;
@@ -107,22 +226,9 @@ void cpd(
       }
       continue;
 #endif
-      /* M2 = (CtC .* BtB .* ...) */
-      timer_start(&timers[TIMER_INV]);
-      for(idx_t x=0; x < rank*rank; ++x) {
-        av[x] = 1.;
-      }
-      for(idx_t mode=1; mode < nmodes; ++mode) {
-        idx_t const madjust = (m + mode) % nmodes;
-        val_t const * const atavals = aTa[madjust]->vals;
-        for(idx_t x=0; x < rank*rank; ++x) {
-          av[x] *= atavals[x];
-        }
-      }
 
-      /* M2 = M2^-1 */
-      mat_syminv(aTa[MAX_NMODES]);
-      timer_stop(&timers[TIMER_INV]);
+      /* M2 = (CtC .* BtB .* ...)^-1 */
+      __calc_M2(m, nmodes, aTa);
 
       /* A = M1 * M2 */
       memset(mats[m]->vals, 0, mats[m]->I * rank * sizeof(val_t));
@@ -139,62 +245,14 @@ void cpd(
       mat_aTa(mats[m], aTa[m]);
     } /* foreach mode */
 
-
-    /* CALCULATE FIT */
-
-    /* First get fit of new model -- lambda^T * (hada aTa) * lambda. */
-    /* calculate fit */
-    val_t norm_mats = 0;
-    for(idx_t x=0; x < rank*rank; ++x) {
-      av[x] = 1.;
-    }
-    for(idx_t m=0; m < nmodes; ++m) {
-      val_t const * const atavals = aTa[m]->vals;
-      for(idx_t x=0; x < rank*rank; ++x) {
-        av[x] *= atavals[x];
-      }
-    }
-    for(idx_t i=0; i < rank; ++i) {
-      for(idx_t j=0; j < rank; ++j) {
-        norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j];
-      }
-    }
-    norm_mats = fabs(norm_mats);
-
-    /* Compute inner product of tensor with model
-     * THIS OVERWRITES first row of aTa[MAX_NMODES] and mats[MAX_NMODES]*/
-    val_t inner = 0;
-    for(idx_t r=0; r < rank; ++r) {
-      mv[r] = 0.;
-    }
-    /* m-way product with each nnz */
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      for(idx_t r=0; r < rank; ++r) {
-        av[r] = tt->vals[n];
-      }
-      for(idx_t m=0; m < nmodes; ++m) {
-        for(idx_t r=0; r < rank; ++r) {
-          av[r] *= mats[m]->vals[r + (tt->ind[m][n] * rank)];
-        }
-      }
-      for(idx_t r=0; r < rank; ++r) {
-        mv[r] += av[r];
-      }
-    }
-    /* accumulate everything into 'inner' */
-    for(idx_t r=0; r < rank; ++r) {
-      inner += mv[r] * lambda[r];
-    }
-
-    val_t residual = sqrt(xnorm + norm_mats - (2 * inner));
-    val_t fit = 1 - (residual / sqrt(xnorm));
-
+    val_t const fit = __calc_fit(nmodes, tt, ttnormsq, lambda, mats, aTa);
     timer_stop(&itertime);
 
     printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
         it+1, itertime.seconds, fit, fit - oldfit);
     oldfit = fit;
   }
+  timer_stop(&timers[TIMER_CPD]);
 
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(aTa[m]);
@@ -204,7 +262,5 @@ void cpd(
   ften_free(ft);
   thd_free(thds, opts->nthreads);
   free(lambda);
-  timer_stop(&timers[TIMER_CPD]);
 }
-
 

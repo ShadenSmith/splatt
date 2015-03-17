@@ -141,4 +141,16 @@ spmatrix_t * tt_unfold(
   sptensor_t * const tt,
   idx_t const mode);
 
+
+/**
+* @brief Calculate the Frobenius norm of tt, squared. This is the
+*        sum-of-squares for all nonzero values.
+*
+* @param tt The tensor to operate on.
+*
+* @return  The squared Frobenius norm.
+*/
+val_t tt_normsq(
+  sptensor_t const * const tt);
+
 #endif

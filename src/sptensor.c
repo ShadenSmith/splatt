@@ -16,6 +16,17 @@
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
+val_t tt_normsq(sptensor_t const * const tt)
+{
+  val_t norm = 0.0;
+  val_t const * const restrict tv = tt->vals;
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    norm += tv[n] * tv[n];
+  }
+  return norm;
+}
+
+
 idx_t * tt_get_slices(
   sptensor_t const * const tt,
   idx_t const m,
