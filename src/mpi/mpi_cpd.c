@@ -319,10 +319,11 @@ void mpi_cpd(
   omp_set_num_threads(opts->nthreads);
   thd_info * thds;
   if(opts->tile) {
-    thds = thd_init(opts->nthreads, nfactors * sizeof(val_t) + 64,
+    thds = thd_init(opts->nthreads, 2,
+      nfactors * sizeof(val_t) + 64,
       TILE_SIZES[0] * nfactors * sizeof(val_t) + 64);
   } else {
-    thds = thd_init(opts->nthreads, nfactors * sizeof(val_t) + 64, 0);
+    thds = thd_init(opts->nthreads, 1, nfactors * sizeof(val_t) + 64, 0);
   }
 
   sp_timer_t itertime;

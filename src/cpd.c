@@ -89,7 +89,7 @@ static val_t __tt_kruskal_inner(
   #pragma omp parallel reduction(+:inner)
   {
     int const tid = omp_get_thread_num();
-    val_t * const restrict accumF = (val_t *) thds[tid].scratch;
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
 
     for(idx_t r=0; r < rank; ++r) {
       accumF[r] = 0.;
@@ -189,10 +189,11 @@ void cpd(
   omp_set_num_threads(opts->nthreads);
   thd_info * thds;
   if(opts->tile) {
-    thds = thd_init(opts->nthreads, (rank * rank * sizeof(val_t)) + 64,
+    thds = thd_init(opts->nthreads, 2,
+      (rank * rank * sizeof(val_t)) + 64,
       TILE_SIZES[0] * rank * sizeof(val_t) + 64);
   } else {
-    thds = thd_init(opts->nthreads, (rank * rank * sizeof(val_t)) + 64, 0);
+    thds = thd_init(opts->nthreads, 1, (rank * rank * sizeof(val_t)) + 64);
   }
 
   /* Initialize first A^T * A mats. We skip the first because it will be

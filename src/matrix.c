@@ -246,7 +246,7 @@ void mat_aTa(
   #pragma omp parallel
   {
     int const tid = omp_get_thread_num();
-    val_t * const restrict accum = (val_t *) thds[tid].scratch;
+    val_t * const restrict accum = (val_t *) thds[tid].scratch[0];
 
     /* compute upper triangular portion */
     memset(accum, 0, F * F * sizeof(val_t));
@@ -268,7 +268,7 @@ void mat_aTa(
   /* sum the partial products
    * TODO: make this a parallel reduction */
   for(idx_t p=0; p < nthreads; ++p) {
-    val_t const * const restrict paccum = thds[p].scratch;
+    val_t const * const restrict paccum = (val_t *) thds[p].scratch[0];
     for(idx_t i=0; i < F; ++i) {
       for(idx_t j=i; j < F; ++j) {
         rv[j+(i*F)] += paccum[j+(i*F)];
@@ -347,7 +347,7 @@ void mat_normalize(
   #pragma omp parallel
   {
     int const tid = omp_get_thread_num();
-    val_t * const mylambda = thds[tid].scratch;
+    val_t * const mylambda = (val_t *) thds[tid].scratch[0];
     for(idx_t j=0; j < J; ++j) {
       mylambda[j] = 0;
     }
@@ -371,7 +371,7 @@ void mat_normalize(
       #pragma omp single
       {
         for(idx_t p=0; p < nthreads; ++p) {
-          val_t const * const plambda = thds[p].scratch;
+          val_t const * const plambda = (val_t *) thds[p].scratch[0];
           for(idx_t j=0; j < J; ++j) {
             lambda[j] += plambda[j];
           }
@@ -394,7 +394,7 @@ void mat_normalize(
       #pragma omp single
       {
         for(idx_t p=0; p < nthreads; ++p) {
-          val_t const * const plambda = thds[p].scratch;
+          val_t const * const plambda = (val_t *) thds[p].scratch[0];
           for(idx_t j=0; j < J; ++j) {
             lambda[j] = SS_MAX(lambda[j], plambda[j]);
           }

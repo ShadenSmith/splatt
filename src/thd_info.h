@@ -8,6 +8,7 @@
 #include "base.h"
 #include "timer.h"
 
+#include <stdarg.h>
 
 
 /******************************************************************************
@@ -19,8 +20,8 @@
 */
 typedef struct
 {
-  void * scratch;
-  void * scratch2;
+  idx_t nscratch;
+  void ** scratch;
   sp_timer_t ttime;
 } thd_info;
 
@@ -56,26 +57,16 @@ void thd_reset(
 * @brief Allocate and initialize a number thd_info structs.
 *
 * @param nthreads The number of threads to allocate for.
-* @param scratch1_bytes The number of bytes per thread to allocate for scratch1.
-* @param scratch2_bytes The number of bytes per thread to allocate for scratch2.
+* @param nscratch The number of scratch arrays to use.
+* @param ...      The number of bytes to allocate for each scratch array.
 *
 * @return A pointer to an array of thd_info.
 */
 thd_info * thd_init(
   idx_t const nthreads,
-  idx_t const scratch1_bytes,
-  idx_t const scratch2_bytes);
+  idx_t const nscratch,
+  ...);
 
-
-/**
-* @brief Allocate and initialize a number thd_info structs.
-*
-* @param nthreads The number of threads to allocate for.
-* @param scratch1_bytes The number of bytes per thread to allocate for scratch1.
-* @param scratch2_bytes The number of bytes per thread to allocate for scratch2.
-*
-* @return A pointer to an array of thd_info.
-*/
 void thd_free(
   thd_info * thds,
   idx_t const nthreads);

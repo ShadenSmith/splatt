@@ -51,7 +51,7 @@ void mttkrp_splatt(
   #pragma omp parallel
   {
     int const tid = omp_get_thread_num();
-    val_t * const restrict accumF = (val_t *) thds[tid].scratch;
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
     timer_start(&thds[tid].ttime);
 
     #pragma omp for schedule(dynamic, 16) nowait
@@ -120,7 +120,7 @@ void mttkrp_splatt_tiled(
   #pragma omp parallel
   {
     int const tid = omp_get_thread_num();
-    val_t * const restrict accumF = (val_t *) thds[tid].scratch;
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
     timer_start(&thds[tid].ttime);
 
     #pragma omp for schedule(dynamic, 1) nowait
@@ -189,8 +189,8 @@ void mttkrp_splatt_coop_tiled(
   #pragma omp parallel
   {
     int const tid = omp_get_thread_num();
-    val_t * const restrict accumF = (val_t *) thds[tid].scratch;
-    val_t * const localm = (val_t *) thds[tid].scratch2;
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
+    val_t * const localm = (val_t *) thds[tid].scratch[1];
     timer_start(&thds[tid].ttime);
 
     /* foreach slab */
@@ -234,7 +234,7 @@ void mttkrp_splatt_coop_tiled(
         /* map i back to global slice id */
         idx_t const localrow = i % TILE_SIZES[0];
         for(idx_t t=0; t < nthreads; ++t) {
-          val_t * const threadm = (val_t *) thds[t].scratch2;
+          val_t * const threadm = (val_t *) thds[t].scratch[1];
           for(idx_t r=0; r < rank; ++r) {
             mvals[r + (i*rank)] += threadm[r + (localrow*rank)];
             threadm[r + (localrow*rank)] = 0.;
