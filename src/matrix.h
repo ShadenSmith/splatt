@@ -119,8 +119,10 @@ void mat_aTa(
 */
 void mat_normalize(
   matrix_t * const A,
-  val_t * const lambda,
-  splatt_mat_norm const which);
+  val_t * const restrict lambda,
+  splatt_mat_norm const which,
+  thd_info * const thds,
+  idx_t const nthreads);
 
 matrix_t * mat_rand(
   idx_t const nrows,

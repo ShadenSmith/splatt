@@ -121,7 +121,7 @@ static val_t __calc_fit(
   matrix_t ** mats,
   matrix_t ** aTa)
 {
-  timer_start(&timers[TIMER_MISC]);
+  timer_start(&timers[TIMER_FIT]);
 
   /* First get norm of new model: lambda^T * (hada aTa) * lambda. */
   val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
@@ -130,7 +130,7 @@ static val_t __calc_fit(
   val_t const inner = __tt_kruskal_inner(ft, thds, nthreads, lambda, mats);
 
   val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
-  timer_stop(&timers[TIMER_MISC]);
+  timer_stop(&timers[TIMER_FIT]);
   return 1 - (residual / sqrt(ttnorm));
 }
 
@@ -240,9 +240,9 @@ void cpd(
 
       /* normalize columns and extract lambda */
       if(it == 0) {
-        mat_normalize(mats[m], lambda, MAT_NORM_2);
+        mat_normalize(mats[m], lambda, MAT_NORM_2, thds, opts->nthreads);
       } else {
-        mat_normalize(mats[m], lambda, MAT_NORM_MAX);
+        mat_normalize(mats[m], lambda, MAT_NORM_MAX, thds, opts->nthreads);
       }
 
       /* update A^T*A */

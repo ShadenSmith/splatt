@@ -329,51 +329,96 @@ void mat_matmul(
 
 void mat_normalize(
   matrix_t * const A,
-  val_t * const lambda,
-  splatt_mat_norm const which)
+  val_t * const restrict lambda,
+  splatt_mat_norm const which,
+  thd_info * const thds,
+  idx_t const nthreads)
 {
+  timer_start(&timers[TIMER_MATNORM]);
   idx_t const I = A->I;
   idx_t const J = A->J;
   val_t * const restrict vals = A->vals;
 
+  omp_set_num_threads(nthreads);
+
   assert(vals != NULL);
   assert(lambda != NULL);
 
-  for(idx_t j=0; j < J; ++j) {
-    lambda[j] = 0;
-  }
+  #pragma omp parallel
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const mylambda = thds[tid].scratch;
+    for(idx_t j=0; j < J; ++j) {
+      mylambda[j] = 0;
+    }
 
-  /* get column norms */
-  switch(which) {
-  case MAT_NORM_2:
+    #pragma omp master
+    for(idx_t j=0; j < J; ++j) {
+      lambda[j] = 0;
+    }
+
+    /* get column norms */
+    switch(which) {
+    case MAT_NORM_2:
+      #pragma omp for schedule(static)
+      for(idx_t i=0; i < I; ++i) {
+        for(idx_t j=0; j < J; ++j) {
+          mylambda[j] += vals[j + (i*J)] * vals[j + (i*J)];
+        }
+      }
+
+      /* do reduction on partial sums */
+      #pragma omp single
+      {
+        for(idx_t p=0; p < nthreads; ++p) {
+          val_t const * const plambda = thds[p].scratch;
+          for(idx_t j=0; j < J; ++j) {
+            lambda[j] += plambda[j];
+          }
+        }
+        for(idx_t j=0; j < J; ++j) {
+          lambda[j] = sqrt(lambda[j]);
+        }
+      }
+      break;
+
+    case MAT_NORM_MAX:
+      #pragma omp for schedule(static)
+      for(idx_t i=0; i < I; ++i) {
+        for(idx_t j=0; j < J; ++j) {
+          mylambda[j] = SS_MAX(mylambda[j], vals[j+(i*J)]);
+        }
+      }
+
+      /* do reduction on partial maxes */
+      #pragma omp single
+      {
+        for(idx_t p=0; p < nthreads; ++p) {
+          val_t const * const plambda = thds[p].scratch;
+          for(idx_t j=0; j < J; ++j) {
+            lambda[j] = SS_MAX(lambda[j], plambda[j]);
+          }
+        }
+        for(idx_t j=0; j < J; ++j) {
+          lambda[j] = SS_MAX(lambda[j], 1.);
+        }
+      }
+      break;
+    } /* end switch */
+
+    #pragma omp barrier
+
+    /* do the normalization */
+    #pragma omp for schedule(static)
     for(idx_t i=0; i < I; ++i) {
       for(idx_t j=0; j < J; ++j) {
-        lambda[j] += vals[j + (i*J)] * vals[j + (i*J)];
+        vals[j+(i*J)] /= lambda[j];
       }
     }
-    for(idx_t j=0; j < J; ++j) {
-      lambda[j] = sqrt(lambda[j]);
-    }
-    break;
 
-  case MAT_NORM_MAX:
-    for(idx_t i=0; i < I; ++i) {
-      for(idx_t j=0; j < J; ++j) {
-        lambda[j] = (vals[j+(i*J)] > lambda[j]) ?  vals[j+(i*J)] : lambda[j];
-      }
-    }
-    for(idx_t j=0; j < J; ++j) {
-      lambda[j] = (lambda[j] > 1.) ? lambda[j] : 1.;
-    }
-    break;
-  }
+  } /* end omp parallel */
 
-  /* do the normalization */
-  for(idx_t i=0; i < I; ++i) {
-    for(idx_t j=0; j < J; ++j) {
-      vals[j+(i*J)] /= lambda[j];
-    }
-  }
+  timer_stop(&timers[TIMER_MATNORM]);
 }
 
 
