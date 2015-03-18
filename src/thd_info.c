@@ -4,12 +4,108 @@
  * INCLUDES
  *****************************************************************************/
 #include "thd_info.h"
+#include <omp.h>
 
+
+/******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
+static inline void __reduce_sum(
+  thd_info * const thds,
+  idx_t const scratchid,
+  idx_t const nelems)
+{
+  int const tid = omp_get_thread_num();
+  int const nthreads = omp_get_num_threads();
+
+  val_t * const myvals = (val_t *) thds[tid].scratch[scratchid];
+
+  int half = nthreads / 2;
+  while(half > 0) {
+    #pragma omp barrier
+    if(tid < half && tid + half < nthreads) {
+      val_t const * const target = (val_t *) thds[tid+half].scratch[scratchid];
+      for(idx_t i=0; i < nelems; ++i) {
+        myvals[i] += target[i];
+      }
+    }
+    half /= 2;
+  }
+
+  /* account for odd thread at end */
+  #pragma omp master
+  {
+    if(nthreads % 2 == 1) {
+      val_t const * const last = (val_t *) thds[nthreads-1].scratch[scratchid];
+      for(idx_t i=0; i < nelems; ++i) {
+        myvals[i] += last[i];
+      }
+    }
+  }
+  #pragma omp barrier
+}
+
+
+static inline void __reduce_max(
+  thd_info * const thds,
+  idx_t const scratchid,
+  idx_t const nelems)
+{
+  int const tid = omp_get_thread_num();
+  int const nthreads = omp_get_num_threads();
+
+  val_t * const myvals = (val_t *) thds[tid].scratch[scratchid];
+
+  int half = nthreads / 2;
+  while(half > 0) {
+    #pragma omp barrier
+    if(tid < half && tid + half < nthreads) {
+      val_t const * const target = (val_t *) thds[tid+half].scratch[scratchid];
+      for(idx_t i=0; i < nelems; ++i) {
+        myvals[i] = SS_MAX(myvals[i], target[i]);
+      }
+    }
+    half /= 2;
+  }
+
+  /* account for odd thread at end */
+  #pragma omp master
+  {
+    if(nthreads % 2 == 1) {
+      val_t const * const last = (val_t *) thds[nthreads-1].scratch[scratchid];
+      for(idx_t i=0; i < nelems; ++i) {
+        myvals[i] = SS_MAX(myvals[i], last[i]);
+      }
+    }
+  }
+  #pragma omp barrier
+}
 
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+void thd_reduce(
+  thd_info * const thds,
+  idx_t const scratchid,
+  idx_t const nelems,
+  splatt_reduce_type const which)
+{
+  switch(which) {
+  case REDUCE_SUM:
+    __reduce_sum(thds, scratchid, nelems);
+    break;
+  case REDUCE_MAX:
+    __reduce_max(thds, scratchid, nelems);
+    break;
+  default:
+    fprintf(stderr, "SPLATT: thd_reduce supports SUM and MAX only.\n");
+    abort();
+  }
+}
+
+
 thd_info * thd_init(
   idx_t const nthreads,
   idx_t const nscratch,

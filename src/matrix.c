@@ -246,7 +246,7 @@ void mat_aTa(
   #pragma omp parallel
   {
     int const tid = omp_get_thread_num();
-    val_t * const restrict accum = (val_t *) thds[tid].scratch[0];
+    val_t * const accum = (val_t *) thds[tid].scratch[0];
 
     /* compute upper triangular portion */
     memset(accum, 0, F * F * sizeof(val_t));
@@ -260,21 +260,13 @@ void mat_aTa(
         }
       }
     }
+
+    /* parallel reduction on accum */
+    thd_reduce(thds, 0, F * F, REDUCE_SUM);
   }
 
   val_t * const restrict rv = ret->vals;
-  memset(rv, 0, F * F * sizeof(val_t));
-
-  /* sum the partial products
-   * TODO: make this a parallel reduction */
-  for(idx_t p=0; p < nthreads; ++p) {
-    val_t const * const restrict paccum = (val_t *) thds[p].scratch[0];
-    for(idx_t i=0; i < F; ++i) {
-      for(idx_t j=i; j < F; ++j) {
-        rv[j+(i*F)] += paccum[j+(i*F)];
-      }
-    }
-  }
+  memcpy(rv, (val_t *) thds[0].scratch[0], F * F * sizeof(val_t));
 
   /* copy to lower triangular matrix */
   for(idx_t i=1; i < F; ++i) {
@@ -368,17 +360,10 @@ void mat_normalize(
       }
 
       /* do reduction on partial sums */
-      #pragma omp single
-      {
-        for(idx_t p=0; p < nthreads; ++p) {
-          val_t const * const plambda = (val_t *) thds[p].scratch[0];
-          for(idx_t j=0; j < J; ++j) {
-            lambda[j] += plambda[j];
-          }
-        }
-        for(idx_t j=0; j < J; ++j) {
-          lambda[j] = sqrt(lambda[j]);
-        }
+      thd_reduce(thds, 0, J, REDUCE_SUM);
+      #pragma omp master
+      for(idx_t j=0; j < J; ++j) {
+        lambda[j] = sqrt(mylambda[j]);
       }
       break;
 
@@ -391,17 +376,10 @@ void mat_normalize(
       }
 
       /* do reduction on partial maxes */
-      #pragma omp single
-      {
-        for(idx_t p=0; p < nthreads; ++p) {
-          val_t const * const plambda = (val_t *) thds[p].scratch[0];
-          for(idx_t j=0; j < J; ++j) {
-            lambda[j] = SS_MAX(lambda[j], plambda[j]);
-          }
-        }
-        for(idx_t j=0; j < J; ++j) {
-          lambda[j] = SS_MAX(lambda[j], 1.);
-        }
+      thd_reduce(thds, 0, J, REDUCE_MAX);
+      #pragma omp master
+      for(idx_t j=0; j < J; ++j) {
+        lambda[j] = SS_MAX(mylambda[j], 1.);
       }
       break;
     } /* end switch */

@@ -26,10 +26,23 @@ typedef struct
 } thd_info;
 
 
+typedef enum
+{
+  REDUCE_SUM,
+  REDUCE_MAX,
+  REDUCE_ERR
+} splatt_reduce_type;
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+void thd_reduce(
+  thd_info * const thds,
+  idx_t const scratchid,
+  idx_t const nelems,
+  splatt_reduce_type const which);
 
 /**
 * @brief Output a summary to STDOUT of all thread timers.
