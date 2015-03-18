@@ -92,6 +92,10 @@ void thd_reduce(
   idx_t const nelems,
   splatt_reduce_type const which)
 {
+  if(omp_get_num_threads() == 1) {
+    return;
+  }
+
   switch(which) {
   case REDUCE_SUM:
     __reduce_sum(thds, scratchid, nelems);

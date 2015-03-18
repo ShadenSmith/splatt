@@ -73,7 +73,6 @@ static val_t __kruskal_norm(
 static val_t __tt_kruskal_inner(
   ftensor_t const * const ft,
   thd_info * const thds,
-  idx_t const nthreads,
   val_t const * const restrict lambda,
   matrix_t ** mats)
 {
@@ -127,7 +126,7 @@ static val_t __calc_fit(
   val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
 
   /* Compute inner product of tensor with new model */
-  val_t const inner = __tt_kruskal_inner(ft, thds, nthreads, lambda, mats);
+  val_t const inner = __tt_kruskal_inner(ft, thds, lambda, mats);
 
   val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
   timer_stop(&timers[TIMER_FIT]);
