@@ -7,8 +7,7 @@
 #include "../sptensor.h"
 #include "../stats.h"
 #include "../cpd.h"
-
-#include "../mpi/mpi.h"
+#include "../splatt_mpi.h"
 
 
 /******************************************************************************
@@ -67,7 +66,7 @@ static error_t parse_cpd_opt(
 static struct argp cpd_argp =
   {cpd_options, parse_cpd_opt, cpd_args_doc, cpd_doc};
 
-
+#ifdef USE_MPI
 /* XXX: this is temporary */
 static void __par_cpd(
   int argc,
@@ -170,6 +169,7 @@ static void __par_cpd(
   perm_free(perm);
   rank_free(rinfo, nmodes);
 }
+#endif /* USE_MPI */
 
 void splatt_cpd(
   int argc,
@@ -182,12 +182,14 @@ void splatt_cpd(
   args.nthreads = 1;
   args.tile = 0;
 
+#ifdef USE_MPI
   int size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   if(size > 1) {
     __par_cpd(argc, argv);
     return;
   }
+#endif
 
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 

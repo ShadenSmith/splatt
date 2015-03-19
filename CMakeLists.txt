@@ -14,7 +14,6 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
 endif()
 
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
 
 # check for debug mode
 if (DEFINED DEBUG AND ${DEBUG} EQUAL 1)
@@ -29,9 +28,20 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
 endif()
 
-find_package(MPI)
-include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+# check for MPI mode
+if (DEFINED USE_MPI AND ${USE_MPI} EQUAL 1)
+  add_definitions(-DUSE_MPI=${USE_MPI})
+  message("Building with MPI support.")
+  find_package(MPI)
+  include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+  file(GLOB MPI_SOURCES src/mpi/*.c)
+else()
+  set(MPI_SOURCES "")
+endif()
 
+set(C_DEFINES "${C_DEFINES}")
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
@@ -52,7 +62,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstrict-aliasing")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-file(GLOB SPLATT_SOURCES src/*.c src/mpi/*.c)
+file(GLOB SPLATT_SOURCES src/*.c ${MPI_SOURCES})
 
 # Generate splatt library
 add_subdirectory(lib)

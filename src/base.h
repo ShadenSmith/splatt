@@ -11,6 +11,8 @@
 
 #include <assert.h>
 
+static int MPI_ENABLED = 0;
+
 /* alias splatt types */
 #define val_t splatt_val_t
 #define idx_t splatt_idx_t

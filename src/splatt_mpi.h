@@ -1,13 +1,24 @@
 #ifndef SPLATT_MPI_H
 #define SPLATT_MPI_H
 
+
+#ifndef USE_MPI
+/**
+* @brief Just a dummy struct for when MPI is not enabled.
+*/
+typedef struct
+{
+  void * dummy;
+} rank_info;
+#else
+
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include "../base.h"
-#include "../sptensor.h"
-#include "../reorder.h"
-#include "../cpd.h"
+#include "base.h"
+#include "sptensor.h"
+#include "reorder.h"
+#include "cpd.h"
 #include <mpi.h>
 
 
@@ -188,4 +199,5 @@ void mpi_send_recv_stats(
   rank_info const * const rinfo,
   sptensor_t const * const tt);
 
+#endif /* USE_MPI */
 #endif

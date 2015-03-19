@@ -2,7 +2,7 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include "mpi.h"
+#include "../splatt_mpi.h"
 #include "../mttkrp.h"
 #include "../timer.h"
 #include "../thd_info.h"
@@ -49,27 +49,6 @@ static void __flush_glob_to_local(
   memcpy(matv + (start*nfactors),  gmatv + (goffset*nfactors),
     (end - start) * nfactors * sizeof(val_t));
 
-#if 0
-  /* now add partials to my global matrix */
-  if(tt->indmap[m] == NULL) {
-    for(idx_t i=start; i < end; ++i) {
-      assert(i >= mat_start && i < mat_end);
-      idx_t const row = i - mat_start;
-      for(idx_t f=0; f < nfactors; ++f) {
-        matv[f+(i*nfactors)] = gmatv[f+(row*nfactors)];
-      }
-    }
-  } else {
-    idx_t const * const restrict indmap = tt->indmap[m];
-    for(idx_t i=start; i < end; ++i) {
-      assert(indmap[i] >= mat_start && indmap[i] < mat_end);
-      idx_t const row = indmap[i] - mat_start;
-      for(idx_t f=0; f < nfactors; ++f) {
-        matv[f+(i*nfactors)] = gmatv[f+(row*nfactors)];
-      }
-    }
-  }
-#endif
   timer_stop(&timers[TIMER_MPI]);
 }
 
@@ -340,15 +319,15 @@ void mpi_cpd(
       timer_start(&timers[TIMER_MTTKRP]);
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
-
       /* add my partial multiplications to globmats[m] */
       __add_my_partials(tt, mats[MAX_NMODES], m1, rinfo, nfactors, m);
-
       /* incorporate neighbors' partials */
       __reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES],
           m1, rinfo, nfactors, m);
 
-      memcpy(globmats[m]->vals, m1->vals, m1->I * m1->J * sizeof(val_t));
+      /* M2 = (CtC .* BtB .* ...)^-1 */
+      //cpd_calc_M2(m, tt->nmodes, aTa);
+
 
       /* send updated rows to neighbors */
       __update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
