@@ -86,12 +86,14 @@ int main(
   int argc,
   char **argv)
 {
+#ifdef USE_MPI
   MPI_Init(&argc, &argv);
 
   int rank;
   int size;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
+#endif
 
   srand(time(NULL));
 
@@ -107,15 +109,17 @@ int main(
   /* execute the cmd! */
   splatt_cmds[args.cmd](argc-1, argv+1);
 
+#ifdef USE_MPI
   /* all done */
   MPI_Barrier(MPI_COMM_WORLD);
   timer_stop(&timers[TIMER_ALL]);
+  MPI_Finalize();
+#endif
 
   if(rank == 0) {
     print_footer();
   }
 
-  MPI_Finalize();
   return EXIT_SUCCESS;
 }
 
