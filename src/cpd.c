@@ -240,6 +240,14 @@ void cpd(
 #endif
 
   /* setup timers */
+  timer_reset(&timers[TIMER_ATA]);
+#ifdef USE_MPI
+  timer_reset(&timers[TIMER_MPI]);
+  timer_reset(&timers[TIMER_MPI_IDLE]);
+  timer_reset(&timers[TIMER_MPI_COMM]);
+  MPI_Barrier(rinfo->comm_3d);
+#endif
+
   sp_timer_t itertime;
   timer_start(&timers[TIMER_CPD]);
 
