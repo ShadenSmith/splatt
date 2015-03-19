@@ -200,10 +200,22 @@ void mpi_add_my_partials(
 void mpi_time_stats(
   rank_info const * const rinfo)
 {
-  double max_mttkrp;
-  double max_mpi;
-  double max_idle;
-  double max_com;
+  double max_mttkrp, avg_mttkrp;
+  double max_mpi, avg_mpi;
+  double max_idle, avg_idle;
+  double max_com, avg_com;
+
+  /* get avg times */
+  MPI_Reduce(&timers[TIMER_MTTKRP].seconds, &avg_mttkrp, 1, MPI_DOUBLE,
+      MPI_SUM, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI].seconds, &avg_mpi, 1, MPI_DOUBLE,
+      MPI_SUM, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI_IDLE].seconds, &avg_idle, 1, MPI_DOUBLE,
+      MPI_SUM, 0, rinfo->comm_3d);
+  MPI_Reduce(&timers[TIMER_MPI_COMM].seconds, &avg_com, 1, MPI_DOUBLE,
+      MPI_SUM, 0, rinfo->comm_3d);
+
+  /* get max times */
   MPI_Reduce(&timers[TIMER_MTTKRP].seconds, &max_mttkrp, 1, MPI_DOUBLE,
       MPI_MAX, 0, rinfo->comm_3d);
   MPI_Reduce(&timers[TIMER_MPI].seconds, &max_mpi, 1, MPI_DOUBLE,
@@ -213,9 +225,15 @@ void mpi_time_stats(
   MPI_Reduce(&timers[TIMER_MPI_COMM].seconds, &max_com, 1, MPI_DOUBLE,
       MPI_MAX, 0, rinfo->comm_3d);
 
-  timers[TIMER_MTTKRP].seconds   = max_mttkrp;
-  timers[TIMER_MPI].seconds      = max_mpi;
-  timers[TIMER_MPI_IDLE].seconds = max_idle;
-  timers[TIMER_MPI_COMM].seconds = max_com;
+  /* set avg times */
+  timers[TIMER_MTTKRP].seconds   = avg_mttkrp / rinfo->npes;
+  timers[TIMER_MPI].seconds      = avg_mpi    / rinfo->npes;
+  timers[TIMER_MPI_IDLE].seconds = avg_idle   / rinfo->npes;
+  timers[TIMER_MPI_COMM].seconds = avg_com    / rinfo->npes;
+  /* set max times */
+  timers[TIMER_MTTKRP_MAX].seconds   = max_mttkrp;
+  timers[TIMER_MPI_MAX].seconds      = max_mpi;
+  timers[TIMER_MPI_IDLE_MAX].seconds = max_idle;
+  timers[TIMER_MPI_COMM_MAX].seconds = max_com;
 }
 

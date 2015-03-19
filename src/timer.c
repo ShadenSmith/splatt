@@ -24,14 +24,20 @@ static char const * const timer_names[] = {
   [TIMER_SORT]      = "SORT",
   [TIMER_TILE]      = "TILE",
   [TIMER_CONVERT]   = "CONVERT",
-  [TIMER_MPI]       = "MPI",
-  [TIMER_MPI_IDLE]  = "MPI IDLE",
-  [TIMER_MPI_COMM]  = "MPI COMM",
   [TIMER_FIT]       = "CPD FIT",
   [TIMER_MATMUL]    = "MAT MULT",
   [TIMER_ATA]       = "MAT A^TA",
   [TIMER_MATNORM]   = "MAT NORM",
-  [TIMER_MISC]      = "MISC"
+  [TIMER_MISC]      = "MISC",
+#ifdef USE_MPI
+  [TIMER_MPI]           = "MPI",
+  [TIMER_MPI_IDLE]      = "MPI IDLE",
+  [TIMER_MPI_COMM]      = "MPI COMM",
+  [TIMER_MTTKRP_MAX]    = "MTTKRP MAX",
+  [TIMER_MPI_MAX]       = "MPI MAX",
+  [TIMER_MPI_IDLE_MAX]  = "MPI IDLE MAX",
+  [TIMER_MPI_COMM_MAX]  = "MPI COMM MAX",
+#endif
 };
 
 /* definition of global timers[] */
