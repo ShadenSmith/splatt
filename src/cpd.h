@@ -36,6 +36,8 @@ typedef struct
 void cpd(
   sptensor_t * const tt,
   matrix_t ** mats,
+  matrix_t ** globmats,
+  val_t * const lambda,
   rank_info * const rinfo,
   cpd_opts const * const opts);
 

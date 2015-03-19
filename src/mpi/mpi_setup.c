@@ -195,6 +195,7 @@ void mpi_setup_comms(
   rank_info * const rinfo)
 {
   MPI_Comm_size(MPI_COMM_WORLD, &(rinfo->npes));
+  MPI_Comm_rank(MPI_COMM_WORLD, &(rinfo->rank));
 
   int * const dims_3d = rinfo->dims_3d;
   int periods[MAX_NMODES];
@@ -207,7 +208,10 @@ void mpi_setup_comms(
       break;
     }
   }
-  assert(p13 * p13 * p13 == rinfo->npes);
+  if(p13 * p13 * p13 != rinfo->npes && rinfo->rank == 0) {
+    fprintf(stderr, "SPLATT: only #ranks = p^3 supported right now.\n");
+    abort();
+  }
   rinfo->np13 = p13;
 
   dims_3d[0] = dims_3d[1] = dims_3d[2] = p13;

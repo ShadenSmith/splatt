@@ -3,8 +3,11 @@
 
 
 # ifndef USE_MPI
-/* Just a dummy void for when MPI is not enabled. */
-typedef void * rank_info;
+/* Just a dummy for when MPI is not enabled. */
+typedef struct
+{
+  int rank;
+} rank_info;
 
 /* FULL MPI SUPPORT */
 # else
@@ -103,23 +106,81 @@ typedef struct
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
+/**
+* @brief Do an all-to-all communication of exchanging updated rows with other
+*        ranks. We send globmats[mode] to the needing ranks and receive other
+*        ranks' globmats entries which we store in mats[mode].
+*
+* @param tt The tensor we are operating on.
+* @param nbr2globs_buf Buffer at least as large as as there are rows to send
+*                      (for each rank).
+* @param nbr2local_buf Buffer at least as large as there are rows to receive.
+* @param localmat Local factor matrix which receives updated values.
+* @param globalmat Global factor matrix (owned by me) which is sent to ranks.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the factor matrices.
+* @param mode The mode to exchange along.
+*/
+void mpi_update_rows(
+  sptensor_t const * const tt,
+  val_t * const restrict nbr2globs_buf,
+  val_t * const restrict nbr2local_buf,
+  matrix_t * const localmat,
+  matrix_t * const globalmat,
+  rank_info const * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode);
+
 
 /**
-* @brief
+* @brief Do a reduction (sum) of all neighbor partial products which I own.
+*        Updates are written to globalmat.
 *
-* @param tt
-* @param mats
-* @param globmats
-* @param rinfo
-* @param opts
+* @param local2nbr_buf A buffer at least as large as nlocal2nbr.
+* @param nbr2globs_buf A buffer at least as large as nnbr2globs.
+* @param localmat My local matrix containing partial products for other ranks.
+* @param globalmat The global factor matrix to update.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the matrices.
+* @param mode The mode to operate on.
 */
+void mpi_reduce_rows(
+  val_t * const restrict local2nbr_buf,
+  val_t * const restrict nbr2globs_buf,
+  matrix_t const * const localmat,
+  matrix_t * const globalmat,
+  rank_info const * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode);
+
+
+/**
+* @brief Add my own partial products to the global matrix that I own.
+*
+* @param tt The tensor I am computing on.
+* @param localmat The local matrix containing my partial products.
+* @param globmat The global factor matrix I am writing to.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the matrices.
+* @param mode The mode I am operating on.
+*/
+void mpi_add_my_partials(
+  sptensor_t const * const tt,
+  matrix_t const * const localmat,
+  matrix_t * const globmat,
+  rank_info const * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode);
+
+
+#if 0
 void mpi_cpd(
   sptensor_t * const tt,
   matrix_t ** mats,
   matrix_t ** globmats,
   rank_info * const rinfo,
   cpd_opts const * const opts);
-
+#endif
 
 void mpi_write_mats(
   matrix_t ** mats,
@@ -187,6 +248,16 @@ void mpi_setup_comms(
 void rank_free(
   rank_info rinfo,
   idx_t const nmodes);
+
+
+/**
+* @brief Update timers[] with max values on the master rank instead of only
+*        local times.
+*
+* @param rinfo Struct containing rank information.
+*/
+void mpi_time_stats(
+  rank_info const * const rinfo);
 
 
 /**

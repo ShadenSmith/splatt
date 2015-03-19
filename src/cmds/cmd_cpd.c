@@ -66,7 +66,7 @@ static error_t parse_cpd_opt(
 static struct argp cpd_argp =
   {cpd_options, parse_cpd_opt, cpd_args_doc, cpd_doc};
 
-#ifdef USE_MPI
+#if 0
 /* XXX: this is temporary */
 static void __par_cpd(
   int argc,
@@ -142,6 +142,8 @@ static void __par_cpd(
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
+  val_t * lambda = (val_t *) malloc(args.rank * sizeof(val_t));
+
   if(rank == 0) {
     printf("\n");
     printf("Factoring "
@@ -151,7 +153,7 @@ static void __par_cpd(
   }
 
   /* do the actual factorization */
-  mpi_cpd(tt, mats, globmats, &rinfo, &args);
+  cpd(tt, mats, globmats, lambda, &rinfo, &args);
 
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
@@ -159,6 +161,7 @@ static void __par_cpd(
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(mats[m]);
   }
+  free(lambda);
 
   /* write output */
   //mpi_write_mats(globmats, perm, &rinfo, "test", nmodes);
@@ -182,43 +185,90 @@ void splatt_cpd(
   args.nthreads = 1;
   args.tile = 0;
 
-#ifdef USE_MPI
-  int size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  if(size > 1) {
-    __par_cpd(argc, argv);
-    return;
-  }
-#endif
-
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
-  print_header();
+  rank_info rinfo;
+  rinfo.rank = 0;
 
-  sptensor_t * tt = tt_read(args.ifname);
-  stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+  sptensor_t * tt = NULL;
 
-  /* M, the result matrix is stored at mats[MAX_NMODES] */
+#ifdef USE_MPI
+  mpi_setup_comms(&rinfo);
+  if(rinfo.npes == 1) {
+    fprintf(stderr, "SPLATT: I was configured with MPI support. Please re-run\n"
+                    "        with > 1 ranks or recompile without --mpi.\n");
+    abort();
+  }
+  tt = mpi_tt_read(args.ifname, &rinfo);
+#else
+  tt = tt_read(args.ifname);
+#endif
+
+  if(rinfo.rank == 0) {
+    print_header();
+    stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+  }
+
+#ifdef USE_MPI
+  /* determine matrix distribution */
+  permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
+
+  /* determine isend and ineed lists */
+  mpi_compute_ineed(&rinfo, tt, args.rank);
+#endif
+
+  /* allocate / initialize matrices */
   idx_t max_dim = 0;
+  /* M, the result matrix is stored at mats[MAX_NMODES] */
   matrix_t * mats[MAX_NMODES+1];
+  matrix_t * globmats[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mats[m] = mat_rand(tt->dims[m], args.rank);
     if(tt->dims[m] > max_dim) {
       max_dim = tt->dims[m];
     }
+#ifdef USE_MPI
+    /* for actual factor matrix */
+    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m], args.rank);
+#else
+    globmats[m] = mats[m];
+#endif
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
-  printf("Factoring ------------------------------------------------------\n");
-  printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX"\n", args.rank, args.niters);
+  val_t * lambda = (val_t *) malloc(args.rank * sizeof(val_t));
 
-  cpd(tt, mats, (rank_info *) NULL, &args);
+  if(rinfo.rank == 0) {
+    printf("Factoring "
+           "------------------------------------------------------\n");
+#ifdef USE_MPI
+    printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX" RANKS=%d THREADS=%"SS_IDX"\n",
+        args.rank, args.niters, rinfo.npes, args.nthreads);
+#else
+    printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX" THREADS=%"SS_IDX"\n",
+        args.rank, args.niters, args.nthreads);
+#endif
+  }
 
+  /* do the factorization! */
+  cpd(tt, mats, globmats, lambda, &rinfo, &args);
+
+  idx_t const nmodes = tt->nmodes;
+  tt_free(tt);
   for(idx_t m=0;m < tt->nmodes; ++m) {
     mat_free(mats[m]);
+#ifdef USE_MPI
+    mat_free(globmats[m]);
+#endif
   }
   mat_free(mats[MAX_NMODES]);
+  free(lambda);
 
-  tt_free(tt);
+#ifdef USE_MPI
+  /* write output */
+  //mpi_write_mats(globmats, perm, &rinfo, "test", nmodes);
+  perm_free(perm);
+  rank_free(rinfo, nmodes);
+#endif
 }
 
