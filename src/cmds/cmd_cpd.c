@@ -153,7 +153,7 @@ void splatt_cpd(
 
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
-  for(idx_t m=0;m < tt->nmodes; ++m) {
+  for(idx_t m=0;m < nmodes; ++m) {
     mat_free(mats[m]);
 #ifdef USE_MPI
     mat_free(globmats[m]);
