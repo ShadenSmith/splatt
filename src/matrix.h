@@ -1,12 +1,7 @@
 #ifndef SPLATT_MATRIX_H
 #define SPLATT_MATRIX_H
 
-/******************************************************************************
- * INCLUDES
- *****************************************************************************/
 #include "base.h"
-
-#include "thd_info.h"
 
 
 /******************************************************************************
@@ -38,10 +33,17 @@ typedef enum
 
 
 /******************************************************************************
- * PUBLIC FUNCTIONS
+ * INCLUDES
  *****************************************************************************/
 
+#include "splatt_mpi.h"
+#include "thd_info.h"
 
+
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
 /**
 * @brief Compute the Cholesky factorization of A.
 *
@@ -103,6 +105,7 @@ void mat_aTa_hada(
 void mat_aTa(
   matrix_t const * const A,
   matrix_t * const ret,
+  rank_info * const rinfo,
   thd_info * const thds,
   idx_t const nthreads);
 
@@ -121,6 +124,7 @@ void mat_normalize(
   matrix_t * const A,
   val_t * const restrict lambda,
   splatt_mat_norm const which,
+  rank_info * const rinfo,
   thd_info * const thds,
   idx_t const nthreads);
 

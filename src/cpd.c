@@ -4,10 +4,10 @@
  *****************************************************************************/
 #include "base.h"
 #include "cpd.h"
+#include "matrix.h"
 #include "mttkrp.h"
 #include "timer.h"
 #include "thd_info.h"
-#include "matrix.h"
 #include "tile.h"
 #include "io.h"
 
@@ -168,6 +168,7 @@ static void __calc_M2(
 void cpd(
   sptensor_t * const tt,
   matrix_t ** mats,
+  rank_info * const rinfo,
   cpd_opts const * const opts)
 {
   idx_t const rank = opts->rank;
@@ -198,7 +199,7 @@ void cpd(
   /* Initialize first A^T * A mats. We skip the first because it will be
    * solved for. */
   for(idx_t m=1; m < nmodes; ++m) {
-    mat_aTa(mats[m], aTa[m], thds, opts->nthreads);
+    mat_aTa(mats[m], aTa[m], rinfo, thds, opts->nthreads);
   }
 
   val_t const ttnormsq = tt_normsq(tt);
@@ -240,13 +241,15 @@ void cpd(
 
       /* normalize columns and extract lambda */
       if(it == 0) {
-        mat_normalize(mats[m], lambda, MAT_NORM_2, thds, opts->nthreads);
+        mat_normalize(mats[m], lambda, MAT_NORM_2, rinfo, thds,
+            opts->nthreads);
       } else {
-        mat_normalize(mats[m], lambda, MAT_NORM_MAX, thds, opts->nthreads);
+        mat_normalize(mats[m], lambda, MAT_NORM_MAX, rinfo, thds,
+            opts->nthreads);
       }
 
       /* update A^T*A */
-      mat_aTa(mats[m], aTa[m], thds, opts->nthreads);
+      mat_aTa(mats[m], aTa[m], rinfo, thds, opts->nthreads);
     } /* foreach mode */
 
     val_t const fit = __calc_fit(nmodes, ft, thds, opts->nthreads, ttnormsq,

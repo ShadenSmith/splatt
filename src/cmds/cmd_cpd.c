@@ -212,7 +212,7 @@ void splatt_cpd(
   printf("Factoring ------------------------------------------------------\n");
   printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX"\n", args.rank, args.niters);
 
-  cpd(tt, mats, &args);
+  cpd(tt, mats, (rank_info *) NULL, &args);
 
   for(idx_t m=0;m < tt->nmodes; ++m) {
     mat_free(mats[m]);

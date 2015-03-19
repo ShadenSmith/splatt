@@ -20,6 +20,7 @@
 static void __mat_2norm(
   matrix_t * const A,
   val_t * const restrict lambda,
+  rank_info * const rinfo,
   thd_info * const thds,
   idx_t const nthreads)
 {
@@ -45,11 +46,18 @@ static void __mat_2norm(
 
     /* do reduction on partial sums */
     thd_reduce(thds, 0, J, REDUCE_SUM);
+#ifdef USE_MPI
+    #pragma omp master
+    MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+#else
+    #pragma omp master
+    memcpy(lambda, mylambda, J * sizeof(val_t));
+#endif
 
     /* now apply norm */
     #pragma omp master
     for(idx_t j=0; j < J; ++j) {
-      lambda[j] = sqrt(mylambda[j]);
+      lambda[j] = sqrt(lambda[j]);
     }
 
     #pragma omp barrier
@@ -69,6 +77,7 @@ static void __mat_2norm(
 static void __mat_maxnorm(
   matrix_t * const A,
   val_t * const restrict lambda,
+  rank_info * const rinfo,
   thd_info * const thds,
   idx_t const nthreads)
 {
@@ -321,6 +330,7 @@ void mat_aTa_hada(
 void mat_aTa(
   matrix_t const * const A,
   matrix_t * const ret,
+  rank_info * const rinfo,
   thd_info * const thds,
   idx_t const nthreads)
 {
@@ -368,7 +378,12 @@ void mat_aTa(
     }
   }
 
+#ifdef USE_MPI
+  MPI_Allreduce(thds[0].scratch[0], ret->vals, F * F, SS_MPI_VAL, MPI_SUM,
+      rinfo->comm_3d);
+#else
   memcpy(ret->vals, (val_t *) thds[0].scratch[0], F * F * sizeof(val_t));
+#endif
 
   timer_stop(&timers[TIMER_ATA]);
 }
@@ -418,6 +433,7 @@ void mat_normalize(
   matrix_t * const A,
   val_t * const restrict lambda,
   splatt_mat_norm const which,
+  rank_info * const rinfo,
   thd_info * const thds,
   idx_t const nthreads)
 {
@@ -433,10 +449,10 @@ void mat_normalize(
 
   switch(which) {
   case MAT_NORM_2:
-    __mat_2norm(A, lambda, thds, nthreads);
+    __mat_2norm(A, lambda, rinfo, thds, nthreads);
     break;
   case MAT_NORM_MAX:
-    __mat_maxnorm(A, lambda, thds, nthreads);
+    __mat_maxnorm(A, lambda, rinfo, thds, nthreads);
     break;
   default:
     fprintf(stderr, "SPLATT: mat_normalize supports 2 and MAX only.\n");

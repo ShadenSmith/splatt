@@ -2,23 +2,14 @@
 #define SPLATT_MPI_H
 
 
-#ifndef USE_MPI
-/**
-* @brief Just a dummy struct for when MPI is not enabled.
-*/
-typedef struct
-{
-  void * dummy;
-} rank_info;
-#else
+# ifndef USE_MPI
+/* Just a dummy void for when MPI is not enabled. */
+typedef void * rank_info;
 
-/******************************************************************************
- * INCLUDES
- *****************************************************************************/
+/* FULL MPI SUPPORT */
+# else
+
 #include "base.h"
-#include "sptensor.h"
-#include "reorder.h"
-#include "cpd.h"
 #include <mpi.h>
 
 
@@ -96,6 +87,16 @@ typedef struct
   MPI_Request req;
   idx_t worksize;
 } rank_info;
+
+
+
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
+#include "sptensor.h"
+#include "reorder.h"
+#include "cpd.h"
+
 
 
 /******************************************************************************

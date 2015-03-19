@@ -1,17 +1,8 @@
 #ifndef SPLATT_FTENSOR_H
 #define SPLATT_FTENSOR_H
 
-/******************************************************************************
- * INCLUDES
- *****************************************************************************/
 #include "base.h"
-#include "sptensor.h"
-#include "matrix.h"
 
-/* 1 selects longer fiber direction, 0 chooses short fibers */
-#ifndef SPLATT_LONG_FIB
-#define SPLATT_LONG_FIB 1
-#endif
 
 /******************************************************************************
  * STRUCTURES
@@ -43,6 +34,20 @@ typedef struct
   idx_t * slabptr[MAX_NMODES];
 } ftensor_t;
 
+
+/* 1 selects longer fiber direction, 0 chooses short fibers */
+#ifndef SPLATT_LONG_FIB
+#define SPLATT_LONG_FIB 1
+#endif
+
+
+
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
+
+#include "sptensor.h"
+#include "matrix.h"
 
 
 /******************************************************************************
