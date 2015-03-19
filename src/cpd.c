@@ -203,7 +203,6 @@ void cpd(
   }
 
   val_t const ttnormsq = tt_normsq(tt);
-  val_t const * const restrict xv = tt->vals;
   val_t oldfit = 0;
 
   timer_start(&timers[TIMER_CPD]);

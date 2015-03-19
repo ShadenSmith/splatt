@@ -102,9 +102,17 @@ static void __mat_maxnorm(
 
     /* do reduction on partial maxes */
     thd_reduce(thds, 0, J, REDUCE_MAX);
+#ifdef USE_MPI
+    #pragma omp master
+    MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_MAX, rinfo->comm_3d);
+#else
+    #pragma omp master
+    memcpy(lambda, mylambda, J * sizeof(val_t));
+#endif
+
     #pragma omp master
     for(idx_t j=0; j < J; ++j) {
-      lambda[j] = SS_MAX(mylambda[j], 1.);
+      lambda[j] = SS_MAX(lambda[j], 1.);
     }
 
     #pragma omp barrier

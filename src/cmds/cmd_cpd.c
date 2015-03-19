@@ -89,7 +89,7 @@ static void __par_cpd(
   }
 
   /* XXX: this should probably be improved... */
-  srand(rank);
+  srand(time(NULL) * rank);
 
   rank_info rinfo;
   mpi_setup_comms(&rinfo);

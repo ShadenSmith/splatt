@@ -8,11 +8,144 @@
 #include "../thd_info.h"
 #include "../tile.h"
 
+#include <math.h>
 #include <omp.h>
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+static val_t __kruskal_norm(
+  idx_t const nmodes,
+  val_t const * const restrict lambda,
+  matrix_t ** aTa)
+{
+  idx_t const rank = aTa[0]->J;
+  val_t * const restrict av = aTa[MAX_NMODES]->vals;
+
+  val_t norm_mats = 0;
+
+  /* use aTa[MAX_NMODES] as scratch space */
+  for(idx_t x=0; x < rank*rank; ++x) {
+    av[x] = 1.;
+  }
+
+  /* aTa[MAX_NMODES] = hada(aTa) */
+  for(idx_t m=0; m < nmodes; ++m) {
+    val_t const * const restrict atavals = aTa[m]->vals;
+    for(idx_t x=0; x < rank*rank; ++x) {
+      av[x] *= atavals[x];
+    }
+  }
+
+  /* now compute lambda^T * aTa[MAX_NMODES] * lambda */
+  for(idx_t i=0; i < rank; ++i) {
+    for(idx_t j=0; j < rank; ++j) {
+      norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j];
+    }
+  }
+
+  return fabs(norm_mats);
+}
+
+
+static val_t __tt_kruskal_inner(
+  ftensor_t const * const ft,
+  rank_info const * const rinfo,
+  thd_info * const thds,
+  val_t const * const restrict lambda,
+  matrix_t ** mats,
+  matrix_t const * const m1)
+{
+  idx_t const nfactors = mats[0]->J;
+
+  idx_t const lastm = ft->nmodes - 1;
+  idx_t const dim = m1->I;
+
+  val_t const * const m0 = mats[lastm]->vals;
+  val_t const * const mv = m1->vals;
+
+  val_t myinner = 0;
+  #pragma omp parallel reduction(+:myinner)
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
+
+    for(idx_t r=0; r < nfactors; ++r) {
+      accumF[r] = 0.;
+    }
+
+    #pragma omp for
+    for(idx_t i=0; i < dim; ++i) {
+      for(idx_t r=0; r < nfactors; ++r) {
+        accumF[r] += m0[r+(i*nfactors)] * mv[r+(i*nfactors)];
+      }
+    }
+
+    /* accumulate everything into 'myinner' */
+    for(idx_t r=0; r < nfactors; ++r) {
+      myinner += accumF[r] * lambda[r];
+    }
+  }
+  val_t inner = 0.;
+  MPI_Reduce(&myinner, &inner, 1, SS_MPI_VAL, MPI_SUM, 0, rinfo->comm_3d);
+
+  return inner;
+}
+
+
+static val_t __calc_fit(
+  idx_t const nmodes,
+  ftensor_t const * const ft,
+  rank_info const * const rinfo,
+  thd_info * const thds,
+  idx_t const nthreads,
+  val_t const ttnorm,
+  val_t const * const restrict lambda,
+  matrix_t ** mats,
+  matrix_t const * const m1,
+  matrix_t ** aTa)
+{
+  timer_start(&timers[TIMER_FIT]);
+
+  /* First get norm of new model: lambda^T * (hada aTa) * lambda. */
+  val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
+
+  /* Compute inner product of tensor with new model */
+  val_t const inner = __tt_kruskal_inner(ft, rinfo, thds, lambda, mats, m1);
+
+  val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
+  timer_stop(&timers[TIMER_FIT]);
+  return 1 - (residual / sqrt(ttnorm));
+}
+
+
+static void __calc_M2(
+  idx_t const mode,
+  idx_t const nmodes,
+  matrix_t ** aTa)
+{
+  timer_start(&timers[TIMER_INV]);
+
+  idx_t const rank = aTa[0]->J;
+  val_t * const restrict av = aTa[MAX_NMODES]->vals;
+
+  /* ata[MAX_NMODES] = hada(aTa[0], aTa[1], ...) */
+  for(idx_t x=0; x < rank*rank; ++x) {
+    av[x] = 1.;
+  }
+  for(idx_t m=1; m < nmodes; ++m) {
+    idx_t const madjust = (mode + m) % nmodes;
+    val_t const * const vals = aTa[madjust]->vals;
+    for(idx_t x=0; x < rank*rank; ++x) {
+      av[x] *= vals[x];
+    }
+  }
+
+  /* M2 = M2^-1 */
+  mat_syminv(aTa[MAX_NMODES]);
+  timer_stop(&timers[TIMER_INV]);
+}
 
 
 /**
@@ -35,8 +168,6 @@ static void __flush_glob_to_local(
 {
   timer_start(&timers[TIMER_MPI]);
   idx_t const m = mode;
-  val_t const * const restrict gmatv = globalmat->vals;
-  val_t * const restrict matv = localmat->vals;
 
   idx_t const mat_start = rinfo->mat_start[m];
   idx_t const mat_end = rinfo->mat_end[m];
@@ -46,8 +177,9 @@ static void __flush_glob_to_local(
   idx_t const goffset = (tt->indmap[m] == NULL) ?
       start - mat_start : tt->indmap[m][start] - mat_start;
 
-  memcpy(matv + (start*nfactors),  gmatv + (goffset*nfactors),
-    (end - start) * nfactors * sizeof(val_t));
+  memcpy(localmat->vals + (start*nfactors),
+         globalmat->vals + (goffset*nfactors),
+         (end - start) * nfactors * sizeof(val_t));
 
   timer_stop(&timers[TIMER_MPI]);
 }
@@ -269,11 +401,12 @@ void mpi_cpd(
   cpd_opts const * const opts)
 {
   idx_t const nfactors = opts->rank;
+  idx_t const nmodes = tt->nmodes;
 
   idx_t maxdim = 0;
   idx_t maxlocal2nbr = 0;
   idx_t maxnbr2globs = 0;
-  for(idx_t m=0; m < tt->nmodes; ++m) {
+  for(idx_t m=0; m < nmodes; ++m) {
     maxlocal2nbr = SS_MAX(maxlocal2nbr, rinfo->nlocal2nbr[m]);
     maxnbr2globs = SS_MAX(maxnbr2globs, rinfo->nnbr2globs[m]);
     maxdim = SS_MAX(globmats[m]->I, maxdim);
@@ -286,10 +419,12 @@ void mpi_cpd(
   matrix_t * m1 = mat_alloc(maxdim, nfactors);
 
   /* exchange initial matrices */
-  for(idx_t m=1; m < tt->nmodes; ++m) {
+  for(idx_t m=1; m < nmodes; ++m) {
     __update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
         rinfo, nfactors, m);
   }
+
+  val_t * lambda = (val_t *) malloc(nfactors * sizeof(val_t));
 
   /* allocate tensor */
   ftensor_t * ft = ften_alloc(tt, opts->tile);
@@ -297,12 +432,27 @@ void mpi_cpd(
   /* setup thread structures */
   omp_set_num_threads(opts->nthreads);
   thd_info * thds;
-  if(opts->tile) {
-    thds = thd_init(opts->nthreads, 2,
-      nfactors * sizeof(val_t) + 64,
-      TILE_SIZES[0] * nfactors * sizeof(val_t) + 64);
-  } else {
-    thds = thd_init(opts->nthreads, 1, nfactors * sizeof(val_t) + 64, 0);
+  thds = thd_init(opts->nthreads, 2,
+    nfactors * nfactors * sizeof(val_t) + 64,
+    TILE_SIZES[0] * nfactors * sizeof(val_t) + 64);
+
+  val_t oldfit = 0;
+  val_t const mynorm = tt_normsq(tt);
+  val_t ttnormsq = 0;
+  MPI_Allreduce(&mynorm, &ttnormsq, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+
+  /* allocate space for individual M^T * M matrices */
+  matrix_t * aTa[MAX_NMODES+1];
+  for(idx_t m=0; m < nmodes; ++m) {
+    aTa[m] = mat_alloc(nfactors, nfactors);
+  }
+  /* used as buffer space */
+  aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
+
+  /* Initialize first A^T * A mats. We skip the first because it will be
+   * solved for. */
+  for(idx_t m=1; m < nmodes; ++m) {
+    mat_aTa(globmats[m], aTa[m], rinfo, thds, opts->nthreads);
   }
 
   sp_timer_t itertime;
@@ -311,7 +461,7 @@ void mpi_cpd(
   timer_start(&timers[TIMER_CPD]);
   for(idx_t it=0; it < opts->niters; ++it) {
     timer_fstart(&itertime);
-    for(idx_t m=0; m < tt->nmodes; ++m) {
+    for(idx_t m=0; m < nmodes; ++m) {
       mats[MAX_NMODES]->I = ft->dims[m];
       m1->I = globmats[m]->I;
 
@@ -322,37 +472,62 @@ void mpi_cpd(
       /* add my partial multiplications to globmats[m] */
       __add_my_partials(tt, mats[MAX_NMODES], m1, rinfo, nfactors, m);
       /* incorporate neighbors' partials */
-      __reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES],
-          m1, rinfo, nfactors, m);
+      __reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1, rinfo,
+          nfactors, m);
 
       /* M2 = (CtC .* BtB .* ...)^-1 */
-      //cpd_calc_M2(m, tt->nmodes, aTa);
+      __calc_M2(m, nmodes, aTa);
 
+      /* A = M1 * M2 */
+      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
+      mat_matmul(m1, aTa[MAX_NMODES], globmats[m]);
+
+      /* normalize columns and extract lambda */
+      if(it == 0) {
+        mat_normalize(globmats[m], lambda, MAT_NORM_2, rinfo, thds,
+            opts->nthreads);
+      } else {
+        mat_normalize(globmats[m], lambda, MAT_NORM_MAX, rinfo, thds,
+            opts->nthreads);
+      }
 
       /* send updated rows to neighbors */
       __update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
           rinfo, nfactors, m);
+
+      /* update A^T*A */
+      mat_aTa(globmats[m], aTa[m], rinfo, thds, opts->nthreads);
 
       //timer_start(&timers[TIMER_MPI_IDLE]);
       //MPI_Barrier(rinfo->comm_3d);
       //timer_stop(&timers[TIMER_MPI_IDLE]);
     } /* foreach mode */
 
+    val_t const fit = __calc_fit(nmodes, ft, rinfo, thds, opts->nthreads,
+        ttnormsq, lambda, globmats, m1, aTa);
+
     timer_stop(&itertime);
     if(rinfo->rank == 0) {
-      printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.3f\n", it+1,
-          itertime.seconds, 0.1);
+      printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
+          it+1, itertime.seconds, fit, fit - oldfit);
+      oldfit = fit;
     }
   } /* foreach iteration */
 
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_CPD]);
 
+  for(idx_t m=0; m < nmodes; ++m) {
+    mat_free(aTa[m]);
+  }
+  mat_free(aTa[MAX_NMODES]);
+
   /* clean up */
   ften_free(ft);
   mat_free(m1);
   free(local2nbr_buf);
   free(nbr2globs_buf);
+  thd_free(thds, opts->nthreads);
 
   /* get max MPI timings */
   double max_mttkrp;
