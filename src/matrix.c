@@ -13,10 +13,105 @@
 #include <omp.h>
 
 
-
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+static void __mat_2norm(
+  matrix_t * const A,
+  val_t * const restrict lambda,
+  thd_info * const thds,
+  idx_t const nthreads)
+{
+  timer_start(&timers[TIMER_MATNORM]);
+  idx_t const I = A->I;
+  idx_t const J = A->J;
+  val_t * const restrict vals = A->vals;
+
+  #pragma omp parallel
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const mylambda = (val_t *) thds[tid].scratch[0];
+    for(idx_t j=0; j < J; ++j) {
+      mylambda[j] = 0;
+    }
+
+    #pragma omp for schedule(static)
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t j=0; j < J; ++j) {
+        mylambda[j] += vals[j + (i*J)] * vals[j + (i*J)];
+      }
+    }
+
+    /* do reduction on partial sums */
+    thd_reduce(thds, 0, J, REDUCE_SUM);
+
+    /* now apply norm */
+    #pragma omp master
+    for(idx_t j=0; j < J; ++j) {
+      lambda[j] = sqrt(mylambda[j]);
+    }
+
+    #pragma omp barrier
+
+    /* do the normalization */
+    #pragma omp for schedule(static)
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t j=0; j < J; ++j) {
+        vals[j+(i*J)] /= lambda[j];
+      }
+    }
+
+  } /* end omp for */
+}
+
+
+static void __mat_maxnorm(
+  matrix_t * const A,
+  val_t * const restrict lambda,
+  thd_info * const thds,
+  idx_t const nthreads)
+{
+  idx_t const I = A->I;
+  idx_t const J = A->J;
+  val_t * const restrict vals = A->vals;
+
+  #pragma omp parallel
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const mylambda = (val_t *) thds[tid].scratch[0];
+    for(idx_t j=0; j < J; ++j) {
+      mylambda[j] = 0;
+    }
+
+    #pragma omp for schedule(static)
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t j=0; j < J; ++j) {
+        mylambda[j] = SS_MAX(mylambda[j], vals[j+(i*J)]);
+      }
+    }
+
+    /* do reduction on partial maxes */
+    thd_reduce(thds, 0, J, REDUCE_MAX);
+    #pragma omp master
+    for(idx_t j=0; j < J; ++j) {
+      lambda[j] = SS_MAX(mylambda[j], 1.);
+    }
+
+    #pragma omp barrier
+
+    /* do the normalization */
+    #pragma omp for schedule(static)
+    for(idx_t i=0; i < I; ++i) {
+      for(idx_t j=0; j < J; ++j) {
+        vals[j+(i*J)] /= lambda[j];
+      }
+    }
+
+  } /* end omp parallel */
+
+}
+
 
 /**
 * @brief Solve the system LX = B.
@@ -263,17 +358,17 @@ void mat_aTa(
 
     /* parallel reduction on accum */
     thd_reduce(thds, 0, F * F, REDUCE_SUM);
-  }
 
-  val_t * const restrict rv = ret->vals;
-  memcpy(rv, (val_t *) thds[0].scratch[0], F * F * sizeof(val_t));
-
-  /* copy to lower triangular matrix */
-  for(idx_t i=1; i < F; ++i) {
-    for(idx_t j=0; j < i; ++j) {
-      rv[j + (i*F)] = rv[i + (j*F)];
+    /* copy to lower triangular matrix */
+    #pragma omp master
+    for(idx_t i=1; i < F; ++i) {
+      for(idx_t j=0; j < i; ++j) {
+        accum[j + (i*F)] = accum[i + (j*F)];
+      }
     }
   }
+
+  memcpy(ret->vals, (val_t *) thds[0].scratch[0], F * F * sizeof(val_t));
 
   timer_stop(&timers[TIMER_ATA]);
 }
@@ -336,66 +431,17 @@ void mat_normalize(
   assert(vals != NULL);
   assert(lambda != NULL);
 
-  #pragma omp parallel
-  {
-    int const tid = omp_get_thread_num();
-    val_t * const mylambda = (val_t *) thds[tid].scratch[0];
-    for(idx_t j=0; j < J; ++j) {
-      mylambda[j] = 0;
-    }
-
-    #pragma omp master
-    for(idx_t j=0; j < J; ++j) {
-      lambda[j] = 0;
-    }
-
-    /* get column norms */
-    switch(which) {
-    case MAT_NORM_2:
-      #pragma omp for schedule(static)
-      for(idx_t i=0; i < I; ++i) {
-        for(idx_t j=0; j < J; ++j) {
-          mylambda[j] += vals[j + (i*J)] * vals[j + (i*J)];
-        }
-      }
-
-      /* do reduction on partial sums */
-      thd_reduce(thds, 0, J, REDUCE_SUM);
-      #pragma omp master
-      for(idx_t j=0; j < J; ++j) {
-        lambda[j] = sqrt(mylambda[j]);
-      }
-      break;
-
-    case MAT_NORM_MAX:
-      #pragma omp for schedule(static)
-      for(idx_t i=0; i < I; ++i) {
-        for(idx_t j=0; j < J; ++j) {
-          mylambda[j] = SS_MAX(mylambda[j], vals[j+(i*J)]);
-        }
-      }
-
-      /* do reduction on partial maxes */
-      thd_reduce(thds, 0, J, REDUCE_MAX);
-      #pragma omp master
-      for(idx_t j=0; j < J; ++j) {
-        lambda[j] = SS_MAX(mylambda[j], 1.);
-      }
-      break;
-    } /* end switch */
-
-    #pragma omp barrier
-
-    /* do the normalization */
-    #pragma omp for schedule(static)
-    for(idx_t i=0; i < I; ++i) {
-      for(idx_t j=0; j < J; ++j) {
-        vals[j+(i*J)] /= lambda[j];
-      }
-    }
-
-  } /* end omp parallel */
-
+  switch(which) {
+  case MAT_NORM_2:
+    __mat_2norm(A, lambda, thds, nthreads);
+    break;
+  case MAT_NORM_MAX:
+    __mat_maxnorm(A, lambda, thds, nthreads);
+    break;
+  default:
+    fprintf(stderr, "SPLATT: mat_normalize supports 2 and MAX only.\n");
+    abort();
+  }
   timer_stop(&timers[TIMER_MATNORM]);
 }
 
