@@ -5,6 +5,7 @@
 #include "splatt_cmds.h"
 #include "../io.h"
 #include "../sptensor.h"
+#include "../tile.h"
 #include "../stats.h"
 #include "../cpd.h"
 #include "../splatt_mpi.h"
@@ -241,13 +242,18 @@ void splatt_cpd(
   if(rinfo.rank == 0) {
     printf("Factoring "
            "------------------------------------------------------\n");
+    printf("NFACTORS=%"SS_IDX" MAXITS=%"SS_IDX" ", args.rank, args.niters);
 #ifdef USE_MPI
-    printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX" RANKS=%d THREADS=%"SS_IDX"\n",
-        args.rank, args.niters, rinfo.npes, args.nthreads);
-#else
-    printf("RANK=%"SS_IDX" MAXITS=%"SS_IDX" THREADS=%"SS_IDX"\n",
-        args.rank, args.niters, args.nthreads);
+    printf("RANKS=%d ", rinfo.npes);
 #endif
+    printf("THREADS=%"SS_IDX" ", args.nthreads);
+    if(args.tile == 1) {
+      printf("TILE=%"SS_IDX"x%"SS_IDX"x%"SS_IDX" ",
+        TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
+    } else {
+      printf("TILE=NO ");
+    }
+    printf("\n");
   }
 
   /* do the factorization! */
