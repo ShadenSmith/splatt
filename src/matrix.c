@@ -47,8 +47,17 @@ static void __mat_2norm(
     /* do reduction on partial sums */
     thd_reduce(thds, 0, J, REDUCE_SUM);
 #ifdef USE_MPI
+    /* now do an MPI reduction to get the global lambda */
     #pragma omp master
-    MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+    {
+      timer_start(&timers[TIMER_MPI_IDLE]);
+      MPI_Barrier(rinfo->comm_3d);
+      timer_stop(&timers[TIMER_MPI_IDLE]);
+
+      timer_start(&timers[TIMER_MPI_COMM]);
+      MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+      timer_stop(&timers[TIMER_MPI_COMM]);
+    }
 #else
     #pragma omp master
     memcpy(lambda, mylambda, J * sizeof(val_t));
@@ -103,8 +112,17 @@ static void __mat_maxnorm(
     /* do reduction on partial maxes */
     thd_reduce(thds, 0, J, REDUCE_MAX);
 #ifdef USE_MPI
+    /* now do an MPI reduction to get the global lambda */
     #pragma omp master
-    MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_MAX, rinfo->comm_3d);
+    {
+      timer_start(&timers[TIMER_MPI_IDLE]);
+      MPI_Barrier(rinfo->comm_3d);
+      timer_stop(&timers[TIMER_MPI_IDLE]);
+
+      timer_start(&timers[TIMER_MPI_COMM]);
+      MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_MAX, rinfo->comm_3d);
+      timer_stop(&timers[TIMER_MPI_COMM]);
+    }
 #else
     #pragma omp master
     memcpy(lambda, mylambda, J * sizeof(val_t));
@@ -387,8 +405,14 @@ void mat_aTa(
   }
 
 #ifdef USE_MPI
+  timer_start(&timers[TIMER_MPI_IDLE]);
+  MPI_Barrier(rinfo->comm_3d);
+  timer_stop(&timers[TIMER_MPI_IDLE]);
+
+  timer_start(&timers[TIMER_MPI_COMM]);
   MPI_Allreduce(thds[0].scratch[0], ret->vals, F * F, SS_MPI_VAL, MPI_SUM,
       rinfo->comm_3d);
+  timer_stop(&timers[TIMER_MPI_COMM]);
 #else
   memcpy(ret->vals, (val_t *) thds[0].scratch[0], F * F * sizeof(val_t));
 #endif

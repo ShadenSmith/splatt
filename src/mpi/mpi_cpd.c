@@ -34,7 +34,6 @@ static void __flush_glob_to_local(
   idx_t const nfactors,
   idx_t const mode)
 {
-  timer_start(&timers[TIMER_MPI]);
   idx_t const m = mode;
 
   idx_t const mat_start = rinfo->mat_start[m];
@@ -48,8 +47,6 @@ static void __flush_glob_to_local(
   memcpy(localmat->vals + (start*nfactors),
          globalmat->vals + (goffset*nfactors),
          (end - start) * nfactors * sizeof(val_t));
-
-  timer_stop(&timers[TIMER_MPI]);
 }
 
 
@@ -180,6 +177,7 @@ void mpi_add_my_partials(
   idx_t const nfactors,
   idx_t const mode)
 {
+  timer_start(&timers[TIMER_MPI]);
   idx_t const m = mode;
 
   idx_t const mat_start = rinfo->mat_start[m];
@@ -195,6 +193,7 @@ void mpi_add_my_partials(
   memcpy(globmat->vals + (goffset * nfactors),
          localmat->vals + (start * nfactors),
          nfactors * (end - start) * sizeof(val_t));
+  timer_stop(&timers[TIMER_MPI]);
 }
 
 
