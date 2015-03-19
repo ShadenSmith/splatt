@@ -208,8 +208,10 @@ void mpi_setup_comms(
       break;
     }
   }
-  if(p13 * p13 * p13 != rinfo->npes && rinfo->rank == 0) {
-    fprintf(stderr, "SPLATT: only #ranks = p^3 supported right now.\n");
+  if(p13 * p13 * p13 != rinfo->npes) {
+    if(rinfo->rank == 0) {
+      fprintf(stderr, "SPLATT: only #ranks = p^3 supported right now.\n");
+    }
     abort();
   }
   rinfo->np13 = p13;
