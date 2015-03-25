@@ -203,7 +203,42 @@ static void __read_tt_part(
 *
 * @return My portion of the sparse tensor read from fname.
 */
-static sptensor_t * __read_tt(
+static sptensor_t * __read_tt_1d(
+  char const * const fname,
+  idx_t ** const ssizes,
+  idx_t const nmodes,
+  rank_info * const rinfo)
+{
+  int const rank = rinfo->rank;
+  idx_t const nnz = rinfo->global_nnz;
+  idx_t const * const dims = rinfo->global_dims;
+
+  /* find start/end slices for my partition */
+  __find_my_slices(ssizes, nmodes, nnz, rinfo);
+
+  /* count nnz in my partition and allocate */
+  idx_t const mynnz = __count_my_nnz(fname, nmodes, rinfo->layer_starts,
+      rinfo->layer_ends);
+  sptensor_t * tt = tt_alloc(mynnz, nmodes);
+
+  /* now actually load values */
+  __read_tt_part(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
+
+  return tt;
+}
+
+
+/**
+* @brief Read my portion of X from a file.
+*
+* @param fname The file containing X.
+* @param ssizes The nonzero counts in each slice.
+* @param nmodes The number of modes in X.
+* @param rinfo MPI information (nnz, 3D comm, etc.).
+*
+* @return My portion of the sparse tensor read from fname.
+*/
+static sptensor_t * __read_tt_3d(
   char const * const fname,
   idx_t ** const ssizes,
   idx_t const nmodes,
@@ -243,9 +278,8 @@ static void __fill_ssizes(
   idx_t const nmodes,
   rank_info const * const rinfo)
 {
-  int rank, size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  int const rank = rinfo->rank;
+  int const size = rinfo->npes;
 
   idx_t const nnz = rinfo->global_nnz;
   idx_t const * const dims = rinfo->global_dims;
@@ -395,17 +429,27 @@ sptensor_t * mpi_tt_read(
 
   __fill_ssizes(ifname, ssizes, nmodes, rinfo);
 
-  /* actually parse tensor and then map to local (layer) coordinates  */
-  sptensor_t * tt = __read_tt(ifname, ssizes, nmodes, rinfo);
+  sptensor_t * tt = NULL;
+  switch(rinfo->distribution) {
+  case 1:
+    /* actually parse tensor */
+    __read_tt_1d(ifname, ssizes, nmodes, rinfo);
+    break;
 
-  for(idx_t m=0; m < nmodes; ++m) {
-    free(ssizes[m]);
-    tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      assert(tt->ind[m][n] >= rinfo->layer_starts[m]);
-      assert(tt->ind[m][n] < rinfo->layer_ends[m]);
-      tt->ind[m][n] -= rinfo->layer_starts[m];
+  case 3:
+    /* actually parse tensor */
+    __read_tt_3d(ifname, ssizes, nmodes, rinfo);
+    /* now map tensor indices to local (layer) coordinates */
+    for(idx_t m=0; m < nmodes; ++m) {
+      free(ssizes[m]);
+      tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+      for(idx_t n=0; n < tt->nnz; ++n) {
+        assert(tt->ind[m][n] >= rinfo->layer_starts[m]);
+        assert(tt->ind[m][n] < rinfo->layer_ends[m]);
+        tt->ind[m][n] -= rinfo->layer_starts[m];
+      }
     }
+    break;
   }
 
   timer_stop(&timers[TIMER_IO]);
