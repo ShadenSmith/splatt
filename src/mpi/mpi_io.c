@@ -433,12 +433,12 @@ sptensor_t * mpi_tt_read(
   switch(rinfo->distribution) {
   case 1:
     /* actually parse tensor */
-    __read_tt_1d(ifname, ssizes, nmodes, rinfo);
+    tt = __read_tt_1d(ifname, ssizes, nmodes, rinfo);
     break;
 
   case 3:
     /* actually parse tensor */
-    __read_tt_3d(ifname, ssizes, nmodes, rinfo);
+    tt = __read_tt_3d(ifname, ssizes, nmodes, rinfo);
     /* now map tensor indices to local (layer) coordinates */
     for(idx_t m=0; m < nmodes; ++m) {
       free(ssizes[m]);
