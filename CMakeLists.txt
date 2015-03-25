@@ -30,7 +30,7 @@ endif()
 
 # check for MPI mode
 if (DEFINED USE_MPI AND ${USE_MPI} EQUAL 1)
-  add_definitions(-DUSE_MPI=${USE_MPI})
+  add_definitions(-DSPLATT_USE_MPI=${USE_MPI})
   message("Building with MPI support.")
   find_package(MPI)
   include_directories(SYSTEM ${MPI_INCLUDE_PATH})
