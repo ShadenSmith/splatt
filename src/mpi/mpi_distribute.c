@@ -68,6 +68,22 @@ static void __naive_mat_distribution(
 }
 
 
+/**
+* @brief Generate a 'job' (an order to select rows for ownership) for a light
+*        rank in my lower. This function is the producer for the work queue
+*        and called by the root node in the layer.
+*
+* @param npes The number of ranks in the layer.
+* @param lastp The most recent process to be given work.
+* @param pvols An array of communication volumes.
+* @param rinfo MPI rank information.
+* @param comm The layer communicator.
+* @param mustclaim A flag marking whether the last job was successful (whether
+*                  any rows were claimed).
+* @param left How many unclaimed rows are left.
+*
+* @return The selected rank.
+*/
 static int __make_job(
   int const npes,
   int const lastp,
@@ -110,6 +126,19 @@ static int __make_job(
 }
 
 
+/**
+* @brief Receive the latest claimed rows and update all other ranks.
+*
+* @param npes The number of ranks in my layer.
+* @param pvols An array of process communication volumes.
+* @param rinfo MPI rank information.
+* @param comm The layer communicator.
+* @param rowbuf A buffer to receive the claimed rows.
+* @param left A pointer to update, we subtract the newly claimed rows from what
+*             is left.
+*
+* @return The number of rows that were claimed.
+*/
 static idx_t __check_job(
   int const npes,
   idx_t * const pvols,
@@ -142,12 +171,25 @@ static idx_t __check_job(
 
 
 
+/**
+* @brief Claim up to 'amt' rows that are unclaimed and found in my local
+*        tensor.
+*
+* @param amt The maximum (desired) rows to claim.
+* @param inds Indices local to my tensor.
+* @param localdim The size of 'inds'
+* @param rinfo MPI rank information.
+* @param claimed An array marking which rows have been claimed.
+* @param layerdim The dimension of the layer.
+* @param newclaims An array of newly claimed rows.
+*
+* @return The number of claimed rows.
+*/
 static idx_t __tryclaim_rows(
   idx_t const amt,
   idx_t const * const inds,
   idx_t const localdim,
   rank_info const * const rinfo,
-  idx_t const mode,
   char * const claimed,
   idx_t const layerdim,
   idx_t * const newclaims)
@@ -171,18 +213,31 @@ static idx_t __tryclaim_rows(
 }
 
 
+/**
+* @brief Claim exactly 'amt' rows, first attempting to grab them from my local
+*        tensor.
+*
+* @param amt The number of rows I must claim.
+* @param inds Indices local to my tensor.
+* @param localdim The size of 'inds'.
+* @param rinfo MPI rank information.
+* @param claimed An array marking which rows have been claimed.
+* @param layerdim The dimension of the layer.
+* @param newclaims An array of newly claimed rows.
+*
+* @return The number of claimed rows.
+*/
 static idx_t __mustclaim_rows(
   idx_t const amt,
   idx_t const * const inds,
   idx_t const localdim,
   rank_info const * const rinfo,
-  idx_t const mode,
   char * const claimed,
   idx_t const layerdim,
   idx_t * const newclaims)
 {
   /* first try local rows */
-  idx_t newrows = __tryclaim_rows(amt, inds, localdim, rinfo, mode, claimed,
+  idx_t newrows = __tryclaim_rows(amt, inds, localdim, rinfo, claimed,
       layerdim, newclaims);
 
   if(newrows == amt) {
@@ -265,11 +320,11 @@ static void __distribute_u3_rows(
       MPI_Recv(&amt, 1, SS_MPI_IDX, 0, 0, comm, &(rinfo->status));
       /* see how many I can claim */
       if(msg == MSG_TRYCLAIM) {
-        nclaimed = __tryclaim_rows(amt, inds, localdim, rinfo, m, claimed, dim,
+        nclaimed = __tryclaim_rows(amt, inds, localdim, rinfo, claimed, dim,
             myclaims);
       } else {
-        nclaimed = __mustclaim_rows(amt, inds, localdim, rinfo, m, claimed,
-            dim, myclaims);
+        nclaimed = __mustclaim_rows(amt, inds, localdim, rinfo, claimed, dim,
+            myclaims);
       }
 
       /* send new claims to root process */
@@ -353,17 +408,6 @@ static void __fill_volume_stats(
       break;
     }
   }
-#if 0
-  if(rinfo->layer_rank[m] == 0) {
-    double pavg = (double) tot / (double) ldim;
-    double pct1 = 100. * (double) rconns[0] / ldim;
-    double pct2 = 100. * (double) rconns[1] / ldim;
-    double pct3 = 100. * (double) rconns[2] / ldim;
-    printf("layer: %d uavg: %0.1f  u1: %6lu (%4.1f%%)  u2: %6lu  (%4.1f%%)  u3: %6lu (%4.1f%%)\n",
-      rinfo->coords_3d[m], pavg, rconns[0], pct1, rconns[1], pct2,
-      rconns[2], pct3);
-  }
-#endif
 }
 
 
@@ -580,12 +624,6 @@ permutation_t * mpi_distribute_mats(
         assert(indmap[i] == indmap[i-1]+1);
       }
     }
-
-#if 0
-    val_t pct = 100. * ((double) rinfo->nowned[m] / (double) (end - start));
-    printf("p: %d local owned: %lu (%0.2f%%) %lu %lu\n", rinfo->rank,
-        rinfo->nowned[m], pct, rinfo->ownstart[m], rinfo->ownend[m]);
-#endif
   }
 
 #if 0

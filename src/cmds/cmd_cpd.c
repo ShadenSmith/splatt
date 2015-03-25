@@ -20,6 +20,8 @@ static char cpd_doc[] =
 
 #define TT_TILE 255
 static struct argp_option cpd_options[] = {
+  {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
+                                 "(default: 3)"},
   {"iters", 'i', "NITERS", 0, "number of iterations to use (default: 5)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
@@ -35,6 +37,9 @@ static error_t parse_cpd_opt(
 {
   cpd_opts *args = state->input;
   switch(key) {
+  case 'd':
+    args->distribution = atoi(arg);
+    break;
   case 'i':
     args->niters = atoi(arg);
     break;
@@ -77,6 +82,7 @@ void splatt_cpd(
   args.rank = 10;
   args.nthreads = 1;
   args.tile = 0;
+  args.distribution = 3;
 
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
@@ -85,11 +91,11 @@ void splatt_cpd(
 
   sptensor_t * tt = NULL;
 
-#ifdef USE_MPI
-  mpi_setup_comms(&rinfo);
+#ifdef SPLATT_USE_MPI
+  mpi_setup_comms(&rinfo, args.distribution);
   if(rinfo.npes == 1) {
     fprintf(stderr, "SPLATT: I was configured with MPI support. Please re-run\n"
-                    "        with > 1 ranks or recompile without --mpi.\n");
+                    "        with > 1 ranks or recompile without MPI.\n");
     abort();
   }
   tt = mpi_tt_read(args.ifname, &rinfo);
@@ -102,7 +108,7 @@ void splatt_cpd(
     stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
   }
 
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   /* determine matrix distribution */
   permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
 
@@ -120,7 +126,7 @@ void splatt_cpd(
     if(tt->dims[m] > max_dim) {
       max_dim = tt->dims[m];
     }
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
     /* for actual factor matrix */
     globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m], args.rank);
 #else
@@ -135,7 +141,7 @@ void splatt_cpd(
     printf("Factoring "
            "------------------------------------------------------\n");
     printf("NFACTORS=%"SS_IDX" MAXITS=%"SS_IDX" ", args.rank, args.niters);
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
     printf("RANKS=%d ", rinfo.npes);
 #endif
     printf("THREADS=%"SS_IDX" ", args.nthreads);
@@ -155,14 +161,14 @@ void splatt_cpd(
   tt_free(tt);
   for(idx_t m=0;m < nmodes; ++m) {
     mat_free(mats[m]);
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
     mat_free(globmats[m]);
 #endif
   }
   mat_free(mats[MAX_NMODES]);
   free(lambda);
 
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   /* write output */
   //mpi_write_mats(globmats, perm, &rinfo, "test", nmodes);
   perm_free(perm);

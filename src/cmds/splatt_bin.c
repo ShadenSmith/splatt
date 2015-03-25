@@ -87,7 +87,7 @@ int main(
   char **argv)
 {
   int rank = 0;
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   MPI_Init(&argc, &argv);
 
   int size;
@@ -109,7 +109,7 @@ int main(
   /* execute the cmd! */
   splatt_cmds[args.cmd](argc-1, argv+1);
 
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   /* all done */
   MPI_Barrier(MPI_COMM_WORLD);
   timer_stop(&timers[TIMER_ALL]);

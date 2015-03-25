@@ -2,7 +2,7 @@
 #define SPLATT_MPI_H
 
 
-# ifndef USE_MPI
+# ifndef SPLATT_USE_MPI
 /* Just a dummy for when MPI is not enabled. */
 typedef struct
 {
@@ -40,6 +40,9 @@ typedef struct
 
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
+
+  /* same as cpd_args distribution. */
+  idx_t distribution;
 
   /* Send/Recv Structures
    * nlocal2nbr: This is the number of rows that I have in my tensor but do not
@@ -234,9 +237,11 @@ permutation_t *  mpi_distribute_mats(
 *        communicator, etc.
 *
 * @param rinfo The rank data structure.
+* @param distribution The dimension of the distribution to perform (1-3).
 */
 void mpi_setup_comms(
-  rank_info * const rinfo);
+  rank_info * const rinfo,
+  idx_t const distribution);
 
 
 /**
@@ -271,5 +276,5 @@ void mpi_send_recv_stats(
   rank_info const * const rinfo,
   sptensor_t const * const tt);
 
-#endif /* USE_MPI */
+#endif /* SPLATT_USE_MPI */
 #endif

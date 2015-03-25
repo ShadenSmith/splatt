@@ -107,7 +107,7 @@ static val_t __tt_kruskal_inner(
     }
   }
   val_t inner = 0.;
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   MPI_Reduce(&myinner, &inner, 1, SS_MPI_VAL, MPI_SUM, 0, rinfo->comm_3d);
 #else
   inner = myinner;
@@ -195,7 +195,7 @@ void cpd(
 
   matrix_t * m1 = mats[MAX_NMODES];
 
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   /* Extract MPI communication structures */
   idx_t maxdim = 0;
   idx_t maxlocal2nbr = 0;
@@ -233,7 +233,7 @@ void cpd(
   val_t oldfit = 0;
   val_t const mynorm = tt_normsq(tt);
   val_t ttnormsq = 0;
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   MPI_Allreduce(&mynorm, &ttnormsq, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
 #else
   ttnormsq = mynorm;
@@ -241,7 +241,7 @@ void cpd(
 
   /* setup timers */
   timer_reset(&timers[TIMER_ATA]);
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   timer_reset(&timers[TIMER_MPI]);
   timer_reset(&timers[TIMER_MPI_IDLE]);
   timer_reset(&timers[TIMER_MPI_COMM]);
@@ -261,7 +261,7 @@ void cpd(
       timer_start(&timers[TIMER_MTTKRP]);
       mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
       /* add my partial multiplications to globmats[m] */
       mpi_add_my_partials(tt, mats[MAX_NMODES], m1, rinfo, nfactors, m);
       /* incorporate neighbors' partials */
@@ -285,7 +285,7 @@ void cpd(
             opts->nthreads);
       }
 
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
       /* send updated rows to neighbors */
       mpi_update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
           rinfo, nfactors, m);
@@ -315,13 +315,13 @@ void cpd(
   /* clean up */
   ften_free(ft);
   thd_free(thds, opts->nthreads);
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   mat_free(m1);
   free(local2nbr_buf);
   free(nbr2globs_buf);
 #endif
 
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   mpi_time_stats(rinfo);
 #endif
 }

@@ -210,8 +210,6 @@ static sptensor_t * __read_tt(
   rank_info * const rinfo)
 {
   int const rank = rinfo->rank_3d;
-  int const size = rinfo->npes;
-  int const p13 = rinfo->np13;
   idx_t const nnz = rinfo->global_nnz;
   idx_t const * const dims = rinfo->global_dims;
 
@@ -219,18 +217,9 @@ static sptensor_t * __read_tt(
   __find_my_slices(ssizes, nmodes, nnz, rinfo);
 
   /* count nnz in my partition and allocate */
-  idx_t const mynnz = __count_my_nnz(fname, nmodes, rinfo->layer_starts, rinfo->layer_ends);
+  idx_t const mynnz = __count_my_nnz(fname, nmodes, rinfo->layer_starts,
+      rinfo->layer_ends);
   sptensor_t * tt = tt_alloc(mynnz, nmodes);
-
-  /* compute partition balance */
-  idx_t maxnnz;
-  MPI_Reduce(&mynnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
-  if(rank == 0) {
-    idx_t target = nnz/size;
-    double diff = 100. * ((double)(maxnnz - target)/(double)target);
-    printf("nnz: %lu\ttargetnnz: %lu\tmaxnnz: %lu\t(%0.02f%% diff)\n",
-        nnz, target, maxnnz, diff);
-  }
 
   /* now actually load values */
   __read_tt_part(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
@@ -388,13 +377,9 @@ sptensor_t * mpi_tt_read(
   rank_info * const rinfo)
 {
   timer_start(&timers[TIMER_IO]);
-  int rank, size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
   idx_t nmodes;
 
-  if(rank == 0) {
+  if(rinfo->rank == 0) {
     /* get tensor stats */
     __get_dims(ifname, &(rinfo->global_nnz), &nmodes, rinfo->global_dims);
   }
@@ -412,6 +397,7 @@ sptensor_t * mpi_tt_read(
 
   /* actually parse tensor and then map to local (layer) coordinates  */
   sptensor_t * tt = __read_tt(ifname, ssizes, nmodes, rinfo);
+
   for(idx_t m=0; m < nmodes; ++m) {
     free(ssizes[m]);
     tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];

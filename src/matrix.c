@@ -46,7 +46,7 @@ static void __mat_2norm(
 
     /* do reduction on partial sums */
     thd_reduce(thds, 0, J, REDUCE_SUM);
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
     /* now do an MPI reduction to get the global lambda */
     #pragma omp master
     {
@@ -113,7 +113,7 @@ static void __mat_maxnorm(
 
     /* do reduction on partial maxes */
     thd_reduce(thds, 0, J, REDUCE_MAX);
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
     /* now do an MPI reduction to get the global lambda */
     #pragma omp master
     {
@@ -408,7 +408,7 @@ void mat_aTa(
     }
   }
 
-#ifdef USE_MPI
+#ifdef SPLATT_USE_MPI
   timer_start(&timers[TIMER_MPI]);
   timer_start(&timers[TIMER_MPI_IDLE]);
   MPI_Barrier(rinfo->comm_3d);

@@ -153,50 +153,29 @@ static void __fill_ineed_inds(
     local2nbr_disp[p] = local2nbr_disp[p-1] + local2nbr_ptr[p-1];
     nbr2globs_disp[p] = nbr2globs_disp[p-1] + nbr2globs_ptr[p-1];
   }
-
-#if 0
-  /* sanity check on maps */
-  if(tt->indmap[m] != NULL) {
-    for(idx_t r=0; r < rinfo->nnbr2local[m]; ++r) {
-      assert(rinfo->nbr2globs_inds[m][r] ==
-          tt->indmap[m][rinfo->nbr2local_inds[m][r]]);
-    }
-  } else {
-    for(idx_t r=0; r < rinfo->nnbr2local[m]; ++r) {
-      assert(rinfo->nbr2local_inds[m][r] ==
-          rinfo->nbrmap[m][r]);
-    }
-  }
-#endif
 }
 
 
-
-/******************************************************************************
- * PUBLIC FUNCTIONS
- *****************************************************************************/
-
-void mpi_compute_ineed(
-  rank_info * const rinfo,
-  sptensor_t const * const tt,
-  idx_t const nfactors)
-{
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    /* fill local2nbr and nbr2globs ptrs */
-    __fill_ineed_ptrs(tt, m, rinfo);
-
-    /* fill indices */
-    __fill_ineed_inds(tt, m, nfactors, rinfo);
-  }
-}
-
-
-void mpi_setup_comms(
+/**
+* @brief Setup communicator info for a 1D distribution.
+*
+* @param rinfo MPI rank information to fill in.
+*/
+static void __setup_1d(
   rank_info * const rinfo)
 {
-  MPI_Comm_size(MPI_COMM_WORLD, &(rinfo->npes));
-  MPI_Comm_rank(MPI_COMM_WORLD, &(rinfo->rank));
+  /* nothing special here */
+}
 
+
+/**
+* @brief Setup communicatory info for a 3D distribution.
+*
+* @param rinfo MPI rank information to fill in.
+*/
+static void __setup_3d(
+  rank_info * const rinfo)
+{
   int * const dims_3d = rinfo->dims_3d;
   int periods[MAX_NMODES];
 
@@ -243,23 +222,73 @@ void mpi_setup_comms(
 }
 
 
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
+
+void mpi_compute_ineed(
+  rank_info * const rinfo,
+  sptensor_t const * const tt,
+  idx_t const nfactors)
+{
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    /* fill local2nbr and nbr2globs ptrs */
+    __fill_ineed_ptrs(tt, m, rinfo);
+
+    /* fill indices */
+    __fill_ineed_inds(tt, m, nfactors, rinfo);
+  }
+}
+
+
+void mpi_setup_comms(
+  rank_info * const rinfo,
+  idx_t const distribution)
+{
+  MPI_Comm_size(MPI_COMM_WORLD, &(rinfo->npes));
+  MPI_Comm_rank(MPI_COMM_WORLD, &(rinfo->rank));
+
+  rinfo->distribution = distribution;
+
+  switch(distribution) {
+  case 1:
+    __setup_1d(rinfo);
+    break;
+  case 3:
+    __setup_3d(rinfo);
+    break;
+  default:
+    fprintf(stderr, "SPLATT: distribution %"SS_IDX" not supported."
+                    "Choose from {1,3}.\n", distribution);
+    abort();
+  }
+}
+
+
 void rank_free(
   rank_info rinfo,
   idx_t const nmodes)
 {
-  MPI_Comm_free(&rinfo.comm_3d);
-  for(idx_t m=0; m < nmodes; ++m) {
-    MPI_Comm_free(&rinfo.layer_comm[m]);
-    free(rinfo.mat_ptrs[m]);
+  switch(rinfo.distribution) {
+  case 1:
+    break;
+  case 3:
+    MPI_Comm_free(&rinfo.comm_3d);
+    for(idx_t m=0; m < nmodes; ++m) {
+      MPI_Comm_free(&rinfo.layer_comm[m]);
+      free(rinfo.mat_ptrs[m]);
 
-    /* send/recv structures */
-    free(rinfo.nbr2globs_inds[m]);
-    free(rinfo.local2nbr_inds[m]);
-    free(rinfo.nbr2local_inds[m]);
-    free(rinfo.local2nbr_ptr[m]);
-    free(rinfo.nbr2globs_ptr[m]);
-    free(rinfo.local2nbr_disp[m]);
-    free(rinfo.nbr2globs_disp[m]);
+      /* send/recv structures */
+      free(rinfo.nbr2globs_inds[m]);
+      free(rinfo.local2nbr_inds[m]);
+      free(rinfo.nbr2local_inds[m]);
+      free(rinfo.local2nbr_ptr[m]);
+      free(rinfo.nbr2globs_ptr[m]);
+      free(rinfo.local2nbr_disp[m]);
+      free(rinfo.nbr2globs_disp[m]);
+    }
+    break;
   }
 }
 

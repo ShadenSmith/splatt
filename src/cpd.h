@@ -16,6 +16,9 @@ typedef struct
   idx_t niters;
   idx_t rank;
 
+  /* dimension of the distribution (used in MPI) */
+  idx_t distribution;
+
   /* optimizations */
   idx_t nthreads;
   int tile;
