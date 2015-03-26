@@ -96,6 +96,47 @@ static void __find_my_slices(
 }
 
 
+static void __find_my_slices_1d(
+  idx_t ** const ssizes,
+  idx_t const nmodes,
+  idx_t const nnz,
+  rank_info * const rinfo)
+{
+  idx_t const pnnz = nnz / rinfo->npes;
+  idx_t const * const dims = rinfo->global_dims;
+
+  /* find start/end slices for my partition */
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* current processor */
+    int currp  = 0;
+    idx_t lastn = 0;
+    idx_t nnzcnt = 0;
+
+    rinfo->layer_starts[m] = 0;
+    rinfo->layer_ends[m] = dims[m];
+
+    for(idx_t s=0; s < dims[m]; ++s) {
+      if(nnzcnt >= lastn + pnnz) {
+        lastn = nnzcnt;
+        ++currp;
+        if(currp == rinfo->rank) {
+          rinfo->layer_starts[m] = s;
+        } else if(currp == rinfo->rank+1 && currp != rinfo->npes) {
+          /* only set layer_end if we aren't at the end of the tensor */
+          rinfo->layer_ends[m] = s;
+          break;
+        }
+      }
+      nnzcnt += ssizes[m][s];
+    }
+
+    printf("p: %d start: %lu end: %lu\n", rinfo->rank, rinfo->layer_starts[m],
+        rinfo->layer_ends[m]);
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+}
+
+
 /**
 * @brief Count the nonzero values in a partition of X.
 *
@@ -144,6 +185,55 @@ static idx_t __count_my_nnz(
   return mynnz;
 }
 
+
+/**
+* @brief Count the nonzero values in a partition of X.
+*
+* @param fname The name of the file containing X.
+* @param nmodes The number of modes of X.
+*
+* @return The number of nonzeros in the intersection of all sstarts and sends.
+*/
+static idx_t __count_my_nnz_1d(
+  char const * const fname,
+  idx_t const nmodes,
+  idx_t const * const sstarts,
+  idx_t const * const sends)
+{
+  FILE * fin = open_f(fname, "r");
+
+  char * ptr = NULL;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+
+  /* count nnz in my partition */
+  idx_t mynnz = 0;
+  while((read = getline(&line, &len, fin)) != -1) {
+    /* skip empty and commented lines */
+    if(read > 1 && line[0] != '#') {
+      int mine = 0;
+      ptr = line;
+      for(idx_t m=0; m < nmodes; ++m) {
+        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
+        /* I own the nnz if it falls in any of my slices */
+        if(ind >= sstarts[m] && ind < sends[m]) {
+          mine = 0;
+        }
+      }
+      if(mine) {
+        ++mynnz;
+      }
+      /* skip over tensor val */
+      strtod(ptr, &ptr);
+    }
+  }
+  fclose(fin);
+
+  free(line);
+
+  return mynnz;
+}
 
 /**
 * @brief Read a partition of X into tt.
@@ -214,12 +304,14 @@ static sptensor_t * __read_tt_1d(
   idx_t const * const dims = rinfo->global_dims;
 
   /* find start/end slices for my partition */
-  __find_my_slices(ssizes, nmodes, nnz, rinfo);
+  __find_my_slices_1d(ssizes, nmodes, nnz, rinfo);
 
   /* count nnz in my partition and allocate */
-  idx_t const mynnz = __count_my_nnz(fname, nmodes, rinfo->layer_starts,
+  idx_t const mynnz = __count_my_nnz_1d(fname, nmodes, rinfo->layer_starts,
       rinfo->layer_ends);
   sptensor_t * tt = tt_alloc(mynnz, nmodes);
+
+  printf("p: %d nnz: %lu\n", rinfo->rank, mynnz);
 
   /* now actually load values */
   __read_tt_part(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
