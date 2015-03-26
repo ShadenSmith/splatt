@@ -31,13 +31,13 @@ static void __reorder_slices(
 {
   /* build map of fiber -> slice */
   idx_t const nslices = ft->dims[mode];
-  idx_t const nfibs = ft->nfibs[mode];
+  idx_t const nfibs = ft->nfibs;
   idx_t * slice = (idx_t *) malloc(nfibs * sizeof(idx_t));
 
   idx_t * const sliceperm  = perm->perms[mode];
   idx_t * const sliceiperm = perm->iperms[mode];
 
-  idx_t const * const sptr = ft->sptr[mode];
+  idx_t const * const sptr = ft->sptr;
   for(idx_t s=0; s < nslices; ++s) {
     for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
       slice[f] = s;
@@ -108,15 +108,15 @@ static void __reorder_fibs(
   permutation_t * const perm,
   idx_t const mode)
 {
-  idx_t const pm = ft->dim_perms[mode][1];
+  idx_t const pm = ft->dim_perms[1];
   idx_t const nslices = ft->dims[mode];
   idx_t const nfids = ft->dims[pm];
-  idx_t const nfibs = ft->nfibs[mode];
-  idx_t const * const fids = ft->fids[mode];
+  idx_t const nfibs = ft->nfibs;
+  idx_t const * const fids = ft->fids;
 
   idx_t * const fidperm  = perm->perms[pm];
   idx_t * const fidiperm = perm->iperms[pm];
-  idx_t const * const sptr = ft->sptr[mode];
+  idx_t const * const sptr = ft->sptr;
 
   for(idx_t f=0; f < nfids; ++f) {
     /* mark perm as incomplete */
@@ -188,16 +188,16 @@ static void __reorder_inds(
   permutation_t * const perm,
   idx_t const mode)
 {
-  idx_t const pm = ft->dim_perms[mode][2];
+  idx_t const pm = ft->dim_perms[2];
   idx_t * const indperm  = perm->perms[pm];
   idx_t * const indiperm = perm->iperms[pm];
 
   idx_t const nslices = ft->dims[mode];
-  idx_t const nfids = ft->dims[ft->dim_perms[mode][1]];
+  idx_t const nfids = ft->dims[ft->dim_perms[1]];
   idx_t const ninds = ft->dims[pm];
-  idx_t const nfibs = ft->nfibs[mode];
-  idx_t const * const fptr = ft->fptr[mode];
-  idx_t const * const inds = ft->inds[mode];
+  idx_t const nfibs = ft->nfibs;
+  idx_t const * const fptr = ft->fptr;
+  idx_t const * const inds = ft->inds;
 
 
   /* mark perm as incomplete */
@@ -298,8 +298,8 @@ permutation_t * tt_perm(
     break;
 
   case PERM_HGRAPH:
-    ft = ften_alloc(tt, 0);
-    parts = part_read(pfile, ft->nfibs[mode], &nparts);
+    ft = ften_alloc(tt, mode, 0);
+    parts = part_read(pfile, ft->nfibs, &nparts);
     perm = perm_hgraph(tt, ft, parts, nparts, mode);
     ften_free(ft);
     break;
@@ -368,7 +368,7 @@ permutation_t * perm_hgraph(
 {
   permutation_t * perm = perm_alloc(tt->dims, tt->nmodes);
   hgraph_t * hg = hgraph_fib_alloc(ft, mode);
-  idx_t const nvtxs = ft->nfibs[mode];
+  idx_t const nvtxs = ft->nfibs;
   idx_t nhedges = 0;
   for(idx_t m=0; m < ft->nmodes; ++m) {
     nhedges += ft->dims[m];
@@ -388,7 +388,7 @@ permutation_t * perm_hgraph(
   for(idx_t n=0; n < ncut; ++n) {
     if(uncuts[n] < ft->dims[mode]) {
       ++nslices;
-    } else if(uncuts[n] < ft->dims[mode] + ft->dims[ft->dim_perms[mode][1]]) {
+    } else if(uncuts[n] < ft->dims[mode] + ft->dims[ft->dim_perms[1]]) {
       ++nfibs;
     } else {
       ++ninds;

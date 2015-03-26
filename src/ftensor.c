@@ -26,7 +26,7 @@ static void __create_fptr(
   /* permuted tt->ind makes things a bit easier */
   idx_t * ttinds[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    ttinds[m] = tt->ind[ft->dim_perms[mode][m]];
+    ttinds[m] = tt->ind[ft->dim_perms[m]];
   }
   /* this avoids some maybe-uninitialized warnings */
   for(idx_t m=nmodes; m < MAX_NMODES; ++m) {
@@ -35,8 +35,8 @@ static void __create_fptr(
 
   /* count fibers and copy inds/vals into ft */
   idx_t nfibs = 1;
-  ft->inds[mode][0] = ttinds[nmodes-1][0];
-  ft->vals[mode][0] = tt->vals[0];
+  ft->inds[0] = ttinds[nmodes-1][0];
+  ft->vals[0] = tt->vals[0];
 
   /* count fibers in tt */
   for(idx_t n=1; n < nnz; ++n) {
@@ -47,24 +47,24 @@ static void __create_fptr(
         break;
       }
     }
-    ft->inds[mode][n] = ttinds[nmodes-1][n];
-    ft->vals[mode][n] = tt->vals[n];
+    ft->inds[n] = ttinds[nmodes-1][n];
+    ft->vals[n] = tt->vals[n];
   }
 
   /* allocate fiber structure */
-  ft->nfibs[mode] = nfibs;
-  ft->fptr[mode] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
-  ft->fids[mode] = (idx_t *) malloc(nfibs * sizeof(idx_t));
+  ft->nfibs = nfibs;
+  ft->fptr = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
+  ft->fids = (idx_t *) malloc(nfibs * sizeof(idx_t));
   if(ft->tiled) {
-    ft->sids[mode]= (idx_t *) malloc(nfibs * sizeof(idx_t));
+    ft->sids = (idx_t *) malloc(nfibs * sizeof(idx_t));
   }
 
   /* initialize boundary values */
-  ft->fptr[mode][0] = 0;
-  ft->fptr[mode][nfibs] = nnz;
-  ft->fids[mode][0] = ttinds[1][0];
+  ft->fptr[0] = 0;
+  ft->fptr[nfibs] = nnz;
+  ft->fids[0] = ttinds[1][0];
   if(ft->tiled) {
-    ft->sids[mode][0] = ttinds[0][0];
+    ft->sids[0] = ttinds[0][0];
   }
 
   idx_t fib = 1;
@@ -78,10 +78,10 @@ static void __create_fptr(
       }
     }
     if(newfib) {
-      ft->fptr[mode][fib] = n;
-      ft->fids[mode][fib] = ttinds[1][n];
+      ft->fptr[fib] = n;
+      ft->fids[fib] = ttinds[1][n];
       if(ft->tiled) {
-        ft->sids[mode][fib] = ttinds[0][n];
+        ft->sids[fib] = ttinds[0][n];
       }
       ++fib;
     }
@@ -99,15 +99,15 @@ static void __create_slabptr(
   idx_t const tsize = TILE_SIZES[0];
   idx_t const nslabs = tt->dims[mode] / tsize + (tt->dims[mode] % tsize != 0);
 
-  ft->nslabs[mode] = nslabs;
-  ft->slabptr[mode] = (idx_t *) malloc((nslabs+1) * sizeof(idx_t));
+  ft->nslabs = nslabs;
+  ft->slabptr = (idx_t *) malloc((nslabs+1) * sizeof(idx_t));
 
-  idx_t const nfibs = ft->nfibs[mode];
+  idx_t const nfibs = ft->nfibs;
   /* count slices */
   idx_t slices = 1;
   for(idx_t f=1; f < nfibs; ++f) {
-    idx_t const slice = ft->sids[mode][f];
-    if(ft->sids[mode][f] != ft->sids[mode][f-1]) {
+    idx_t const slice = ft->sids[f];
+    if(ft->sids[f] != ft->sids[f-1]) {
       ++slices;
     }
   }
@@ -115,31 +115,31 @@ static void __create_slabptr(
   idx_t * sids = (idx_t *) malloc(slices * sizeof(idx_t));
 
   sptr[0] = 0;
-  sids[0] = ft->sids[mode][0];
-  ft->slabptr[mode][0] = 0;
+  sids[0] = ft->sids[0];
+  ft->slabptr[0] = 0;
   idx_t s = 1;
   idx_t slab = 1;
   for(idx_t f=1; f < nfibs; ++f) {
-    if(ft->sids[mode][f] != ft->sids[mode][f-1]) {
+    if(ft->sids[f] != ft->sids[f-1]) {
       sptr[s] = f;
-      sids[s] = ft->sids[mode][f];
+      sids[s] = ft->sids[f];
       /* update slabptr if we've moved to the next slab */
       while(sids[s] / tsize > slab-1) {
-        ft->slabptr[mode][slab++] = s;
+        ft->slabptr[slab++] = s;
       }
       ++s;
     }
   }
 
   /* update ft with new data structures */
-  free(ft->sids[mode]);
-  ft->sids[mode] = sids;
-  ft->sptr[mode] = sptr;
+  free(ft->sids);
+  ft->sids = sids;
+  ft->sptr = sptr;
 
   /* account for any empty slabs at end */
-  ft->nslabs[mode] = slab;
-  ft->slabptr[mode][slab] = slices;
-  ft->sptr[mode][slices] = nfibs;
+  ft->nslabs = slab;
+  ft->slabptr[slab] = slices;
+  ft->sptr[slices] = nfibs;
 }
 
 
@@ -152,12 +152,12 @@ static void __create_sliceptr(
   idx_t const nmodes = tt->nmodes;
 
   idx_t const nslices = ft->dims[mode];
-  ft->sptr[mode] = (idx_t *) malloc((nslices+1) * sizeof(idx_t));
+  ft->sptr = (idx_t *) malloc((nslices+1) * sizeof(idx_t));
 
   /* permuted tt->ind makes things a bit easier */
   idx_t * ttinds[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    ttinds[m] = tt->ind[ft->dim_perms[mode][m]];
+    ttinds[m] = tt->ind[ft->dim_perms[m]];
   }
   /* this avoids some maybe-uninitialized warnings */
   for(idx_t m=nmodes; m < MAX_NMODES; ++m) {
@@ -165,9 +165,9 @@ static void __create_sliceptr(
   }
 
   idx_t slice = 0;
-  ft->sptr[mode][slice++] = 0;
+  ft->sptr[slice++] = 0;
   while(slice != ttinds[0][0]+1) {
-    ft->sptr[mode][slice++] = 0;
+    ft->sptr[slice++] = 0;
   }
 
   idx_t fib = 1;
@@ -183,14 +183,14 @@ static void __create_sliceptr(
     if(newfib) {
       /* increment slice if necessary and account for empty slices */
       while(slice != ttinds[0][n]+1) {
-        ft->sptr[mode][slice++] = fib;
+        ft->sptr[slice++] = fib;
       }
       ++fib;
     }
   }
   /* account for any empty slices at end */
   for(idx_t s=slice; s <= ft->dims[mode]; ++s) {
-    ft->sptr[mode][s] = ft->nfibs[mode];
+    ft->sptr[s] = ft->nfibs;
   }
 }
 
@@ -200,6 +200,7 @@ static void __create_sliceptr(
  *****************************************************************************/
 ftensor_t * ften_alloc(
   sptensor_t * const tt,
+  idx_t const mode,
   int const tile)
 {
   ftensor_t * ft = (ftensor_t *) malloc(sizeof(ftensor_t));
@@ -213,27 +214,23 @@ ftensor_t * ften_alloc(
   ft->tiled = tt->tiled;
 
   /* compute permutation of modes */
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    fib_mode_order(tt->dims, tt->nmodes, m, ft->dim_perms[m]);
-  }
+  fib_mode_order(tt->dims, tt->nmodes, mode, ft->dim_perms);
 
   /* allocate modal data */
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ft->inds[m] = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
-    ft->vals[m] = (val_t *) malloc(ft->nnz * sizeof(val_t));
+  ft->inds = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
+  ft->vals = (val_t *) malloc(ft->nnz * sizeof(val_t));
 
-    tt_sort(tt, m, ft->dim_perms[m]);
-    if(tile) {
-      ft->tiled = 1;
-      tt_tile(tt, ft->dim_perms[m]);
-    }
+  tt_sort(tt, mode, ft->dim_perms);
+  if(tile) {
+    ft->tiled = 1;
+    tt_tile(tt, ft->dim_perms);
+  }
 
-    __create_fptr(ft, tt, m);
-    if(ft->tiled) {
-      __create_slabptr(ft, tt, m);
-    } else {
-      __create_sliceptr(ft, tt, m);
-    }
+  __create_fptr(ft, tt, mode);
+  if(ft->tiled) {
+    __create_slabptr(ft, tt, mode);
+  } else {
+    __create_sliceptr(ft, tt, mode);
   }
 
 #if 0
@@ -264,16 +261,15 @@ ftensor_t * ften_alloc(
 
 
 spmatrix_t * ften_spmat(
-  ftensor_t * ft,
-  idx_t const mode)
+  ftensor_t * const ft)
 {
-  idx_t const nrows = ft->nfibs[mode];
-  idx_t const ncols = ft->dims[ft->dim_perms[mode][2]];
+  idx_t const nrows = ft->nfibs;
+  idx_t const ncols = ft->dims[ft->dim_perms[2]];
   spmatrix_t * mat = spmat_alloc(nrows, ncols, ft->nnz);
 
-  memcpy(mat->rowptr, ft->fptr[mode], (nrows+1) * sizeof(idx_t));
-  memcpy(mat->colind, ft->inds[mode], ft->nnz * sizeof(idx_t));
-  memcpy(mat->vals,   ft->vals[mode], ft->nnz * sizeof(val_t));
+  memcpy(mat->rowptr, ft->fptr, (nrows+1) * sizeof(idx_t));
+  memcpy(mat->colind, ft->inds, ft->nnz * sizeof(idx_t));
+  memcpy(mat->vals,   ft->vals, ft->nnz * sizeof(val_t));
 
   return mat;
 }
@@ -282,16 +278,14 @@ spmatrix_t * ften_spmat(
 void ften_free(
   ftensor_t * ft)
 {
-  for(idx_t m=0; m < ft->nmodes; ++m) {
-    free(ft->fptr[m]);
-    free(ft->fids[m]);
-    free(ft->inds[m]);
-    free(ft->vals[m]);
-    free(ft->sptr[m]);
-    if(ft->tiled) {
-      free(ft->slabptr[m]);
-      free(ft->sids[m]);
-    }
+  free(ft->fptr);
+  free(ft->fids);
+  free(ft->inds);
+  free(ft->vals);
+  free(ft->sptr);
+  if(ft->tiled) {
+    free(ft->slabptr);
+    free(ft->sids);
   }
   free(ft);
 }

@@ -71,7 +71,7 @@ static val_t __kruskal_norm(
 
 
 static val_t __tt_kruskal_inner(
-  ftensor_t const * const ft,
+  idx_t const nmodes,
   rank_info * const rinfo,
   thd_info * const thds,
   val_t const * const restrict lambda,
@@ -79,7 +79,7 @@ static val_t __tt_kruskal_inner(
   matrix_t const * const m1)
 {
   idx_t const rank = mats[0]->J;
-  idx_t const lastm = ft->nmodes - 1;
+  idx_t const lastm = nmodes - 1;
   idx_t const dim = m1->I;
 
   val_t const * const m0 = mats[lastm]->vals;
@@ -119,7 +119,6 @@ static val_t __tt_kruskal_inner(
 
 static val_t __calc_fit(
   idx_t const nmodes,
-  ftensor_t const * const ft,
   rank_info * const rinfo,
   thd_info * const thds,
   idx_t const nthreads,
@@ -135,7 +134,7 @@ static val_t __calc_fit(
   val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
 
   /* Compute inner product of tensor with new model */
-  val_t const inner = __tt_kruskal_inner(ft, rinfo, thds, lambda, mats, m1);
+  val_t const inner = __tt_kruskal_inner(nmodes, rinfo, thds, lambda, mats,m1);
 
   val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
   timer_stop(&timers[TIMER_FIT]);
@@ -185,7 +184,10 @@ void cpd(
   idx_t const nfactors = opts->rank;
   idx_t const nmodes = tt->nmodes;
 
-  ftensor_t * ft = ften_alloc(tt, opts->tile);
+  ftensor_t * ft[MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ft[m] = ften_alloc(tt, m, opts->tile);
+  }
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
   omp_set_num_threads(opts->nthreads);
@@ -254,12 +256,12 @@ void cpd(
   for(idx_t it=0; it < opts->niters; ++it) {
     timer_fstart(&itertime);
     for(idx_t m=0; m < nmodes; ++m) {
-      mats[MAX_NMODES]->I = ft->dims[m];
+      mats[MAX_NMODES]->I = tt->dims[m];
       m1->I = globmats[m]->I;
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
-      mttkrp_splatt(ft, mats, m, thds, opts->nthreads);
+      mttkrp_splatt(ft[m], mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
       /* add my partial multiplications to globmats[m] */
@@ -295,8 +297,8 @@ void cpd(
       mat_aTa(globmats[m], aTa[m], rinfo, thds, opts->nthreads);
     } /* foreach mode */
 
-    val_t const fit = __calc_fit(nmodes, ft, rinfo, thds, opts->nthreads,
-        ttnormsq, lambda, globmats, m1, aTa);
+    val_t const fit = __calc_fit(nmodes, rinfo, thds, opts->nthreads, ttnormsq,
+        lambda, globmats, m1, aTa);
     timer_stop(&itertime);
 
     if(rinfo->rank == 0) {
@@ -307,13 +309,13 @@ void cpd(
   }
   timer_stop(&timers[TIMER_CPD]);
 
+  /* clean up */
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(aTa[m]);
+    ften_free(ft[m]);
   }
   mat_free(aTa[MAX_NMODES]);
 
-  /* clean up */
-  ften_free(ft);
   thd_free(thds, opts->nthreads);
 #ifdef SPLATT_USE_MPI
   mat_free(m1);

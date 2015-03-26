@@ -68,7 +68,10 @@ void bench_splatt(
     mats[0]->J * sizeof(val_t) + 64,
     (mats[0]->J * TILE_SIZES[0] * sizeof(val_t)) + 64);
 
-  ftensor_t * ft = ften_alloc(tt, opts->tile);
+  ftensor_t * ft[MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ft[m] = ften_alloc(tt, m, opts->tile);
+  }
   timer_start(&timers[TIMER_SPLATT]);
   printf("** SPLATT **\n");
 
@@ -85,7 +88,7 @@ void bench_splatt(
       /* time each mode */
       for(idx_t m=0; m < tt->nmodes; ++m) {
         timer_fstart(&modetime);
-        mttkrp_splatt(ft, mats, m, thds, nthreads);
+        mttkrp_splatt(ft[m], mats, m, thds, nthreads);
         timer_stop(&modetime);
         printf("  mode %" SS_IDX " %0.3fs\n", m+1, modetime.seconds);
         if(opts->write && t == 0 && i == 0) {
@@ -110,7 +113,10 @@ void bench_splatt(
   timer_stop(&timers[TIMER_SPLATT]);
 
   thd_free(thds, threads[nruns-1]);
-  ften_free(ft);
+  /* clean up */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ften_free(ft[m]);
+  }
 
   /* fix any matrices that we shuffled */
   __shuffle_mats(mats, opts->perm->iperms, tt->nmodes);

@@ -11,15 +11,17 @@
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
+#if 0
 static void __fill_emap(
-  ftensor_t const * const ft,
+  ftensor_t ** ft,
   hgraph_t * const hg,
   idx_t const mode,
   idx_t ** emaps)
 {
   hg->nhedges = 0;
   idx_t h = 0;
-  for(idx_t m=0; m < ft->nmodes; ++m) {
+  idx_t const nmodes = ft[0]->nmodes;
+  for(idx_t m=0; m < nmodes; ++m) {
     idx_t pm = ft->dim_perms[mode][m];
     emaps[m] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
     memset(emaps[m], 0, ft->dims[pm]);
@@ -61,15 +63,15 @@ static void __fill_emap_fibonly(
     }
   }
 }
+#endif
 
 static void __fill_vwts(
   ftensor_t const * const ft,
-  hgraph_t * const hg,
-  idx_t const mode)
+  hgraph_t * const hg)
 {
   hg->vwts = (idx_t *) malloc(hg->nvtxs * sizeof(idx_t));
   for(idx_t v=0; v < hg->nvtxs; ++v) {
-    hg->vwts[v] = ft->fptr[mode][v+1] - ft->fptr[mode][v];
+    hg->vwts[v] = ft->fptr[v+1] - ft->fptr[v];
   }
 }
 
@@ -83,17 +85,20 @@ hgraph_t * hgraph_fib_alloc(
   idx_t const mode)
 {
   hgraph_t * hg = (hgraph_t *) malloc(sizeof(hgraph_t));
-  hg->nvtxs = ft->nfibs[mode];
+  hg->nvtxs = ft->nfibs;
   hg->vwts = NULL;
   hg->hewts = NULL;
 
   /* vertex weights are nnz per fiber */
-  __fill_vwts(ft, hg, mode);
+  __fill_vwts(ft, hg);
 
   /* count hedges and map ind to hedge - this is necessary because empty
    * slices are possible */
   idx_t * emaps[MAX_NMODES];
+#if 0
+  /* XXX: TODO */
   __fill_emap(ft, hg, mode, emaps);
+#endif
 
   /* a) each nnz induces a hyperedge connection
      b) each non-fiber mode accounts for a hyperedge connection */
@@ -106,12 +111,12 @@ hgraph_t * hgraph_fib_alloc(
   for(idx_t s=0; s < ft->dims[mode]; ++s) {
     /* slice hyperedge */
     idx_t hs = emaps[0][s];
-    hg->eptr[hs+1] = ft->sptr[mode][s+1] - ft->sptr[mode][s];
-    for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
-      idx_t hfid = emaps[1][ft->fids[mode][f]];
+    hg->eptr[hs+1] = ft->sptr[s+1] - ft->sptr[s];
+    for(idx_t f = ft->sptr[s]; f < ft->sptr[s+1]; ++f) {
+      idx_t hfid = emaps[1][ft->fids[f]];
       hg->eptr[hfid+1] += 1;
-      for(idx_t jj= ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
-        idx_t hjj = emaps[2][ft->inds[mode][jj]];
+      for(idx_t jj= ft->fptr[f]; jj < ft->fptr[f+1]; ++jj) {
+        idx_t hjj = emaps[2][ft->inds[jj]];
         hg->eptr[hjj+1] += 1;
       }
     }
@@ -130,12 +135,12 @@ hgraph_t * hgraph_fib_alloc(
   idx_t vtx = 0;
   for(idx_t s=0; s < ft->dims[mode]; ++s) {
     idx_t hs = emaps[0][s];
-    for(idx_t f = ft->sptr[mode][s]; f < ft->sptr[mode][s+1]; ++f) {
-      idx_t hfid = emaps[1][ft->fids[mode][f]];
+    for(idx_t f = ft->sptr[s]; f < ft->sptr[s+1]; ++f) {
+      idx_t hfid = emaps[1][ft->fids[f]];
       hg->eind[hg->eptr[hs+1]++]   = vtx;
       hg->eind[hg->eptr[hfid+1]++] = vtx;
-      for(idx_t jj= ft->fptr[mode][f]; jj < ft->fptr[mode][f+1]; ++jj) {
-        idx_t hjj = emaps[2][ft->inds[mode][jj]];
+      for(idx_t jj= ft->fptr[f]; jj < ft->fptr[f+1]; ++jj) {
+        idx_t hjj = emaps[2][ft->inds[jj]];
         hg->eind[hg->eptr[hjj+1]++] = vtx;
       }
       ++vtx;

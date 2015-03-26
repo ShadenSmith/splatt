@@ -30,8 +30,8 @@ void mttkrp_splatt(
   }
 
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[mode][1]];
-  matrix_t const * const B = mats[ft->dim_perms[mode][2]];
+  matrix_t const * const A = mats[ft->dim_perms[1]];
+  matrix_t const * const B = mats[ft->dim_perms[2]];
   idx_t const nslices = ft->dims[mode];
   idx_t const rank = M->J;
 
@@ -42,11 +42,11 @@ void mttkrp_splatt(
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
 
-  idx_t const * const restrict sptr = ft->sptr[mode];
-  idx_t const * const restrict fptr = ft->fptr[mode];
-  idx_t const * const restrict fids = ft->fids[mode];
-  idx_t const * const restrict inds = ft->inds[mode];
-  val_t const * const restrict vals = ft->vals[mode];
+  idx_t const * const restrict sptr = ft->sptr;
+  idx_t const * const restrict fptr = ft->fptr;
+  idx_t const * const restrict fids = ft->fids;
+  idx_t const * const restrict inds = ft->inds;
+  val_t const * const restrict vals = ft->vals;
 
   #pragma omp parallel
   {
@@ -98,10 +98,10 @@ void mttkrp_splatt_tiled(
   idx_t const nthreads)
 {
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[mode][1]];
-  matrix_t const * const B = mats[ft->dim_perms[mode][2]];
+  matrix_t const * const A = mats[ft->dim_perms[1]];
+  matrix_t const * const B = mats[ft->dim_perms[2]];
 
-  idx_t const nslabs = ft->nslabs[mode];
+  idx_t const nslabs = ft->nslabs;
   idx_t const rank = M->J;
 
   val_t * const mvals = M->vals;
@@ -110,12 +110,12 @@ void mttkrp_splatt_tiled(
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
 
-  idx_t const * const restrict slabptr = ft->slabptr[mode];
-  idx_t const * const restrict sids = ft->sids[mode];
-  idx_t const * const restrict fptr = ft->fptr[mode];
-  idx_t const * const restrict fids = ft->fids[mode];
-  idx_t const * const restrict inds = ft->inds[mode];
-  val_t const * const restrict vals = ft->vals[mode];
+  idx_t const * const restrict slabptr = ft->slabptr;
+  idx_t const * const restrict sids = ft->sids;
+  idx_t const * const restrict fptr = ft->fptr;
+  idx_t const * const restrict fids = ft->fids;
+  idx_t const * const restrict inds = ft->inds;
+  val_t const * const restrict vals = ft->vals;
 
   #pragma omp parallel
   {
@@ -166,10 +166,10 @@ void mttkrp_splatt_coop_tiled(
   idx_t const nthreads)
 {
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[mode][1]];
-  matrix_t const * const B = mats[ft->dim_perms[mode][2]];
+  matrix_t const * const A = mats[ft->dim_perms[1]];
+  matrix_t const * const B = mats[ft->dim_perms[2]];
 
-  idx_t const nslabs = ft->nslabs[mode];
+  idx_t const nslabs = ft->nslabs;
   idx_t const rank = M->J;
 
   val_t * const mvals = M->vals;
@@ -178,13 +178,13 @@ void mttkrp_splatt_coop_tiled(
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
 
-  idx_t const * const restrict slabptr = ft->slabptr[mode];
-  idx_t const * const restrict sptr = ft->sptr[mode];
-  idx_t const * const restrict sids = ft->sids[mode];
-  idx_t const * const restrict fptr = ft->fptr[mode];
-  idx_t const * const restrict fids = ft->fids[mode];
-  idx_t const * const restrict inds = ft->inds[mode];
-  val_t const * const restrict vals = ft->vals[mode];
+  idx_t const * const restrict slabptr = ft->slabptr;
+  idx_t const * const restrict sptr = ft->sptr;
+  idx_t const * const restrict sids = ft->sids;
+  idx_t const * const restrict fptr = ft->fptr;
+  idx_t const * const restrict fids = ft->fids;
+  idx_t const * const restrict inds = ft->inds;
+  val_t const * const restrict vals = ft->vals;
 
   #pragma omp parallel
   {

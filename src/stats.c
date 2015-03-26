@@ -76,8 +76,8 @@ static void __stats_hparts(
     exit(1);
   }
 
-  ftensor_t * ft = ften_alloc(tt, 0);
-  idx_t const nvtxs = ft->nfibs[mode];
+  ftensor_t * ft = ften_alloc(tt, mode, 0);
+  idx_t const nvtxs = ft->nfibs;
   idx_t nhedges = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
     nhedges += tt->dims[m];
@@ -97,7 +97,7 @@ static void __stats_hparts(
     idx_t nnz = 0;
     for(idx_t f=pptr[p]; f < pptr[p+1]; ++f) {
       idx_t const findex = plookup[f];
-      nnz += ft->fptr[mode][findex+1] - ft->fptr[mode][findex];
+      nnz += ft->fptr[findex+1] - ft->fptr[findex];
     }
     if(nnz < minp) {
       minp = nnz;
@@ -117,14 +117,14 @@ static void __stats_hparts(
   idx_t * unique[MAX_NMODES];
   idx_t nunique[MAX_NMODES];
   for(idx_t m=0; m < ft->nmodes; ++m) {
-    unique[m] = (idx_t *) malloc(ft->dims[ft->dim_perms[mode][m]]
+    unique[m] = (idx_t *) malloc(ft->dims[ft->dim_perms[m]]
       * sizeof(idx_t));
   }
 
   /* now track unique ind info for each partition */
   for(idx_t p=0; p < nparts; ++p) {
     for(idx_t m=0; m < ft->nmodes; ++m) {
-      memset(unique[m], 0, ft->dims[ft->dim_perms[mode][m]] * sizeof(idx_t));
+      memset(unique[m], 0, ft->dims[ft->dim_perms[m]] * sizeof(idx_t));
       nunique[m] = 0;
     }
 
@@ -132,10 +132,10 @@ static void __stats_hparts(
     idx_t ptr = 0;
     for(idx_t f=pptr[p]; f < pptr[p+1]; ++f) {
       idx_t const findex = plookup[f];
-      nnz += ft->fptr[mode][findex+1] - ft->fptr[mode][findex];
+      nnz += ft->fptr[findex+1] - ft->fptr[findex];
 
       /* find slice of findex */
-      while(ft->sptr[mode][ptr] < findex && ft->sptr[mode][ptr+1] < findex) {
+      while(ft->sptr[ptr] < findex && ft->sptr[ptr+1] < findex) {
         ++ptr;
       }
       if(unique[0][ptr] == 0) {
@@ -144,13 +144,13 @@ static void __stats_hparts(
       }
 
       /* mark unique fids */
-      if(unique[1][ft->fids[mode][f]] == 0) {
+      if(unique[1][ft->fids[f]] == 0) {
         ++nunique[1];
-        unique[1][ft->fids[mode][f]] = 1;
+        unique[1][ft->fids[f]] = 1;
       }
 
-      for(idx_t j=ft->fptr[mode][findex]; j < ft->fptr[mode][findex+1]; ++j) {
-        idx_t const jind = ft->inds[mode][j];
+      for(idx_t j=ft->fptr[findex]; j < ft->fptr[findex+1]; ++j) {
+        idx_t const jind = ft->inds[j];
         /* mark unique inds */
         if(unique[2][jind] == 0) {
           ++nunique[2];
@@ -166,9 +166,9 @@ static void __stats_hparts(
     printf("I: %"SS_IDX" (%4.1f%%)  ", nunique[0],
       100. * (val_t)nunique[0] / (val_t) ft->dims[mode]);
     printf("K: %"SS_IDX" (%4.1f%%)  ", nunique[1],
-      100. * (val_t)nunique[1] / (val_t) ft->dims[ft->dim_perms[mode][1]]);
+      100. * (val_t)nunique[1] / (val_t) ft->dims[ft->dim_perms[1]]);
     printf("J: %"SS_IDX" (%4.1f%%)\n", nunique[2],
-      100. * (val_t)nunique[2] / (val_t) ft->dims[ft->dim_perms[mode][2]]);
+      100. * (val_t)nunique[2] / (val_t) ft->dims[ft->dim_perms[2]]);
   }
 
 
