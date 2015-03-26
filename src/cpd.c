@@ -174,7 +174,7 @@ static void __calc_M2(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void cpd(
-  sptensor_t * const tt,
+  ftensor_t ** ft,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,
@@ -182,12 +182,7 @@ void cpd(
   cpd_opts const * const opts)
 {
   idx_t const nfactors = opts->rank;
-  idx_t const nmodes = tt->nmodes;
-
-  ftensor_t * ft[MAX_NMODES];
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ft[m] = ften_alloc(tt, m, opts->tile);
-  }
+  idx_t const nmodes = ft[0]->nmodes;
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
   omp_set_num_threads(opts->nthreads);
@@ -216,7 +211,7 @@ void cpd(
 
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
-    mpi_update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
+    mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
         rinfo, nfactors, m);
   }
 #endif
@@ -233,7 +228,11 @@ void cpd(
 
   /* Compute input tensor norm */
   val_t oldfit = 0;
-  val_t const mynorm = tt_normsq(tt);
+  val_t mynorm = 0;
+  #pragma omp parallel reduction(+:mynorm)
+  for(idx_t n=0; n < ft[0]->nnz; ++n) {
+    mynorm += ft[0]->vals[n] * ft[0]->vals[n];
+  }
   val_t ttnormsq = 0;
 #ifdef SPLATT_USE_MPI
   MPI_Allreduce(&mynorm, &ttnormsq, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
@@ -256,7 +255,7 @@ void cpd(
   for(idx_t it=0; it < opts->niters; ++it) {
     timer_fstart(&itertime);
     for(idx_t m=0; m < nmodes; ++m) {
-      mats[MAX_NMODES]->I = tt->dims[m];
+      mats[MAX_NMODES]->I = ft[0]->dims[m];
       m1->I = globmats[m]->I;
 
       /* M1 = X * (C o B) */
@@ -265,7 +264,7 @@ void cpd(
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
       /* add my partial multiplications to globmats[m] */
-      mpi_add_my_partials(tt, mats[MAX_NMODES], m1, rinfo, nfactors, m);
+      mpi_add_my_partials(ft[m]->indmap, mats[MAX_NMODES], m1, rinfo, nfactors, m);
       /* incorporate neighbors' partials */
       mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
           rinfo, nfactors, m);
@@ -289,7 +288,7 @@ void cpd(
 
 #ifdef SPLATT_USE_MPI
       /* send updated rows to neighbors */
-      mpi_update_rows(tt, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
+      mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
           rinfo, nfactors, m);
 #endif
 
@@ -312,7 +311,6 @@ void cpd(
   /* clean up */
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(aTa[m]);
-    ften_free(ft[m]);
   }
   mat_free(aTa[MAX_NMODES]);
 

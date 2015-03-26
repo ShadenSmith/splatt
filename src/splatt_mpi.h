@@ -114,7 +114,8 @@ typedef struct
 *        ranks. We send globmats[mode] to the needing ranks and receive other
 *        ranks' globmats entries which we store in mats[mode].
 *
-* @param tt The tensor we are operating on.
+* @param indmap The local->global mapping of the tensor. May be NULL if the
+*               mapping is identity.
 * @param nbr2globs_buf Buffer at least as large as as there are rows to send
 *                      (for each rank).
 * @param nbr2local_buf Buffer at least as large as there are rows to receive.
@@ -125,7 +126,7 @@ typedef struct
 * @param mode The mode to exchange along.
 */
 void mpi_update_rows(
-  sptensor_t const * const tt,
+  idx_t const * const indmap,
   val_t * const restrict nbr2globs_buf,
   val_t * const restrict nbr2local_buf,
   matrix_t * const localmat,
@@ -160,7 +161,8 @@ void mpi_reduce_rows(
 /**
 * @brief Add my own partial products to the global matrix that I own.
 *
-* @param tt The tensor I am computing on.
+* @param indmap The local->global mapping of the tensor. May be NULL if the
+*               mapping is identity.
 * @param localmat The local matrix containing my partial products.
 * @param globmat The global factor matrix I am writing to.
 * @param rinfo MPI rank information.
@@ -168,7 +170,7 @@ void mpi_reduce_rows(
 * @param mode The mode I am operating on.
 */
 void mpi_add_my_partials(
-  sptensor_t const * const tt,
+  idx_t const * const indmap,
   matrix_t const * const localmat,
   matrix_t * const globmat,
   rank_info const * const rinfo,

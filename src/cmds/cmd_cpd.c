@@ -5,6 +5,7 @@
 #include "splatt_cmds.h"
 #include "../io.h"
 #include "../sptensor.h"
+#include "../ftensor.h"
 #include "../tile.h"
 #include "../stats.h"
 #include "../cpd.h"
@@ -114,17 +115,25 @@ void splatt_cpd(
 
   /* determine isend and ineed lists */
   mpi_compute_ineed(&rinfo, tt, args.rank);
+#else
+  tt_remove_empty(tt);
 #endif
+
+  ftensor_t * ft[MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ft[m] = ften_alloc(tt, m, args.tile);
+  }
+  tt_free(tt);
 
   /* allocate / initialize matrices */
   idx_t max_dim = 0;
   /* M, the result matrix is stored at mats[MAX_NMODES] */
   matrix_t * mats[MAX_NMODES+1];
   matrix_t * globmats[MAX_NMODES];
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    mats[m] = mat_rand(tt->dims[m], args.rank);
-    if(tt->dims[m] > max_dim) {
-      max_dim = tt->dims[m];
+  for(idx_t m=0; m < ft[0]->nmodes; ++m) {
+    mats[m] = mat_rand(ft[0]->dims[m], args.rank);
+    if(ft[0]->dims[m] > max_dim) {
+      max_dim = ft[0]->dims[m];
     }
 #ifdef SPLATT_USE_MPI
     /* for actual factor matrix */
@@ -155,11 +164,11 @@ void splatt_cpd(
   }
 
   /* do the factorization! */
-  cpd(tt, mats, globmats, lambda, &rinfo, &args);
+  cpd(ft, mats, globmats, lambda, &rinfo, &args);
 
-  idx_t const nmodes = tt->nmodes;
-  tt_free(tt);
+  idx_t const nmodes = ft[0]->nmodes;
   for(idx_t m=0;m < nmodes; ++m) {
+    ften_free(ft[m]);
     mat_free(mats[m]);
 #ifdef SPLATT_USE_MPI
     mat_free(globmats[m]);

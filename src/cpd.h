@@ -28,7 +28,7 @@ typedef struct
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include "sptensor.h"
+#include "ftensor.h"
 #include "matrix.h"
 #include "splatt_mpi.h"
 
@@ -37,7 +37,7 @@ typedef struct
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void cpd(
-  sptensor_t * const tt,
+  ftensor_t ** ft,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,

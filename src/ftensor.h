@@ -27,6 +27,8 @@ typedef struct
   idx_t * inds;
   val_t * vals;
 
+  idx_t * indmap; /** Maps local -> global indices. */
+
   /* structures for tiled tensors */
   int tiled;
   idx_t    nslabs;

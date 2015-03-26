@@ -27,7 +27,7 @@
 * @param mode The mode we are operating on.
 */
 static void __flush_glob_to_local(
-  sptensor_t const * const tt,
+  idx_t const * const indmap,
   matrix_t * const localmat,
   matrix_t const * const globalmat,
   rank_info const * const rinfo,
@@ -41,8 +41,8 @@ static void __flush_glob_to_local(
   idx_t const start = rinfo->ownstart[m];
   idx_t const end = rinfo->ownend[m];
 
-  idx_t const goffset = (tt->indmap[m] == NULL) ?
-      start - mat_start : tt->indmap[m][start] - mat_start;
+  idx_t const goffset = (indmap == NULL) ?
+      start - mat_start : indmap[start] - mat_start;
 
   memcpy(localmat->vals + (start*nfactors),
          globalmat->vals + (goffset*nfactors),
@@ -56,7 +56,7 @@ static void __flush_glob_to_local(
  *****************************************************************************/
 
 void mpi_update_rows(
-  sptensor_t const * const tt,
+  idx_t const * const indmap,
   val_t * const restrict nbr2globs_buf,
   val_t * const restrict nbr2local_buf,
   matrix_t * const localmat,
@@ -108,7 +108,7 @@ void mpi_update_rows(
   }
 
   /* ensure the local matrix is up to date too */
-  __flush_glob_to_local(tt, localmat, globalmat, rinfo, nfactors, m);
+  __flush_glob_to_local(indmap, localmat, globalmat, rinfo, nfactors, m);
   timer_stop(&timers[TIMER_MPI]);
 }
 
@@ -170,7 +170,7 @@ void mpi_reduce_rows(
 
 
 void mpi_add_my_partials(
-  sptensor_t const * const tt,
+  idx_t const * const indmap,
   matrix_t const * const localmat,
   matrix_t * const globmat,
   rank_info const * const rinfo,
@@ -187,8 +187,8 @@ void mpi_add_my_partials(
 
   memset(globmat->vals, 0, globmat->I * nfactors * sizeof(val_t));
 
-  idx_t const goffset = (tt->indmap[m] == NULL) ?
-      start - mat_start : tt->indmap[m][start] - mat_start;
+  idx_t const goffset = (indmap == NULL) ?
+      start - mat_start : indmap[start] - mat_start;
 
   memcpy(globmat->vals + (goffset * nfactors),
          localmat->vals + (start * nfactors),

@@ -233,6 +233,14 @@ ftensor_t * ften_alloc(
     __create_sliceptr(ft, tt, mode);
   }
 
+  /* copy indmap if necessary */
+  if(tt->indmap[mode] != NULL) {
+    ft->indmap = (idx_t *) malloc(ft->dims[mode] * sizeof(idx_t));
+    memcpy(ft->indmap, tt->indmap[mode], ft->dims[mode] * sizeof(idx_t));
+  } else {
+    ft->indmap = NULL;
+  }
+
 #if 0
   /* calculate storage */
   idx_t bytes = 0;
@@ -283,6 +291,7 @@ void ften_free(
   free(ft->inds);
   free(ft->vals);
   free(ft->sptr);
+  free(ft->indmap);
   if(ft->tiled) {
     free(ft->slabptr);
     free(ft->sids);
