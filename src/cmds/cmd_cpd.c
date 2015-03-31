@@ -10,6 +10,7 @@
 #include "../stats.h"
 #include "../cpd.h"
 #include "../splatt_mpi.h"
+#include "../sort.h"
 
 
 /******************************************************************************
@@ -141,8 +142,6 @@ void splatt_cpd(
   /* determine matrix distribution - this also calls tt_remove_empty() */
   permutation_t * perm = mpi_distribute_mats(&rinfo, tt, args.distribution);
 
-  printf("distributed\n");
-
   /* 1D and 2D distributions require filtering because tt has nonzeros that
    * don't belong in each ftensor */
   if(args.distribution == 1) {
@@ -156,29 +155,11 @@ void splatt_cpd(
       /* compress tensor to own local coordinate system */
       tt_remove_empty(tt_filtered);
 
-      mpi_write_part(tt_filtered, perm, &rinfo);
-      return;
+      rinfo.ownstart[m] = 0;
+      rinfo.ownend[m] = tt_filtered->dims[m];
+      rinfo.nowned[m] = tt_filtered->dims[m];
 
-      /* index into local tensor to grab owned rows */
-      for(idx_t m=0; m < tt->nmodes; ++m) {
-        rinfo.ownstart[m] = 0;
-        rinfo.ownend[m] = tt_filtered->dims[m];
-        rinfo.nowned[m] = tt_filtered->dims[m];
-
-        /* sanity check to ensure owned rows are contiguous */
-        idx_t const * const indmap = tt_filtered->indmap[m];
-        if(indmap != NULL) {
-          idx_t const start = rinfo.mat_start[m];
-          idx_t const end   = rinfo.mat_end[m];
-          for(idx_t i=0; i < tt_filtered->dims[m]; ++i) {
-            assert(indmap[i] >= start && indmap[i] < end);
-            //assert(indmap[i] == indmap[i-1]+1);
-            if(indmap[i] != indmap[i-1]+1) {
-              printf("%lu != %lu\n", indmap[i], indmap[i-1]+1);
-            }
-          }
-        }
-      }
+      ft[m] = ften_alloc(tt_filtered, m, args.tile);
     } /* foreach mode */
 
     tt_free(tt_filtered);
@@ -193,9 +174,12 @@ void splatt_cpd(
 
     /* determine isend and ineed lists */
     mpi_compute_ineed(&rinfo, tt, args.rank);
-  }
 
-  return;
+    /* fill each ftensor */
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      ft[m] = ften_alloc(tt, m, args.tile);
+    }
+  } /* end 3D distribution */
 
 #else
   tt = tt_read(args.ifname);
@@ -203,12 +187,13 @@ void splatt_cpd(
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
   tt_remove_empty(tt);
-#endif
 
   /* fill each ftensor */
   for(idx_t m=0; m < tt->nmodes; ++m) {
     ft[m] = ften_alloc(tt, m, args.tile);
   }
+#endif
+
   tt_free(tt);
 
   /* allocate / initialize matrices */

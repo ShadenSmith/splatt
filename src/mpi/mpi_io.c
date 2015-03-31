@@ -603,6 +603,10 @@ void mpi_filter_tt_1d(
   for(idx_t n=0; n < ftt->nnz; ++n) {
     ftt->ind[mode][n] -= start;
   }
+
+  for(idx_t i=0; i < ftt->dims[mode]; ++i) {
+    assert(i + start < end);
+  }
 }
 
 
@@ -701,6 +705,7 @@ void mpi_write_mats(
   }
 }
 
+
 void mpi_write_part(
   sptensor_t const * const tt,
   permutation_t const * const perm,
@@ -721,13 +726,12 @@ void mpi_write_part(
       if(perm->iperms[m] != NULL) {
         idx = perm->iperms[m][idx];
       }
-      idx += rinfo->layer_starts[m];
 
       /* write index */
-      fprintf(fout, "%"SS_IDX"\t", 1+idx);
+      fprintf(fout, "%"SS_IDX" ", 1+idx);
     }
     //fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
-    fprintf(fout, "%d\n", (int)tt->vals[n]);
+    fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
   }
   fclose(fout);
 }
