@@ -196,6 +196,20 @@ void mpi_write_mats(
 
 
 /**
+* @brief Write a tensor to file <rank>.part. All local indices are converted to
+*        global.
+*
+* @param tt The tensor to write.
+* @param perm Any permutations that have been done on the tensor
+*             (before compression).
+* @param rinfo MPI rank information.
+*/
+void mpi_write_part(
+  sptensor_t const * const tt,
+  permutation_t const * const perm,
+  rank_info const * const rinfo);
+
+/**
 * @brief
 *
 * @param rinfo
@@ -221,18 +235,52 @@ sptensor_t * mpi_tt_read(
 
 
 /**
+* @brief Run nonzeros from tt through filter to 'ftt'. This is 1D filtering,
+*        so we accept any nonzeros whose ind[mode] are within [start, end).
+*
+* @param mode The mode to filter along.
+* @param tt The original tensor.
+* @param ftt The tensor to filter into (pre-allocated).
+* @param start The first index to accept (inclusive).
+* @param end The last index to accept (exclusive).
+*/
+void mpi_filter_tt_1d(
+  idx_t const mode,
+  sptensor_t const * const tt,
+  sptensor_t * const ftt,
+  idx_t const start,
+  idx_t const end);
+
+
+/**
 * @brief Compute a distribution of factor matrices that minimizes communication
 *        volume.
 *
 * @param rinfo MPI structure containing rank and communicator information.
 * @param tt A partition of the tensor. NOTE: indices will be reordered after
 *           distribution to ensure contiguous matrix partitions.
+* @param distribution The dimension of the distribution to perform (1-3).
 *
 * @return The permutation that was applied to tt.
 */
 permutation_t *  mpi_distribute_mats(
   rank_info * const rinfo,
-  sptensor_t * const tt);
+  sptensor_t * const tt,
+  idx_t const distribution);
+
+
+
+/**
+* @brief Setup 'owned' structures which mark the location of owned rows in
+*        my local tensor.
+*
+* @param tt My subtensor.
+* @param rinfo MPI rank information.
+*/
+void mpi_find_owned(
+  sptensor_t const * const tt,
+  rank_info * const rinfo);
+
 
 /**
 * @brief Fill rinfo with process' MPI rank information. Includes rank, 3D

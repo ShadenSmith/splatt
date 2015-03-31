@@ -125,6 +125,7 @@ idx_t tt_remove_empty(
   for(idx_t m=0; m < tt->nmodes; ++m) {
     maxdim = tt->dims[m] > maxdim ? tt->dims[m] : maxdim;
   }
+  /* slice counts */
   idx_t * scounts = (idx_t *) malloc(maxdim * sizeof(idx_t));
 
   for(idx_t m=0; m < nmodes; ++m) {

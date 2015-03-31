@@ -459,6 +459,23 @@ permutation_t * perm_graph(
   return perm;
 }
 
+
+permutation_t * perm_identity(
+  idx_t const * const dims,
+  idx_t const nmodes)
+{
+  printf("IDENTITY: %lu: %lu %lu %lu\n", nmodes, dims[0], dims[1], dims[2]);
+  permutation_t * perm = perm_alloc(dims, nmodes);
+  for(idx_t m=0; m < nmodes; ++m) {
+    for(idx_t i=0; i < dims[m]; ++i) {
+      perm->perms[m][i] = i;
+      perm->iperms[m][i] = i;
+    }
+  }
+  return perm;
+}
+
+
 permutation_t * perm_alloc(
   idx_t const * const dims,
   idx_t const nmodes)

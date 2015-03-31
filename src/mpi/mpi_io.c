@@ -11,45 +11,6 @@
  * PRIVATE FUNCTONS
  *****************************************************************************/
 
-/**
-* @brief Write a tensor to file <rank>.part. All local indices are converted to
-*        global.
-*
-* @param tt The tensor to write.
-* @param perm Any permutations that have been done on the tensor
-*             (before compression).
-* @param rinfo MPI rank information.
-*/
-static void __write_part(
-  sptensor_t const * const tt,
-  permutation_t const * const perm,
-  rank_info const * const rinfo)
-{
-  /* file name is <rank>.part */
-  char name[256];
-  sprintf(name, "%d.part", rinfo->rank);
-
-  FILE * fout = open_f(name, "w");
-  for(idx_t n=0; n < tt->nnz; ++n) {
-    for(idx_t m=0; m < tt->nmodes; ++m) {
-      /* map idx to original global coordinate */
-      idx_t idx = tt->ind[m][n];
-      if(tt->indmap[m] != NULL) {
-        idx = tt->indmap[m][idx];
-      }
-      if(perm->iperms[m] != NULL) {
-        idx = perm->iperms[m][idx];
-      }
-      idx += rinfo->layer_starts[m];
-
-      /* write index */
-      fprintf(fout, "%"SS_IDX" ", 1+idx);
-    }
-    fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
-  }
-  fclose(fout);
-}
-
 
 /**
 * @brief Find the start/end slices in each mode for my partition of X.
@@ -128,6 +89,10 @@ static void __find_my_slices_1d(
         }
       }
       nnzcnt += ssizes[m][s];
+
+      if(rinfo->rank == rinfo->npes-1) {
+        assert(rinfo->layer_ends[m] == rinfo->global_dims[m]);
+      }
     }
 
     printf("p: %d start: %lu end: %lu\n", rinfo->rank, rinfo->layer_starts[m],
@@ -218,7 +183,8 @@ static idx_t __count_my_nnz_1d(
         idx_t ind = strtoull(ptr, &ptr, 10) - 1;
         /* I own the nnz if it falls in any of my slices */
         if(ind >= sstarts[m] && ind < sends[m]) {
-          mine = 0;
+          mine = 1;
+          break;
         }
       }
       if(mine) {
@@ -284,6 +250,53 @@ static void __read_tt_part(
 
 
 /**
+* @brief Read a partition of X into tt.
+*
+* @param fname The file containing X.
+* @param tt The tensor structure (must be pre-allocated).
+* @param sstarts Array of starting slices, inclusive (one for each mode).
+* @param sends Array of ending slices, exclusive (one for each mode).
+*/
+static void __read_tt_part_1d(
+  char const * const fname,
+  sptensor_t * const tt,
+  idx_t const * const sstarts,
+  idx_t const * const sends)
+{
+  idx_t const nnz = tt->nnz;
+  idx_t const nmodes = tt->nmodes;
+
+  char * ptr = NULL;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+
+  FILE * fin = open_f(fname, "r");
+  idx_t nnzread = 0;
+  while(nnzread < nnz && (read = getline(&line, &len, fin)) != -1) {
+    /* skip empty and commented lines */
+    if(read > 1 && line[0] != '#') {
+      int mine = 0;
+      ptr = line;
+      for(idx_t m=0; m < nmodes; ++m) {
+        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
+        tt->ind[m][nnzread] = ind;
+        if(ind >= sstarts[m] && ind < sends[m]) {
+          mine = 1;
+        }
+      }
+      tt->vals[nnzread] = strtod(ptr, &ptr);
+      if(mine) {
+        ++nnzread;
+      }
+    }
+  }
+  fclose(fin);
+  free(line);
+}
+
+
+/**
 * @brief Read my portion of X from a file.
 *
 * @param fname The file containing X.
@@ -311,10 +324,8 @@ static sptensor_t * __read_tt_1d(
       rinfo->layer_ends);
   sptensor_t * tt = tt_alloc(mynnz, nmodes);
 
-  printf("p: %d nnz: %lu\n", rinfo->rank, mynnz);
-
   /* now actually load values */
-  __read_tt_part(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
+  __read_tt_part_1d(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
 
   return tt;
 }
@@ -521,17 +532,23 @@ sptensor_t * mpi_tt_read(
 
   __fill_ssizes(ifname, ssizes, nmodes, rinfo);
 
+  /* actually parse tensor */
   sptensor_t * tt = NULL;
   switch(rinfo->distribution) {
   case 1:
-    /* actually parse tensor */
     tt = __read_tt_1d(ifname, ssizes, nmodes, rinfo);
+    /* now fix tt->dims */
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      tt->dims[m] = 0;
+      for(idx_t n=0; n < tt->nnz; ++n) {
+        tt->dims[m] = SS_MAX(tt->dims[m], tt->ind[m][n] + 1);
+      }
+    }
     break;
 
   case 3:
-    /* actually parse tensor */
     tt = __read_tt_3d(ifname, ssizes, nmodes, rinfo);
-    /* now map tensor indices to local (layer) coordinates */
+    /* now map tensor indices to local (layer) coordinates and fill in dims */
     for(idx_t m=0; m < nmodes; ++m) {
       free(ssizes[m]);
       tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
@@ -547,6 +564,45 @@ sptensor_t * mpi_tt_read(
   timer_stop(&timers[TIMER_IO]);
 
   return tt;
+}
+
+
+void mpi_filter_tt_1d(
+  idx_t const mode,
+  sptensor_t const * const tt,
+  sptensor_t * const ftt,
+  idx_t const start,
+  idx_t const end)
+{
+  assert(ftt != NULL);
+
+  for(idx_t m=0; m < ftt->nmodes; ++m) {
+    ftt->dims[m] = 0;
+  }
+
+  idx_t nnz = 0;
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    /* Copy the nonzero if we own the slice. */
+    if(tt->ind[mode][n] >= start && tt->ind[mode][n] < end) {
+      for(idx_t m=0; m < tt->nmodes; ++m) {
+        ftt->ind[m][nnz] = tt->ind[m][n];
+        ftt->dims[m] = SS_MAX(ftt->dims[m], tt->ind[m][n]);
+      }
+      ftt->vals[nnz++] = tt->vals[n];
+    }
+  }
+
+  /* update ftt dimensions and nnz */
+  ftt->nnz = nnz;
+  for(idx_t m=0; m < ftt->nmodes; ++m) {
+    ftt->dims[m] += 1;
+  }
+
+  /* now map mode coords to [0, end-start) */
+  ftt->dims[mode] = end - start;
+  for(idx_t n=0; n < ftt->nnz; ++n) {
+    ftt->ind[mode][n] -= start;
+  }
 }
 
 
@@ -643,5 +699,36 @@ void mpi_write_mats(
     free(vbuf);
     free(loc_iperm);
   }
+}
+
+void mpi_write_part(
+  sptensor_t const * const tt,
+  permutation_t const * const perm,
+  rank_info const * const rinfo)
+{
+  /* file name is <rank>.part */
+  char name[256];
+  sprintf(name, "%d.part", rinfo->rank);
+
+  FILE * fout = open_f(name, "w");
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      /* map idx to original global coordinate */
+      idx_t idx = tt->ind[m][n];
+      if(tt->indmap[m] != NULL) {
+        idx = tt->indmap[m][idx];
+      }
+      if(perm->iperms[m] != NULL) {
+        idx = perm->iperms[m][idx];
+      }
+      idx += rinfo->layer_starts[m];
+
+      /* write index */
+      fprintf(fout, "%"SS_IDX"\t", 1+idx);
+    }
+    //fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
+    fprintf(fout, "%d\n", (int)tt->vals[n]);
+  }
+  fclose(fout);
 }
 

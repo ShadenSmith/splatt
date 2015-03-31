@@ -579,26 +579,44 @@ static void __setup_mat_ptrs(
 }
 
 
+
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
 permutation_t * mpi_distribute_mats(
   rank_info * const rinfo,
-  sptensor_t * const tt)
+  sptensor_t * const tt,
+  idx_t const distribution)
 {
-  permutation_t * perm = perm_alloc(tt->dims, tt->nmodes);
+  permutation_t * perm = perm_identity(tt->dims, tt->nmodes);
+  switch(distribution) {
+  case 1:
+    /* assign simple 1D matrix distribution */
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      rinfo->mat_start[m] = 0;
+      rinfo->mat_end[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+    }
+    break;
 
-  __greedy_mat_distribution(rinfo, tt, perm);
+  case 2:
+    break;
 
-  perm_apply(tt, perm->perms);
+  case 3:
+    __greedy_mat_distribution(rinfo, tt, perm);
+    perm_apply(tt, perm->perms);
+    __setup_mat_ptrs(rinfo, tt);
+    break;
+  }
 
-  /* compress tensor to own local coordinate system */
-  tt_remove_empty(tt);
+  return perm;
+}
 
-  __setup_mat_ptrs(rinfo, tt);
 
-  /* count # owned rows which are found in my tensor */
+void mpi_find_owned(
+  sptensor_t const * const tt,
+  rank_info * const rinfo)
+{
   for(idx_t m=0; m < tt->nmodes; ++m) {
     idx_t const start = rinfo->mat_start[m];
     idx_t const end = rinfo->mat_end[m];
@@ -625,13 +643,6 @@ permutation_t * mpi_distribute_mats(
       }
     }
   }
-
-#if 0
-  __write_part(tt, perm, rinfo);
-#endif
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  return perm;
 }
+
 

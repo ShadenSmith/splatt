@@ -88,6 +88,9 @@ permutation_t * perm_graph(
   idx_t const * const parts,
   idx_t const nparts);
 
+permutation_t * perm_identity(
+  idx_t const * const dims,
+  idx_t const nmodes);
 
 permutation_t * perm_alloc(
   idx_t const * const dims,

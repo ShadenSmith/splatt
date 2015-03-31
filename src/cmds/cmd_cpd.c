@@ -13,6 +13,37 @@
 
 
 /******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
+
+
+/**
+* @brief Copy global information into local tt, print statistics, and
+*        restore local information.
+*
+* @param tt The tensor to hold global information.
+* @param rinfo Global tensor information.
+*/
+static void __mpi_global_stats(
+  sptensor_t * const tt,
+  rank_info * const rinfo,
+  cpd_opts const * const args)
+{
+  idx_t * tmpdims = tt->dims;
+  idx_t tmpnnz = tt->nnz;
+  tt->dims = rinfo->global_dims;
+  tt->nnz = rinfo->global_nnz;
+
+  /* print stats */
+  stats_tt(tt, args->ifname, STATS_BASIC, 0, NULL);
+
+  /* restore local stats */
+  tt->dims = tmpdims;
+  tt->nnz = tmpnnz;
+}
+
+
+/******************************************************************************
  * SPLATT CPD
  *****************************************************************************/
 static char cpd_args_doc[] = "TENSOR";
@@ -91,6 +122,7 @@ void splatt_cpd(
   rinfo.rank = 0;
 
   sptensor_t * tt = NULL;
+  ftensor_t * ft[MAX_NMODES];
 
 #ifdef SPLATT_USE_MPI
   mpi_setup_comms(&rinfo, args.distribution);
@@ -100,26 +132,80 @@ void splatt_cpd(
     abort();
   }
   tt = mpi_tt_read(args.ifname, &rinfo);
-#else
-  tt = tt_read(args.ifname);
-#endif
-
+  /* print stats */
   if(rinfo.rank == 0) {
     print_header();
-    stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+    __mpi_global_stats(tt, &rinfo, &args);
   }
 
-#ifdef SPLATT_USE_MPI
-  /* determine matrix distribution */
-  permutation_t * perm = mpi_distribute_mats(&rinfo, tt);
+  /* determine matrix distribution - this also calls tt_remove_empty() */
+  permutation_t * perm = mpi_distribute_mats(&rinfo, tt, args.distribution);
 
-  /* determine isend and ineed lists */
-  mpi_compute_ineed(&rinfo, tt, args.rank);
+  printf("distributed\n");
+
+  /* 1D and 2D distributions require filtering because tt has nonzeros that
+   * don't belong in each ftensor */
+  if(args.distribution == 1) {
+    sptensor_t * tt_filtered = tt_alloc(tt->nnz, tt->nmodes);
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      /* tt has more nonzeros than any of the modes actually need, so we need
+       * to filter them first. */
+      mpi_filter_tt_1d(m, tt, tt_filtered, rinfo.layer_starts[m],
+          rinfo.layer_ends[m]);
+
+      /* compress tensor to own local coordinate system */
+      tt_remove_empty(tt_filtered);
+
+      mpi_write_part(tt_filtered, perm, &rinfo);
+      return;
+
+      /* index into local tensor to grab owned rows */
+      for(idx_t m=0; m < tt->nmodes; ++m) {
+        rinfo.ownstart[m] = 0;
+        rinfo.ownend[m] = tt_filtered->dims[m];
+        rinfo.nowned[m] = tt_filtered->dims[m];
+
+        /* sanity check to ensure owned rows are contiguous */
+        idx_t const * const indmap = tt_filtered->indmap[m];
+        if(indmap != NULL) {
+          idx_t const start = rinfo.mat_start[m];
+          idx_t const end   = rinfo.mat_end[m];
+          for(idx_t i=0; i < tt_filtered->dims[m]; ++i) {
+            assert(indmap[i] >= start && indmap[i] < end);
+            //assert(indmap[i] == indmap[i-1]+1);
+            if(indmap[i] != indmap[i-1]+1) {
+              printf("%lu != %lu\n", indmap[i], indmap[i-1]+1);
+            }
+          }
+        }
+      }
+    } /* foreach mode */
+
+    tt_free(tt_filtered);
+
+  /* 3D distribution is simpler */
+  } else {
+    /* compress tensor to own local coordinate system */
+    tt_remove_empty(tt);
+
+    /* index into local tensor to grab owned rows */
+    mpi_find_owned(tt, &rinfo);
+
+    /* determine isend and ineed lists */
+    mpi_compute_ineed(&rinfo, tt, args.rank);
+  }
+
+  return;
+
 #else
+  tt = tt_read(args.ifname);
+  print_header();
+  stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+
   tt_remove_empty(tt);
 #endif
 
-  ftensor_t * ft[MAX_NMODES];
+  /* fill each ftensor */
   for(idx_t m=0; m < tt->nmodes; ++m) {
     ft[m] = ften_alloc(tt, m, args.tile);
   }
