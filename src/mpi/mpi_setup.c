@@ -11,6 +11,22 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+static void __fill_ineed_ptrs_1d(
+  sptensor_t const * const tt,
+  idx_t const mode,
+  rank_info * const rinfo)
+{
+  int const size = rinfo->npes;
+  int const rank = rinfo->rank;
+
+  rinfo->nlocal2nbr[mode] = 0;
+
+  for(idx_t i=0; i < tt->dims[mode]; ++i) {
+
+  }
+}
+
+
 static void __fill_ineed_ptrs(
   sptensor_t const * const tt,
   idx_t const mode,
@@ -164,7 +180,10 @@ static void __fill_ineed_inds(
 static void __setup_1d(
   rank_info * const rinfo)
 {
-  /* nothing special here */
+  rinfo->comm_3d = MPI_COMM_WORLD;
+  rinfo->layer_comm[0] = MPI_COMM_WORLD;
+  rinfo->layer_comm[1] = MPI_COMM_WORLD;
+  rinfo->layer_comm[2] = MPI_COMM_WORLD;
 }
 
 

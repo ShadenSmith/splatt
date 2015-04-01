@@ -161,6 +161,12 @@ void splatt_cpd(
       mpi_filter_tt_1d(m, tt, tt_filtered, rinfo.layer_starts[m],
           rinfo.layer_ends[m]);
 
+      /* filtering shrinks the dimensions but we want the originals in all but
+       * the decomposed mode */
+      for(idx_t m2=1; m2 < tt->nmodes; ++m2) {
+        tt_filtered->dims[(m+m2) % tt->nmodes] = tt->dims[(m+m2) % tt->nmodes];
+      }
+
       rinfo.ownstart[m] = 0;
       rinfo.ownend[m] = tt_filtered->dims[m];
       rinfo.nowned[m] = tt_filtered->dims[m];
@@ -168,10 +174,6 @@ void splatt_cpd(
       //mpi_compute_ineed(m, &rinfo, tt_filtered, args.rank);
 
       ft[m] = ften_alloc(tt_filtered, m, args.tile);
-      if(rinfo.rank == 1) {
-        printf("%lu: %lu x %lu x %lu\n", m,
-          ft[m]->dims[0], ft[m]->dims[1], ft[m]->dims[2]);
-      }
     } /* foreach mode */
 
     tt_free(tt_filtered);
@@ -217,9 +219,6 @@ void splatt_cpd(
     /* ft[:] have different dimensionalities for 1/2D and ft[m+1] is guaranteed
      * to have the full dimensionality */
     mats[m] = mat_rand(ft[(m+1) % nmodes]->dims[m], args.rank);
-    if(rinfo.rank == 1) {
-      printf("mats[%lu] = %lu x %lu\n", m, mats[m]->I, mats[m]->J);
-    }
     if(ft[0]->dims[m] > max_dim) {
       max_dim = ft[0]->dims[m];
     }
