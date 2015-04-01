@@ -3,6 +3,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "splatt_cmds.h"
+#include "../io.h"
 #include "../stats.h"
 #include "../reorder.h"
 
@@ -15,6 +16,7 @@ static char perm_args_doc[] = "TENSOR";
 static char perm_doc[] =
   "splatt-reorder -- permute a tensor\n\n"
   "Mode-independent types are:\n"
+  "  rand\t\t\tCreate a random permutation of a tensor\n"
   "  graph\t\t\tReorder based on the partitioning of a mode-independent graph\n"
   "Mode-dependent types are:\n"
   "  hgraph\t\tReorder based on the partitioning of a fiber hyper-graph\n";
@@ -54,7 +56,9 @@ static error_t parse_perm_opt(
     break;
 
   case 't':
-    if(strcmp(arg, "graph") == 0) {
+    if(strcmp(arg, "rand") == 0) {
+      args->type = PERM_RAND;
+    } else if(strcmp(arg, "graph") == 0) {
       args->type = PERM_GRAPH;
     } else if(strcmp(arg, "hgraph") == 0) {
       args->type = PERM_HGRAPH;
@@ -94,6 +98,7 @@ void splatt_reorder(
   perm_args args;
   args.ifname = NULL;
   args.pfname = NULL;
+  args.ofname = NULL;
   args.type = PERM_ERROR;
   args.mode = 0;
   argp_parse(&perm_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
@@ -108,7 +113,26 @@ void splatt_reorder(
 
   sptensor_t * tt = tt_read(args.ifname);
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
-  tt_perm(tt, args.type, args.mode, args.pfname);
+
+  /* perform permutation */
+  permutation_t * perm = tt_perm(tt, args.type, args.mode, args.pfname);
+
+  /* write output */
+  if(args.ofname != NULL) {
+    tt_write(tt, args.ofname);
+
+    char * fbuf = NULL;
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      asprintf(&fbuf, "%s.mode%"SS_IDX".perm", args.ofname, m);
+
+      perm_write(perm->perms[m], tt->dims[m], fbuf);
+
+      free(fbuf);
+      fbuf = NULL;
+    }
+  }
+
+  perm_free(perm);
   tt_free(tt);
 }
 

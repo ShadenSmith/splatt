@@ -8,6 +8,7 @@
 #include "sptensor.h"
 #include "matrix.h"
 #include "graph.h"
+#include "reorder.h"
 
 
 /**
@@ -79,6 +80,19 @@ void spmat_write_file(
   spmatrix_t const * const mat,
   FILE * fout);
 
+
+/******************************************************************************
+ * PERMUTATION FUNCTIONS
+ *****************************************************************************/
+void perm_write(
+  idx_t * perm,
+  idx_t const dim,
+  char const * const fname);
+
+void perm_write_file(
+  idx_t * perm,
+  idx_t const dim,
+  FILE * fout);
 
 
 /******************************************************************************
