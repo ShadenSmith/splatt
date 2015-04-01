@@ -119,11 +119,19 @@ void splatt_cpd(
 
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
-  rank_info rinfo;
-  rinfo.rank = 0;
-
   sptensor_t * tt = NULL;
   ftensor_t * ft[MAX_NMODES];
+
+  rank_info rinfo;
+#ifdef SPLATT_USE_MPI
+  MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
+#else
+  rinfo.rank = 0;
+#endif
+
+  if(rinfo.rank == 0) {
+    print_header();
+  }
 
 #ifdef SPLATT_USE_MPI
   mpi_setup_comms(&rinfo, args.distribution);
@@ -135,7 +143,6 @@ void splatt_cpd(
   tt = mpi_tt_read(args.ifname, &rinfo);
   /* print stats */
   if(rinfo.rank == 0) {
-    print_header();
     __mpi_global_stats(tt, &rinfo, &args);
   }
 
@@ -145,6 +152,8 @@ void splatt_cpd(
   /* 1D and 2D distributions require filtering because tt has nonzeros that
    * don't belong in each ftensor */
   if(args.distribution == 1) {
+    /* compress tensor to own local coordinate system */
+    tt_remove_empty(tt);
     sptensor_t * tt_filtered = tt_alloc(tt->nnz, tt->nmodes);
     for(idx_t m=0; m < tt->nmodes; ++m) {
       /* tt has more nonzeros than any of the modes actually need, so we need
@@ -152,16 +161,17 @@ void splatt_cpd(
       mpi_filter_tt_1d(m, tt, tt_filtered, rinfo.layer_starts[m],
           rinfo.layer_ends[m]);
 
-      /* compress tensor to own local coordinate system */
-      tt_remove_empty(tt_filtered);
-
       rinfo.ownstart[m] = 0;
       rinfo.ownend[m] = tt_filtered->dims[m];
       rinfo.nowned[m] = tt_filtered->dims[m];
 
-      mpi_compute_ineed(m, &rinfo, tt_filtered, args.rank);
+      //mpi_compute_ineed(m, &rinfo, tt_filtered, args.rank);
 
       ft[m] = ften_alloc(tt_filtered, m, args.tile);
+      if(rinfo.rank == 1) {
+        printf("%lu: %lu x %lu x %lu\n", m,
+          ft[m]->dims[0], ft[m]->dims[1], ft[m]->dims[2]);
+      }
     } /* foreach mode */
 
     tt_free(tt_filtered);
@@ -185,7 +195,6 @@ void splatt_cpd(
 
 #else
   tt = tt_read(args.ifname);
-  print_header();
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
   tt_remove_empty(tt);
@@ -196,6 +205,7 @@ void splatt_cpd(
   }
 #endif
 
+  idx_t const nmodes = tt->nmodes;
   tt_free(tt);
 
   /* allocate / initialize matrices */
@@ -203,13 +213,19 @@ void splatt_cpd(
   /* M, the result matrix is stored at mats[MAX_NMODES] */
   matrix_t * mats[MAX_NMODES+1];
   matrix_t * globmats[MAX_NMODES];
-  for(idx_t m=0; m < ft[0]->nmodes; ++m) {
-    mats[m] = mat_rand(ft[0]->dims[m], args.rank);
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* ft[:] have different dimensionalities for 1/2D and ft[m+1] is guaranteed
+     * to have the full dimensionality */
+    mats[m] = mat_rand(ft[(m+1) % nmodes]->dims[m], args.rank);
+    if(rinfo.rank == 1) {
+      printf("mats[%lu] = %lu x %lu\n", m, mats[m]->I, mats[m]->J);
+    }
     if(ft[0]->dims[m] > max_dim) {
       max_dim = ft[0]->dims[m];
     }
-#ifdef SPLATT_USE_MPI
+
     /* for actual factor matrix */
+#ifdef SPLATT_USE_MPI
     globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m], args.rank);
 #else
     globmats[m] = mats[m];
@@ -239,7 +255,6 @@ void splatt_cpd(
   /* do the factorization! */
   //cpd(ft, mats, globmats, lambda, &rinfo, &args);
 
-  idx_t const nmodes = ft[0]->nmodes;
   for(idx_t m=0;m < nmodes; ++m) {
     ften_free(ft[m]);
     mat_free(mats[m]);

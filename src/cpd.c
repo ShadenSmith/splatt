@@ -216,8 +216,8 @@ void cpd(
   }
 #endif
 
-  /* Initialize first A^T * A mats. We skip the first because it will be
-   * solved for. */
+  /* Initialize first A^T * A mats. We redundantly do the first because it
+   * makes communication easier. */
   matrix_t * aTa[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
     aTa[m] = mat_alloc(nfactors, nfactors);

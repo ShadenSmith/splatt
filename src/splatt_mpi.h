@@ -249,8 +249,8 @@ void mpi_filter_tt_1d(
   idx_t const mode,
   sptensor_t const * const tt,
   sptensor_t * const ftt,
-  idx_t const start,
-  idx_t const end);
+  idx_t start,
+  idx_t end);
 
 
 /**

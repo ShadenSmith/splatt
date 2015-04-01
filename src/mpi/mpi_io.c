@@ -571,13 +571,27 @@ void mpi_filter_tt_1d(
   idx_t const mode,
   sptensor_t const * const tt,
   sptensor_t * const ftt,
-  idx_t const start,
-  idx_t const end)
+  idx_t start,
+  idx_t end)
 {
   assert(ftt != NULL);
 
   for(idx_t m=0; m < ftt->nmodes; ++m) {
     ftt->dims[m] = 0;
+  }
+
+  /* Adjust start and end if tt has been compressed. */
+  assert(start != end);
+  if(tt->indmap[mode] != NULL) {
+    /* TODO: change this linear search into a binary one */
+    for(idx_t i=0; i < tt->dims[mode]; ++i) {
+      if(tt->indmap[mode][i] == start) {
+        start = i;
+      } else if(tt->indmap[mode][i] == end) {
+        end = i;
+        break;
+      }
+    }
   }
 
   idx_t nnz = 0;
