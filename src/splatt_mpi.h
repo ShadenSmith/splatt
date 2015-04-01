@@ -216,6 +216,7 @@ void mpi_write_part(
 * @param tt
 */
 void mpi_compute_ineed(
+  idx_t const mode,
   rank_info * const rinfo,
   sptensor_t const * const tt,
   idx_t const nfactors);

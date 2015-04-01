@@ -228,17 +228,16 @@ static void __setup_3d(
  *****************************************************************************/
 
 void mpi_compute_ineed(
+  idx_t const mode,
   rank_info * const rinfo,
   sptensor_t const * const tt,
   idx_t const nfactors)
 {
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    /* fill local2nbr and nbr2globs ptrs */
-    __fill_ineed_ptrs(tt, m, rinfo);
+  /* fill local2nbr and nbr2globs ptrs */
+  __fill_ineed_ptrs(tt, mode, rinfo);
 
-    /* fill indices */
-    __fill_ineed_inds(tt, m, nfactors, rinfo);
-  }
+  /* fill indices */
+  __fill_ineed_inds(tt, mode, nfactors, rinfo);
 }
 
 

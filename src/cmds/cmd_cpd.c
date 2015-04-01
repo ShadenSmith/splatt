@@ -159,6 +159,8 @@ void splatt_cpd(
       rinfo.ownend[m] = tt_filtered->dims[m];
       rinfo.nowned[m] = tt_filtered->dims[m];
 
+      mpi_compute_ineed(m, &rinfo, tt_filtered, args.rank);
+
       ft[m] = ften_alloc(tt_filtered, m, args.tile);
     } /* foreach mode */
 
@@ -172,11 +174,11 @@ void splatt_cpd(
     /* index into local tensor to grab owned rows */
     mpi_find_owned(tt, &rinfo);
 
-    /* determine isend and ineed lists */
-    mpi_compute_ineed(&rinfo, tt, args.rank);
-
-    /* fill each ftensor */
     for(idx_t m=0; m < tt->nmodes; ++m) {
+      /* determine isend and ineed lists */
+      mpi_compute_ineed(m, &rinfo, tt, args.rank);
+
+      /* fill each ftensor */
       ft[m] = ften_alloc(tt, m, args.tile);
     }
   } /* end 3D distribution */
@@ -235,7 +237,7 @@ void splatt_cpd(
   }
 
   /* do the factorization! */
-  cpd(ft, mats, globmats, lambda, &rinfo, &args);
+  //cpd(ft, mats, globmats, lambda, &rinfo, &args);
 
   idx_t const nmodes = ft[0]->nmodes;
   for(idx_t m=0;m < nmodes; ++m) {

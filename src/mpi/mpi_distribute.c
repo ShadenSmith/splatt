@@ -547,35 +547,31 @@ static void __greedy_mat_distribution(
 *        rank. Indices are local to the layer.
 *
 * @param rinfo The structure containing MPI information.
-* @param tt The tensor we are operating on.
 */
 static void __setup_mat_ptrs(
-  rank_info * const rinfo,
-  sptensor_t const * const tt)
+  idx_t const mode,
+  MPI_Comm const comm,
+  rank_info * const rinfo)
 {
   /* number of procs in layer */
   int npes;
-  int lrank;
-  MPI_Comm lcomm;
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    lcomm = rinfo->layer_comm[m];
-    MPI_Comm_size(lcomm, &npes);
-    MPI_Comm_rank(lcomm, &lrank);
+  int rank;
+  MPI_Comm_size(comm, &npes);
+  MPI_Comm_rank(comm, &rank);
 
-    /* allocate space for start/end idxs */
-    rinfo->mat_ptrs[m] = (idx_t *) calloc(npes + 1, sizeof(idx_t));
-    idx_t * const mat_ptrs = rinfo->mat_ptrs[m];
+  /* allocate space for start/end idxs */
+  rinfo->mat_ptrs[mode] = (idx_t *) calloc(npes + 1, sizeof(idx_t));
+  idx_t * const mat_ptrs = rinfo->mat_ptrs[mode];
 
-    mat_ptrs[lrank] = rinfo->mat_start[m];
-    mat_ptrs[npes] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+  mat_ptrs[rank] = rinfo->mat_start[mode];
+  mat_ptrs[npes] = rinfo->layer_ends[mode] - rinfo->layer_starts[mode];
 
-    /* Doing a reduce instead of a gather lets us set location mode_rank
-     * instead of the rank in this communicator */
-    MPI_Allreduce(MPI_IN_PLACE, mat_ptrs, npes, SS_MPI_IDX, MPI_SUM, lcomm);
+  /* Doing a reduce instead of a gather lets us set location mode_rank
+   * instead of the rank in this communicator */
+  MPI_Allreduce(MPI_IN_PLACE, mat_ptrs, npes, SS_MPI_IDX, MPI_SUM, comm);
 
-    assert(rinfo->mat_ptrs[m][lrank] == rinfo->mat_start[m]);
-    assert(rinfo->mat_ptrs[m][lrank + 1] == rinfo->mat_end[m]);
-  }
+  assert(rinfo->mat_ptrs[mode][rank    ] == rinfo->mat_start[mode]);
+  assert(rinfo->mat_ptrs[mode][rank + 1] == rinfo->mat_end[mode]);
 }
 
 
@@ -605,7 +601,10 @@ permutation_t * mpi_distribute_mats(
   case 3:
     __greedy_mat_distribution(rinfo, tt, perm);
     perm_apply(tt, perm->perms);
-    __setup_mat_ptrs(rinfo, tt);
+
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      __setup_mat_ptrs(m, rinfo->layer_comm[m], rinfo);
+    }
     break;
   }
 
