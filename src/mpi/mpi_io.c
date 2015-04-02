@@ -97,10 +97,6 @@ static void __find_my_slices_1d(
         assert(rinfo->mat_end[m] == rinfo->global_dims[m]);
       }
     }
-
-    printf("p: %d start: %lu end: %lu\n", rinfo->rank, rinfo->mat_start[m],
-        rinfo->mat_end[m]);
-    MPI_Barrier(MPI_COMM_WORLD);
   }
 }
 
@@ -580,7 +576,7 @@ void mpi_filter_tt_1d(
   assert(ftt != NULL);
 
   for(idx_t m=0; m < ftt->nmodes; ++m) {
-    ftt->dims[m] = 0;
+    ftt->dims[m] = tt->dims[m];
   }
 
   /* Adjust start and end if tt has been compressed. */
@@ -603,7 +599,6 @@ void mpi_filter_tt_1d(
     if(tt->ind[mode][n] >= start && tt->ind[mode][n] < end) {
       for(idx_t m=0; m < tt->nmodes; ++m) {
         ftt->ind[m][nnz] = tt->ind[m][n];
-        ftt->dims[m] = SS_MAX(ftt->dims[m], tt->ind[m][n]);
       }
       ftt->vals[nnz++] = tt->vals[n];
     }
@@ -611,18 +606,20 @@ void mpi_filter_tt_1d(
 
   /* update ftt dimensions and nnz */
   ftt->nnz = nnz;
-  for(idx_t m=0; m < ftt->nmodes; ++m) {
-    ftt->dims[m] += 1;
-  }
+  ftt->dims[mode] = end - start;
 
   /* now map mode coords to [0, end-start) */
-  ftt->dims[mode] = end - start;
   for(idx_t n=0; n < ftt->nnz; ++n) {
+    assert(ftt->ind[mode][n] >= start);
     ftt->ind[mode][n] -= start;
   }
 
+  /* sanity check */
   for(idx_t i=0; i < ftt->dims[mode]; ++i) {
     assert(i + start < end);
+  }
+  for(idx_t n=0; n < ftt->nnz; ++n) {
+    assert(ftt->ind[mode][n] < end - start);
   }
 }
 

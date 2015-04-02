@@ -161,12 +161,6 @@ void splatt_cpd(
       mpi_filter_tt_1d(m, tt, tt_filtered, rinfo.mat_start[m],
           rinfo.mat_end[m]);
 
-      /* filtering shrinks the dimensions but we want the originals in all but
-       * the decomposed mode */
-      for(idx_t m2=1; m2 < tt->nmodes; ++m2) {
-        tt_filtered->dims[(m+m2) % tt->nmodes] = tt->dims[(m+m2) % tt->nmodes];
-      }
-
       rinfo.ownstart[m] = 0;
       rinfo.ownend[m] = tt_filtered->dims[m];
       rinfo.nowned[m] = tt_filtered->dims[m];
@@ -252,7 +246,7 @@ void splatt_cpd(
   }
 
   /* do the factorization! */
-  //cpd(ft, mats, globmats, lambda, &rinfo, &args);
+  cpd(ft, mats, globmats, lambda, &rinfo, &args);
 
   for(idx_t m=0;m < nmodes; ++m) {
     ften_free(ft[m]);

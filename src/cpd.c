@@ -226,6 +226,7 @@ void cpd(
   /* used as buffer space */
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
 
+
   /* Compute input tensor norm */
   val_t oldfit = 0;
   val_t mynorm = 0;
@@ -236,9 +237,16 @@ void cpd(
   val_t ttnormsq = 0;
 #ifdef SPLATT_USE_MPI
   MPI_Allreduce(&mynorm, &ttnormsq, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+
+  idx_t nnz = 0;
+  MPI_Allreduce(&ft[0]->nnz, &nnz, 1, SS_MPI_IDX, MPI_SUM, rinfo->comm_3d);
+  printf("nnz: %lu\n", nnz);
 #else
   ttnormsq = mynorm;
 #endif
+
+  printf("norm: %f\n", ttnormsq);
+  return;
 
   /* setup timers */
   timer_reset(&timers[TIMER_ATA]);
