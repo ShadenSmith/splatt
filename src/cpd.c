@@ -240,12 +240,14 @@ void cpd(
 
   idx_t nnz = 0;
   MPI_Allreduce(&ft[0]->nnz, &nnz, 1, SS_MPI_IDX, MPI_SUM, rinfo->comm_3d);
-  printf("nnz: %lu\n", nnz);
 #else
   ttnormsq = mynorm;
 #endif
 
-  printf("norm: %f\n", ttnormsq);
+  if(rinfo->rank == 0) {
+    printf("norm: %f\n", ttnormsq);
+    printf("nnz:  %lu\n", nnz);
+  }
   return;
 
   /* setup timers */

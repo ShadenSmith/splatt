@@ -608,11 +608,22 @@ void mpi_filter_tt_1d(
   ftt->nnz = nnz;
   ftt->dims[mode] = end - start;
 
+  printf("found %lu - %lu = %lu\n", end, start, end - start);
+
   /* now map mode coords to [0, end-start) */
   for(idx_t n=0; n < ftt->nnz; ++n) {
     assert(ftt->ind[mode][n] >= start);
     ftt->ind[mode][n] -= start;
   }
+  /* create new indmap for mode */
+#if 0
+  assert(ftt->indmap[mode] == NULL);
+  ftt->indmap[mode] = (idx_t *) malloc(ftt->dims[mode] * sizeof(idx_t));
+  for(idx_t i=0; i < ftt->dims[mode]; ++i) {
+    ftt->indmap[mode][i] = (tt->indmap[mode] == NULL) ? i + start :
+        tt->indmap[mode][i+start];
+  }
+#endif
 
   /* sanity check */
   for(idx_t i=0; i < ftt->dims[mode]; ++i) {
