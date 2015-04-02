@@ -11,29 +11,13 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-static void __fill_ineed_ptrs_1d(
-  sptensor_t const * const tt,
-  idx_t const mode,
-  rank_info * const rinfo)
-{
-  int const size = rinfo->npes;
-  int const rank = rinfo->rank;
-
-  rinfo->nlocal2nbr[mode] = 0;
-
-  for(idx_t i=0; i < tt->dims[mode]; ++i) {
-
-  }
-}
-
-
 static void __fill_ineed_ptrs(
   sptensor_t const * const tt,
   idx_t const mode,
-  rank_info * const rinfo)
+  rank_info * const rinfo,
+  MPI_Comm const comm)
 {
   idx_t const m = mode;
-  MPI_Comm const comm = rinfo->layer_comm[m];
   int size;
   int rank;
   MPI_Comm_size(comm, &size);
@@ -83,10 +67,10 @@ static void __fill_ineed_inds(
   sptensor_t const * const tt,
   idx_t const mode,
   idx_t const nfactors,
-  rank_info * const rinfo)
+  rank_info * const rinfo,
+  MPI_Comm const comm)
 {
   idx_t const m = mode;
-  MPI_Comm const comm = rinfo->layer_comm[m];
   int size;
   int rank;
   MPI_Comm_size(comm, &size);
@@ -247,16 +231,17 @@ static void __setup_3d(
  *****************************************************************************/
 
 void mpi_compute_ineed(
-  idx_t const mode,
   rank_info * const rinfo,
   sptensor_t const * const tt,
-  idx_t const nfactors)
+  idx_t const mode,
+  idx_t const nfactors,
+  idx_t const distribution)
 {
   /* fill local2nbr and nbr2globs ptrs */
-  __fill_ineed_ptrs(tt, mode, rinfo);
+  __fill_ineed_ptrs(tt, mode, rinfo, rinfo->layer_comm[mode]);
 
   /* fill indices */
-  __fill_ineed_inds(tt, mode, nfactors, rinfo);
+  __fill_ineed_inds(tt, mode, nfactors, rinfo, rinfo->layer_comm[mode]);
 }
 
 

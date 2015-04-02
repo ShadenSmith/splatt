@@ -158,8 +158,8 @@ void splatt_cpd(
     for(idx_t m=0; m < tt->nmodes; ++m) {
       /* tt has more nonzeros than any of the modes actually need, so we need
        * to filter them first. */
-      mpi_filter_tt_1d(m, tt, tt_filtered, rinfo.layer_starts[m],
-          rinfo.layer_ends[m]);
+      mpi_filter_tt_1d(m, tt, tt_filtered, rinfo.mat_start[m],
+          rinfo.mat_end[m]);
 
       /* filtering shrinks the dimensions but we want the originals in all but
        * the decomposed mode */
@@ -171,7 +171,7 @@ void splatt_cpd(
       rinfo.ownend[m] = tt_filtered->dims[m];
       rinfo.nowned[m] = tt_filtered->dims[m];
 
-      //mpi_compute_ineed(m, &rinfo, tt_filtered, args.rank);
+      mpi_compute_ineed(&rinfo, tt, m, args.rank, 1);
 
       ft[m] = ften_alloc(tt_filtered, m, args.tile);
     } /* foreach mode */
@@ -188,7 +188,7 @@ void splatt_cpd(
 
     for(idx_t m=0; m < tt->nmodes; ++m) {
       /* determine isend and ineed lists */
-      mpi_compute_ineed(m, &rinfo, tt, args.rank);
+      mpi_compute_ineed(&rinfo, tt, m, args.rank, 3);
 
       /* fill each ftensor */
       ft[m] = ften_alloc(tt, m, args.tile);

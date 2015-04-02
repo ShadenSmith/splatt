@@ -76,27 +76,30 @@ static void __find_my_slices_1d(
     rinfo->layer_starts[m] = 0;
     rinfo->layer_ends[m] = dims[m];
 
+    rinfo->mat_start[m] = 0;
+    rinfo->mat_end[m] = dims[m];
+
     for(idx_t s=0; s < dims[m]; ++s) {
       if(nnzcnt >= lastn + pnnz) {
         lastn = nnzcnt;
         ++currp;
         if(currp == rinfo->rank) {
-          rinfo->layer_starts[m] = s;
+          rinfo->mat_start[m] = s;
         } else if(currp == rinfo->rank+1 && currp != rinfo->npes) {
-          /* only set layer_end if we aren't at the end of the tensor */
-          rinfo->layer_ends[m] = s;
+          /* only set mat_end if we aren't at the end of the tensor */
+          rinfo->mat_end[m] = s;
           break;
         }
       }
       nnzcnt += ssizes[m][s];
 
       if(rinfo->rank == rinfo->npes-1) {
-        assert(rinfo->layer_ends[m] == rinfo->global_dims[m]);
+        assert(rinfo->mat_end[m] == rinfo->global_dims[m]);
       }
     }
 
-    printf("p: %d start: %lu end: %lu\n", rinfo->rank, rinfo->layer_starts[m],
-        rinfo->layer_ends[m]);
+    printf("p: %d start: %lu end: %lu\n", rinfo->rank, rinfo->mat_start[m],
+        rinfo->mat_end[m]);
     MPI_Barrier(MPI_COMM_WORLD);
   }
 }
@@ -320,12 +323,12 @@ static sptensor_t * __read_tt_1d(
   __find_my_slices_1d(ssizes, nmodes, nnz, rinfo);
 
   /* count nnz in my partition and allocate */
-  idx_t const mynnz = __count_my_nnz_1d(fname, nmodes, rinfo->layer_starts,
-      rinfo->layer_ends);
+  idx_t const mynnz = __count_my_nnz_1d(fname, nmodes, rinfo->mat_start,
+      rinfo->mat_end);
   sptensor_t * tt = tt_alloc(mynnz, nmodes);
 
   /* now actually load values */
-  __read_tt_part_1d(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
+  __read_tt_part_1d(fname, tt, rinfo->mat_start, rinfo->mat_end);
 
   return tt;
 }

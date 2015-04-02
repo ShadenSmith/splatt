@@ -544,7 +544,8 @@ static void __greedy_mat_distribution(
 
 /**
 * @brief Allocate + fill mat_ptrs, an array marking the start index for each
-*        rank. Indices are local to the layer.
+*        rank. Indices are local to the layer. NOTE: This is only designed for
+*        3D decomposition!
 *
 * @param rinfo The structure containing MPI information.
 */
@@ -590,8 +591,17 @@ permutation_t * mpi_distribute_mats(
   case 1:
     /* assign simple 1D matrix distribution */
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      rinfo->mat_start[m] = 0;
-      rinfo->mat_end[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+      /* allocate space for start/end idxs */
+      rinfo->mat_ptrs[m] = (idx_t *) calloc(rinfo->npes + 1, sizeof(idx_t));
+      rinfo->mat_ptrs[m][rinfo->rank] = rinfo->mat_start[m];
+      rinfo->mat_ptrs[m][rinfo->npes] = rinfo->global_dims[m];
+
+      /* Doing a reduce instead of a gather lets us set location mode_rank
+       * instead of the rank in this communicator */
+      MPI_Allreduce(MPI_IN_PLACE, rinfo->mat_ptrs[m], rinfo->npes, SS_MPI_IDX,
+          MPI_SUM, MPI_COMM_WORLD);
+      assert(rinfo->mat_ptrs[m][rinfo->rank    ] == rinfo->mat_start[m]);
+      assert(rinfo->mat_ptrs[m][rinfo->rank + 1] == rinfo->mat_end[m]);
     }
     break;
 
