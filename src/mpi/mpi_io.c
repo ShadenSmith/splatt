@@ -586,8 +586,8 @@ void mpi_filter_tt_1d(
     for(idx_t i=0; i < tt->dims[mode]; ++i) {
       if(tt->indmap[mode][i] == start) {
         start = i;
-      } else if(tt->indmap[mode][i] == end) {
-        end = i;
+      } else if(tt->indmap[mode][i] == end-1) {
+        end = i+1;
         break;
       }
     }
@@ -607,8 +607,6 @@ void mpi_filter_tt_1d(
   /* update ftt dimensions and nnz */
   ftt->nnz = nnz;
   ftt->dims[mode] = end - start;
-
-  printf("found %lu - %lu = %lu\n", end, start, end - start);
 
   /* now map mode coords to [0, end-start) */
   for(idx_t n=0; n < ftt->nnz; ++n) {

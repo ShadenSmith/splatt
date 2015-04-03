@@ -160,19 +160,8 @@ void splatt_cpd(
        * to filter them first. */
       mpi_filter_tt_1d(m, tt, tt_filtered, rinfo.mat_start[m],
           rinfo.mat_end[m]);
-      printf("p: %d dim: %lu -> %lu - %lu = %lu\n", rinfo.rank, tt_filtered->dims[m],
-        rinfo.mat_end[m], rinfo.mat_start[m], rinfo.mat_end[m] - rinfo.mat_start[m]);
-      idx_t nnz = 0;
-      MPI_Allreduce(&tt_filtered->nnz, &nnz, 1, SS_MPI_IDX, MPI_SUM, rinfo.comm_3d);
-      if(rinfo.rank == 0)
-        printf("nnz: %lu\n", nnz);
 
-      tt_sort(tt_filtered, m, NULL);
-      char * f;
-      asprintf(&f, "%d.part", rinfo.rank);
-      tt_write(tt_filtered, f);
-      free(f);
-      return;
+      assert(tt_filtered->dims[m] == rinfo.mat_end[m] - rinfo.mat_start[m]);
 
       rinfo.ownstart[m] = 0;
       rinfo.ownend[m] = tt_filtered->dims[m];
