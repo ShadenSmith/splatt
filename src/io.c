@@ -311,3 +311,40 @@ idx_t * part_read(
 
   return arr;
 }
+
+
+
+/******************************************************************************
+ * PERMUTATION FUNCTIONS
+ *****************************************************************************/
+void perm_write(
+  idx_t * perm,
+  idx_t const dim,
+  char const * const fname)
+{
+  FILE * fout;
+  if(fname == NULL) {
+    fout = stdout;
+  } else {
+    if((fout = fopen(fname,"w")) == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+      exit(1);
+    }
+  }
+
+  perm_write_file(perm, dim, fout);
+
+  if(fname != NULL) {
+    fclose(fout);
+  }
+}
+
+void perm_write_file(
+  idx_t * perm,
+  idx_t const dim,
+  FILE * fout)
+{
+  for(idx_t i=0; i < dim; ++i) {
+    fprintf(fout, "%"SS_IDX"\n", perm[i]);
+  }
+}

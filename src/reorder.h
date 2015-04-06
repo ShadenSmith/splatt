@@ -14,6 +14,7 @@
 */
 typedef enum
 {
+  PERM_RAND,
   PERM_GRAPH,       /** Reordering based on an n-partite graph partitioning. */
   PERM_HGRAPH,      /** Reordering based on an hypergraph partitioning. */
   PERM_FIBSCHED,    /** Not done. */
@@ -73,6 +74,10 @@ void build_pptr(
 void perm_apply(
   sptensor_t * const tt,
   idx_t ** perm);
+
+
+permutation_t * perm_rand(
+  sptensor_t * const tt);
 
 
 permutation_t * perm_hgraph(

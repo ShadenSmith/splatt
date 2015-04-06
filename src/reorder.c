@@ -277,7 +277,8 @@ permutation_t * tt_perm(
   char const * const pfile)
 {
   timer_start(&timers[TIMER_REORDER]);
-  if(pfile == NULL) {
+
+  if(type != PERM_RAND && pfile == NULL) {
     fprintf(stderr, "SPLATT: permutation file must be supplied for now.\n");
     exit(1);
   }
@@ -289,6 +290,9 @@ permutation_t * tt_perm(
 
   permutation_t * perm = NULL;
   switch(type) {
+  case PERM_RAND:
+    perm = perm_rand(tt);
+    break;
   case PERM_GRAPH:
     for(idx_t m=0; m < tt->nmodes; ++m) {
       nvtxs += tt->dims[m];
@@ -495,9 +499,10 @@ permutation_t * perm_alloc(
 
 
 permutation_t * perm_rand(
-  idx_t const * const dims,
-  idx_t const nmodes)
+  sptensor_t * const tt)
 {
+  idx_t const nmodes = tt->nmodes;
+  idx_t const * const dims = tt->dims;
   permutation_t * perm = perm_alloc(dims, nmodes);
 
   for(idx_t m=0; m < nmodes; ++m) {
@@ -521,6 +526,8 @@ permutation_t * perm_rand(
       perm->iperms[m][perm->perms[m][n]] = n;
     }
   }
+
+  perm_apply(tt, perm->perms);
 
   return perm;
 }
