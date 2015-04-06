@@ -611,17 +611,27 @@ void mpi_filter_tt_1d(
   /* now map mode coords to [0, end-start) */
   for(idx_t n=0; n < ftt->nnz; ++n) {
     assert(ftt->ind[mode][n] >= start);
+    assert(ftt->ind[mode][n] < end);
     ftt->ind[mode][n] -= start;
   }
+
   /* create new indmap for mode */
-#if 0
-  assert(ftt->indmap[mode] == NULL);
-  ftt->indmap[mode] = (idx_t *) malloc(ftt->dims[mode] * sizeof(idx_t));
-  for(idx_t i=0; i < ftt->dims[mode]; ++i) {
-    ftt->indmap[mode][i] = (tt->indmap[mode] == NULL) ? i + start :
-        tt->indmap[mode][i+start];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    if(tt->indmap[m] == NULL) {
+      break;
+    }
+    ftt->indmap[m] = (idx_t *) realloc(ftt->indmap[m],
+        ftt->dims[m] * sizeof(idx_t));
+
+    /* mode indices are shifted. otherwise just copy */
+    if(m == mode) {
+      for(idx_t i=0; i < ftt->dims[mode]; ++i) {
+        ftt->indmap[mode][i] = tt->indmap[mode][i+start];
+      }
+    } else {
+      memcpy(ftt->indmap[m], tt->indmap[m], tt->dims[m] * sizeof(idx_t));
+    }
   }
-#endif
 
   /* sanity check */
   for(idx_t i=0; i < ftt->dims[mode]; ++i) {
@@ -753,7 +763,6 @@ void mpi_write_part(
       /* write index */
       fprintf(fout, "%"SS_IDX" ", 1+idx);
     }
-    //fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
     fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
   }
   fclose(fout);

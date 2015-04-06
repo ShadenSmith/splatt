@@ -624,32 +624,32 @@ permutation_t * mpi_distribute_mats(
 
 void mpi_find_owned(
   sptensor_t const * const tt,
+  idx_t const mode,
   rank_info * const rinfo)
 {
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    idx_t const start = rinfo->mat_start[m];
-    idx_t const end = rinfo->mat_end[m];
-    idx_t const * const indmap = tt->indmap[m];
+  idx_t const m = mode;
+  idx_t const start = rinfo->mat_start[m];
+  idx_t const end = rinfo->mat_end[m];
+  idx_t const * const indmap = tt->indmap[m];
 
-    rinfo->ownstart[m]= tt->dims[m];
-    rinfo->ownend[m] = 0;
-    rinfo->nowned[m] = 0;
-    for(idx_t i=0; i < tt->dims[m]; ++i) {
-      idx_t gi = (indmap == NULL) ? i : indmap[i];
-      if(gi >= start && gi < end) {
-        rinfo->nowned[m] += 1;
-        rinfo->ownstart[m] = SS_MIN(rinfo->ownstart[m], i);
-        rinfo->ownend[m] = SS_MAX(rinfo->ownend[m], i);
-      }
+  rinfo->ownstart[m]= tt->dims[m];
+  rinfo->ownend[m] = 0;
+  rinfo->nowned[m] = 0;
+  for(idx_t i=0; i < tt->dims[m]; ++i) {
+    idx_t gi = (indmap == NULL) ? i : indmap[i];
+    if(gi >= start && gi < end) {
+      rinfo->nowned[m] += 1;
+      rinfo->ownstart[m] = SS_MIN(rinfo->ownstart[m], i);
+      rinfo->ownend[m] = SS_MAX(rinfo->ownend[m], i);
     }
-    rinfo->ownend[m] += 1;
+  }
+  rinfo->ownend[m] += 1;
 
-    /* sanity check to ensure owned rows are contiguous */
-    if(indmap != NULL) {
-      for(idx_t i=rinfo->ownstart[m]+1; i < rinfo->ownend[m]; ++i) {
-        assert(indmap[i] >= start && indmap[i] < end);
-        assert(indmap[i] == indmap[i-1]+1);
-      }
+  /* sanity check to ensure owned rows are contiguous */
+  if(indmap != NULL) {
+    for(idx_t i=rinfo->ownstart[m]+1; i < rinfo->ownend[m]; ++i) {
+      assert(indmap[i] >= start && indmap[i] < end);
+      assert(indmap[i] == indmap[i-1]+1);
     }
   }
 }

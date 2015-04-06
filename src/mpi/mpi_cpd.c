@@ -19,7 +19,6 @@
 /**
 * @brief Flush the updated values in globalmat to our local representation.
 *
-* @param tt The tensor we are operating on.
 * @param localmat The local matrix to update.
 * @param globalmat The recently updated global matrix.
 * @param rinfo MPI rank information.
@@ -44,9 +43,24 @@ static void __flush_glob_to_local(
   idx_t const goffset = (indmap == NULL) ?
       start - mat_start : indmap[start] - mat_start;
 
+#if 0
+  if(goffset != 0) {
+    printf("rank: %d goffset: %lu ownstart: %lu indmap[ownstart]: %lu mat_start: %lu\n",
+      rinfo->rank, goffset, start, indmap[start], mat_start);
+  }
+#endif
+
+  assert(start + (end - start) <= localmat->I);
+
+#if 0
   memcpy(localmat->vals + (start*nfactors),
          globalmat->vals + (goffset*nfactors),
          (end - start) * nfactors * sizeof(val_t));
+#else
+  memcpy(localmat->vals + (start*nfactors),
+         globalmat->vals,
+         (end - start) * nfactors * sizeof(val_t));
+#endif
 }
 
 

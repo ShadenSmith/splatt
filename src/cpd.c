@@ -211,8 +211,8 @@ void cpd(
 
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
-    mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
-        rinfo, nfactors, m);
+    mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m],
+        globmats[m], rinfo, nfactors, m);
   }
 #endif
 
@@ -226,7 +226,6 @@ void cpd(
   /* used as buffer space */
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
 
-
   /* Compute input tensor norm */
   val_t oldfit = 0;
   val_t mynorm = 0;
@@ -237,18 +236,9 @@ void cpd(
   val_t ttnormsq = 0;
 #ifdef SPLATT_USE_MPI
   MPI_Allreduce(&mynorm, &ttnormsq, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
-
-  idx_t nnz = 0;
-  MPI_Allreduce(&ft[0]->nnz, &nnz, 1, SS_MPI_IDX, MPI_SUM, rinfo->comm_3d);
 #else
   ttnormsq = mynorm;
 #endif
-
-  if(rinfo->rank == 0) {
-    printf("norm: %f\n", ttnormsq);
-    printf("nnz:  %lu\n", nnz);
-  }
-  return;
 
   /* setup timers */
   timer_reset(&timers[TIMER_ATA]);
@@ -273,11 +263,20 @@ void cpd(
       mttkrp_splatt(ft[m], mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
-      /* add my partial multiplications to globmats[m] */
-      mpi_add_my_partials(ft[m]->indmap, mats[MAX_NMODES], m1, rinfo, nfactors, m);
-      /* incorporate neighbors' partials */
-      mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
-          rinfo, nfactors, m);
+      /* TODO: do we actually need m1? */
+      switch(opts->distribution) {
+      case 1:
+        memcpy(m1->vals, mats[MAX_NMODES]->vals, m1->I * nfactors * sizeof(val_t));
+        break;
+      default:
+        /* add my partial multiplications to globmats[m] */
+        mpi_add_my_partials(ft[m]->indmap, mats[MAX_NMODES], m1, rinfo,
+            nfactors, m);
+        /* incorporate neighbors' partials */
+        mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
+            rinfo, nfactors, m);
+        break;
+      }
 #endif
 
       /* M2 = (CtC .* BtB .* ...)^-1 */

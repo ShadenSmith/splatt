@@ -154,6 +154,7 @@ void splatt_cpd(
   if(args.distribution == 1) {
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
+
     sptensor_t * tt_filtered = tt_alloc(tt->nnz, tt->nmodes);
     for(idx_t m=0; m < tt->nmodes; ++m) {
       /* tt has more nonzeros than any of the modes actually need, so we need
@@ -163,13 +164,19 @@ void splatt_cpd(
 
       assert(tt_filtered->dims[m] == rinfo.mat_end[m] - rinfo.mat_start[m]);
 
-      rinfo.ownstart[m] = 0;
-      rinfo.ownend[m] = tt_filtered->dims[m];
-      rinfo.nowned[m] = tt_filtered->dims[m];
+      mpi_find_owned(tt, m, &rinfo);
 
       mpi_compute_ineed(&rinfo, tt, m, args.rank, 1);
 
       ft[m] = ften_alloc(tt_filtered, m, args.tile);
+
+      /* sanity check on nnz */
+      idx_t totnnz;
+      MPI_Reduce(&ft[m]->nnz, &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
+          MPI_COMM_WORLD);
+      if(rinfo.rank == 0) {
+        assert(totnnz == rinfo.global_nnz);
+      }
     } /* foreach mode */
 
     tt_free(tt_filtered);
@@ -179,10 +186,10 @@ void splatt_cpd(
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
 
-    /* index into local tensor to grab owned rows */
-    mpi_find_owned(tt, &rinfo);
-
     for(idx_t m=0; m < tt->nmodes; ++m) {
+      /* index into local tensor to grab owned rows */
+      mpi_find_owned(tt, m, &rinfo);
+
       /* determine isend and ineed lists */
       mpi_compute_ineed(&rinfo, tt, m, args.rank, 3);
 
@@ -215,9 +222,7 @@ void splatt_cpd(
     /* ft[:] have different dimensionalities for 1/2D and ft[m+1] is guaranteed
      * to have the full dimensionality */
     mats[m] = mat_rand(ft[(m+1) % nmodes]->dims[m], args.rank);
-    if(ft[0]->dims[m] > max_dim) {
-      max_dim = ft[0]->dims[m];
-    }
+    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes]->dims[m]);
 
     /* for actual factor matrix */
 #ifdef SPLATT_USE_MPI

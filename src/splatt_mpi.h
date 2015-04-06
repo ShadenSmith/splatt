@@ -33,8 +33,10 @@ typedef struct
   idx_t layer_starts[MAX_NMODES];
   idx_t layer_ends[MAX_NMODES];
 
+  /* tt indices [ownstart, ownend) are mine. These operate in global indexing,
+   * so indmap is used if present. */
   idx_t nowned[MAX_NMODES];      /** number of rows owned */
-  idx_t ownstart[MAX_NMODES];    /** tt indices [ownstart, ownend) are mine */
+  idx_t ownstart[MAX_NMODES];
   idx_t ownend[MAX_NMODES];
 
 
@@ -281,6 +283,7 @@ permutation_t *  mpi_distribute_mats(
 */
 void mpi_find_owned(
   sptensor_t const * const tt,
+  idx_t const mode,
   rank_info * const rinfo);
 
 
