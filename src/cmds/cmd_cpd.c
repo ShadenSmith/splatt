@@ -18,6 +18,7 @@
  *****************************************************************************/
 
 
+#ifdef SPLATT_USE_MPI
 /**
 * @brief Copy global information into local tt, print statistics, and
 *        restore local information.
@@ -42,6 +43,7 @@ static void __mpi_global_stats(
   tt->dims = tmpdims;
   tt->nnz = tmpnnz;
 }
+#endif
 
 
 /******************************************************************************
