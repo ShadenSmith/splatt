@@ -143,6 +143,7 @@ void splatt_cpd(
     abort();
   }
   tt = mpi_tt_read(args.ifname, &rinfo);
+
   /* print stats */
   if(rinfo.rank == 0) {
     __mpi_global_stats(tt, &rinfo, &args);
@@ -199,6 +200,27 @@ void splatt_cpd(
       ft[m] = ften_alloc(tt, m, args.tile);
     }
   } /* end 3D distribution */
+
+  /* print some MPI statistics information */
+  printf("rank: %d nnz: %lu "
+         "nlocal2nbr: (%lu %lu %lu) = %lu nnbr2globs: (%lu %lu %lu) = %lu "
+         "volume: %lu\n",
+      rinfo.rank, tt->nnz,
+      /* nlocal2nbr */
+      rinfo.nlocal2nbr[0], rinfo.nlocal2nbr[1], rinfo.nlocal2nbr[2],
+      rinfo.nlocal2nbr[0] + rinfo.nlocal2nbr[1] + rinfo.nlocal2nbr[2],
+      /* nnbr2globs */
+      rinfo.nnbr2globs[0], rinfo.nnbr2globs[1], rinfo.nnbr2globs[2],
+      rinfo.nnbr2globs[0] + rinfo.nnbr2globs[1] + rinfo.nnbr2globs[2],
+      /* total volume */
+      rinfo.nlocal2nbr[0] + rinfo.nlocal2nbr[1] + rinfo.nlocal2nbr[2] +
+      rinfo.nnbr2globs[0] + rinfo.nnbr2globs[1] + rinfo.nnbr2globs[2]);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  if(rinfo.rank == 0) {
+    printf("\n");
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
 
 #else
   tt = tt_read(args.ifname);
