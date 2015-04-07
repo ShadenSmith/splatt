@@ -63,7 +63,7 @@ void mpi_update_rows(
   idx_t const nfactors,
   idx_t const mode)
 {
-  timer_start(&timers[TIMER_MPI]);
+  timer_start(&timers[TIMER_MPI_UPDATE]);
   idx_t const m = mode;
   idx_t const mat_start = rinfo->mat_start[m];
   idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
@@ -107,7 +107,7 @@ void mpi_update_rows(
 
   /* ensure the local matrix is up to date too */
   __flush_glob_to_local(indmap, localmat, globalmat, rinfo, nfactors, m);
-  timer_stop(&timers[TIMER_MPI]);
+  timer_stop(&timers[TIMER_MPI_UPDATE]);
 }
 
 
@@ -120,7 +120,7 @@ void mpi_reduce_rows(
   idx_t const nfactors,
   idx_t const mode)
 {
-  timer_start(&timers[TIMER_MPI]);
+  timer_start(&timers[TIMER_MPI_REDUCE]);
   idx_t const m = mode;
 
   val_t const * const restrict matv = localmat->vals;
@@ -163,7 +163,7 @@ void mpi_reduce_rows(
       gmatv[f+(row*nfactors)] += nbr2globs_buf[f+(r*nfactors)];
     }
   }
-  timer_stop(&timers[TIMER_MPI]);
+  timer_stop(&timers[TIMER_MPI_REDUCE]);
 }
 
 
@@ -175,7 +175,7 @@ void mpi_add_my_partials(
   idx_t const nfactors,
   idx_t const mode)
 {
-  timer_start(&timers[TIMER_MPI]);
+  timer_start(&timers[TIMER_MPI_PARTIALS]);
   idx_t const m = mode;
 
   idx_t const mat_start = rinfo->mat_start[m];
@@ -191,7 +191,7 @@ void mpi_add_my_partials(
   memcpy(globmat->vals + (goffset * nfactors),
          localmat->vals + (start * nfactors),
          nfactors * (end - start) * sizeof(val_t));
-  timer_stop(&timers[TIMER_MPI]);
+  timer_stop(&timers[TIMER_MPI_PARTIALS]);
 }
 
 
@@ -202,6 +202,14 @@ void mpi_time_stats(
   double max_mpi, avg_mpi;
   double max_idle, avg_idle;
   double max_com, avg_com;
+
+  timers[TIMER_MPI].seconds =
+      timers[TIMER_MPI_ATA].seconds
+      + timers[TIMER_MPI_REDUCE].seconds
+      + timers[TIMER_MPI_PARTIALS].seconds
+      + timers[TIMER_MPI_NORM].seconds
+      + timers[TIMER_MPI_UPDATE].seconds
+      + timers[TIMER_MPI_FIT].seconds;
 
   /* get avg times */
   MPI_Reduce(&timers[TIMER_MTTKRP].seconds, &avg_mttkrp, 1, MPI_DOUBLE,

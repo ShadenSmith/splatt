@@ -24,7 +24,6 @@ static void __mat_2norm(
   thd_info * const thds,
   idx_t const nthreads)
 {
-  timer_start(&timers[TIMER_MATNORM]);
   idx_t const I = A->I;
   idx_t const J = A->J;
   val_t * const restrict vals = A->vals;
@@ -50,7 +49,7 @@ static void __mat_2norm(
     /* now do an MPI reduction to get the global lambda */
     #pragma omp master
     {
-      timer_start(&timers[TIMER_MPI]);
+      timer_start(&timers[TIMER_MPI_NORM]);
       timer_start(&timers[TIMER_MPI_IDLE]);
       MPI_Barrier(rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_IDLE]);
@@ -58,7 +57,7 @@ static void __mat_2norm(
       timer_start(&timers[TIMER_MPI_COMM]);
       MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_COMM]);
-      timer_stop(&timers[TIMER_MPI]);
+      timer_stop(&timers[TIMER_MPI_NORM]);
     }
 #else
     #pragma omp master
@@ -117,7 +116,7 @@ static void __mat_maxnorm(
     /* now do an MPI reduction to get the global lambda */
     #pragma omp master
     {
-      timer_start(&timers[TIMER_MPI]);
+      timer_start(&timers[TIMER_MPI_NORM]);
       timer_start(&timers[TIMER_MPI_IDLE]);
       MPI_Barrier(rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_IDLE]);
@@ -125,7 +124,7 @@ static void __mat_maxnorm(
       timer_start(&timers[TIMER_MPI_COMM]);
       MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_MAX, rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_COMM]);
-      timer_stop(&timers[TIMER_MPI]);
+      timer_stop(&timers[TIMER_MPI_NORM]);
     }
 #else
     #pragma omp master
@@ -409,7 +408,7 @@ void mat_aTa(
   }
 
 #ifdef SPLATT_USE_MPI
-  timer_start(&timers[TIMER_MPI]);
+  timer_start(&timers[TIMER_MPI_ATA]);
   timer_start(&timers[TIMER_MPI_IDLE]);
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_IDLE]);
@@ -418,7 +417,7 @@ void mat_aTa(
   MPI_Allreduce(thds[0].scratch[0], ret->vals, F * F, SS_MPI_VAL, MPI_SUM,
       rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_COMM]);
-  timer_stop(&timers[TIMER_MPI]);
+  timer_stop(&timers[TIMER_MPI_ATA]);
 #else
   memcpy(ret->vals, (val_t *) thds[0].scratch[0], F * F * sizeof(val_t));
 #endif

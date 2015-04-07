@@ -108,7 +108,13 @@ static val_t __tt_kruskal_inner(
   }
   val_t inner = 0.;
 #ifdef SPLATT_USE_MPI
+  timer_start(&timers[TIMER_MPI_FIT]);
+  timer_start(&timers[TIMER_MPI_IDLE]);
+  MPI_Barrier(rinfo->comm_3d);
+  timer_stop(&timers[TIMER_MPI_IDLE]);
+
   MPI_Reduce(&myinner, &inner, 1, SS_MPI_VAL, MPI_SUM, 0, rinfo->comm_3d);
+  timer_stop(&timers[TIMER_MPI_FIT]);
 #else
   inner = myinner;
 #endif
@@ -207,7 +213,9 @@ void cpd(
 
   val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
   val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
-  m1 = mat_alloc(maxdim, nfactors);
+  if(opts->distribution == 3) {
+    m1 = mat_alloc(maxdim, nfactors);
+  }
 
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
@@ -246,6 +254,11 @@ void cpd(
   timer_reset(&timers[TIMER_MPI]);
   timer_reset(&timers[TIMER_MPI_IDLE]);
   timer_reset(&timers[TIMER_MPI_COMM]);
+  timer_reset(&timers[TIMER_MPI_ATA]);
+  timer_reset(&timers[TIMER_MPI_REDUCE]);
+  timer_reset(&timers[TIMER_MPI_NORM]);
+  timer_reset(&timers[TIMER_MPI_UPDATE]);
+  timer_reset(&timers[TIMER_MPI_FIT]);
   MPI_Barrier(rinfo->comm_3d);
 #endif
 
@@ -265,19 +278,13 @@ void cpd(
       mttkrp_splatt(ft[m], mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
-      /* TODO: do we actually need m1? */
-      switch(opts->distribution) {
-      case 1:
-        memcpy(m1->vals, mats[MAX_NMODES]->vals, m1->I * nfactors * sizeof(val_t));
-        break;
-      default:
+      if(opts->distribution == 3) {
         /* add my partial multiplications to globmats[m] */
         mpi_add_my_partials(ft[m]->indmap, mats[MAX_NMODES], m1, rinfo,
             nfactors, m);
         /* incorporate neighbors' partials */
         mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
             rinfo, nfactors, m);
-        break;
       }
 #endif
 
@@ -313,10 +320,10 @@ void cpd(
     timer_stop(&itertime);
 
     if(rinfo->rank == 0) {
-      printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
+      printf("  its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
           it+1, itertime.seconds, fit, fit - oldfit);
       for(idx_t m=0; m < nmodes; ++m) {
-        printf("       mode = %1"SS_IDX" (%0.3fs)\n", m+1,
+        printf("     mode = %1"SS_IDX" (%0.3fs)\n", m+1,
             modetime[m].seconds);
       }
       oldfit = fit;
@@ -332,7 +339,9 @@ void cpd(
 
   thd_free(thds, opts->nthreads);
 #ifdef SPLATT_USE_MPI
-  mat_free(m1);
+  if(opts->distribution == 3) {
+    mat_free(m1);
+  }
   free(local2nbr_buf);
   free(nbr2globs_buf);
 #endif

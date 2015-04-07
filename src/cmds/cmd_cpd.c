@@ -251,7 +251,7 @@ void splatt_cpd(
     } else {
       printf("TILE=NO ");
     }
-    printf("\n");
+    printf("\n\n");
   }
 
   /* do the factorization! */
