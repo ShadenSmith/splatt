@@ -250,11 +250,13 @@ void cpd(
 #endif
 
   sp_timer_t itertime;
+  sp_timer_t modetime[MAX_NMODES];
   timer_start(&timers[TIMER_CPD]);
 
   for(idx_t it=0; it < opts->niters; ++it) {
     timer_fstart(&itertime);
     for(idx_t m=0; m < nmodes; ++m) {
+      timer_fstart(&modetime[m]);
       mats[MAX_NMODES]->I = ft[0]->dims[m];
       m1->I = globmats[m]->I;
 
@@ -303,6 +305,7 @@ void cpd(
 
       /* update A^T*A */
       mat_aTa(globmats[m], aTa[m], rinfo, thds, opts->nthreads);
+      timer_stop(&modetime[m]);
     } /* foreach mode */
 
     val_t const fit = __calc_fit(nmodes, rinfo, thds, opts->nthreads, ttnormsq,
@@ -312,6 +315,10 @@ void cpd(
     if(rinfo->rank == 0) {
       printf("    its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
           it+1, itertime.seconds, fit, fit - oldfit);
+      for(idx_t m=0; m < nmodes; ++m) {
+        printf("       mode = %1"SS_IDX" (%0.3fs)\n", m+1,
+            modetime[m].seconds);
+      }
       oldfit = fit;
     }
   }
