@@ -11,6 +11,31 @@
 #include "timer.h"
 
 
+/******************************************************************************
+ * PRIVATE FUNCTONS
+ *****************************************************************************/
+static inline int __same_coord(
+  sptensor_t const * const tt,
+  idx_t const i,
+  idx_t const j)
+{
+  idx_t const nmodes = tt->nmodes;
+  if(nmodes == 3) {
+    return (tt->ind[0][i] == tt->ind[0][j]) &&
+           (tt->ind[1][i] == tt->ind[1][j]) &&
+           (tt->ind[2][i] == tt->ind[2][j]);
+  } else {
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(tt->ind[m][i] != tt->ind[m][j]) {
+        return 0;
+      }
+    }
+    return 1;
+  }
+}
+
+
+
 
 /******************************************************************************
  * PUBLIC FUNCTONS
@@ -80,32 +105,27 @@ idx_t tt_remove_dups(
 {
   tt_sort(tt, 0, NULL);
 
-  idx_t nnz = tt->nnz;
   idx_t const nmodes = tt->nmodes;
 
-  for(idx_t n=0; n < nnz - 1; ++n) {
-    int same = 1;
-    for(idx_t m=0; m < nmodes; ++m) {
-      if(tt->ind[m][n] != tt->ind[m][n+1]) {
-        same = 0;
-        break;
-      }
-    }
-    if(same) {
-      printf("DUPLICATE NONZERO: ");
-      tt->vals[n] = (tt->vals[n] + tt->vals[n+1]) / 2;
+  idx_t newnnz = 0;
+  for(idx_t nnz = 1; nnz < tt->nnz; ++nnz) {
+    /* if the two nnz are the same, average them */
+    if(__same_coord(tt, newnnz, nnz)) {
+      tt->vals[newnnz] += tt->vals[nnz];
+      tt->vals[newnnz] /= 2;
+    } else {
+      /* new another nnz */
+      ++newnnz;
       for(idx_t m=0; m < nmodes; ++m) {
-        printf("%"SS_IDX" ", tt->ind[m][n]);
-        memmove(&(tt->ind[m][n]), &(tt->ind[m][n+1]),
-          (nnz-n-1)*sizeof(idx_t));
+        tt->ind[m][newnnz] = tt->ind[m][nnz];
       }
-      --n;
-      nnz -= 1;
-      printf("\n");
+      tt->vals[newnnz] = tt->vals[nnz];
     }
   }
-  idx_t const diff = tt->nnz - nnz;
-  tt->nnz = nnz;
+  ++newnnz;
+
+  idx_t const diff = tt->nnz - newnnz;
+  tt->nnz = newnnz;
   return diff;
 }
 
