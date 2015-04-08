@@ -107,6 +107,7 @@ static val_t __tt_kruskal_inner(
     }
   }
   val_t inner = 0.;
+
 #ifdef SPLATT_USE_MPI
   timer_start(&timers[TIMER_MPI_FIT]);
   timer_start(&timers[TIMER_MPI_IDLE]);
@@ -237,10 +238,11 @@ void cpd(
   /* Compute input tensor norm */
   val_t oldfit = 0;
   val_t mynorm = 0;
-  #pragma omp parallel reduction(+:mynorm)
+  #pragma omp parallel for reduction(+:mynorm)
   for(idx_t n=0; n < ft[0]->nnz; ++n) {
     mynorm += ft[0]->vals[n] * ft[0]->vals[n];
   }
+
   val_t ttnormsq = 0;
 #ifdef SPLATT_USE_MPI
   MPI_Allreduce(&mynorm, &ttnormsq, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
