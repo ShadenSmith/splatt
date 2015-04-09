@@ -98,6 +98,14 @@ static void __find_my_slices_1d(
         assert(rinfo->mat_end[m] == rinfo->global_dims[m]);
       }
     }
+
+    /* it is possible to have a very small dimension and too many ranks */
+    if(rinfo->npes > 1 && rinfo->mat_start[m] == 0
+        && rinfo->mat_end[m] == dims[m]) {
+      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %lu.\n",
+          rinfo->rank, m+1);
+      abort();
+    }
   }
 }
 
