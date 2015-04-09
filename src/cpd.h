@@ -18,6 +18,7 @@ typedef struct
 
   /* dimension of the distribution (used in MPI) */
   idx_t distribution;
+  int mpi_dims[MAX_NMODES];
 
   /* optimizations */
   idx_t nthreads;

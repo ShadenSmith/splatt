@@ -82,7 +82,6 @@ typedef struct
   /* Rank information */
   int rank;
   int npes;
-  int np13; /* cube root of npes */
   int rank_3d;
   int mode_rank[MAX_NMODES];
   int dims_3d[MAX_NMODES];

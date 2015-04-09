@@ -26,11 +26,11 @@ static void __find_my_slices(
   idx_t const nnz,
   rank_info * const rinfo)
 {
-  idx_t const pnnz = nnz / rinfo->np13; /* nnz in a layer */
   idx_t const * const dims = rinfo->global_dims;
 
   /* find start/end slices for my partition */
   for(idx_t m=0; m < nmodes; ++m) {
+    idx_t const pnnz = nnz / rinfo->dims_3d[m]; /* nnz in a layer */
     /* current processor */
     int currp  = 0;
     idx_t lastn = 0;
@@ -45,7 +45,8 @@ static void __find_my_slices(
         ++currp;
         if(currp == rinfo->coords_3d[m]) {
           rinfo->layer_starts[m] = s;
-        } else if(currp == rinfo->coords_3d[m]+1 && currp != rinfo->np13) {
+        } else if(currp == rinfo->coords_3d[m]+1
+            && currp != rinfo->dims_3d[m]) {
           /* only set layer_end if we aren't at the end of the tensor */
           rinfo->layer_ends[m] = s;
           break;

@@ -182,24 +182,16 @@ static void __setup_3d(
   int * const dims_3d = rinfo->dims_3d;
   int periods[MAX_NMODES];
 
-  /* get 3D cart dimensions - this can be improved! */
-  int p13;
-  int sqnpes = (int) sqrt(rinfo->npes) + 1;
-  for(p13 = 1; p13 < sqnpes; ++p13) {
-    if(p13 * p13 * p13 == rinfo->npes) {
-      break;
-    }
-  }
-  if(p13 * p13 * p13 != rinfo->npes) {
+  if(dims_3d[0] * dims_3d[1] * dims_3d[2] != rinfo->npes) {
     if(rinfo->rank == 0) {
-      fprintf(stderr, "SPLATT: only #ranks = p^3 supported right now.\n");
+      fprintf(stderr, "SPLATT: dimension %dx%dx%d does not match np=%d.\n",
+          dims_3d[0], dims_3d[1], dims_3d[2], rinfo->npes);
     }
+    MPI_Finalize();
     abort();
   }
-  rinfo->np13 = p13;
 
-  dims_3d[0] = dims_3d[1] = dims_3d[2] = p13;
-  periods[0] = periods[1] = periods[2] = p13;
+  periods[0] = periods[1] = periods[2] = 1;
 
   /* create new communicator and update global rank */
   MPI_Cart_create(MPI_COMM_WORLD, 3, dims_3d, periods, 1, &(rinfo->comm_3d));
@@ -212,15 +204,17 @@ static void __setup_3d(
   /* compute ranks relative to tensor mode */
   for(idx_t m=0; m < 3; ++m) {
     /* map coord within layer to 1D */
-    int const coord1d = rinfo->coords_3d[(m+1) % 3] * rinfo->np13 +
-                        rinfo->coords_3d[(m+2) % 3];
+    int const coord1d = rinfo->coords_3d[(m+1)%3] * dims_3d[(m+2)%3] +
+                        rinfo->coords_3d[(m+2)%3];
     int const layer_id = rinfo->coords_3d[m];
     /* relative rank in this mode */
-    rinfo->mode_rank[m] = (rinfo->np13 * rinfo->np13 * layer_id) + coord1d;
+    rinfo->mode_rank[m] = (dims_3d[(m+1)%3] * dims_3d[(m+2)%3] * layer_id) + coord1d;
 
     /* now split 3D communicator into layers */
     MPI_Comm_split(rinfo->comm_3d, layer_id, 0, &(rinfo->layer_comm[m]));
     MPI_Comm_rank(rinfo->layer_comm[m], &(rinfo->layer_rank[m]));
+
+    assert(rinfo->layer_rank[m] < rinfo->npes / dims_3d[m]);
   }
 }
 

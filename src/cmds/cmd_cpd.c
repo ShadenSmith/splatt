@@ -71,9 +71,16 @@ static error_t parse_cpd_opt(
   struct argp_state * state)
 {
   cpd_opts *args = state->input;
+  char * buf;
+  int cnt = 0;
   switch(key) {
   case 'd':
-    args->distribution = atoi(arg);
+    buf = strtok(arg, "x");
+    while(buf != NULL) {
+      args->mpi_dims[cnt++] = atoi(buf);
+      buf = strtok(NULL, "x");
+    }
+    args->distribution = cnt;
     break;
   case 'i':
     args->niters = atoi(arg);
@@ -127,6 +134,9 @@ void splatt_cpd(
   rank_info rinfo;
 #ifdef SPLATT_USE_MPI
   MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
+  for(idx_t d=0; d < args.distribution; ++d) {
+    rinfo.dims_3d[d] = args.mpi_dims[d];
+  }
 #else
   rinfo.rank = 0;
 #endif

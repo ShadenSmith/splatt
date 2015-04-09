@@ -392,7 +392,7 @@ static void __fill_volume_stats(
   rconns[0] = rconns[1] = rconns[2] = 0;
   int tot = 0;
   for(idx_t i=0; i < ldim; ++i) {
-    assert(pcount[i] <= (rinfo->np13 * rinfo->np13));
+    assert(pcount[i] <= (rinfo->dims_3d[(m+1)%3] * rinfo->dims_3d[(m+2)%3]));
     tot += pcount[i];
     switch(pcount[i]) {
     case 0:
@@ -502,8 +502,8 @@ static void __greedy_mat_distribution(
     idx_t rowoffset;
     MPI_Scan(&nrows, &rowoffset, 1, SS_MPI_IDX, MPI_SUM, rinfo->layer_comm[m]);
 
-    /* ensure all rows are accounted for */
-    if(rinfo->layer_rank[m] == (rinfo->np13 * rinfo->np13) - 1) {
+    /* ensure all rows are claimed if you are the last rank in the layer */
+    if(rinfo->layer_rank[m] == (rinfo->npes / rinfo->dims_3d[m]) - 1) {
       assert(rowoffset == rinfo->layer_ends[m] - rinfo->layer_starts[m]);
     }
     rowoffset -= nrows;
