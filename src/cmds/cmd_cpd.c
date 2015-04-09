@@ -125,6 +125,7 @@ void splatt_cpd(
   args.nthreads = 1;
   args.tile = 0;
   args.distribution = 3;
+  args.mpi_dims[0] = args.mpi_dims[1] = args.mpi_dims[2] = 1;
 
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
@@ -135,7 +136,7 @@ void splatt_cpd(
 #ifdef SPLATT_USE_MPI
   MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
   for(idx_t d=0; d < args.distribution; ++d) {
-    rinfo.dims_3d[d] = args.mpi_dims[d];
+    rinfo.dims_3d[d] = SS_MAX(args.mpi_dims[d], 1);
   }
 #else
   rinfo.rank = 0;
@@ -226,8 +227,26 @@ void splatt_cpd(
       rinfo.nlocal2nbr[0] + rinfo.nlocal2nbr[1] + rinfo.nlocal2nbr[2] +
       rinfo.nnbr2globs[0] + rinfo.nnbr2globs[1] + rinfo.nnbr2globs[2]);
 
+  idx_t totvolume = 0;
+  idx_t maxvolume = 0;
+  idx_t volume = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    printf("dims: %d\n", rinfo.dims_3d[m]);
+    /* if a layer has > 1 rank there is a necessary reduction step too */
+    if(rinfo.dims_3d[m] != rinfo.npes) {
+      printf("m: %lu doubling\n", m);
+      volume += 2 * (rinfo.nlocal2nbr[m] + rinfo.nnbr2globs[m]);
+    } else {
+      volume += rinfo.nlocal2nbr[m] + rinfo.nnbr2globs[m];
+    }
+  }
+  MPI_Reduce(&volume, &totvolume, 1, SS_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&volume, &maxvolume, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
+
   MPI_Barrier(MPI_COMM_WORLD);
   if(rinfo.rank == 0) {
+    idx_t avgvolume = totvolume / rinfo.npes;
+    printf("AVG COMMUNICATION VOL=%lu MAX COMMUNICATION VOL=%lu\n", avgvolume, maxvolume);
     printf("\n");
   }
   MPI_Barrier(MPI_COMM_WORLD);

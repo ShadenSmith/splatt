@@ -168,6 +168,9 @@ static void __setup_1d(
   rinfo->layer_comm[0] = MPI_COMM_WORLD;
   rinfo->layer_comm[1] = MPI_COMM_WORLD;
   rinfo->layer_comm[2] = MPI_COMM_WORLD;
+  rinfo->dims_3d[0] = rinfo->npes;
+  rinfo->dims_3d[1] = rinfo->npes;
+  rinfo->dims_3d[2] = rinfo->npes;
 }
 
 
