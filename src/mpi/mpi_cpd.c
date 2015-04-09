@@ -55,8 +55,8 @@ static void __flush_glob_to_local(
 
 void mpi_update_rows(
   idx_t const * const indmap,
-  val_t * const restrict nbr2globs_buf,
-  val_t * const restrict nbr2local_buf,
+  val_t * const nbr2globs_buf,
+  val_t * const nbr2local_buf,
   matrix_t * const localmat,
   matrix_t * const globalmat,
   rank_info const * const rinfo,
@@ -66,47 +66,60 @@ void mpi_update_rows(
   timer_start(&timers[TIMER_MPI_UPDATE]);
   idx_t const m = mode;
   idx_t const mat_start = rinfo->mat_start[m];
-  idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
-  val_t const * const restrict gmatv = globalmat->vals;
+  idx_t const * const nbr2globs_inds = rinfo->nbr2globs_inds[m];
+  val_t const * const gmatv = globalmat->vals;
 
-  /* first prepare all rows that I own and need to send */
-  for(idx_t s=0; s < rinfo->nnbr2globs[m]; ++s) {
-    idx_t const row = nbr2globs_inds[s] - mat_start;
-    for(idx_t f=0; f < nfactors; ++f) {
-      nbr2globs_buf[f+(s*nfactors)] = gmatv[f+(row*nfactors)];
+  #pragma omp parallel
+  {
+
+    /* first prepare all rows that I own and need to send */
+    #pragma omp for
+    for(idx_t s=0; s < rinfo->nnbr2globs[m]; ++s) {
+      idx_t const row = nbr2globs_inds[s] - mat_start;
+      for(idx_t f=0; f < nfactors; ++f) {
+        nbr2globs_buf[f+(s*nfactors)] = gmatv[f+(row*nfactors)];
+      }
     }
-  }
 
-  /* grab ptr/disp from rinfo. nbr2local and local2nbr will have the same
-   * structure so we just reuse those */
-  int const * const restrict nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
-  int const * const restrict nbr2local_ptr = rinfo->local2nbr_ptr[m];
-  int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
-  int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
+    #pragma omp master
+    {
+      /* grab ptr/disp from rinfo. nbr2local and local2nbr will have the same
+       * structure so we just reuse those */
+      int const * const restrict nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
+      int const * const restrict nbr2local_ptr = rinfo->local2nbr_ptr[m];
+      int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
+      int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
 
-  timer_start(&timers[TIMER_MPI_IDLE]);
-  MPI_Barrier(rinfo->layer_comm[m]);
-  timer_stop(&timers[TIMER_MPI_IDLE]);
+      timer_start(&timers[TIMER_MPI_IDLE]);
+      MPI_Barrier(rinfo->layer_comm[m]);
+      timer_stop(&timers[TIMER_MPI_IDLE]);
 
-  /* exchange rows */
-  timer_start(&timers[TIMER_MPI_COMM]);
-  MPI_Alltoallv(nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
-                nbr2local_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
-                rinfo->layer_comm[m]);
-  timer_stop(&timers[TIMER_MPI_COMM]);
-
-  /* now write incoming nbr2locals to my local matrix */
-  idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
-  val_t * const restrict matv = localmat->vals;
-  for(idx_t r=0; r < rinfo->nlocal2nbr[m]; ++r) {
-    idx_t const row = local2nbr_inds[r];
-    for(idx_t f=0; f < nfactors; ++f) {
-      matv[f+(row*nfactors)] = nbr2local_buf[f+(r*nfactors)];
+      /* exchange rows */
+      timer_start(&timers[TIMER_MPI_COMM]);
+      MPI_Alltoallv(nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
+                    nbr2local_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
+                    rinfo->layer_comm[m]);
+      timer_stop(&timers[TIMER_MPI_COMM]);
     }
-  }
 
-  /* ensure the local matrix is up to date too */
-  __flush_glob_to_local(indmap, localmat, globalmat, rinfo, nfactors, m);
+    #pragma omp barrier
+
+    /* now write incoming nbr2locals to my local matrix */
+    idx_t const * const local2nbr_inds = rinfo->local2nbr_inds[m];
+    val_t * const matv = localmat->vals;
+    #pragma omp for
+    for(idx_t r=0; r < rinfo->nlocal2nbr[m]; ++r) {
+      idx_t const row = local2nbr_inds[r];
+      for(idx_t f=0; f < nfactors; ++f) {
+        matv[f+(row*nfactors)] = nbr2local_buf[f+(r*nfactors)];
+      }
+    }
+
+    /* ensure the local matrix is up to date too */
+    #pragma omp master
+    __flush_glob_to_local(indmap, localmat, globalmat, rinfo, nfactors, m);
+  } /* end omp parallel */
+
   timer_stop(&timers[TIMER_MPI_UPDATE]);
 }
 
@@ -127,6 +140,7 @@ void mpi_reduce_rows(
   idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
 
   /* copy my partial products into the sendbuf */
+  #pragma omp parallel for
   for(idx_t s=0; s < rinfo->nlocal2nbr[m]; ++s) {
     idx_t const row = local2nbr_inds[s];
     for(idx_t f=0; f < nfactors; ++f) {
