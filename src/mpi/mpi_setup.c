@@ -168,6 +168,9 @@ static void __setup_1d(
   rinfo->layer_comm[0] = MPI_COMM_WORLD;
   rinfo->layer_comm[1] = MPI_COMM_WORLD;
   rinfo->layer_comm[2] = MPI_COMM_WORLD;
+  rinfo->layer_size[0] = 1;
+  rinfo->layer_size[1] = 1;
+  rinfo->layer_size[2] = 1;
   rinfo->dims_3d[0] = rinfo->npes;
   rinfo->dims_3d[1] = rinfo->npes;
   rinfo->dims_3d[2] = rinfo->npes;
@@ -216,6 +219,7 @@ static void __setup_3d(
     /* now split 3D communicator into layers */
     MPI_Comm_split(rinfo->comm_3d, layer_id, 0, &(rinfo->layer_comm[m]));
     MPI_Comm_rank(rinfo->layer_comm[m], &(rinfo->layer_rank[m]));
+    MPI_Comm_size(rinfo->layer_comm[m], &(rinfo->layer_size[m]));
 
     assert(rinfo->layer_rank[m] < rinfo->npes / dims_3d[m]);
   }

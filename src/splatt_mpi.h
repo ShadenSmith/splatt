@@ -87,6 +87,7 @@ typedef struct
   int dims_3d[MAX_NMODES];
   int coords_3d[MAX_NMODES];
   int layer_rank[MAX_NMODES];
+  int layer_size[MAX_NMODES];
 
 
   /* Miscellaneous */

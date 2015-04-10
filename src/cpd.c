@@ -225,6 +225,8 @@ void cpd(
   }
 #endif
 
+  matrix_t * m1ptr = m1; /* for restoring m1 */
+
   /* Initialize first A^T * A mats. We redundantly do the first because it
    * makes communication easier. */
   matrix_t * aTa[MAX_NMODES+1];
@@ -274,19 +276,24 @@ void cpd(
       timer_fstart(&modetime[m]);
       mats[MAX_NMODES]->I = ft[0]->dims[m];
       m1->I = globmats[m]->I;
+      m1ptr->I = globmats[m]->I;
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
       mttkrp_splatt(ft[m], mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
-      if(opts->distribution == 3) {
+      if(rinfo->layer_size[m] > 1) {
+        m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
         mpi_add_my_partials(ft[m]->indmap, mats[MAX_NMODES], m1, rinfo,
             nfactors, m);
         /* incorporate neighbors' partials */
         mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
             rinfo, nfactors, m);
+      } else {
+        /* skip the whole process */
+        m1 = mats[MAX_NMODES];
       }
 #endif
 
@@ -308,8 +315,8 @@ void cpd(
 
 #ifdef SPLATT_USE_MPI
       /* send updated rows to neighbors */
-      mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m], globmats[m],
-          rinfo, nfactors, m);
+      mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m],
+          globmats[m], rinfo, nfactors, m);
 #endif
 
       /* update A^T*A */
@@ -342,7 +349,7 @@ void cpd(
   thd_free(thds, opts->nthreads);
 #ifdef SPLATT_USE_MPI
   if(opts->distribution == 3) {
-    mat_free(m1);
+    mat_free(m1ptr);
   }
   free(local2nbr_buf);
   free(nbr2globs_buf);
