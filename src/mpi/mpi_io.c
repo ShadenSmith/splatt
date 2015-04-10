@@ -50,7 +50,9 @@ static void __find_my_slices(
           idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
           if(prevdist < thisdist) {
             lastn = nnzcnt - ssizes[m][s-1];
-            printf("choosing prev\n");
+            printf("choosing prev p: %lu t: %lu\n", prevdist, thisdist);
+          } else {
+            printf("KEEPING\n");
           }
         }
 
