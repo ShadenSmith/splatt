@@ -212,29 +212,12 @@ void splatt_cpd(
     }
   } /* end 3D distribution */
 
-  /* print some MPI statistics information */
-  printf("rank: %d nnz: %lu "
-         "nlocal2nbr: (%lu %lu %lu) = %lu nnbr2globs: (%lu %lu %lu) = %lu "
-         "volume: %lu\n",
-      rinfo.rank, tt->nnz,
-      /* nlocal2nbr */
-      rinfo.nlocal2nbr[0], rinfo.nlocal2nbr[1], rinfo.nlocal2nbr[2],
-      rinfo.nlocal2nbr[0] + rinfo.nlocal2nbr[1] + rinfo.nlocal2nbr[2],
-      /* nnbr2globs */
-      rinfo.nnbr2globs[0], rinfo.nnbr2globs[1], rinfo.nnbr2globs[2],
-      rinfo.nnbr2globs[0] + rinfo.nnbr2globs[1] + rinfo.nnbr2globs[2],
-      /* total volume */
-      rinfo.nlocal2nbr[0] + rinfo.nlocal2nbr[1] + rinfo.nlocal2nbr[2] +
-      rinfo.nnbr2globs[0] + rinfo.nnbr2globs[1] + rinfo.nnbr2globs[2]);
-
   idx_t totvolume = 0;
   idx_t maxvolume = 0;
   idx_t volume = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    printf("dims: %d\n", rinfo.dims_3d[m]);
     /* if a layer has > 1 rank there is a necessary reduction step too */
     if(rinfo.dims_3d[m] != rinfo.npes) {
-      printf("m: %lu doubling\n", m);
       volume += 2 * (rinfo.nlocal2nbr[m] + rinfo.nnbr2globs[m]);
     } else {
       volume += rinfo.nlocal2nbr[m] + rinfo.nnbr2globs[m];
@@ -243,13 +226,15 @@ void splatt_cpd(
   MPI_Reduce(&volume, &totvolume, 1, SS_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(&volume, &maxvolume, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
 
-  MPI_Barrier(MPI_COMM_WORLD);
   if(rinfo.rank == 0) {
+    printf("DISTRIBUTION=%luD\n", args.distribution);
+    printf("MPI DIMS=%dx%dx%d\n", rinfo.dims_3d[0], rinfo.dims_3d[1],
+        rinfo.dims_3d[2]);
     idx_t avgvolume = totvolume / rinfo.npes;
-    printf("AVG COMMUNICATION VOL=%lu MAX COMMUNICATION VOL=%lu\n", avgvolume, maxvolume);
+    printf("AVG COMMUNICATION VOL=%lu\nMAX COMMUNICATION VOL=%lu\n\n",
+        avgvolume, maxvolume);
     printf("\n");
   }
-  MPI_Barrier(MPI_COMM_WORLD);
 
 #else
   tt = tt_read(args.ifname);
