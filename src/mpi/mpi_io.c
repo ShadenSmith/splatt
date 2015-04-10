@@ -42,9 +42,7 @@ static void __find_my_slices(
 #if 1
     for(idx_t s=0; s < dims[m]; ++s) {
       if(nnzcnt >= lastn + pnnz) {
-        printf("ssizes: %lu\n", ssizes[m][s]);
         /* choose this slice or the previous, whichever is closer */
-        lastn = nnzcnt;
         if(s > 0) {
           idx_t const thisdist = nnzcnt - (lastn + pnnz);
           idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
@@ -52,8 +50,12 @@ static void __find_my_slices(
             lastn = nnzcnt - ssizes[m][s-1];
             printf("choosing prev p: %lu t: %lu\n", prevdist, thisdist);
           } else {
-            printf("KEEPING\n");
+            lastn = nnzcnt;
+            printf("KEEPING p: %lu t: %lu last: %lu nnz: %lu ss: %lu\n",
+                prevdist, thisdist, lastn, nnzcnt, ssizes[m][s-1]);
           }
+        } else {
+          lastn = nnzcnt;
         }
 
         ++currp;
