@@ -39,9 +39,21 @@ static void __find_my_slices(
     rinfo->layer_starts[m] = 0;
     rinfo->layer_ends[m] = dims[m];
 
+#if 1
     for(idx_t s=0; s < dims[m]; ++s) {
       if(nnzcnt >= lastn + pnnz) {
+        printf("ssizes: %lu\n", ssizes[m][s]);
+        /* choose this slice or the previous, whichever is closer */
         lastn = nnzcnt;
+        if(s > 0) {
+          idx_t const thisdist = nnzcnt - (lastn + pnnz);
+          idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
+          if(prevdist < thisdist) {
+            lastn = nnzcnt - ssizes[m][s-1];
+            printf("choosing prev\n");
+          }
+        }
+
         ++currp;
         if(currp == rinfo->coords_3d[m]) {
           rinfo->layer_starts[m] = s;
@@ -53,6 +65,25 @@ static void __find_my_slices(
         }
       }
       nnzcnt += ssizes[m][s];
+    }
+#else
+    idx_t const ideal = dims[m] / rinfo->dims_3d[m];
+    rinfo->layer_starts[m] = rinfo->coords_3d[m] * ideal;
+    rinfo->layer_ends[m] = (rinfo->coords_3d[m]+1) * ideal;
+    if(rinfo->coords_3d[m] == rinfo->dims_3d[m] - 1) {
+      rinfo->layer_ends[m] = dims[m];
+    }
+#endif
+
+    printf("p: %d start: %lu end: %lu\n", rinfo->rank, rinfo->layer_starts[m], rinfo->layer_ends[m]);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    /* it is possible to have a very small dimension and too many ranks */
+    if(rinfo->dims_3d[m] > 1 && rinfo->layer_starts[m] == 0
+        && rinfo->layer_ends[m] == dims[m]) {
+      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %lu.\n",
+          rinfo->rank, m+1);
+      //abort();
     }
   }
 }

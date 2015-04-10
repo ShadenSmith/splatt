@@ -212,6 +212,7 @@ void splatt_cpd(
     }
   } /* end 3D distribution */
 
+  idx_t maxnnz = 0;
   idx_t totvolume = 0;
   idx_t maxvolume = 0;
   idx_t volume = 0;
@@ -225,6 +226,7 @@ void splatt_cpd(
   }
   MPI_Reduce(&volume, &totvolume, 1, SS_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(&volume, &maxvolume, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&tt->nnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
 
   if(rinfo.rank == 0) {
     printf("DISTRIBUTION=%luD\n", args.distribution);
@@ -233,6 +235,11 @@ void splatt_cpd(
     idx_t avgvolume = totvolume / rinfo.npes;
     printf("AVG COMMUNICATION VOL=%lu\nMAX COMMUNICATION VOL=%lu\n\n",
         avgvolume, maxvolume);
+
+    idx_t const avgnnz = rinfo.global_nnz / rinfo.npes;
+    double imbalance = 100. * ((double)(maxnnz - avgnnz) / (double)maxnnz);
+    printf("AVG NNZ=%lu\nMAX NNZ=%lu  (%0.2f%% diff)\n",
+        avgnnz, maxnnz, imbalance);
     printf("\n");
   }
 
