@@ -48,11 +48,8 @@ static void __find_my_slices(
           idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
           if(prevdist < thisdist) {
             lastn = nnzcnt - ssizes[m][s-1];
-            printf("choosing prev p: %lu t: %lu\n", prevdist, thisdist);
           } else {
             lastn = nnzcnt;
-            printf("KEEPING p: %lu t: %lu last: %lu nnz: %lu ss: %lu\n",
-                prevdist, thisdist, lastn, nnzcnt, ssizes[m][s-1]);
           }
         } else {
           lastn = nnzcnt;
@@ -79,15 +76,12 @@ static void __find_my_slices(
     }
 #endif
 
-    printf("p: %d start: %lu end: %lu\n", rinfo->rank, rinfo->layer_starts[m], rinfo->layer_ends[m]);
-    MPI_Barrier(MPI_COMM_WORLD);
-
     /* it is possible to have a very small dimension and too many ranks */
     if(rinfo->dims_3d[m] > 1 && rinfo->layer_starts[m] == 0
         && rinfo->layer_ends[m] == dims[m]) {
       fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %lu.\n",
           rinfo->rank, m+1);
-      //abort();
+      abort();
     }
   }
 }

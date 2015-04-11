@@ -43,6 +43,47 @@ static void __mpi_global_stats(
   tt->dims = tmpdims;
   tt->nnz = tmpnnz;
 }
+
+
+static void __mpi_rank_stats(
+  sptensor_t const * const tt,
+  rank_info const * const rinfo,
+  cpd_opts const * const args)
+{
+  idx_t maxnnz = 0;
+  idx_t totvolume = 0;
+  idx_t maxvolume = 0;
+  idx_t volume = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    /* if a layer has > 1 rank there is a necessary reduction step too */
+    if(rinfo->layer_size[m] > 1) {
+      volume += 2 * (rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m]);
+    } else {
+      volume += rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m];
+    }
+  }
+  MPI_Reduce(&volume, &totvolume, 1, SS_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&volume, &maxvolume, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&tt->nnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
+
+  if(rinfo->rank == 0) {
+    printf("MPI information ------------------------------------------------\n");
+    printf("DISTRIBUTION=%"SS_IDX"D ", args->distribution);
+    printf("DIMS=%dx%dx%d\n", rinfo->dims_3d[0], rinfo->dims_3d[1],
+        rinfo->dims_3d[2]);
+    idx_t avgvolume = totvolume / rinfo->npes;
+
+    idx_t const avgnnz = rinfo->global_nnz / rinfo->npes;
+    double nnzimbalance = 100. * ((double)(maxnnz - avgnnz) / (double)maxnnz);
+    double volimbalance = 100. * ((double)(maxvolume - avgvolume) /
+        (double)maxvolume);
+    printf("AVG NNZ=%"SS_IDX"\nMAX NNZ=%"SS_IDX"  (%0.2f%% diff)\n",
+        avgnnz, maxnnz, nnzimbalance);
+    printf("AVG COMMUNICATION VOL=%"SS_IDX"\nMAX COMMUNICATION VOL=%"SS_IDX"  "
+        "(%0.2f%% diff)\n", avgvolume, maxvolume, volimbalance);
+    printf("\n");
+  }
+}
 #endif
 
 
@@ -212,37 +253,7 @@ void splatt_cpd(
     }
   } /* end 3D distribution */
 
-  idx_t maxnnz = 0;
-  idx_t totvolume = 0;
-  idx_t maxvolume = 0;
-  idx_t volume = 0;
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    /* if a layer has > 1 rank there is a necessary reduction step too */
-    if(rinfo.layer_size[m] > 1) {
-      volume += 2 * (rinfo.nlocal2nbr[m] + rinfo.nnbr2globs[m]);
-    } else {
-      volume += rinfo.nlocal2nbr[m] + rinfo.nnbr2globs[m];
-    }
-  }
-  MPI_Reduce(&volume, &totvolume, 1, SS_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&volume, &maxvolume, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&tt->nnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
-
-  if(rinfo.rank == 0) {
-    printf("DISTRIBUTION=%luD\n", args.distribution);
-    printf("MPI DIMS=%dx%dx%d\n", rinfo.dims_3d[0], rinfo.dims_3d[1],
-        rinfo.dims_3d[2]);
-    idx_t avgvolume = totvolume / rinfo.npes;
-    printf("AVG COMMUNICATION VOL=%lu\nMAX COMMUNICATION VOL=%lu\n\n",
-        avgvolume, maxvolume);
-
-    idx_t const avgnnz = rinfo.global_nnz / rinfo.npes;
-    double imbalance = 100. * ((double)(maxnnz - avgnnz) / (double)maxnnz);
-    printf("AVG NNZ=%lu\nMAX NNZ=%lu  (%0.2f%% diff)\n",
-        avgnnz, maxnnz, imbalance);
-    printf("\n");
-  }
-
+  __mpi_rank_stats(tt, &rinfo, &args);
 #else
   tt = tt_read(args.ifname);
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
