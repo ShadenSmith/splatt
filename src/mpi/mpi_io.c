@@ -81,7 +81,9 @@ static void __find_my_slices(
         && rinfo->layer_ends[m] == dims[m]) {
       fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %lu.\n",
           rinfo->rank, m+1);
-      abort();
+      rinfo->layer_starts[m] = dims[m];
+      rinfo->layer_ends[m] = dims[m];
+      //abort();
     }
   }
 }
@@ -133,7 +135,9 @@ static void __find_my_slices_1d(
         && rinfo->mat_end[m] == dims[m]) {
       fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %lu.\n",
           rinfo->rank, m+1);
-      abort();
+      rinfo->mat_start[m] = dims[m];
+      rinfo->mat_end[m] = dims[m];
+      //abort();
     }
   }
 }
