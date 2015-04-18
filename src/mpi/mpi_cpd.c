@@ -38,13 +38,13 @@ static void __flush_glob_to_local(
   idx_t const mat_start = rinfo->mat_start[m];
   idx_t const mat_end = rinfo->mat_end[m];
   idx_t const start = rinfo->ownstart[m];
-  idx_t const end = rinfo->ownend[m];
+  idx_t const nowned = rinfo->nowned[m];
 
-  assert(start + (end - start) <= localmat->I);
+  assert(start + nowned <= localmat->I);
 
   memcpy(localmat->vals + (start*nfactors),
          globalmat->vals,
-         (end - start) * nfactors * sizeof(val_t));
+         nowned * nfactors * sizeof(val_t));
 }
 
 
@@ -195,7 +195,7 @@ void mpi_add_my_partials(
   idx_t const mat_start = rinfo->mat_start[m];
   idx_t const mat_end = rinfo->mat_end[m];
   idx_t const start = rinfo->ownstart[m];
-  idx_t const end = rinfo->ownend[m];
+  idx_t const nowned = rinfo->nowned[m];
 
   memset(globmat->vals, 0, globmat->I * nfactors * sizeof(val_t));
 
@@ -204,7 +204,7 @@ void mpi_add_my_partials(
 
   memcpy(globmat->vals + (goffset * nfactors),
          localmat->vals + (start * nfactors),
-         nfactors * (end - start) * sizeof(val_t));
+         nowned * nfactors * sizeof(val_t));
   timer_stop(&timers[TIMER_MPI_PARTIALS]);
 }
 

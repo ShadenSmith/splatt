@@ -645,6 +645,11 @@ void mpi_find_owned(
   }
   rinfo->ownend[m] += 1;
 
+  if(rinfo->nowned == 0) {
+    rinfo->ownstart[m] = 0;
+    rinfo->ownend[m] = 0;
+  }
+
   /* sanity check to ensure owned rows are contiguous */
   if(indmap != NULL) {
     for(idx_t i=rinfo->ownstart[m]+1; i < rinfo->ownend[m]; ++i) {
