@@ -445,7 +445,7 @@ void mat_matmul(
   idx_t const Na = A->J;
 
   /* tiled matrix multiplication */
-  idx_t const TILE = 64;
+  idx_t const TILE = 16;
   #pragma omp parallel for schedule(static)
   for(idx_t i=0; i < M; ++i) {
     for(idx_t jt=0; jt < N; jt += TILE) {
