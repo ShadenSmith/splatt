@@ -630,6 +630,8 @@ void mpi_filter_tt_1d(
     ftt->dims[m] = tt->dims[m];
   }
 
+  idx_t const olds = start;
+  idx_t const olde = end;
   /* Adjust start and end if tt has been compressed. */
   assert(start != end);
   if(tt->indmap[mode] != NULL) {
@@ -637,7 +639,8 @@ void mpi_filter_tt_1d(
     for(idx_t i=0; i < tt->dims[mode]; ++i) {
       if(tt->indmap[mode][i] == start) {
         start = i;
-      } else if(tt->indmap[mode][i] == end-1) {
+      }
+      if(tt->indmap[mode][i]+1 == end) {
         end = i+1;
         break;
       }
