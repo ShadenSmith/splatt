@@ -30,7 +30,7 @@ static void __find_my_slices(
 
   /* find start/end slices for my partition */
   for(idx_t m=0; m < nmodes; ++m) {
-    idx_t const pnnz = nnz / rinfo->dims_3d[m]; /* nnz in a layer */
+    idx_t pnnz = nnz / rinfo->dims_3d[m]; /* nnz in a layer */
     /* current processor */
     int currp  = 0;
     idx_t lastn = 0;
@@ -56,6 +56,10 @@ static void __find_my_slices(
         }
 
         ++currp;
+
+        /* adjust target nnz based on what is left */
+        pnnz = (nnz - lastn) / SS_MAX(1, rinfo->dims_3d[m] - currp);
+
         if(currp == rinfo->coords_3d[m]) {
           rinfo->layer_starts[m] = s;
         } else if(currp == rinfo->coords_3d[m]+1
@@ -92,7 +96,7 @@ static void __find_my_slices_1d(
   idx_t const nnz,
   rank_info * const rinfo)
 {
-  idx_t const pnnz = nnz / rinfo->npes;
+  idx_t pnnz = nnz / rinfo->npes;
   idx_t const * const dims = rinfo->global_dims;
 
   /* find start/end slices for my partition */
@@ -124,6 +128,10 @@ static void __find_my_slices_1d(
         }
 
         ++currp;
+
+        /* adjust target nnz based on what is left */
+        pnnz = (nnz - lastn) / SS_MAX(1, rinfo->npes - currp);
+
         if(currp == rinfo->rank) {
           rinfo->mat_start[m] = s;
         } else if(currp == rinfo->rank+1 && currp != rinfo->npes) {
