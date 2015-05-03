@@ -26,6 +26,9 @@ typedef struct
 } thd_info;
 
 
+/**
+* @brief The types of parallel reductions supported.
+*/
 typedef enum
 {
   REDUCE_SUM,
@@ -38,6 +41,14 @@ typedef enum
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+/**
+* @brief Perform a parallel reduction on thds->scratch[scratchid].
+*
+* @param thds The thread structure we are using in the reduction.
+* @param scratchid Which scratch array to reduce.
+* @param nelems How many elements in the scratch array.
+* @param which Which reduction operation to perform.
+*/
 void thd_reduce(
   thd_info * const thds,
   idx_t const scratchid,

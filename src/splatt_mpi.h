@@ -9,8 +9,9 @@ typedef struct
   int rank;
 } rank_info;
 
-/* FULL MPI SUPPORT */
 # else
+
+/**** FULL MPI SUPPORT *****/
 
 #include "base.h"
 #include <mpi.h>

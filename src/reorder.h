@@ -28,8 +28,8 @@ typedef enum
 */
 typedef struct
 {
-  idx_t * perms[MAX_NMODES];
-  idx_t * iperms[MAX_NMODES];
+  idx_t * perms[MAX_NMODES];  /** Permutation array for each mode */
+  idx_t * iperms[MAX_NMODES]; /** Inverse permutation array for each mode */
 } permutation_t;
 
 
@@ -43,7 +43,7 @@ typedef struct
 
 
 /******************************************************************************
- * PUBLIC FUNCTIONS
+ * TENSOR REORDER FUNCTIONS
  *****************************************************************************/
 
 /**
@@ -63,6 +63,18 @@ permutation_t *  tt_perm(
   char const * const pfile);
 
 
+/**
+* @brief Build a data structure containing the size of each partition (in
+*        vertices) and a list of vertices in each partition.
+*
+* @param parts An array marking which partition each vertex is in.
+* @param nparts The number of partitions.
+* @param nvtxs The number of vertices.
+* @param ret_pptr RETURN: An array marking the size (in vertices) of each
+*                         partition.
+* @param ret_plookup RETURN: An array indexed by with a list of the vertices
+*                            in each partition.
+*/
 void build_pptr(
   idx_t const * const parts,
   idx_t const nparts,
@@ -87,7 +99,6 @@ permutation_t * perm_hgraph(
   idx_t const nparts,
   idx_t const mode);
 
-
 permutation_t * perm_graph(
   sptensor_t * const tt,
   idx_t const * const parts,
@@ -100,7 +111,6 @@ permutation_t * perm_identity(
 permutation_t * perm_alloc(
   idx_t const * const dims,
   idx_t const nmodes);
-
 
 void perm_free(
   permutation_t * perm);

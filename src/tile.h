@@ -7,6 +7,8 @@
 #include "base.h"
 #include "sptensor.h"
 
+/** Dimensions to use while tiling
+ *  TODO: make this configurable? */
 static idx_t const TILE_SIZES[] = { 2048, 2048, 2048 };
 
 

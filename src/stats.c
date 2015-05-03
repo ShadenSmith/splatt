@@ -16,7 +16,6 @@
  * STATIC FUNCTIONS
  *****************************************************************************/
 
-
 /**
 * @brief Compute the density of a sparse tensor, defined by nnz/(I*J*K).
 *

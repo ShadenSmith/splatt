@@ -10,6 +10,15 @@
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+
+/**
+* @brief Perform a parallel SUM reduction.
+*
+* @param thds The thread structure we are using in the reduction.
+* @param scratchid Which scratch array to reduce.
+* @param nelems How many elements in the scratch array.
+*/
 static inline void __reduce_sum(
   thd_info * const thds,
   idx_t const scratchid,
@@ -46,6 +55,13 @@ static inline void __reduce_sum(
 }
 
 
+/**
+* @brief Perform a parallel MAX reduction.
+*
+* @param thds The thread structure we are using in the reduction.
+* @param scratchid Which scratch array to reduce.
+* @param nelems How many elements in the scratch array.
+*/
 static inline void __reduce_max(
   thd_info * const thds,
   idx_t const scratchid,
