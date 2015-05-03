@@ -34,13 +34,16 @@ static inline FILE * open_f(
 /******************************************************************************
  * TENSOR FUNCTIONS
  *****************************************************************************/
+#define tt_read_file splatt_tt_read_file
 sptensor_t * tt_read_file(
   char const * const fname);
 
+#define tt_write_file splatt_tt_write_file
 void tt_write_file(
   sptensor_t const * const tt,
   FILE * fout);
 
+#define tt_write splatt_tt_write
 void tt_write(
   sptensor_t const * const tt,
   char const * const fname);
@@ -49,9 +52,12 @@ void tt_write(
 /******************************************************************************
  * GRAPH FUNCTIONS
  *****************************************************************************/
+#define hgraph_write_file splatt_hgraph_write_file
 void hgraph_write_file(
   hgraph_t const * const hg,
   FILE * fout);
+
+#define hgraph_write splatt_hgraph_write
 void hgraph_write(
   hgraph_t const * const hg,
   char const * const fname);
@@ -61,9 +67,12 @@ void hgraph_write(
 /******************************************************************************
  * DENSE MATRIX FUNCTIONS
  *****************************************************************************/
+#define mat_write splatt_mat_write
 void mat_write(
   matrix_t const * const mat,
   char const * const fname);
+
+#define mat_write_file splatt_mat_write_file
 void mat_write_file(
   matrix_t const * const mat,
   FILE * fout);
@@ -73,9 +82,12 @@ void mat_write_file(
 /******************************************************************************
  * SPARSE MATRIX FUNCTIONS
  *****************************************************************************/
+#define spmat_write splatt_spmat_write
 void spmat_write(
   spmatrix_t const * const mat,
   char const * const fname);
+
+#define spmat_write_file splatt_spmat_write_file
 void spmat_write_file(
   spmatrix_t const * const mat,
   FILE * fout);
@@ -84,11 +96,13 @@ void spmat_write_file(
 /******************************************************************************
  * PERMUTATION FUNCTIONS
  *****************************************************************************/
+#define perm_write splatt_perm_write
 void perm_write(
   idx_t * perm,
   idx_t const dim,
   char const * const fname);
 
+#define perm_write_file splatt_perm_write_file
 void perm_write_file(
   idx_t * perm,
   idx_t const dim,
@@ -98,6 +112,7 @@ void perm_write_file(
 /******************************************************************************
  * PARTITION FUNCTIONS
  *****************************************************************************/
+#define part_read splatt_part_read
 idx_t * part_read(
   char const * const ifname,
   idx_t const nvtxs,

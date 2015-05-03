@@ -13,6 +13,7 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#define rand_val splatt_rand_val
 /**
 * @brief Generate a random val_t in the range [0, 1].
 *
@@ -21,6 +22,7 @@
 val_t rand_val(void);
 
 
+#define rand_idx splatt_rand_idx
 /**
 * @brief Generate a random idx_t in the range [0, RAND_MAX << 16].
 *
@@ -29,6 +31,7 @@ val_t rand_val(void);
 idx_t rand_idx(void);
 
 
+#define bytes_str splatt_bytes_str
 /**
 * @brief Return a string describing a human-readable number of bytes.
 *

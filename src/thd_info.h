@@ -41,6 +41,7 @@ typedef enum
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#define thd_reduce splatt_thd_reduce
 /**
 * @brief Perform a parallel reduction on thds->scratch[scratchid].
 *
@@ -55,6 +56,8 @@ void thd_reduce(
   idx_t const nelems,
   splatt_reduce_type const which);
 
+
+#define thd_times splatt_thd_times
 /**
 * @brief Output a summary to STDOUT of all thread timers.
 *
@@ -66,6 +69,7 @@ void thd_times(
   idx_t const nthreads);
 
 
+#define thd_reset splatt_thd_reset
 /**
 * @brief Reset an array of thread timers.
 *
@@ -76,7 +80,7 @@ void thd_reset(
   thd_info * thds,
   idx_t const nthreads);
 
-
+#define thd_init splatt_thd_init
 /**
 * @brief Allocate and initialize a number thd_info structs.
 *
@@ -91,6 +95,8 @@ thd_info * thd_init(
   idx_t const nscratch,
   ...);
 
+
+#define thd_free splatt_thd_free
 void thd_free(
   thd_info * thds,
   idx_t const nthreads);

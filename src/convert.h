@@ -28,6 +28,7 @@ typedef enum
  *****************************************************************************/
 
 
+#define tt_convert splatt_tt_convert
 /**
 * @brief Load a tensor, convert to a different form, and write it to disk.
 *

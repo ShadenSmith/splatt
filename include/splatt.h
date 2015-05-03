@@ -25,6 +25,10 @@ typedef unsigned long splatt_idx_t;
  * API FUNCTIONS
  *****************************************************************************/
 
+#ifdef __cplusplus
+extern 'C' {
+#endif
+
 /**
 * @brief Compute the CPD using alternating least squares.
 *
@@ -49,5 +53,10 @@ void splatt_cpd_als(
     splatt_val_t * const vals,
     splatt_val_t ** const mats,
     splatt_val_t * const lambda);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif

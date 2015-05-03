@@ -112,6 +112,7 @@ typedef struct
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
+#define mpi_update_rows splatt_mpi_update_rows
 /**
 * @brief Do an all-to-all communication of exchanging updated rows with other
 *        ranks. We send globmats[mode] to the needing ranks and receive other
@@ -139,6 +140,7 @@ void mpi_update_rows(
   idx_t const mode);
 
 
+#define mpi_reduce_rows splatt_mpi_reduce_rows
 /**
 * @brief Do a reduction (sum) of all neighbor partial products which I own.
 *        Updates are written to globalmat.
@@ -161,6 +163,7 @@ void mpi_reduce_rows(
   idx_t const mode);
 
 
+#define mpi_add_my_partials splatt_mpi_add_my_partials
 /**
 * @brief Add my own partial products to the global matrix that I own.
 *
@@ -190,6 +193,7 @@ void mpi_cpd(
   cpd_opts const * const opts);
 #endif
 
+#define mpi_write_mats splatt_mpi_write_mats
 void mpi_write_mats(
   matrix_t ** mats,
   permutation_t const * const perm,
@@ -198,6 +202,7 @@ void mpi_write_mats(
   idx_t const nmodes);
 
 
+#define mpi_write_part splatt_mpi_write_part
 /**
 * @brief Write a tensor to file <rank>.part. All local indices are converted to
 *        global.
@@ -212,6 +217,8 @@ void mpi_write_part(
   permutation_t const * const perm,
   rank_info const * const rinfo);
 
+
+#define mpi_compute_ineed splatt_mpi_compute_ineed
 /**
 * @brief
 *
@@ -225,6 +232,8 @@ void mpi_compute_ineed(
   idx_t const nfactors,
   idx_t const distribution);
 
+
+#define mpi_tt_read splatt_mpi_tt_read
 /**
 * @brief Each rank reads their 3D partition of a tensor.
 *
@@ -239,6 +248,7 @@ sptensor_t * mpi_tt_read(
   rank_info * const rinfo);
 
 
+#define mpi_filter_tt_1d splatt_mpi_filter_tt_1d
 /**
 * @brief Run nonzeros from tt through filter to 'ftt'. This is 1D filtering,
 *        so we accept any nonzeros whose ind[mode] are within [start, end).
@@ -257,6 +267,7 @@ void mpi_filter_tt_1d(
   idx_t end);
 
 
+#define mpi_distribute_mats splatt_mpi_distribute_mats
 /**
 * @brief Compute a distribution of factor matrices that minimizes communication
 *        volume.
@@ -274,7 +285,7 @@ permutation_t *  mpi_distribute_mats(
   idx_t const distribution);
 
 
-
+#define mpi_find_owned splatt_mpi_find_owned
 /**
 * @brief Setup 'owned' structures which mark the location of owned rows in
 *        my local tensor.
@@ -288,6 +299,7 @@ void mpi_find_owned(
   rank_info * const rinfo);
 
 
+#define mpi_setup_comms splatt_mpi_setup_comms
 /**
 * @brief Fill rinfo with process' MPI rank information. Includes rank, 3D
 *        communicator, etc.
@@ -300,6 +312,7 @@ void mpi_setup_comms(
   idx_t const distribution);
 
 
+#define rank_free splatt_rank_free
 /**
 * @brief Free structures allocated inside rank_info.
 *
@@ -311,6 +324,7 @@ void rank_free(
   idx_t const nmodes);
 
 
+#define mpi_time_stats splatt_mpi_time_stats
 /**
 * @brief Update timers[] with max values on the master rank instead of only
 *        local times.
@@ -321,6 +335,7 @@ void mpi_time_stats(
   rank_info const * const rinfo);
 
 
+#define mpi_send_recv_stats splatt_mpi_send_recv_stats
 /**
 * @brief Print send/recieve information to STDOUT.
 *

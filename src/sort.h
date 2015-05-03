@@ -13,6 +13,7 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#define tt_sort splatt_tt_sort
 /**
 * @brief Sort a tensor using a permutation of its modes. Sorting uses dim_perm
 *        to order modes by decreasing priority. If dim_perm = {1, 0, 2} then
@@ -30,6 +31,7 @@ void tt_sort(
   idx_t * dim_perm);
 
 
+#define insertion_sort splatt_insertion_sort
 /**
 * @brief An in-place insertion sort implementation for idx_t's.
 *
@@ -41,6 +43,7 @@ void insertion_sort(
   idx_t const n);
 
 
+#define quicksort splatt_quicksort
 /**
 * @brief An in-place quicksort implementation for idx_t's.
 *

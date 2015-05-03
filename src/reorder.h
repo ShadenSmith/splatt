@@ -46,6 +46,7 @@ typedef struct
  * TENSOR REORDER FUNCTIONS
  *****************************************************************************/
 
+#define tt_perm splatt_tt_perm
 /**
 * @brief Permute a tensor.
 *
@@ -63,6 +64,7 @@ permutation_t *  tt_perm(
   char const * const pfile);
 
 
+#define build_pptr splatt_build_pptr
 /**
 * @brief Build a data structure containing the size of each partition (in
 *        vertices) and a list of vertices in each partition.
@@ -83,15 +85,18 @@ void build_pptr(
   idx_t ** ret_plookup);
 
 
+#define perm_apply splatt_perm_apply
 void perm_apply(
   sptensor_t * const tt,
   idx_t ** perm);
 
 
+#define perm_rand splatt_perm_rand
 permutation_t * perm_rand(
   sptensor_t * const tt);
 
 
+#define perm_hgraph splatt_perm_hgraph
 permutation_t * perm_hgraph(
   sptensor_t * const tt,
   ftensor_t const * const ft,
@@ -99,19 +104,27 @@ permutation_t * perm_hgraph(
   idx_t const nparts,
   idx_t const mode);
 
+
+#define perm_graph splatt_perm_graph
 permutation_t * perm_graph(
   sptensor_t * const tt,
   idx_t const * const parts,
   idx_t const nparts);
 
+
+#define perm_identity splatt_perm_identity
 permutation_t * perm_identity(
   idx_t const * const dims,
   idx_t const nmodes);
 
+
+#define perm_alloc splatt_perm_alloc
 permutation_t * perm_alloc(
   idx_t const * const dims,
   idx_t const nmodes);
 
+
+#define perm_free splatt_perm_free
 void perm_free(
   permutation_t * perm);
 
@@ -119,11 +132,11 @@ void perm_free(
 /******************************************************************************
  * MATRIX REORDER FUNCTIONS
  *****************************************************************************/
+#define perm_matrix splatt_perm_matrix
 matrix_t * perm_matrix(
   matrix_t const * const mat,
   idx_t const * const perm,
   matrix_t * retmat);
-
 
 
 #endif

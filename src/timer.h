@@ -74,17 +74,20 @@ typedef enum
 static int timer_lvl = TIMER_NTIMERS;
 extern sp_timer_t timers[];
 
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-
+#define init_timers splatt_init_timers
 /**
 * @brief Call timer_reset() on all of timers[].
 */
 void init_timers(void);
 
 
+#define report_times splatt_report_times
 /**
 * @brief Output a summary of all used timers.
 */

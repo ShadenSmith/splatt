@@ -16,6 +16,7 @@ static idx_t const TILE_SIZES[] = { 2048, 2048, 2048 };
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#define tt_tile splatt_tt_tile
 /**
 * @brief Rearrange the nonzeros of a tensor into a tiled form.
 *

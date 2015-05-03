@@ -54,17 +54,21 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+#define ften_alloc splatt_ften_alloc
 ftensor_t * ften_alloc(
   sptensor_t * const tt,
   idx_t const mode,
   int const tile);
 
+#define ften_spmat splatt_ften_spmat
 spmatrix_t * ften_spmat(
   ftensor_t * ft);
 
+#define ften_free splatt_ften_free
 void ften_free(
   ftensor_t * ft);
 
+#define ften_mode_order splatt_fib_mode_order
 void fib_mode_order(
   idx_t const * const dims,
   idx_t const nmodes,

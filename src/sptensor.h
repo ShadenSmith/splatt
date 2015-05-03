@@ -52,6 +52,7 @@ typedef struct
  *****************************************************************************/
 
 
+#define tt_read splatt_tt_read
 /**
 * @brief Load a sparse tensor from the file 'ifname'.
 *
@@ -63,6 +64,7 @@ sptensor_t * tt_read(
   char const * const ifname);
 
 
+#define tt_alloc splatt_tt_alloc
 /**
 * @brief Allocate a sparse tensor.
 *
@@ -77,6 +79,7 @@ sptensor_t * tt_alloc(
 
 
 
+#define tt_get_slices splatt_tt_get_slices
 /**
 * @brief Return a list of unique slice ids found in mode m. Slice i will be
 *        included if there is a nonzero in tt the mth index equal to i.
@@ -94,6 +97,7 @@ idx_t * tt_get_slices(
   idx_t * nunique);
 
 
+#define tt_free splatt_tt_free
 /**
 * @brief Free the fields AND pointer of a tensor.
 *
@@ -103,6 +107,7 @@ void tt_free(
   sptensor_t * tt);
 
 
+#define tt_remove_dups splatt_tt_remove_dups
 /**
 * @brief Remove the duplicate entries of a tensor. Duplicate values are
 *        repeatedly averaged.
@@ -116,6 +121,7 @@ idx_t tt_remove_dups(
   sptensor_t * const tt);
 
 
+#define tt_remove_empty splatt_tt_remove_empty
 /**
 * @brief Relabel tensor indices to remove empty slices. Local -> global mapping
 *        is written to tt->indmap.
@@ -128,6 +134,7 @@ idx_t tt_remove_empty(
   sptensor_t * const tt);
 
 
+#define tt_unfold splatt_tt_unfold
 /**
 * @brief Unfold a tensor to a sparse matrix in CSR format.
 *
@@ -143,6 +150,7 @@ spmatrix_t * tt_unfold(
   idx_t const mode);
 
 
+#define tt_normsq splatt_tt_normsq
 /**
 * @brief Calculate the Frobenius norm of tt, squared. This is the
 *        sum-of-squares for all nonzero values.

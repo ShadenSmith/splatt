@@ -31,13 +31,18 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+#define hgraph_fib_alloc splatt_hgraph_fib_alloc
 hgraph_t * hgraph_fib_alloc(
   ftensor_t const * const ft,
   idx_t const mode);
 
+
+#define hgraph_free splatt_hgraph_free
 void hgraph_free(
   hgraph_t * hg);
 
+
+#define hgraph_uncut splatt_hgraph_uncut
 idx_t * hgraph_uncut(
   hgraph_t const * const hg,
   idx_t const * const parts,

@@ -31,6 +31,7 @@ typedef enum
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#define stats_tt splatt_stats_tt
 /**
 * @brief Output statistics about a sparse tensor.
 *
