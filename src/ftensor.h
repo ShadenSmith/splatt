@@ -68,7 +68,7 @@ spmatrix_t * ften_spmat(
 void ften_free(
   ftensor_t * ft);
 
-#define ften_mode_order splatt_fib_mode_order
+#define fib_mode_order splatt_fib_mode_order
 void fib_mode_order(
   idx_t const * const dims,
   idx_t const nmodes,
