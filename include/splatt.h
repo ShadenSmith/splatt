@@ -1,8 +1,16 @@
 #ifndef SPLATT_SPLATT_H
 #define SPLATT_SPLATT_H
 
+
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
 #include <stddef.h>
 
+
+/******************************************************************************
+ * TYPES
+ *****************************************************************************/
 typedef double splatt_val_t;
 #define SS_VAL "f"
 #define SS_MPI_VAL MPI_DOUBLE
@@ -11,6 +19,11 @@ typedef unsigned long splatt_idx_t;
 #define SS_IDX "lu"
 #define SS_MPI_IDX MPI_UNSIGNED_LONG
 
+
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
 
 /**
 * @brief Compute the CPD using alternating least squares.
@@ -28,7 +41,7 @@ typedef unsigned long splatt_idx_t;
 *             row-major.
 * @param lambda The scaling factors extracted from mats.
 */
-void cpd_als(
+void splatt_cpd_als(
     splatt_idx_t const rank,
     splatt_idx_t const nmodes,
     splatt_idx_t const nnz,
