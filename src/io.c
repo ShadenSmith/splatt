@@ -281,6 +281,43 @@ void mat_write_file(
 }
 
 
+void vec_write(
+  val_t const * const vec,
+  idx_t const len,
+  char const * const fname)
+{
+  FILE * fout;
+  if(fname == NULL) {
+    fout = stdout;
+  } else {
+    if((fout = fopen(fname,"w")) == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+      exit(1);
+    }
+  }
+
+  vec_write_file(vec, len, fout);
+
+  if(fout != stdout) {
+    fclose(fout);
+  }
+}
+
+void vec_write_file(
+  val_t const * const vec,
+  idx_t const len,
+  FILE * fout)
+{
+  timer_start(&timers[TIMER_IO]);
+
+  for(idx_t i=0; i < len; ++i) {
+    fprintf(fout, "%"SS_VAL"\n", vec[i]);
+  }
+
+  timer_stop(&timers[TIMER_IO]);
+}
+
+
 idx_t * part_read(
   char const * const ifname,
   idx_t const nvtxs,

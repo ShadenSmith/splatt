@@ -313,6 +313,13 @@ void splatt_cpd(
   /* do the factorization! */
   cpd(ft, mats, globmats, lambda, &rinfo, &args);
 
+#if 0
+  mat_write(globmats[0], "mode1.mat");
+  mat_write(globmats[1], "mode2.mat");
+  mat_write(globmats[2], "mode3.mat");
+  vec_write(lambda, args.rank, "lambda.mat");
+#endif
+
   for(idx_t m=0;m < nmodes; ++m) {
     ften_free(ft[m]);
     mat_free(mats[m]);

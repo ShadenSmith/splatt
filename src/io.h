@@ -77,6 +77,17 @@ void mat_write_file(
   matrix_t const * const mat,
   FILE * fout);
 
+#define vec_write splatt_vec_write
+void vec_write(
+  val_t const * const vec,
+  idx_t const len,
+  char const * const fname);
+
+#define vec_write_file splatt_vec_write_file
+void vec_write_file(
+  val_t const * const vec,
+  idx_t const len,
+  FILE * fout);
 
 
 /******************************************************************************
