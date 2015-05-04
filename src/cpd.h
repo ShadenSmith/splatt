@@ -13,8 +13,9 @@ typedef struct
   char * ifname;
 
   /* CPD options */
-  idx_t niters;
   idx_t rank;
+  idx_t niters;
+  double tol; /** cease iterations with improvement drops below tol */
 
   /* dimension of the distribution (used in MPI) */
   idx_t distribution;

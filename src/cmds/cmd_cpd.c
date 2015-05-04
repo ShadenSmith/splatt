@@ -94,16 +94,20 @@ static void __mpi_rank_stats(
  *****************************************************************************/
 static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
-  "splatt-cpd -- compute the CPD of a sparse tensor\n\n";
+  "splatt-cpd -- compute the CPD of a sparse tensor\n";
 
+#define TT_TOL 254
 #define TT_TILE 255
 static struct argp_option cpd_options[] = {
-  {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
-                                 "(default: 3)"},
   {"iters", 'i', "NITERS", 0, "number of iterations to use (default: 5)"},
+  {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-4)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
+#ifdef SPLATT_USE_MPI
+  {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
+                                 "(default: 3)"},
+#endif
   { 0 }
 };
 
@@ -117,6 +121,7 @@ static error_t parse_cpd_opt(
   char * buf;
   int cnt = 0;
   switch(key) {
+#ifdef SPLATT_USE_MPI
   case 'd':
     buf = strtok(arg, "x");
     while(buf != NULL) {
@@ -125,8 +130,12 @@ static error_t parse_cpd_opt(
     }
     args->distribution = cnt;
     break;
+#endif
   case 'i':
     args->niters = atoi(arg);
+    break;
+  case TT_TOL:
+    args->tol = atof(arg);
     break;
   case 'r':
     args->rank = atoi(arg);
@@ -164,6 +173,7 @@ void splatt_cpd(
   cpd_opts args;
   args.ifname = NULL;
   args.niters = 5;
+  args.tol = 1e-4;
   args.rank = 10;
   args.nthreads = 1;
   args.tile = 0;
@@ -296,7 +306,8 @@ void splatt_cpd(
   if(rinfo.rank == 0) {
     printf("Factoring "
            "------------------------------------------------------\n");
-    printf("NFACTORS=%"SS_IDX" MAXITS=%"SS_IDX" ", args.rank, args.niters);
+    printf("NFACTORS=%"SS_IDX" MAXITS=%"SS_IDX" TOL=%0.1e ", args.rank,
+        args.niters, args.tol);
 #ifdef SPLATT_USE_MPI
     printf("RANKS=%d ", rinfo.npes);
 #endif

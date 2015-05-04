@@ -114,7 +114,7 @@ static val_t __tt_kruskal_inner(
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_IDLE]);
 
-  MPI_Reduce(&myinner, &inner, 1, SS_MPI_VAL, MPI_SUM, 0, rinfo->comm_3d);
+  MPI_Allreduce(&myinner, &inner, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_FIT]);
 #else
   inner = myinner;
@@ -239,6 +239,7 @@ void cpd(
 
   /* Compute input tensor norm */
   val_t oldfit = 0;
+  val_t fit = 0;
   val_t mynorm = 0;
   #pragma omp parallel for reduction(+:mynorm)
   for(idx_t n=0; n < ft[0]->nnz; ++n) {
@@ -324,8 +325,8 @@ void cpd(
       timer_stop(&modetime[m]);
     } /* foreach mode */
 
-    val_t const fit = __calc_fit(nmodes, rinfo, thds, opts->nthreads, ttnormsq,
-        lambda, globmats, m1, aTa);
+    fit = __calc_fit(nmodes, rinfo, thds, opts->nthreads, ttnormsq, lambda,
+        globmats, m1, aTa);
     timer_stop(&itertime);
 
     if(rinfo->rank == 0) {
@@ -335,10 +336,17 @@ void cpd(
         printf("     mode = %1"SS_IDX" (%0.3fs)\n", m+1,
             modetime[m].seconds);
       }
-      oldfit = fit;
     }
+    if(it > 0 && fabs(fit - oldfit) < opts->tol) {
+      break;
+    }
+    oldfit = fit;
   }
   timer_stop(&timers[TIMER_CPD]);
+
+  if(rinfo->rank == 0) {
+    printf("Final fit: %0.5f\n", fit);
+  }
 
   /* POST PROCESSING */
   /* normalize each mat and adjust lambda */
