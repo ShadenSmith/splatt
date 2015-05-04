@@ -340,7 +340,18 @@ void cpd(
   }
   timer_stop(&timers[TIMER_CPD]);
 
-  /* clean up */
+  /* POST PROCESSING */
+  /* normalize each mat and adjust lambda */
+  val_t * tmp = (val_t *) malloc(nfactors * sizeof(val_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds,opts->nthreads);
+    for(idx_t f=0; f < nfactors; ++f) {
+      lambda[f] *= tmp[f];
+    }
+  }
+  free(tmp);
+
+  /* CLEAN UP */
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(aTa[m]);
   }
@@ -359,4 +370,5 @@ void cpd(
   mpi_time_stats(rinfo);
 #endif
 }
+
 
