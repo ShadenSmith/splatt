@@ -96,14 +96,16 @@ static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
   "splatt-cpd -- compute the CPD of a sparse tensor\n";
 
+#define TT_NOWRITE 253
 #define TT_TOL 254
 #define TT_TILE 255
 static struct argp_option cpd_options[] = {
-  {"iters", 'i', "NITERS", 0, "number of iterations to use (default: 5)"},
-  {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-4)"},
+  {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
+  {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
+  {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
 #ifdef SPLATT_USE_MPI
   {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
                                  "(default: 3)"},
@@ -121,16 +123,9 @@ static error_t parse_cpd_opt(
   char * buf;
   int cnt = 0;
   switch(key) {
-#ifdef SPLATT_USE_MPI
-  case 'd':
-    buf = strtok(arg, "x");
-    while(buf != NULL) {
-      args->mpi_dims[cnt++] = atoi(buf);
-      buf = strtok(NULL, "x");
-    }
-    args->distribution = cnt;
+  case TT_NOWRITE:
+    args->write = 0;
     break;
-#endif
   case 'i':
     args->niters = atoi(arg);
     break;
@@ -146,6 +141,16 @@ static error_t parse_cpd_opt(
   case TT_TILE:
     args->tile = 1;
     break;
+#ifdef SPLATT_USE_MPI
+  case 'd':
+    buf = strtok(arg, "x");
+    while(buf != NULL) {
+      args->mpi_dims[cnt++] = atoi(buf);
+      buf = strtok(NULL, "x");
+    }
+    args->distribution = cnt;
+    break;
+#endif
 
   case ARGP_KEY_ARG:
     if(args->ifname != NULL) {
@@ -172,8 +177,9 @@ void splatt_cpd(
 {
   cpd_opts args;
   args.ifname = NULL;
-  args.niters = 5;
-  args.tol = 1e-4;
+  args.write = 1;
+  args.niters = 50;
+  args.tol = 1e-5;
   args.rank = 10;
   args.nthreads = 1;
   args.tile = 0;
@@ -324,12 +330,16 @@ void splatt_cpd(
   /* do the factorization! */
   cpd(ft, mats, globmats, lambda, &rinfo, &args);
 
-#if 0
-  mat_write(globmats[0], "mode1.mat");
-  mat_write(globmats[1], "mode2.mat");
-  mat_write(globmats[2], "mode3.mat");
-  vec_write(lambda, args.rank, "lambda.mat");
+  if(args.write == 1) {
+#ifndef SPLATT_USE_MPI
+    mat_write(globmats[0], "mode1.mat");
+    mat_write(globmats[1], "mode2.mat");
+    mat_write(globmats[2], "mode3.mat");
+#else
+    mpi_write_mats(globmats, perm, &rinfo, "test", nmodes);
 #endif
+    vec_write(lambda, args.rank, "lambda.mat");
+  }
 
   for(idx_t m=0;m < nmodes; ++m) {
     ften_free(ft[m]);
@@ -343,7 +353,6 @@ void splatt_cpd(
 
 #ifdef SPLATT_USE_MPI
   /* write output */
-  //mpi_write_mats(globmats, perm, &rinfo, "test", nmodes);
   perm_free(perm);
   rank_free(rinfo, nmodes);
 #endif

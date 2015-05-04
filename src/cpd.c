@@ -359,6 +359,7 @@ void cpd(
   }
   free(tmp);
 
+
   /* CLEAN UP */
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(aTa[m]);
