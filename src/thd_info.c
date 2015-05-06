@@ -145,6 +145,7 @@ thd_info * thd_init(
     idx_t const bytes = va_arg(args, idx_t);
     for(idx_t t=0; t < nthreads; ++t) {
       thds[t].scratch[s] = (void *) malloc(bytes);
+      memset(thds[t].scratch[s], 0, bytes);
     }
   }
   va_end(args);
