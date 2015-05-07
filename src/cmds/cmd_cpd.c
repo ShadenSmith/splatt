@@ -94,7 +94,7 @@ static void __mpi_rank_stats(
  *****************************************************************************/
 static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
-  "splatt-cpd -- compute the CPD of a sparse tensor\n";
+  "splatt-cpd -- Compute the CPD of a sparse tensor.\n";
 
 #define TT_NOWRITE 253
 #define TT_TOL 254

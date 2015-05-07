@@ -14,7 +14,7 @@
  *****************************************************************************/
 static char bench_args_doc[] = "TENSOR [-a ALG]...";
 static char bench_doc[] =
-  "splatt-bench -- benchmark MTTKRP algorithms\n\n"
+  "splatt-bench -- benchmark MTTKRP algorithms.\n\n"
   "Available MTTKRP algorithms are:\n"
   "  splatt\tThe algorithm introduced by splatt\n"
   "  giga\t\tGigaTensor algorithm adapted from the MapReduce paradigm\n"

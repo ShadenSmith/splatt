@@ -17,13 +17,13 @@ static char cmd_args_doc[] = "CMD";
 static char cmd_doc[] =
   "splatt -- the Surprisingly ParalleL spArse Tensor Toolkit\n\n"
   "The available commands are:\n"
-  "  cpd\t\tCompute the Canonical Polyadic Decomposition\n"
-  "  bench\t\tBenchmark MTTKRP algorithms\n"
+  "  cpd\t\tCompute the Canonical Polyadic Decomposition.\n"
+  "  bench\t\tBenchmark MTTKRP algorithms.\n"
   "  check\t\tCheck a tensor file for correctness.\n"
-  "  convert\tConvert a tensor to different formats\n"
-  "  reorder\t\tReorder a tensor using one of several methods\n"
-  "  stats\t\tPrint tensor statistics\n"
-  "  help\t\tPrint this help message\n";
+  "  convert\tConvert a tensor to different formats.\n"
+  "  reorder\t\tReorder a tensor using one of several methods.\n"
+  "  stats\t\tPrint tensor statistics.\n"
+  "  help\t\tPrint this help message.\n";
 
 static inline void print_header(void)
 {

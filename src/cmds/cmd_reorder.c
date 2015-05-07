@@ -14,7 +14,7 @@
  *****************************************************************************/
 static char perm_args_doc[] = "TENSOR";
 static char perm_doc[] =
-  "splatt-reorder -- permute a tensor\n\n"
+  "splatt-reorder -- Reording the indices of a sparse tensor.\n\n"
   "Mode-independent types are:\n"
   "  rand\t\t\tCreate a random permutation of a tensor\n"
   "  graph\t\t\tReorder based on the partitioning of a mode-independent graph\n"

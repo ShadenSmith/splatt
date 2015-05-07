@@ -11,7 +11,7 @@
  *****************************************************************************/
 static char convert_args_doc[] = "TENSOR OUTPUT";
 static char convert_doc[] =
-  "splatt-convert -- convert a tensor\n\n"
+  "splatt-convert -- Convert a tensor to a different form.\n\n"
   "Mode-dependent conversion types are:\n"
   "  hgraph\t\tHypergraph modeling the sparsity pattern of fibers\n"
   "  fibmat\t\tCSR matrix whose rows are fibers\n"

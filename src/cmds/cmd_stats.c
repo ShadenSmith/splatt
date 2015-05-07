@@ -11,7 +11,7 @@
  *****************************************************************************/
 static char stats_args_doc[] = "TENSOR";
 static char stats_doc[] =
-  "splatt-stats -- print statistics about a tensor\n\n"
+  "splatt-stats -- Print statistics about a tensor.\n\n"
   "Mode-independent types are:\n"
   "  basic\t\t\tPrint simple statistics\n"
   "Mode-dependent types are:\n"

@@ -131,6 +131,7 @@ static void __create_slabptr(
     }
   }
 
+  /* TODO: Why free this for coop, but not indv? - nope, does not work... */
   /* update ft with new data structures */
   free(ft->sids);
   ft->sids = sids;

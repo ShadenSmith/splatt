@@ -12,13 +12,13 @@
  *****************************************************************************/
 static char check_args_doc[] = "TENSOR";
 static char check_doc[] =
-  "splatt-check -- check a tensor file for correctness\n\n"
+  "splatt-check -- check a tensor file for correctness.\n\n"
   "Checks for:\n"
   "  duplicate nonzeros (fixed via repeated averaging)\n"
   "  empty slices (fixed via mode<m>.map file)\n";
 
 static struct argp_option check_options[] = {
-  { "fix", 'f', "FILE", OPTION_ARG_OPTIONAL, "fix any mistakes found" },
+  { "fix", 'f', "FILE", OPTION_ARG_OPTIONAL, "fix mistakes and write to FILE" },
   { 0 }
 };
 
