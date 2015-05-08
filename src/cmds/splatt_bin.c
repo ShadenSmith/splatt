@@ -5,7 +5,9 @@
 #include "splatt_cmds.h"
 #include "../timer.h"
 
+#ifdef SPLATT_USE_MPI
 #include <mpi.h>
+#endif
 
 /******************************************************************************
  * SPLATT GLOBAL INFO
