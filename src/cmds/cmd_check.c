@@ -91,7 +91,10 @@ void splatt_check(
         idx_t const * const map = tt->indmap[m];
         if(map != NULL) {
           char * buf = NULL;
-          asprintf(&buf, "mode%"SS_IDX".map", m+1);
+          if(asprintf(&buf, "mode%"SS_IDX".map", m+1) == -1) {
+            fprintf(stderr, "SPLATT: asprintf failed\n");
+            abort();
+          }
           FILE * fout = fopen(buf, "w");
           for(idx_t i=0; i < tt->dims[m]; ++i) {
             fprintf(fout, "%"SS_IDX"\n", map[i]);
