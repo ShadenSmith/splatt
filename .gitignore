@@ -2,7 +2,7 @@
 *.swp
 *.o
 
-doc/
+build/
 
 CMakeCache.txt
 Makefile

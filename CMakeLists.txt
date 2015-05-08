@@ -14,24 +14,23 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
 endif()
 
 
-
 # check for debug mode
-if (DEFINED DEBUG AND ${DEBUG} EQUAL 1)
+if (DEFINED DEBUG)
+  message("Building in DEBUG mode. Assertions enabled.")
   add_definitions(-DDEBUG=${DEBUG})
   set(CMAKE_BUILD_TYPE Debug)
-  message("Building in DEBUG mode. Assertions enabled.")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 else()
-  set(CMAKE_BUILD_TYPE Release)
   message("Building in RELEASE mode.")
+  set(CMAKE_BUILD_TYPE Release)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
 endif()
 
 # check for MPI mode
-if (DEFINED USE_MPI AND ${USE_MPI} EQUAL 1)
-  add_definitions(-DSPLATT_USE_MPI=${USE_MPI})
+if (DEFINED USE_MPI)
   message("Building with MPI support.")
+  add_definitions(-DSPLATT_USE_MPI=${USE_MPI})
   find_package(MPI)
   include_directories(SYSTEM ${MPI_INCLUDE_PATH})
   file(GLOB MPI_SOURCES src/mpi/*.c)
@@ -72,17 +71,3 @@ add_subdirectory(src)
 
 # UNIT TESTS
 #add_subdirectory(test)
-
-# copy scripts directory
-add_custom_target(
-  ScriptsDir ALL
-  DEPENDS scripts/Contents.txt
-)
-
-add_custom_command(
-  COMMAND cp -R ${CMAKE_CURRENT_SOURCE_DIR}/scripts ${CMAKE_CURRENT_BINARY_DIR}
-  COMMENT "Copying scripts"
-  OUTPUT scripts/Contents.txt
-  VERBATIM
-)
-
