@@ -18,7 +18,7 @@ to configure to see additional build options. To install,
     $ make install
 
 will suffice. The installation prefix can be chosen by adding a
-'--prefix=<DIR>' flag to configure.
+'--prefix=DIR' flag to configure.
 
 
 Executable
@@ -60,7 +60,7 @@ on any new tensors is recommended.
 
 This runs splatt-cpd on 'mytensor.tns' and finds a rank-25 CPD of the tensor.
 Adding '-t 4' instructs SPLATT to use four CPU threads during the computation.
-The matrix factors are written to 'mode<N>.mat' and lambda, the vector for
+The matrix factors are written to 'modeN.mat' and lambda, the vector for
 scaling, is written to 'lambda.mat'. See the '--help' option to see available
 output formats.
 
