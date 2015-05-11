@@ -1,5 +1,5 @@
 The Surprisingly ParalleL spArse Tensor Toolkit
-========================================================
+===============================================
 
 SPLATT is a library and C API for sparse tensor factorization. We support
 shared-memory parallelism with OpenMP and (soon) distributed-memory parallelism

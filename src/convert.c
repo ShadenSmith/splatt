@@ -34,6 +34,18 @@ static idx_t const ADJ_START_ALLOC = 8;
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Search an adjacency list and either increase the edge weight if
+*        (u,v) is already found, or add the edge if it is not.
+*
+* @param u The origin vertex.
+* @param v The destination vertex.
+* @param adj The adjacency list stored in key-value pairs.
+* @param adjmkr Marks into adj for each vertex.
+* @param adjsize The length of the adjacency list.
+* @param nedges The number of edges in the graph.
+*/
 static inline void __update_adj(
   idx_t const u,
   idx_t const v,
@@ -64,6 +76,14 @@ static inline void __update_adj(
 }
 
 
+/**
+* @brief Convert a sparse tensor to a tripartite graph. Each slice becomes a
+*        vertex and they are connected by nonzero entries. The graph is written
+*        to 'ofname'.
+*
+* @param tt The sparse tensor to convert.
+* @param ofname The filename to write to.
+*/
 static void __convert_ijk_graph(
   sptensor_t * const tt,
   char const * const ofname)
@@ -145,6 +165,16 @@ static void __convert_ijk_graph(
 }
 
 
+/**
+* @brief Convert a sparse tensor to a hypergraph and write to 'ofname'. The
+*        hypergraph uses the mode-N fibers as vertices and the sparsity
+*        pattern to connect all fibers with their contained vertices (via
+*        hyperedges).
+*
+* @param tt The tensor to convert.
+* @param mode The mode to operate on.
+* @param ofname The filename to write to.
+*/
 static void __convert_fib_hgraph(
   sptensor_t * tt,
   idx_t const mode,
@@ -160,6 +190,16 @@ static void __convert_fib_hgraph(
 }
 
 
+
+/**
+* @brief Converts a sparse tensor into a CSR matrix whose rows are the
+*        mode-N fibers. This is equivalent to the transpose of the mode-N
+*        unfolding. The CSR matrix is written to a file.
+*
+* @param tt The sparse tensor to convert.
+* @param mode The mode to operate on.
+* @param ofname The filename to write the matrix to.
+*/
 static void __convert_fib_mat(
   sptensor_t * tt,
   idx_t const mode,
