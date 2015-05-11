@@ -45,6 +45,8 @@ for usage information of each command.
 
 **Example 1**
 
+    $ splatt check mytensor.tns  --fix=fixed.tns
+
 This runs splatt-check on 'mytensor.tns' and writes the fixed tensor to
 'fixed.tns'. The splatt-check routine finds empty slices and duplicate nonzero
 entries. Empty slices are indices in any mode which do not have any nonzero
@@ -52,17 +54,15 @@ entries associated with them. Some SPLATT routines (including CPD) expect there
 to be no empty slices, so running splatt-check
 on any new tensors is recommended.
 
-    $ splatt check mytensor.tns  --fix=fixed.tns
-
 **Example 2**
+
+    $ splatt cpd mytensor.tns -r 25 -t 4
 
 This runs splatt-cpd on 'mytensor.tns' and finds a rank-25 CPD of the tensor.
 Adding '-t 4' instructs SPLATT to use four CPU threads during the computation.
 The matrix factors are written to 'mode<N>.mat' and lambda, the vector for
 scaling, is written to 'lambda.mat'. See the '--help' option to see available
 output formats.
-
-    $ splatt cpd mytensor.tns -r 25 -t 4
 
 
 API
