@@ -177,13 +177,13 @@ void splatt_cpd(
 {
   cpd_opts args;
   args.ifname = NULL;
-  args.write = 1;
-  args.niters = 50;
-  args.tol = 1e-5;
-  args.rank = 10;
-  args.nthreads = 1;
-  args.tile = 0;
-  args.distribution = 3;
+  args.write        = DEFAULT_WRITE;
+  args.niters       = DEFAULT_ITS;
+  args.tol          = DEFAULT_TOL;
+  args.rank         = DEFAULT_NFACTORS;
+  args.nthreads     = DEFAULT_THREADS;
+  args.tile         = DEFAULT_TILE;
+  args.distribution = DEFAULT_MPI_DISTRIBUTION;
   args.mpi_dims[0] = args.mpi_dims[1] = args.mpi_dims[2] = 1;
 
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
