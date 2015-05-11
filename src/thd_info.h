@@ -97,6 +97,12 @@ thd_info * thd_init(
 
 
 #define thd_free splatt_thd_free
+/**
+* @brief Free the memory allocated by thd_init.
+*
+* @param thds The array of thd_info structs.
+* @param nthreads The number of threads to free.
+*/
 void thd_free(
   thd_info * thds,
   idx_t const nthreads);

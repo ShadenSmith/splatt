@@ -11,7 +11,6 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-
 /**
 * @brief Perform a parallel SUM reduction.
 *
