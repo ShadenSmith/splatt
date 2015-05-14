@@ -117,7 +117,7 @@ static void __convert_ijk_graph(
   idx_t nedges = 0;
   for(idx_t n=0; n < tt->nnz; ++n) {
     if(n % 100000 == 0) {
-      printf("n: %lu\n", n);
+      printf("n: %"SS_IDX"\n", n);
     }
     idx_t uoffset = 0;
     /* update each adj list */
