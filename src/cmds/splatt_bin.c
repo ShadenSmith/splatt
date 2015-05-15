@@ -114,7 +114,6 @@ int main(
 #ifdef SPLATT_USE_MPI
   /* all done */
   MPI_Barrier(MPI_COMM_WORLD);
-  MPI_Finalize();
 #endif
 
   timer_stop(&timers[TIMER_ALL]);
