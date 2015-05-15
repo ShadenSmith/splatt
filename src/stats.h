@@ -4,7 +4,6 @@
 #include "base.h"
 
 
-
 /******************************************************************************
  * STRUCTURES
  *****************************************************************************/
@@ -25,12 +24,13 @@ typedef enum
  * INCLUDES
  *****************************************************************************/
 #include "sptensor.h"
+#include "cpd.h"
+#include "splatt_mpi.h"
 
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-
 #define stats_tt splatt_stats_tt
 /**
 * @brief Output statistics about a sparse tensor.
@@ -47,5 +47,40 @@ void stats_tt(
   splatt_stats_type const type,
   idx_t const mode,
   char const * const pfile);
+
+
+
+/******************************************************************************
+ * MPI FUNCTIONS
+ *****************************************************************************/
+#ifdef SPLATT_USE_MPI
+#define mpi_global_stats splatt_mpi_global_stats
+/**
+* @brief Copy global information into local tt, print statistics, and
+*        restore local information.
+*
+* @param tt The tensor to hold global information.
+* @param rinfo Global tensor information.
+*/
+void mpi_global_stats(
+  sptensor_t * const tt,
+  rank_info * const rinfo,
+  cpd_opts const * const args);
+
+#define mpi_rank_stats splatt_mpi_rank_stats
+
+/**
+* @brief Output statistics about MPI rank information.
+*
+* @param tt The tensor we are operating on.
+* @param rinfo MPI rank information.
+* @param args Some CPD parameters.
+*/
+void mpi_rank_stats(
+  sptensor_t const * const tt,
+  rank_info const * const rinfo,
+  cpd_opts const * const args);
+
+#endif /* endif SPLATT_USE_MPI */
 
 #endif

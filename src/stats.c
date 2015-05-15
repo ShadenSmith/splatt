@@ -13,7 +13,7 @@
 
 
 /******************************************************************************
- * STATIC FUNCTIONS
+ * PRIVATE FUNCTIONS
  *****************************************************************************/
 
 /**
@@ -204,5 +204,66 @@ void stats_tt(
 }
 
 
+#ifdef SPLATT_USE_MPI
+void mpi_global_stats(
+  sptensor_t * const tt,
+  rank_info * const rinfo,
+  cpd_opts const * const args)
+{
+  idx_t * tmpdims = tt->dims;
+  idx_t tmpnnz = tt->nnz;
+  tt->dims = rinfo->global_dims;
+  tt->nnz = rinfo->global_nnz;
+
+  /* print stats */
+  stats_tt(tt, args->ifname, STATS_BASIC, 0, NULL);
+
+  /* restore local stats */
+  tt->dims = tmpdims;
+  tt->nnz = tmpnnz;
+}
+
+void mpi_rank_stats(
+  sptensor_t const * const tt,
+  rank_info const * const rinfo,
+  cpd_opts const * const args)
+{
+  idx_t totnnz = 0;
+  idx_t maxnnz = 0;
+  idx_t totvolume = 0;
+  idx_t maxvolume = 0;
+  idx_t volume = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    /* if a layer has > 1 rank there is a necessary reduction step too */
+    if(rinfo->layer_size[m] > 1) {
+      volume += 2 * (rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m]);
+    } else {
+      volume += rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m];
+    }
+  }
+  MPI_Reduce(&volume, &totvolume, 1, SS_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&volume, &maxvolume, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&tt->nnz, &totnnz, 1, SS_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&tt->nnz, &maxnnz, 1, SS_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
+
+  if(rinfo->rank == 0) {
+    printf("MPI information ------------------------------------------------\n");
+    printf("DISTRIBUTION=%"SS_IDX"D ", args->distribution);
+    printf("DIMS=%dx%dx%d\n", rinfo->dims_3d[0], rinfo->dims_3d[1],
+        rinfo->dims_3d[2]);
+    idx_t avgvolume = totvolume / rinfo->npes;
+
+    idx_t const avgnnz = totnnz / rinfo->npes;
+    double nnzimbalance = 100. * ((double)(maxnnz - avgnnz) / (double)maxnnz);
+    double volimbalance = 100. * ((double)(maxvolume - avgvolume) /
+        (double)maxvolume);
+    printf("AVG NNZ=%"SS_IDX"\nMAX NNZ=%"SS_IDX"  (%0.2f%% diff)\n",
+        avgnnz, maxnnz, nnzimbalance);
+    printf("AVG COMMUNICATION VOL=%"SS_IDX"\nMAX COMMUNICATION VOL=%"SS_IDX"  "
+        "(%0.2f%% diff)\n", avgvolume, maxvolume, volimbalance);
+    printf("\n");
+  }
+}
+#endif
 
 
