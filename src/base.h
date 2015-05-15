@@ -31,7 +31,7 @@
 /******************************************************************************
  * DEFAULTS
  *****************************************************************************/
-static double const DEFAULT_TOL = 1e-5;
+static double const DEFAULT_TOL = 1e-4;
 
 static idx_t const DEFAULT_NFACTORS = 10;
 static idx_t const DEFAULT_ITS = 50;
