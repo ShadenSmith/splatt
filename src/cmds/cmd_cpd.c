@@ -122,6 +122,12 @@ static error_t parse_cpd_opt(
   cpd_opts *args = state->input;
   char * buf;
   int cnt = 0;
+
+  /* -i=50 should also work... */
+  if(arg != NULL && arg[0] == '=') {
+    ++arg;
+  }
+
   switch(key) {
   case TT_NOWRITE:
     args->write = 0;
