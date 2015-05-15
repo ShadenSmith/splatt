@@ -97,7 +97,7 @@ int main(
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 #endif
 
-  srand(time(NULL));
+  srand(time(NULL) * (rank+1));
 
   /* initialize timers */
   init_timers();
@@ -114,13 +114,17 @@ int main(
 #ifdef SPLATT_USE_MPI
   /* all done */
   MPI_Barrier(MPI_COMM_WORLD);
-  timer_stop(&timers[TIMER_ALL]);
   MPI_Finalize();
 #endif
 
+  timer_stop(&timers[TIMER_ALL]);
   if(rank == 0) {
     print_footer();
   }
+
+#ifdef SPLATT_USE_MPI
+  MPI_Finalize();
+#endif
 
   return EXIT_SUCCESS;
 }
