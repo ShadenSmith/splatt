@@ -20,6 +20,35 @@ typedef unsigned long splatt_idx_t;
 #define SS_MPI_IDX MPI_UNSIGNED_LONG
 
 
+/******************************************************************************
+ * VERSION
+ *****************************************************************************/
+#define SPLATT_VER_MAJOR     0
+#define SPLATT_VER_MINOR     0
+#define SPLATT_VER_SUBMINOR  0
+
+
+
+/******************************************************************************
+ * CONSTANTS
+ *****************************************************************************/
+
+typedef enum
+{
+  SPLATT_SUCCESS = 1,
+  SPLATT_ERROR_BADINPUT,
+  SPLATT_ERROR_NOMEMORY
+} splatt_error_t;
+
+
+typedef enum
+{
+  SPLATT_VERBOSITY_NONE,
+  SPLATT_VERBOSITY_LOW,
+  SPLATT_VERBOSITY_HIGH,
+  SPLATT_VERBOSITY_MAX
+} splatt_verbosity_t;
+
 
 /******************************************************************************
  * API FUNCTIONS
@@ -45,7 +74,7 @@ extern 'C' {
 *             row-major.
 * @param lambda The scaling factors extracted from mats.
 */
-void splatt_cpd_als(
+int splatt_cpd(
     splatt_idx_t const rank,
     splatt_idx_t const nmodes,
     splatt_idx_t const nnz,

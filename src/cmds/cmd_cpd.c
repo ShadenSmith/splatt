@@ -106,7 +106,7 @@ static struct argp cpd_argp =
 /******************************************************************************
  * SPLATT-CPD
  *****************************************************************************/
-void splatt_cpd(
+void splatt_cpd_cmd(
   int argc,
   char ** argv)
 {
@@ -257,7 +257,7 @@ void splatt_cpd(
   }
 
   /* do the factorization! */
-  cpd(ft, mats, globmats, lambda, &rinfo, &args);
+  cpd_als(ft, mats, globmats, lambda, &rinfo, &args);
 
   if(args.write == 1) {
 #ifndef SPLATT_USE_MPI

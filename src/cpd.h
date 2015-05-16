@@ -40,7 +40,8 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-void cpd(
+#define cpd_als splatt_cpd_als
+void cpd_als(
   ftensor_t ** ft,
   matrix_t ** mats,
   matrix_t ** globmats,

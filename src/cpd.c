@@ -18,7 +18,7 @@
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
-void splatt_cpd_als(
+int splatt_cpd(
     idx_t const rank,
     idx_t const nmodes,
     idx_t const nnz,
@@ -28,6 +28,7 @@ void splatt_cpd_als(
     val_t * const lambda)
 {
 
+  return SPLATT_SUCCESS;
 }
 
 
@@ -180,7 +181,7 @@ static void __calc_M2(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-void cpd(
+void cpd_als(
   ftensor_t ** ft,
   matrix_t ** mats,
   matrix_t ** globmats,
