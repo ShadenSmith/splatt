@@ -50,4 +50,15 @@ void cpd_als(
   cpd_opts const * const opts);
 
 
+#define default_cpd_opts splatt_default_cpd_opts
+
+/**
+* @brief Fill a cpd_opts struct with default values.
+*
+* @param args The cpd_opts struct to fill.
+*/
+void default_cpd_opts(
+  cpd_opts * args);
+
+
 #endif

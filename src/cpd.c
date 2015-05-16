@@ -382,3 +382,17 @@ void cpd_als(
 }
 
 
+void default_cpd_opts(
+  cpd_opts * args)
+{
+  args->ifname = NULL;
+  args->write        = DEFAULT_WRITE;
+  args->niters       = DEFAULT_ITS;
+  args->tol          = DEFAULT_TOL;
+  args->rank         = DEFAULT_NFACTORS;
+  args->nthreads     = DEFAULT_THREADS;
+  args->tile         = DEFAULT_TILE;
+  args->distribution = DEFAULT_MPI_DISTRIBUTION;
+  args->mpi_dims[0] = args->mpi_dims[1] = args->mpi_dims[2] = 1;
+}
+

@@ -112,15 +112,7 @@ void splatt_cpd_cmd(
 {
   /* assign defaults and parse arguments */
   cpd_opts args;
-  args.ifname = NULL;
-  args.write        = DEFAULT_WRITE;
-  args.niters       = DEFAULT_ITS;
-  args.tol          = DEFAULT_TOL;
-  args.rank         = DEFAULT_NFACTORS;
-  args.nthreads     = DEFAULT_THREADS;
-  args.tile         = DEFAULT_TILE;
-  args.distribution = DEFAULT_MPI_DISTRIBUTION;
-  args.mpi_dims[0] = args.mpi_dims[1] = args.mpi_dims[2] = 1;
+  default_cpd_opts(&args);
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
   sptensor_t * tt = NULL;
@@ -142,11 +134,6 @@ void splatt_cpd_cmd(
 
 #ifdef SPLATT_USE_MPI
   mpi_setup_comms(&rinfo, args.distribution);
-  if(rinfo.npes == 1) {
-    fprintf(stderr, "SPLATT: I was configured with MPI support. Please re-run\n"
-                    "        with > 1 ranks or recompile without MPI.\n");
-    abort();
-  }
   tt = mpi_tt_read(args.ifname, &rinfo);
 
   /* print stats */

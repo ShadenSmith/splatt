@@ -256,7 +256,7 @@ void mpi_rank_stats(
     idx_t const avgnnz = totnnz / rinfo->npes;
     double nnzimbalance = 100. * ((double)(maxnnz - avgnnz) / (double)maxnnz);
     double volimbalance = 100. * ((double)(maxvolume - avgvolume) /
-        (double)maxvolume);
+        SS_MAX((double)maxvolume, 1));
     printf("AVG NNZ=%"SS_IDX"\nMAX NNZ=%"SS_IDX"  (%0.2f%% diff)\n",
         avgnnz, maxnnz, nnzimbalance);
     printf("AVG COMMUNICATION VOL=%"SS_IDX"\nMAX COMMUNICATION VOL=%"SS_IDX"  "
