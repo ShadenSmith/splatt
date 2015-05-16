@@ -92,7 +92,6 @@ if [[ ! -x "${CMAKE}" ]]; then
   die "Could not find usable cmake: '${CMAKE}'" 
 else
   echo "Found CMAKE: '${CMAKE}'"
-  echo "--> $("${CMAKE}" --version)"
 fi
 
 # clean out build directory if it exists
