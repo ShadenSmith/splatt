@@ -746,7 +746,7 @@ void mpi_write_mats(
   for(idx_t m=0; m < nmodes; ++m) {
     /* root handles the writing */
     if(rinfo->rank == 0) {
-      asprintf(&fname, "%s%"SS_IDX".mat", basename, m);
+      asprintf(&fname, "%s%"SS_IDX".mat", basename, m+1);
       matbuf->I = rinfo->global_dims[m];
 
       /* copy root's matrix to buffer */
