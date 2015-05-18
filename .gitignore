@@ -4,6 +4,9 @@
 
 build/
 
+mode*.mat
+lambda.mat
+
 CMakeCache.txt
 Makefile
 CMakeFiles/
