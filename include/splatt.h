@@ -25,7 +25,7 @@ typedef unsigned long splatt_idx_t;
  *****************************************************************************/
 #define SPLATT_VER_MAJOR     0
 #define SPLATT_VER_MINOR     0
-#define SPLATT_VER_SUBMINOR  0
+#define SPLATT_VER_SUBMINOR  1
 
 
 
@@ -73,6 +73,8 @@ extern 'C' {
 * @param mats The factor matrices, pre-initialized. Layout is assumed to be
 *             row-major.
 * @param lambda The scaling factors extracted from mats.
+*
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
 int splatt_cpd(
     splatt_idx_t const rank,

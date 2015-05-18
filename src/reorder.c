@@ -13,8 +13,6 @@
 #include "timer.h"
 #include "util.h"
 
-#include <assert.h>
-
 
 /******************************************************************************
  * PRIVATE FUNCTIONS

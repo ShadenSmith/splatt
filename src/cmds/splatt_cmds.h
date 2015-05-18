@@ -25,10 +25,23 @@ static char cmd_doc[] =
   "  stats\t\tPrint tensor statistics.\n"
   "  help\t\tPrint this help message.\n";
 
+
+/**
+* @brief Print header for splatt executable. Prints version information and
+*        Git build information, if available.
+*/
 static inline void print_header(void)
 {
   printf("****************************************************************\n");
-  printf("splatt built from %s\n\n", VERSION_STR);
+#ifdef SPLATT_VERSION_STR
+  /* include git build info if available */
+  printf("splatt v%d.%d.%d built from %s\n\n",
+      SPLATT_VER_MAJOR, SPLATT_VER_MINOR, SPLATT_VER_SUBMINOR,
+      SPLATT_VERSION_STR);
+#else
+  printf("splatt v%d.%d.%d\n\n",
+      SPLATT_VER_MAJOR, SPLATT_VER_MINOR, SPLATT_VER_SUBMINOR);
+#endif
 }
 
 static inline void cmd_not_implemented(int argc, char ** argv)
