@@ -8,6 +8,7 @@
 #include "ftensor.h"
 #include "io.h"
 #include "reorder.h"
+#include "util.h"
 
 #include <math.h>
 
@@ -53,8 +54,12 @@ static void __stats_basic(
     printf("x%"SS_IDX, tt->dims[m]);
   }
   printf(" NNZ=%"SS_IDX, tt->nnz);
-  printf(" DENSITY=%e" , __tt_density(tt));
-  printf("\n\n");
+  printf(" DENSITY=%e\n" , __tt_density(tt));
+
+  char * bytestr = bytes_str(tt->nnz * ((sizeof(idx_t) * 3) + sizeof(val_t)));
+  printf("STORAGE=%s\n", bytestr);
+  printf("\n");
+  free(bytestr);
 }
 
 

@@ -154,6 +154,7 @@ static void __create_sliceptr(
 
   idx_t const nslices = ft->dims[mode];
   ft->sptr = (idx_t *) malloc((nslices+1) * sizeof(idx_t));
+  ft->nslcs = nslices;
 
   /* permuted tt->ind makes things a bit easier */
   idx_t * ttinds[MAX_NMODES];
@@ -242,29 +243,6 @@ ftensor_t * ften_alloc(
     ft->indmap = NULL;
   }
 
-#if 0
-  /* calculate storage */
-  idx_t bytes = 0;
-  /* nnz */
-  bytes += 3 * ((ft->nnz * sizeof(idx_t)) + (ft->nnz * sizeof(val_t)));
-  for(idx_t m=0; m < ft->nmodes; ++m) {
-    bytes += (ft->nfibs[m]+1) * sizeof(idx_t); /* fptr */
-    bytes += ft->nfibs[m] * sizeof(idx_t);     /* fids */
-
-    if(ft->tiled) {
-      bytes += ft->nslabs[m] * sizeof(idx_t); /* slabptr */
-      bytes += ft->nfibs[m] * sizeof(idx_t);  /* sids */
-    } else {
-      bytes += ft->dims[m] * sizeof(idx_t);   /* sptr */
-    }
-  }
-
-  char * cbyte = bytes_str(bytes);
-  printf("storage: %s\n", cbyte);
-  free(cbyte);
-  printf("\n");
-#endif
-
   return ft;
 }
 
@@ -335,5 +313,25 @@ void fib_mode_order(
       perm_dims[mark++] = mround;
     }
   }
+}
+
+size_t ften_storage(
+  ftensor_t const * const ft)
+{
+  /* calculate storage */
+  size_t bytes = 0;
+
+  bytes += ft->nnz * (sizeof(idx_t) + sizeof(val_t)); /* nnz */
+  bytes += (ft->nfibs + 1) * sizeof(idx_t);           /* fptr */
+  bytes += ft->nfibs * sizeof(idx_t);                 /* fids */
+
+  if(!ft->tiled) {
+    bytes += (ft->nslcs + 1) * sizeof(idx_t);       /* sptr */
+  } else {
+    bytes += (ft->nslabs + 1) * sizeof(idx_t);        /* slabptr */
+    bytes += (ft->nfibs) * sizeof(idx_t);             /* sids */
+  }
+
+  return bytes;
 }
 

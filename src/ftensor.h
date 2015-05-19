@@ -75,4 +75,16 @@ void fib_mode_order(
   idx_t const mode,
   idx_t * const perm_dims);
 
+
+#define ften_storage splatt_ften_storage
+/**
+* @brief Return the number of bytes that ft uses.
+*
+* @param ft The FTensor to analyze.
+*
+* @return The number of bytes of storage.
+*/
+size_t ften_storage(
+  ftensor_t const * const ft);
+
 #endif

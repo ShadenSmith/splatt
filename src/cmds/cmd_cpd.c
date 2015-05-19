@@ -11,6 +11,7 @@
 #include "../cpd.h"
 #include "../splatt_mpi.h"
 #include "../sort.h"
+#include "../util.h"
 
 
 /******************************************************************************
@@ -225,6 +226,21 @@ void splatt_cpd_cmd(
 
   val_t * lambda = (val_t *) malloc(args.rank * sizeof(val_t));
 
+  /* find total ftensor storage */
+  unsigned long fbytes = 0;
+  for(idx_t m=0; m < nmodes; ++m) {
+    fbytes += ften_storage(ft[m]);
+  }
+#ifdef SPLATT_USE_MPI
+  /* get storage across all nodes */
+  if(rinfo.rank == 0) {
+    MPI_Reduce(MPI_IN_PLACE, &fbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+        MPI_COMM_WORLD);
+  } else {
+    MPI_Reduce(&fbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  }
+#endif
+
   if(rinfo.rank == 0) {
     printf("Factoring "
            "------------------------------------------------------\n");
@@ -235,11 +251,14 @@ void splatt_cpd_cmd(
 #endif
     printf("THREADS=%"SS_IDX" ", args.nthreads);
     if(args.tile == 1) {
-      printf("TILE=%"SS_IDX"x%"SS_IDX"x%"SS_IDX" ",
+      printf("TILE=%"SS_IDX"x%"SS_IDX"x%"SS_IDX"\n",
         TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
     } else {
-      printf("TILE=NO ");
+      printf("TILE=NO\n");
     }
+    char * fstorage = bytes_str(fbytes);
+    printf("FTENSOR STORAGE=%s ", fstorage);
+    free(fstorage);
     printf("\n\n");
   }
 
