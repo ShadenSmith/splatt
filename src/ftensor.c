@@ -326,7 +326,7 @@ size_t ften_storage(
   bytes += ft->nfibs * sizeof(idx_t);                 /* fids */
 
   if(!ft->tiled) {
-    bytes += (ft->nslcs + 1) * sizeof(idx_t);       /* sptr */
+    bytes += (ft->nslcs + 1) * sizeof(idx_t);         /* sptr */
   } else {
     bytes += (ft->nslabs + 1) * sizeof(idx_t);        /* slabptr */
     bytes += (ft->nfibs) * sizeof(idx_t);             /* sids */

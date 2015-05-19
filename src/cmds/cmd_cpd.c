@@ -265,6 +265,12 @@ void splatt_cpd_cmd(
   /* do the factorization! */
   cpd_als(ft, mats, globmats, lambda, &rinfo, &args);
 
+  /* free up the ftensor allocations */
+  for(idx_t m=0; m < nmodes; ++m) {
+    ften_free(ft[m]);
+  }
+
+  /* write output */
   if(args.write == 1) {
 #ifndef SPLATT_USE_MPI
     mat_write(globmats[0], "mode1.mat");
@@ -276,8 +282,8 @@ void splatt_cpd_cmd(
     vec_write(lambda, args.rank, "lambda.mat");
   }
 
+  /* free factor matrix allocations */
   for(idx_t m=0;m < nmodes; ++m) {
-    ften_free(ft[m]);
     mat_free(mats[m]);
 #ifdef SPLATT_USE_MPI
     mat_free(globmats[m]);
@@ -287,7 +293,6 @@ void splatt_cpd_cmd(
   free(lambda);
 
 #ifdef SPLATT_USE_MPI
-  /* write output */
   perm_free(perm);
   rank_free(rinfo, nmodes);
 #endif
