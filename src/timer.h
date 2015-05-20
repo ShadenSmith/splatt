@@ -31,19 +31,18 @@ typedef enum
 {
   TIMER_LVL0,   /* LEVEL 0 */
   TIMER_ALL,
-  TIMER_LVL1,   /* LEVEL 1 */
-  TIMER_IO,
-  /* COMMANDS */
   TIMER_CPD,
   TIMER_REORDER,
   TIMER_CONVERT,
-  TIMER_LVL2,   /* LEVEL 2 */
+  TIMER_LVL1,   /* LEVEL 1 */
   TIMER_MTTKRP,
   TIMER_INV,
   TIMER_FIT,
   TIMER_MATMUL,
   TIMER_ATA,
   TIMER_MATNORM,
+  TIMER_IO,
+  TIMER_LVL2,   /* LEVEL 2 */
 #ifdef SPLATT_USE_MPI
   TIMER_MPI,
   TIMER_MPI_IDLE,
@@ -71,9 +70,9 @@ typedef enum
 } timer_id;
 
 
-static int timer_lvl = TIMER_NTIMERS;
+/* TODO: don't make this static */
+static int timer_lvl = TIMER_LVL1;
 extern sp_timer_t timers[];
-
 
 
 /******************************************************************************
