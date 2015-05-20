@@ -209,7 +209,7 @@ static void __mat_backwardsolve(
   }
 
   /* now do backward substitution */
-  for(idx_t row=1; row <= N; ++row) {
+  for(idx_t row=2; row <= N; ++row) {
     /* operate with (N - row) to make unsigned comparisons easy */
     idx_t const i = N - row;
 
