@@ -226,10 +226,12 @@ void splatt_cpd_cmd(
 
   val_t * lambda = (val_t *) malloc(args.rank * sizeof(val_t));
 
-  /* find total ftensor storage */
+  /* find total storage */
   unsigned long fbytes = 0;
+  unsigned long mbytes = 0;
   for(idx_t m=0; m < nmodes; ++m) {
     fbytes += ften_storage(ft[m]);
+    mbytes += ft[m]->dims[m] * args.rank * sizeof(val_t);
   }
 #ifdef SPLATT_USE_MPI
   /* get storage across all nodes */
@@ -257,8 +259,10 @@ void splatt_cpd_cmd(
       printf("TILE=NO\n");
     }
     char * fstorage = bytes_str(fbytes);
-    printf("FTENSOR STORAGE=%s ", fstorage);
+    char * mstorage = bytes_str(mbytes);
+    printf("FTENSOR STORAGE=%s FACTOR STORAGE=%s", fstorage, mstorage);
     free(fstorage);
+    free(mstorage);
     printf("\n\n");
   }
 
