@@ -57,7 +57,7 @@ static void __stats_basic(
   printf(" DENSITY=%e\n" , __tt_density(tt));
 
   char * bytestr = bytes_str(tt->nnz * ((sizeof(idx_t) * 3) + sizeof(val_t)));
-  printf("STORAGE=%s\n", bytestr);
+  printf("COORD-STORAGE=%s\n", bytestr);
   printf("\n");
   free(bytestr);
 }

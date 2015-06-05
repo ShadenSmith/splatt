@@ -34,11 +34,12 @@ static void __create_fptr(
   }
 
   /* count fibers and copy inds/vals into ft */
-  idx_t nfibs = 1;
   ft->inds[0] = ttinds[nmodes-1][0];
   ft->vals[0] = tt->vals[0];
 
   /* count fibers in tt */
+  idx_t nfibs = 0;
+  #pragma omp parallel for reduction(+:nfibs)
   for(idx_t n=1; n < nnz; ++n) {
     for(idx_t m=0; m < nmodes-1; ++m) {
       /* check for new fiber */
@@ -50,6 +51,8 @@ static void __create_fptr(
     ft->inds[n] = ttinds[nmodes-1][n];
     ft->vals[n] = tt->vals[n];
   }
+  /* account for first fiber (inds[0]) */
+  ++nfibs;
 
   /* allocate fiber structure */
   ft->nfibs = nfibs;

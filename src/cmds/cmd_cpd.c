@@ -12,6 +12,7 @@
 #include "../splatt_mpi.h"
 #include "../sort.h"
 #include "../util.h"
+#include "../timer.h"
 
 
 /******************************************************************************
@@ -31,6 +32,7 @@ static struct argp_option cpd_options[] = {
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
+  {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
 #ifdef SPLATT_USE_MPI
   {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
                                  "(default: 3)"},
@@ -68,6 +70,9 @@ static error_t parse_cpd_opt(
     break;
   case 't':
     args->nthreads = atoi(arg);
+    break;
+  case 'v':
+    timer_lvl = TIMER_LVL2;
     break;
   case TT_TILE:
     args->tile = 1;
@@ -243,6 +248,13 @@ void splatt_cpd_cmd(
   }
 #endif
 
+  idx_t nfibs = 0;
+  for(idx_t m=0; m < nmodes; ++m) {
+    nfibs += ft[m]->nfibs;
+    printf("m: %lu, %lu\n", m, ft[m]->nfibs);
+  }
+  printf("nfibs: %lu\n", nfibs);
+
   if(rinfo.rank == 0) {
     printf("Factoring "
            "------------------------------------------------------\n");
@@ -260,7 +272,7 @@ void splatt_cpd_cmd(
     }
     char * fstorage = bytes_str(fbytes);
     char * mstorage = bytes_str(mbytes);
-    printf("FTENSOR STORAGE=%s FACTOR STORAGE=%s", fstorage, mstorage);
+    printf("CSF-STORAGE=%s FACTOR-STORAGE=%s", fstorage, mstorage);
     free(fstorage);
     free(mstorage);
     printf("\n\n");

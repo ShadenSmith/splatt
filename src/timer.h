@@ -70,8 +70,7 @@ typedef enum
 } timer_id;
 
 
-/* TODO: don't make this static */
-static int timer_lvl = TIMER_LVL1;
+extern int timer_lvl;
 extern sp_timer_t timers[];
 
 
