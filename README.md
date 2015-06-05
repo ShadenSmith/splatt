@@ -12,8 +12,9 @@ In short,
 
     $ ./configure && make
 
-will build the SPLATT library and its executable. You can add a '--help' flag
-to configure to see additional build options. To install,
+will build the SPLATT library and its executable. The executable will be found
+in build/<arch>/bin. You can add a '--help' flag to configure to see additional
+build options. To install,
 
     $ make install
 
