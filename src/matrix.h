@@ -138,23 +138,56 @@ void mat_normalize(
 
 
 #define mat_rand splatt_mat_rand
+/**
+* @brief Return a randomly initialized matrix (from util's rand_val()).
+*
+* @param nrows The number of rows in the matrix.
+* @param ncols The number of columns in the matrix.
+*
+* @return The random matrix.
+*/
 matrix_t * mat_rand(
   idx_t const nrows,
   idx_t const ncols);
 
 
 #define mat_alloc splatt_mat_alloc
+/**
+* @brief Allocate a dense matrix. The values will not be initialized. This
+*        matrix must be freed with mat_free().
+*
+* @param nrows The number of rows in the matrix.
+* @param ncols The number of columns in the matrix.
+*
+* @return The allocated matrix.
+*/
 matrix_t * mat_alloc(
   idx_t const nrows,
   idx_t const ncols);
 
 
 #define mat_free splatt_mat_free
+/**
+* @brief Free a matrix allocated with mat_alloc(). This also frees the matrix
+*        pointer!
+*
+* @param mat The matrix to be freed.
+*/
 void mat_free(
   matrix_t * mat);
 
 
 #define spmat_alloc splatt_spmat_alloc
+/**
+* @brief Allocate a sparse matrix in CSR format. The values will not be
+*        initialized. This matrix must be freed with spmat_free().
+*
+* @param nrows The number of rows in the sparse matrix.
+* @param ncols The number of columns in the sparse matrix.
+* @param nnz The number of nonzero values in the sparse matrix.
+*
+* @return The allocated CSR matrix.
+*/
 spmatrix_t * spmat_alloc(
   idx_t const nrows,
   idx_t const ncols,
@@ -162,16 +195,36 @@ spmatrix_t * spmat_alloc(
 
 
 #define spmat_free splatt_spmat_free
+/**
+* @brief Free a sparse matrix allocated with spmat_alloc(). This also frees the
+*        matrix pointer!
+*
+* @param mat The sparse matrix to be freed.
+*/
 void spmat_free(
   spmatrix_t * mat);
 
 
 #define mat_mkrow splatt_mat_mkrow
+/**
+* @brief Copies a column-major matrix and returns a row-major version.
+*
+* @param mat The column-major matrix to copy.
+*
+* @return A row-major copy of mat.
+*/
 matrix_t * mat_mkrow(
   matrix_t const * const mat);
 
 
 #define mat_mkcol splatt_mat_mkcol
+/**
+* @brief Copies a row-major matrix and returns a column-major version.
+*
+* @param mat The row-major matrix to copy.
+*
+* @return A column-major copy of mat.
+*/
 matrix_t * mat_mkcol(
   matrix_t const * const mat);
 
