@@ -265,14 +265,14 @@ void mat_write_file(
   if(mat->rowmajor) {
     for(idx_t i=0; i < mat->I; ++i) {
       for(idx_t j=0; j < J; ++j) {
-        fprintf(fout, "%"SS_VAL" ", vals[j + (i*J)]);
+        fprintf(fout, "%+0.8e ", vals[j + (i*J)]);
       }
       fprintf(fout, "\n");
     }
   } else {
     for(idx_t i=0; i < mat->I; ++i) {
       for(idx_t j=0; j < J; ++j) {
-        fprintf(fout, "%"SS_VAL" ", vals[i + (j*I)]);
+        fprintf(fout, "%+0.8e ", vals[i + (j*I)]);
       }
       fprintf(fout, "\n");
     }
