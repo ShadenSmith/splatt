@@ -29,14 +29,16 @@ show_help() {
   echo "USAGE: configure [options]"
   echo ""
   echo "OPTIONS:"
-  echo "  --debug"
-  echo "    Build with debugging symbols, assertions, and turn optimizations off."
   echo "  --mpi"
   echo "    Build with MPI support"
   echo "  --prefix=<prefix>"
   echo "    Set the install prefix."
   echo "  --cc=<cc>"
   echo "    Set the C compiler to use."
+  echo "  --debug"
+  echo "    Build with debugging symbols, assertions, and turn optimizations off."
+  echo "  --dev"
+  echo "    Build in development mode. Warnings and extra logging enabled."
   echo ""
 }
 
@@ -63,10 +65,6 @@ for i in "${@}"; do
     show_help
     exit 0
     ;;
-    # debug
-    --debug)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"
-    ;;
     # MPI support
     --mpi)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
@@ -78,6 +76,14 @@ for i in "${@}"; do
     # cc
     --cc=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=${i#*=}"
+    ;;
+    # debug
+    --debug)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"
+    ;;
+    # dev
+    --dev)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
     ;;
     # bad argument
     *)
