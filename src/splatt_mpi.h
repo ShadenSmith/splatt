@@ -183,17 +183,16 @@ void mpi_add_my_partials(
   idx_t const nfactors,
   idx_t const mode);
 
-
-#if 0
-void mpi_cpd(
-  sptensor_t * const tt,
-  matrix_t ** mats,
-  matrix_t ** globmats,
-  rank_info * const rinfo,
-  cpd_opts const * const opts);
-#endif
-
 #define mpi_write_mats splatt_mpi_write_mats
+/**
+* @brief Write distributed matrices to 'basename<N>.mat'.
+*
+* @param mats The distributed matrices to write to disk.
+* @param perm Any row permutation that we must undo.
+* @param rinfo MPI rank information.
+* @param basename Matrices are written to file 'basename'N.mat.
+* @param nmodes The number of matrices to write.
+*/
 void mpi_write_mats(
   matrix_t ** mats,
   permutation_t const * const perm,

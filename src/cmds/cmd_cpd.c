@@ -11,6 +11,8 @@
 #include "../cpd.h"
 #include "../splatt_mpi.h"
 #include "../sort.h"
+#include "../util.h"
+#include "../timer.h"
 
 
 /******************************************************************************
@@ -30,6 +32,7 @@ static struct argp_option cpd_options[] = {
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
+  {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
 #ifdef SPLATT_USE_MPI
   {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
                                  "(default: 3)"},
@@ -67,6 +70,10 @@ static error_t parse_cpd_opt(
     break;
   case 't':
     args->nthreads = atoi(arg);
+    break;
+  case 'v':
+    timer_lvl = TIMER_LVL2;
+    args->verbose = 1;
     break;
   case TT_TILE:
     args->tile = 1;
@@ -225,6 +232,23 @@ void splatt_cpd_cmd(
 
   val_t * lambda = (val_t *) malloc(args.rank * sizeof(val_t));
 
+  /* find total storage */
+  unsigned long fbytes = 0;
+  unsigned long mbytes = 0;
+  for(idx_t m=0; m < nmodes; ++m) {
+    fbytes += ften_storage(ft[m]);
+    mbytes += ft[m]->dims[m] * args.rank * sizeof(val_t);
+  }
+#ifdef SPLATT_USE_MPI
+  /* get storage across all nodes */
+  if(rinfo.rank == 0) {
+    MPI_Reduce(MPI_IN_PLACE, &fbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+        MPI_COMM_WORLD);
+  } else {
+    MPI_Reduce(&fbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  }
+#endif
+
   if(rinfo.rank == 0) {
     printf("Factoring "
            "------------------------------------------------------\n");
@@ -235,17 +259,28 @@ void splatt_cpd_cmd(
 #endif
     printf("THREADS=%"SS_IDX" ", args.nthreads);
     if(args.tile == 1) {
-      printf("TILE=%"SS_IDX"x%"SS_IDX"x%"SS_IDX" ",
+      printf("TILE=%"SS_IDX"x%"SS_IDX"x%"SS_IDX"\n",
         TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
     } else {
-      printf("TILE=NO ");
+      printf("TILE=NO\n");
     }
+    char * fstorage = bytes_str(fbytes);
+    char * mstorage = bytes_str(mbytes);
+    printf("CSF-STORAGE=%s FACTOR-STORAGE=%s", fstorage, mstorage);
+    free(fstorage);
+    free(mstorage);
     printf("\n\n");
   }
 
   /* do the factorization! */
   cpd_als(ft, mats, globmats, lambda, &rinfo, &args);
 
+  /* free up the ftensor allocations */
+  for(idx_t m=0; m < nmodes; ++m) {
+    ften_free(ft[m]);
+  }
+
+  /* write output */
   if(args.write == 1) {
 #ifndef SPLATT_USE_MPI
     mat_write(globmats[0], "mode1.mat");
@@ -257,8 +292,8 @@ void splatt_cpd_cmd(
     vec_write(lambda, args.rank, "lambda.mat");
   }
 
+  /* free factor matrix allocations */
   for(idx_t m=0;m < nmodes; ++m) {
-    ften_free(ft[m]);
     mat_free(mats[m]);
 #ifdef SPLATT_USE_MPI
     mat_free(globmats[m]);
@@ -268,7 +303,6 @@ void splatt_cpd_cmd(
   free(lambda);
 
 #ifdef SPLATT_USE_MPI
-  /* write output */
   perm_free(perm);
   rank_free(rinfo, nmodes);
 #endif

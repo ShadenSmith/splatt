@@ -333,9 +333,11 @@ void cpd_als(
     if(rinfo->rank == 0) {
       printf("  its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
           it+1, itertime.seconds, fit, fit - oldfit);
-      for(idx_t m=0; m < nmodes; ++m) {
-        printf("     mode = %1"SS_IDX" (%0.3fs)\n", m+1,
-            modetime[m].seconds);
+      if(opts->verbose) {
+        for(idx_t m=0; m < nmodes; ++m) {
+          printf("     mode = %1"SS_IDX" (%0.3fs)\n", m+1,
+              modetime[m].seconds);
+        }
       }
     }
     if(it > 0 && fabs(fit - oldfit) < opts->tol) {
@@ -393,6 +395,7 @@ void default_cpd_opts(
   args->nthreads     = DEFAULT_THREADS;
   args->tile         = DEFAULT_TILE;
   args->distribution = DEFAULT_MPI_DISTRIBUTION;
+  args->verbose = 0;
   args->mpi_dims[0] = args->mpi_dims[1] = args->mpi_dims[2] = 1;
 }
 

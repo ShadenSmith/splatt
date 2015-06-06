@@ -6,18 +6,15 @@
  * INCLUDES
  *****************************************************************************/
 #include <stddef.h>
+#include <float.h>
 
 
 /******************************************************************************
  * TYPES
  *****************************************************************************/
-typedef double splatt_val_t;
-#define SS_VAL "f"
-#define SS_MPI_VAL MPI_DOUBLE
 
 typedef unsigned long splatt_idx_t;
-#define SS_IDX "lu"
-#define SS_MPI_IDX MPI_UNSIGNED_LONG
+typedef double        splatt_val_t;
 
 
 /******************************************************************************
@@ -30,24 +27,53 @@ typedef unsigned long splatt_idx_t;
 
 
 /******************************************************************************
- * CONSTANTS
+ * ENUMS / CONSTANTS
  *****************************************************************************/
 
+
+/**
+* @brief Return codes used by SPLATT.
+*/
 typedef enum
 {
-  SPLATT_SUCCESS = 1,
-  SPLATT_ERROR_BADINPUT,
-  SPLATT_ERROR_NOMEMORY
+  SPLATT_SUCCESS = 1,     /** Successful SPLATT API call. */
+  SPLATT_ERROR_BADINPUT,  /** SPLATT found an issue with the input.
+                              Try splatt-check to debug. */
+  SPLATT_ERROR_NOMEMORY   /** SPLATT did not have enough memory to complete.
+                              Try using fewer factors, less precision, or a
+                              smaller tensor. */
 } splatt_error_t;
 
 
+/**
+* @brief Verbosity levels used by SPLATT.
+*/
 typedef enum
 {
-  SPLATT_VERBOSITY_NONE,
-  SPLATT_VERBOSITY_LOW,
-  SPLATT_VERBOSITY_HIGH,
-  SPLATT_VERBOSITY_MAX
+  SPLATT_VERBOSITY_NONE, /** Nothing written to STDOUT. */
+  SPLATT_VERBOSITY_LOW,  /** Only headers/footers and high-level timing. */
+  SPLATT_VERBOSITY_HIGH, /** Timers for all modes. */
+  SPLATT_VERBOSITY_MAX   /** All output, including detailed timers. */
 } splatt_verbosity_t;
+
+
+/**
+* @brief Enum for defining SPLATT options.
+*/
+typedef enum
+{
+  SPLATT_OPTION_TOLERANCE,  /** Threshold for convergence. */
+  SPLATT_OPTION_NITER,      /** Maximum number of iterations to perform. */
+  SPLATT_OPTION_TILE,       /** Use cache tiling during MTTKRP. */
+  SPLATT_OPTION_NTHREADS,   /** Number of OpenMP threads to use. */
+  SPLATT_OPTION_RANDSEED,   /** Random number seed */
+  SPLATT_OPTION_VERBOSITY,  /** Verbosity level */
+  SPLATT_OPTION_NOPTIONS    /** Gives the size of the options array. */
+}
+splatt_option_t;
+
+static double const SPLATT_VAL_OFF = -DBL_MAX;
+
 
 
 /******************************************************************************

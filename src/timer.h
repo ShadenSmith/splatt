@@ -4,8 +4,8 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#define _GNU_SOURCE
-#include <time.h>
+#include <sys/time.h>
+#include <stddef.h>
 
 
 /******************************************************************************
@@ -19,8 +19,8 @@ typedef struct
 {
   int running;
   double seconds;
-  struct timespec start;
-  struct timespec stop;
+  struct timeval start;
+  struct timeval stop;
 } sp_timer_t;
 
 
@@ -31,19 +31,18 @@ typedef enum
 {
   TIMER_LVL0,   /* LEVEL 0 */
   TIMER_ALL,
-  TIMER_LVL1,   /* LEVEL 1 */
-  TIMER_IO,
-  /* COMMANDS */
   TIMER_CPD,
   TIMER_REORDER,
   TIMER_CONVERT,
-  TIMER_LVL2,   /* LEVEL 2 */
+  TIMER_LVL1,   /* LEVEL 1 */
   TIMER_MTTKRP,
   TIMER_INV,
   TIMER_FIT,
   TIMER_MATMUL,
   TIMER_ATA,
   TIMER_MATNORM,
+  TIMER_IO,
+  TIMER_LVL2,   /* LEVEL 2 */
 #ifdef SPLATT_USE_MPI
   TIMER_MPI,
   TIMER_MPI_IDLE,
@@ -71,9 +70,8 @@ typedef enum
 } timer_id;
 
 
-static int timer_lvl = TIMER_NTIMERS;
+extern int timer_lvl;
 extern sp_timer_t timers[];
-
 
 
 /******************************************************************************
@@ -104,9 +102,9 @@ static inline void timer_reset(sp_timer_t * const timer)
   timer->running       = 0;
   timer->seconds       = 0;
   timer->start.tv_sec  = 0;
-  timer->start.tv_nsec = 0;
+  timer->start.tv_usec = 0;
   timer->stop.tv_sec   = 0;
-  timer->stop.tv_nsec  = 0;
+  timer->stop.tv_usec  = 0;
 }
 
 
@@ -118,7 +116,7 @@ static inline void timer_reset(sp_timer_t * const timer)
 static inline void timer_start(sp_timer_t * const timer)
 {
   timer->running = 1;
-  clock_gettime(CLOCK_MONOTONIC, &(timer->start));
+  gettimeofday(&(timer->start), NULL);
 }
 
 
@@ -129,10 +127,10 @@ static inline void timer_start(sp_timer_t * const timer)
 */
 static inline void timer_stop(sp_timer_t * const timer)
 {
-  clock_gettime(CLOCK_MONOTONIC, &(timer->stop));
   timer->running = 0;
+  gettimeofday(&(timer->stop), NULL);
   timer->seconds += (double)(timer->stop.tv_sec - timer->start.tv_sec);
-  timer->seconds += (timer->stop.tv_nsec - timer->start.tv_nsec)*1e-9;
+  timer->seconds += 1e-6 * (timer->stop.tv_usec - timer->start.tv_usec);
 }
 
 

@@ -23,6 +23,8 @@ typedef struct
   idx_t distribution;
   int mpi_dims[MAX_NMODES];
 
+  int verbose;
+
   /* optimizations */
   idx_t nthreads;
   int tile;

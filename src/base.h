@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 
 
 /******************************************************************************
@@ -27,6 +28,13 @@
 #define SS_MIN(x,y) ((x) < (y) ? (x) : (y))
 #define SS_MAX(x,y) ((x) > (y) ? (x) : (y))
 
+
+/* TODO: Switch to PF_ values */
+#define SS_VAL "f"
+#define SS_MPI_VAL MPI_DOUBLE
+
+#define SS_IDX "lu"
+#define SS_MPI_IDX MPI_UNSIGNED_LONG
 
 /******************************************************************************
  * DEFAULTS
