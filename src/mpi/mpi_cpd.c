@@ -53,6 +53,83 @@ static void __flush_glob_to_local(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+void mpi_send_rows(
+  int const pdest,
+  idx_t const * const indmap,
+  val_t * const nbr2globs_buf,
+  matrix_t * const globalmat,
+  rank_info * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode)
+{
+  idx_t const m = mode;
+
+  /* The number of rows to send to pdest */
+  int const nsends = rinfo->nbr2globs_ptr[m][pdest] / nfactors;
+  int const disp = rinfo->nbr2globs_disp[m][pdest] / nfactors;
+
+  if(nsends == 0) {
+    return;
+  }
+
+  idx_t const mat_start = rinfo->mat_start[m];
+  idx_t const * const nbr2globs_inds = rinfo->nbr2globs_inds[m];
+  val_t const * const gmatv = globalmat->vals;
+
+  /* first prepare all rows that I own and need to send */
+  #pragma omp parallel for
+  for(int s=disp; s < disp+nsends; ++s) {
+    idx_t const row = nbr2globs_inds[s] - mat_start;
+    for(idx_t f=0; f < nfactors; ++f) {
+      nbr2globs_buf[f+(s*nfactors)] = gmatv[f+(row*nfactors)];
+    }
+  }
+
+  MPI_Isend(&(nbr2globs_buf[disp*nfactors]), nsends*nfactors, SS_MPI_VAL,
+      pdest, 0, rinfo->layer_comm[m], &(rinfo->req));
+}
+
+
+void mpi_recv_rows(
+  int const porig,
+  idx_t const * const indmap,
+  val_t * const nbr2local_buf,
+  matrix_t * const localmat,
+  matrix_t * const globalmat,
+  rank_info * const rinfo,
+  idx_t const nfactors,
+  idx_t const mode)
+{
+  idx_t const m = mode;
+
+  /* The number of rows to recv from porig */
+  int const nrecvs = rinfo->local2nbr_ptr[m][porig] / nfactors;
+  int const disp = rinfo->local2nbr_disp[m][porig] / nfactors;
+
+  if(nrecvs == 0) {
+    return;
+  }
+
+  MPI_Recv(&(nbr2local_buf[disp*nfactors]), nrecvs*nfactors, SS_MPI_VAL, porig,
+      0, rinfo->layer_comm[m], &(rinfo->status));
+
+  /* now write incoming nbr2locals to my local matrix */
+  idx_t const * const local2nbr_inds = rinfo->local2nbr_inds[m];
+  val_t * const matv = localmat->vals;
+  #pragma omp for
+  for(int r=disp; r < disp + nrecvs; ++r) {
+    idx_t const row = local2nbr_inds[r];
+    for(idx_t f=0; f < nfactors; ++f) {
+      matv[f+(row*nfactors)] = nbr2local_buf[f+(r*nfactors)];
+    }
+  }
+
+  /* ensure the local matrix is up to date too */
+  __flush_glob_to_local(indmap, localmat, globalmat, rinfo, nfactors, m);
+}
+
+
+
 void mpi_update_rows(
   idx_t const * const indmap,
   val_t * const nbr2globs_buf,
