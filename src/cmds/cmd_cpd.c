@@ -73,6 +73,7 @@ static error_t parse_cpd_opt(
     break;
   case 'v':
     timer_lvl = TIMER_LVL2;
+    args->verbose = 1;
     break;
   case TT_TILE:
     args->tile = 1;
@@ -247,13 +248,6 @@ void splatt_cpd_cmd(
     MPI_Reduce(&fbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   }
 #endif
-
-  idx_t nfibs = 0;
-  for(idx_t m=0; m < nmodes; ++m) {
-    nfibs += ft[m]->nfibs;
-    printf("m: %lu, %lu\n", m, ft[m]->nfibs);
-  }
-  printf("nfibs: %lu\n", nfibs);
 
   if(rinfo.rank == 0) {
     printf("Factoring "

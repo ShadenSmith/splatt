@@ -50,8 +50,8 @@ typedef enum
 */
 typedef enum
 {
-  SPLATT_VERBOSITY_NONE, /** Nothing written to OUT. */
-  SPLATT_VERBOSITY_LOW,  /** Only headers/footers and high/level timing. */
+  SPLATT_VERBOSITY_NONE, /** Nothing written to STDOUT. */
+  SPLATT_VERBOSITY_LOW,  /** Only headers/footers and high-level timing. */
   SPLATT_VERBOSITY_HIGH, /** Timers for all modes. */
   SPLATT_VERBOSITY_MAX   /** All output, including detailed timers. */
 } splatt_verbosity_t;
