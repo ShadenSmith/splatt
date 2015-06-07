@@ -142,12 +142,12 @@ void mpi_update_rows(
 
 void mpi_send_rows(
   int const pdest,
-  idx_t const * const indmap,
   val_t * const nbr2globs_buf,
   matrix_t * const globalmat,
   rank_info * const rinfo,
   idx_t const nfactors,
   idx_t const mode);
+
 
 void mpi_recv_rows(
   int const porig,

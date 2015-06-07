@@ -228,8 +228,8 @@ void cpd_als(
     int const lrank = rinfo->layer_rank[m];
     int const lsize = rinfo->layer_size[m];
     for(int p=1; p < lsize; ++p) {
-      mpi_send_rows((p+lrank) % lsize, ft[m]->indmap, nbr2globs_buf, globmats[m],
-          rinfo, nfactors, m);
+      mpi_send_rows((p+lrank) % lsize, nbr2globs_buf, globmats[m], rinfo,
+        nfactors, m);
     }
     for(int p=1; p < lsize; ++p) {
       mpi_recv_rows((p+lrank) % lsize, ft[m]->indmap, local2nbr_buf, mats[m],
@@ -337,8 +337,8 @@ void cpd_als(
       int const lrank = rinfo->layer_rank[m];
       int const lsize = rinfo->layer_size[m];
       for(int p=1; p < lsize; ++p) {
-        mpi_send_rows((p+lrank) % lsize, ft[m]->indmap, nbr2globs_buf, globmats[m],
-            rinfo, nfactors, m);
+        mpi_send_rows((p+lrank) % lsize, nbr2globs_buf, globmats[m], rinfo,
+            nfactors, m);
       }
       for(int p=1; p < lsize; ++p) {
         mpi_recv_rows((p+lrank) % lsize, ft[m]->indmap, local2nbr_buf, mats[m],
@@ -381,13 +381,12 @@ void cpd_als(
   /* normalize each mat and adjust lambda */
   val_t * tmp = (val_t *) malloc(nfactors * sizeof(val_t));
   for(idx_t m=0; m < nmodes; ++m) {
-    mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds,opts->nthreads);
+    mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds, opts->nthreads);
     for(idx_t f=0; f < nfactors; ++f) {
       lambda[f] *= tmp[f];
     }
   }
   free(tmp);
-
 
   /* CLEAN UP */
   for(idx_t m=0; m < nmodes; ++m) {

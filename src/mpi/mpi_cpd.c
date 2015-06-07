@@ -55,7 +55,6 @@ static void __flush_glob_to_local(
 
 void mpi_send_rows(
   int const pdest,
-  idx_t const * const indmap,
   val_t * const nbr2globs_buf,
   matrix_t * const globalmat,
   rank_info * const rinfo,
