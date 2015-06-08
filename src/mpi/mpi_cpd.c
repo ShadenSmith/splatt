@@ -49,6 +49,170 @@ static void __flush_glob_to_local(
 
 
 /**
+* @brief Do a reduction (sum) of all neighbor partial products which I own.
+*        Updates are written to globalmat.
+*        This version accomplishes the communication with an MPI_Alltoallv().
+*
+* @param local2nbr_buf A buffer at least as large as nlocal2nbr.
+* @param nbr2globs_buf A buffer at least as large as nnbr2globs.
+* @param localmat My local matrix containing partial products for other ranks.
+* @param globalmat The global factor matrix to update.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the matrices.
+* @param m The mode to operate on.
+*/
+static void __reduce_rows_all2all(
+  val_t * const restrict local2nbr_buf,
+  val_t * const restrict nbr2globs_buf,
+  matrix_t const * const localmat,
+  matrix_t * const globalmat,
+  rank_info const * const rinfo,
+  idx_t const nfactors,
+  idx_t const m)
+{
+  idx_t const mat_start = rinfo->mat_start[m];
+  idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
+  idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
+  val_t const * const restrict matv = localmat->vals;
+  val_t * const restrict gmatv = globalmat->vals;
+
+  /* copy my partial products into the sendbuf */
+  #pragma omp parallel for
+  for(idx_t s=0; s < rinfo->nlocal2nbr[m]; ++s) {
+    idx_t const row = local2nbr_inds[s];
+    for(idx_t f=0; f < nfactors; ++f) {
+      local2nbr_buf[f + (s*nfactors)] = matv[f + (row*nfactors)];
+    }
+  }
+
+  /* grab ptr/disp from rinfo. nbr2local and local2nbr will have the same
+   * structure so we just reuse those */
+  int const * const restrict nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
+  int const * const restrict nbr2local_ptr = rinfo->local2nbr_ptr[m];
+  int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
+  int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
+
+  timer_start(&timers[TIMER_MPI_IDLE]);
+  MPI_Barrier(rinfo->layer_comm[m]);
+  timer_stop(&timers[TIMER_MPI_IDLE]);
+
+  timer_start(&timers[TIMER_MPI_COMM]);
+  /* exchange rows */
+  MPI_Alltoallv(local2nbr_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
+                nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
+                rinfo->layer_comm[m]);
+  timer_stop(&timers[TIMER_MPI_COMM]);
+
+  int const lrank = rinfo->layer_rank[m];
+  int const lsize = rinfo->layer_size[m];
+
+  /* Now add received partial products. We can parallelize the additions from
+   * each process. */
+  #pragma omp parallel
+  for(int p=1; p < lsize; ++p) {
+    int const porig = (p + lrank) % lsize;
+    /* The number of rows to recv from porig */
+    int const nrecvs = nbr2globs_ptr[porig] / nfactors;
+    int const disp  = nbr2globs_disp[porig] / nfactors;
+
+    #pragma omp for
+    for(int r=disp; r < disp + nrecvs; ++r) {
+      idx_t const row = nbr2globs_inds[r] - mat_start;
+      for(idx_t f=0; f < nfactors; ++f) {
+        gmatv[f+(row*nfactors)] += nbr2globs_buf[f+(r*nfactors)];
+      }
+    }
+  } /* end recvs */
+}
+
+
+static void __reduce_rows_point2point(
+  val_t * const restrict local2nbr_buf,
+  val_t * const restrict nbr2globs_buf,
+  matrix_t const * const localmat,
+  matrix_t * const globalmat,
+  rank_info * const rinfo,
+  idx_t const nfactors,
+  idx_t const m)
+{
+  int const lrank = rinfo->layer_rank[m];
+  int const lsize = rinfo->layer_size[m];
+
+  idx_t const mat_start = rinfo->mat_start[m];
+  idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
+  idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
+  val_t const * const restrict matv = localmat->vals;
+  val_t * const restrict gmatv = globalmat->vals;
+
+  #pragma omp parallel default(shared)
+  {
+    /* SENDS */
+    for(int p=1; p < lsize; ++p) {
+      /* destination process -- starting from p+1 helps avoid contention */
+      int const pdest = (p + lrank) % lsize;
+      /* The number of rows to send to pdest */
+      int const nsends = rinfo->local2nbr_ptr[m][pdest] / nfactors;
+      int const disp  = rinfo->local2nbr_disp[m][pdest] / nfactors;
+      if(nsends == 0) {
+        continue;
+      }
+
+      /* first prepare all rows that I own and need to send */
+      #pragma omp for
+      for(int s=disp; s < disp+nsends; ++s) {
+        idx_t const row = local2nbr_inds[s];
+        for(idx_t f=0; f < nfactors; ++f) {
+          local2nbr_buf[f + (s*nfactors)] = matv[f + (row*nfactors)];
+        }
+      }
+
+      /* do the actual communication */
+      #pragma omp master
+      {
+        timer_start(&timers[TIMER_MPI_COMM]);
+        MPI_Isend(&(local2nbr_buf[disp*nfactors]), nsends*nfactors, SS_MPI_VAL,
+            pdest, 0, rinfo->layer_comm[m], &(rinfo->req));
+        timer_stop(&timers[TIMER_MPI_COMM]);
+      }
+    } /* end sends */
+
+
+    /* RECVS */
+    for(int p=1; p < lsize; ++p) {
+      int const porig = (p + lrank) % lsize;
+      /* The number of rows to recv from porig */
+      int const nrecvs = rinfo->nbr2globs_ptr[m][porig] / nfactors;
+      int const disp  = rinfo->nbr2globs_disp[m][porig] / nfactors;
+      if(nrecvs == 0) {
+        continue;
+      }
+
+      /* do the actual communication */
+      #pragma omp master
+      {
+        timer_start(&timers[TIMER_MPI_COMM]);
+        MPI_Recv(&(nbr2globs_buf[disp*nfactors]), nrecvs*nfactors, SS_MPI_VAL,
+            porig, 0, rinfo->layer_comm[m], &(rinfo->status));
+        timer_stop(&timers[TIMER_MPI_COMM]);
+      }
+
+      /* wait until recv is done */
+      #pragma omp barrier
+
+      /* now add partial products */
+      #pragma omp for
+      for(int r=disp; r < disp + nrecvs; ++r) {
+        idx_t const row = nbr2globs_inds[r] - mat_start;
+        for(idx_t f=0; f < nfactors; ++f) {
+          gmatv[f+(row*nfactors)] += nbr2globs_buf[f+(r*nfactors)];
+        }
+      }
+    } /* end recvs */
+  } /* end omp parallel */
+}
+
+
+/**
 * @brief Exchange updated factor rows with all MPI ranks in the same layer.
 *        This version accomplishes the communication with individual MPI_Isend
 *        and MPI_Recv.
@@ -243,7 +407,7 @@ void mpi_update_rows(
   rank_info * const rinfo,
   idx_t const nfactors,
   idx_t const mode,
-  splatt_comm_type which)
+  splatt_comm_type const which)
 {
   timer_start(&timers[TIMER_MPI_UPDATE]);
 
@@ -273,53 +437,26 @@ void mpi_reduce_rows(
   val_t * const restrict nbr2globs_buf,
   matrix_t const * const localmat,
   matrix_t * const globalmat,
-  rank_info const * const rinfo,
+  rank_info * const rinfo,
   idx_t const nfactors,
-  idx_t const mode)
+  idx_t const mode,
+  splatt_comm_type const which)
 {
   timer_start(&timers[TIMER_MPI_REDUCE]);
-  idx_t const m = mode;
 
-  val_t const * const restrict matv = localmat->vals;
-  idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
+  switch(which) {
+  case SPLATT_POINT2POINT:
+    __reduce_rows_point2point(local2nbr_buf, nbr2globs_buf, localmat,
+        globalmat, rinfo, nfactors, mode);
+    break;
 
-  /* copy my partial products into the sendbuf */
-  #pragma omp parallel for
-  for(idx_t s=0; s < rinfo->nlocal2nbr[m]; ++s) {
-    idx_t const row = local2nbr_inds[s];
-    for(idx_t f=0; f < nfactors; ++f) {
-      local2nbr_buf[f + (s*nfactors)] = matv[f + (row*nfactors)];
-    }
-  }
+  case SPLATT_ALL2ALL:
+    __reduce_rows_all2all(local2nbr_buf, nbr2globs_buf, localmat, globalmat,
+        rinfo, nfactors, mode);
+    break;
 
-  /* grab ptr/disp from rinfo. nbr2local and local2nbr will have the same
-   * structure so we just reuse those */
-  int const * const restrict nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
-  int const * const restrict nbr2local_ptr = rinfo->local2nbr_ptr[m];
-  int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
-  int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
-
-  timer_start(&timers[TIMER_MPI_IDLE]);
-  MPI_Barrier(rinfo->layer_comm[m]);
-  timer_stop(&timers[TIMER_MPI_IDLE]);
-
-  timer_start(&timers[TIMER_MPI_COMM]);
-  /* exchange rows */
-  MPI_Alltoallv(local2nbr_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
-                nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
-                rinfo->layer_comm[m]);
-  timer_stop(&timers[TIMER_MPI_COMM]);
-
-
-  /* now add received rows to globmats */
-  idx_t const mat_start = rinfo->mat_start[m];
-  idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
-  val_t * const restrict gmatv = globalmat->vals;
-  for(idx_t r=0; r < rinfo->nnbr2globs[m]; ++r) {
-    idx_t const row = nbr2globs_inds[r] - mat_start;
-    for(idx_t f=0; f < nfactors; ++f) {
-      gmatv[f+(row*nfactors)] += nbr2globs_buf[f+(r*nfactors)];
-    }
+  case SPLATT_SPARSEREDUCE:
+    break;
   }
   timer_stop(&timers[TIMER_MPI_REDUCE]);
 }

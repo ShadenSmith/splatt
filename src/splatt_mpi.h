@@ -156,27 +156,8 @@ void mpi_update_rows(
   rank_info * const rinfo,
   idx_t const nfactors,
   idx_t const mode,
-  splatt_comm_type which);
+  splatt_comm_type const which);
 
-
-void mpi_send_rows(
-  int const pdest,
-  val_t * const nbr2globs_buf,
-  matrix_t * const globalmat,
-  rank_info * const rinfo,
-  idx_t const nfactors,
-  idx_t const mode);
-
-
-void mpi_recv_rows(
-  int const porig,
-  idx_t const * const indmap,
-  val_t * const nbr2local_buf,
-  matrix_t * const localmat,
-  matrix_t * const globalmat,
-  rank_info * const rinfo,
-  idx_t const nfactors,
-  idx_t const mode);
 
 #define mpi_reduce_rows splatt_mpi_reduce_rows
 /**
@@ -190,15 +171,17 @@ void mpi_recv_rows(
 * @param rinfo MPI rank information.
 * @param nfactors The number of columns in the matrices.
 * @param mode The mode to operate on.
+* @param which Which communication pattern to use.
 */
 void mpi_reduce_rows(
   val_t * const restrict local2nbr_buf,
   val_t * const restrict nbr2globs_buf,
   matrix_t const * const localmat,
   matrix_t * const globalmat,
-  rank_info const * const rinfo,
+  rank_info * const rinfo,
   idx_t const nfactors,
-  idx_t const mode);
+  idx_t const mode,
+  splatt_comm_type const which);
 
 
 #define mpi_add_my_partials splatt_mpi_add_my_partials
@@ -220,6 +203,7 @@ void mpi_add_my_partials(
   rank_info const * const rinfo,
   idx_t const nfactors,
   idx_t const mode);
+
 
 #define mpi_write_mats splatt_mpi_write_mats
 /**
