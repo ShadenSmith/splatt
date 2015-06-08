@@ -52,8 +52,8 @@ This runs splatt-check on 'mytensor.tns' and writes the fixed tensor to
 'fixed.tns'. The splatt-check routine finds empty slices and duplicate nonzero
 entries. Empty slices are indices in any mode which do not have any nonzero
 entries associated with them. Some SPLATT routines (including CPD) expect there
-to be no empty slices, so running splatt-check
-on any new tensors is recommended.
+to be no empty slices, so running splatt-check on any new tensors is
+recommended.
 
 **Example 2**
 

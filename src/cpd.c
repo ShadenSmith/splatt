@@ -37,6 +37,31 @@ int splatt_cpd(
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+
+/**
+* @brief Resets serial and MPI timers that were activated during some CPD
+*        pre-processing.
+*
+* @param rinfo MPI rank information.
+*/
+static void __reset_cpd_timers(
+  rank_info const * const rinfo)
+{
+  timer_reset(&timers[TIMER_ATA]);
+#ifdef SPLATT_USE_MPI
+  timer_reset(&timers[TIMER_MPI]);
+  timer_reset(&timers[TIMER_MPI_IDLE]);
+  timer_reset(&timers[TIMER_MPI_COMM]);
+  timer_reset(&timers[TIMER_MPI_ATA]);
+  timer_reset(&timers[TIMER_MPI_REDUCE]);
+  timer_reset(&timers[TIMER_MPI_NORM]);
+  timer_reset(&timers[TIMER_MPI_UPDATE]);
+  timer_reset(&timers[TIMER_MPI_FIT]);
+  MPI_Barrier(rinfo->comm_3d);
+#endif
+}
+
+
 static val_t __kruskal_norm(
   idx_t const nmodes,
   val_t const * const restrict lambda,
@@ -221,21 +246,8 @@ void cpd_als(
 
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
-#if 0
     mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m],
-        globmats[m], rinfo, nfactors, m);
-#else
-    int const lrank = rinfo->layer_rank[m];
-    int const lsize = rinfo->layer_size[m];
-    for(int p=1; p < lsize; ++p) {
-      mpi_send_rows((p+lrank) % lsize, nbr2globs_buf, globmats[m], rinfo,
-        nfactors, m);
-    }
-    for(int p=1; p < lsize; ++p) {
-      mpi_recv_rows((p+lrank) % lsize, ft[m]->indmap, local2nbr_buf, mats[m],
-          globmats[m], rinfo, nfactors, m);
-    }
-#endif
+        globmats[m], rinfo, nfactors, m, SPLATT_POINT2POINT);
   }
 #endif
 
@@ -268,19 +280,7 @@ void cpd_als(
 #endif
 
   /* setup timers */
-  timer_reset(&timers[TIMER_ATA]);
-#ifdef SPLATT_USE_MPI
-  timer_reset(&timers[TIMER_MPI]);
-  timer_reset(&timers[TIMER_MPI_IDLE]);
-  timer_reset(&timers[TIMER_MPI_COMM]);
-  timer_reset(&timers[TIMER_MPI_ATA]);
-  timer_reset(&timers[TIMER_MPI_REDUCE]);
-  timer_reset(&timers[TIMER_MPI_NORM]);
-  timer_reset(&timers[TIMER_MPI_UPDATE]);
-  timer_reset(&timers[TIMER_MPI_FIT]);
-  MPI_Barrier(rinfo->comm_3d);
-#endif
-
+  __reset_cpd_timers(rinfo);
   sp_timer_t itertime;
   sp_timer_t modetime[MAX_NMODES];
   timer_start(&timers[TIMER_CPD]);
@@ -329,22 +329,9 @@ void cpd_als(
       }
 
 #ifdef SPLATT_USE_MPI
-#if 0
       /* send updated rows to neighbors */
       mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m],
-          globmats[m], rinfo, nfactors, m);
-#else
-      int const lrank = rinfo->layer_rank[m];
-      int const lsize = rinfo->layer_size[m];
-      for(int p=1; p < lsize; ++p) {
-        mpi_send_rows((p+lrank) % lsize, nbr2globs_buf, globmats[m], rinfo,
-            nfactors, m);
-      }
-      for(int p=1; p < lsize; ++p) {
-        mpi_recv_rows((p+lrank) % lsize, ft[m]->indmap, local2nbr_buf, mats[m],
-            globmats[m], rinfo, nfactors, m);
-      }
-#endif
+          globmats[m], rinfo, nfactors, m, SPLATT_POINT2POINT);
 #endif
 
       /* update A^T*A */

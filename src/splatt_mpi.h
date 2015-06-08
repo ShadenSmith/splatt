@@ -1,17 +1,22 @@
 #ifndef SPLATT_MPI_H
 #define SPLATT_MPI_H
 
-
+/******************************************************************************
+ * MPI DISABLED
+ *****************************************************************************/
 # ifndef SPLATT_USE_MPI
 /* Just a dummy for when MPI is not enabled. */
 typedef struct
 {
   int rank;
 } rank_info;
-
 # else
 
-/**** FULL MPI SUPPORT *****/
+
+
+/******************************************************************************
+ * FULL MPI SUPPORT
+ *****************************************************************************/
 
 #include "base.h"
 #include <mpi.h>
@@ -90,12 +95,24 @@ typedef struct
   int layer_rank[MAX_NMODES];
   int layer_size[MAX_NMODES];
 
-
   /* Miscellaneous */
   MPI_Status status;
   MPI_Request req;
   idx_t worksize;
 } rank_info;
+
+
+
+/**
+* @brief Communication pattern type. We support point-to-point, all-to-all
+*        (vectorized), and our own sparse reduction pattern (soon).
+*/
+typedef enum
+{
+  SPLATT_POINT2POINT,
+  SPLATT_ALL2ALL,
+  SPLATT_SPARSEREDUCE
+} splatt_comm_type;
 
 
 
@@ -128,6 +145,7 @@ typedef struct
 * @param rinfo MPI rank information.
 * @param nfactors The number of columns in the factor matrices.
 * @param mode The mode to exchange along.
+* @param which Which communication pattern to use.
 */
 void mpi_update_rows(
   idx_t const * const indmap,
@@ -135,9 +153,10 @@ void mpi_update_rows(
   val_t * const restrict nbr2local_buf,
   matrix_t * const localmat,
   matrix_t * const globalmat,
-  rank_info const * const rinfo,
+  rank_info * const rinfo,
   idx_t const nfactors,
-  idx_t const mode);
+  idx_t const mode,
+  splatt_comm_type which);
 
 
 void mpi_send_rows(
