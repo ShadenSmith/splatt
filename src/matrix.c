@@ -21,8 +21,7 @@ static void __mat_2norm(
   matrix_t * const A,
   val_t * const restrict lambda,
   rank_info * const rinfo,
-  thd_info * const thds,
-  idx_t const nthreads)
+  thd_info * const thds)
 {
   idx_t const I = A->I;
   idx_t const J = A->J;
@@ -45,10 +44,11 @@ static void __mat_2norm(
 
     /* do reduction on partial sums */
     thd_reduce(thds, 0, J, REDUCE_SUM);
-#ifdef SPLATT_USE_MPI
-    /* now do an MPI reduction to get the global lambda */
+
     #pragma omp master
     {
+#ifdef SPLATT_USE_MPI
+      /* now do an MPI reduction to get the global lambda */
       timer_start(&timers[TIMER_MPI_NORM]);
       timer_start(&timers[TIMER_MPI_IDLE]);
       MPI_Barrier(rinfo->comm_3d);
@@ -58,19 +58,17 @@ static void __mat_2norm(
       MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_COMM]);
       timer_stop(&timers[TIMER_MPI_NORM]);
-    }
 #else
-    #pragma omp master
-    memcpy(lambda, mylambda, J * sizeof(val_t));
+      memcpy(lambda, mylambda, J * sizeof(val_t));
 #endif
-
-    /* now apply norm */
-    #pragma omp master
-    for(idx_t j=0; j < J; ++j) {
-      lambda[j] = sqrt(lambda[j]);
     }
 
     #pragma omp barrier
+
+    #pragma omp for schedule(static)
+    for(idx_t j=0; j < J; ++j) {
+      lambda[j] = sqrt(lambda[j]);
+    }
 
     /* do the normalization */
     #pragma omp for schedule(static)
@@ -79,7 +77,6 @@ static void __mat_2norm(
         vals[j+(i*J)] /= lambda[j];
       }
     }
-
   } /* end omp for */
 }
 
@@ -88,8 +85,7 @@ static void __mat_maxnorm(
   matrix_t * const A,
   val_t * const restrict lambda,
   rank_info * const rinfo,
-  thd_info * const thds,
-  idx_t const nthreads)
+  thd_info * const thds)
 {
   idx_t const I = A->I;
   idx_t const J = A->J;
@@ -112,10 +108,11 @@ static void __mat_maxnorm(
 
     /* do reduction on partial maxes */
     thd_reduce(thds, 0, J, REDUCE_MAX);
-#ifdef SPLATT_USE_MPI
-    /* now do an MPI reduction to get the global lambda */
+
     #pragma omp master
     {
+#ifdef SPLATT_USE_MPI
+      /* now do an MPI reduction to get the global lambda */
       timer_start(&timers[TIMER_MPI_NORM]);
       timer_start(&timers[TIMER_MPI_IDLE]);
       MPI_Barrier(rinfo->comm_3d);
@@ -125,18 +122,18 @@ static void __mat_maxnorm(
       MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_MAX, rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_COMM]);
       timer_stop(&timers[TIMER_MPI_NORM]);
-    }
 #else
-    #pragma omp master
-    memcpy(lambda, mylambda, J * sizeof(val_t));
+      memcpy(lambda, mylambda, J * sizeof(val_t));
 #endif
 
-    #pragma omp master
-    for(idx_t j=0; j < J; ++j) {
-      lambda[j] = SS_MAX(lambda[j], 1.);
     }
 
     #pragma omp barrier
+
+    #pragma omp for schedule(static)
+    for(idx_t j=0; j < J; ++j) {
+      lambda[j] = SS_MAX(lambda[j], 1.);
+    }
 
     /* do the normalization */
     #pragma omp for schedule(static)
@@ -145,9 +142,7 @@ static void __mat_maxnorm(
         vals[j+(i*J)] /= lambda[j];
       }
     }
-
   } /* end omp parallel */
-
 }
 
 
@@ -486,10 +481,10 @@ void mat_normalize(
 
   switch(which) {
   case MAT_NORM_2:
-    __mat_2norm(A, lambda, rinfo, thds, nthreads);
+    __mat_2norm(A, lambda, rinfo, thds);
     break;
   case MAT_NORM_MAX:
-    __mat_maxnorm(A, lambda, rinfo, thds, nthreads);
+    __mat_maxnorm(A, lambda, rinfo, thds);
     break;
   default:
     fprintf(stderr, "SPLATT: mat_normalize supports 2 and MAX only.\n");
