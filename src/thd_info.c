@@ -30,13 +30,25 @@ static inline void __reduce_sum(
 
   int half = nthreads / 2;
   while(half > 0) {
-    #pragma omp barrier
     if(tid < half && tid + half < nthreads) {
       val_t const * const target = (val_t *) thds[tid+half].scratch[scratchid];
       for(idx_t i=0; i < nelems; ++i) {
         myvals[i] += target[i];
       }
     }
+
+    #pragma omp barrier
+
+    /* check for odd number */
+    #pragma omp master
+    if(half > 1 && half % 2 == 1) {
+        val_t const * const last = (val_t *) thds[half-1].scratch[scratchid];
+        for(idx_t i=0; i < nelems; ++i) {
+          myvals[i] += last[i];
+        }
+    }
+
+    /* next iteration */
     half /= 2;
   }
 
@@ -73,13 +85,25 @@ static inline void __reduce_max(
 
   int half = nthreads / 2;
   while(half > 0) {
-    #pragma omp barrier
     if(tid < half && tid + half < nthreads) {
       val_t const * const target = (val_t *) thds[tid+half].scratch[scratchid];
       for(idx_t i=0; i < nelems; ++i) {
         myvals[i] = SS_MAX(myvals[i], target[i]);
       }
     }
+
+    #pragma omp barrier
+
+    /* check for odd number */
+    #pragma omp master
+    if(half > 1 && half % 2 == 1) {
+        val_t const * const last = (val_t *) thds[half-1].scratch[scratchid];
+        for(idx_t i=0; i < nelems; ++i) {
+          myvals[i] = SS_MAX(myvals[i], last[i]);
+        }
+    }
+
+    /* next iteration */
     half /= 2;
   }
 
@@ -110,6 +134,9 @@ void thd_reduce(
   if(omp_get_num_threads() == 1) {
     return;
   }
+
+  /* just to be safe in case any thread data is being copied */
+  #pragma omp barrier
 
   switch(which) {
   case REDUCE_SUM:
