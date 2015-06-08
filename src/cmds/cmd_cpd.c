@@ -72,7 +72,7 @@ static error_t parse_cpd_opt(
     args->nthreads = atoi(arg);
     break;
   case 'v':
-    timer_lvl = TIMER_LVL2;
+    timer_inc_verbose();
     args->verbose = 1;
     break;
   case TT_TILE:

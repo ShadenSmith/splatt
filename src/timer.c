@@ -72,3 +72,20 @@ void report_times(void)
   }
 }
 
+void timer_inc_verbose(void)
+{
+  switch(timer_lvl) {
+  case TIMER_LVL0:
+    timer_lvl = TIMER_LVL1;
+    break;
+  case TIMER_LVL1:
+    timer_lvl = TIMER_LVL2;
+    break;
+  case TIMER_LVL2:
+    timer_lvl = TIMER_NTIMERS;
+    break;
+  default:
+    break;
+  }
+}
+

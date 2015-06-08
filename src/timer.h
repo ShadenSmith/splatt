@@ -92,6 +92,12 @@ void init_timers(void);
 void report_times(void);
 
 
+#define timer_inc_verbose splatt_timer_inc_verbose
+/**
+* @brief Increment timer verbosity to the next level;
+*/
+void timer_inc_verbose(void);
+
 /**
 * @brief Reset all fields of a sp_timer_t.
 *
