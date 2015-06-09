@@ -413,7 +413,7 @@ static void __fill_volume_stats(
 
 /**
 * @brief Computes a factor matrix distribution using a greedy method. Each rank
-*        claims all rows foind only in its own partition and contested rows are
+*        claims all rows found only in its own partition and contested rows are
 *        given in a greedy manner which attempts to minimize total volume.
 *
 *        NOTE: Since ranks can end up with non-contiguous partitions we reorder
@@ -645,7 +645,7 @@ void mpi_find_owned(
   }
   rinfo->ownend[m] += 1;
 
-  if(rinfo->nowned == 0) {
+  if(rinfo->nowned[m] == 0) {
     rinfo->ownstart[m] = 0;
     rinfo->ownend[m] = 0;
   }

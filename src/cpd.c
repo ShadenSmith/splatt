@@ -32,11 +32,9 @@ int splatt_cpd(
 }
 
 
-
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-
 
 /**
 * @brief Resets serial and MPI timers that were activated during some CPD
@@ -247,7 +245,7 @@ void cpd_als(
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
     mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m],
-        globmats[m], rinfo, nfactors, m, SPLATT_ALL2ALL);
+        globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
   }
 #endif
 
@@ -305,7 +303,7 @@ void cpd_als(
             nfactors, m);
         /* incorporate neighbors' partials */
         mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
-            rinfo, nfactors, m, SPLATT_ALL2ALL);
+            rinfo, nfactors, m, DEFAULT_COMM);
       } else {
         /* skip the whole process */
         m1 = mats[MAX_NMODES];
@@ -331,7 +329,7 @@ void cpd_als(
 #ifdef SPLATT_USE_MPI
       /* send updated rows to neighbors */
       mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m],
-          globmats[m], rinfo, nfactors, m, SPLATT_ALL2ALL);
+          globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
 #endif
 
       /* update A^T*A */
