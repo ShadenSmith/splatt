@@ -115,7 +115,7 @@ typedef enum
   SPLATT_SPARSEREDUCE
 } splatt_comm_type;
 
-#define DEFAULT_COMM SPLATT_POINT2POINT
+#define DEFAULT_COMM SPLATT_ALL2ALL
 
 
 /******************************************************************************

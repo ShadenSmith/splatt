@@ -165,7 +165,8 @@ static void __setup_1d(
   rinfo->comm_3d = MPI_COMM_WORLD;
   for(idx_t m=0; m < rinfo->nmodes; ++m) {
     rinfo->layer_comm[m] = MPI_COMM_WORLD;
-    rinfo->layer_size[m] = 1;
+    rinfo->layer_size[m] = rinfo->npes;
+    rinfo->layer_rank[m] = rinfo->rank;
     rinfo->dims_3d[m] = rinfo->npes;
   }
 }

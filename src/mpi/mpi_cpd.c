@@ -343,6 +343,7 @@ static void __update_rows_all2all(
   idx_t const m = mode;
   idx_t const mat_start = rinfo->mat_start[m];
   idx_t const * const nbr2globs_inds = rinfo->nbr2globs_inds[m];
+  idx_t const * const local2nbr_inds = rinfo->local2nbr_inds[m];
   val_t const * const gmatv = globalmat->vals;
 
   #pragma omp parallel
@@ -381,7 +382,6 @@ static void __update_rows_all2all(
     #pragma omp barrier
 
     /* now write incoming nbr2locals to my local matrix */
-    idx_t const * const local2nbr_inds = rinfo->local2nbr_inds[m];
     val_t * const matv = localmat->vals;
     #pragma omp for
     for(idx_t r=0; r < rinfo->nlocal2nbr[m]; ++r) {

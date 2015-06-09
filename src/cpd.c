@@ -296,7 +296,7 @@ void cpd_als(
       mttkrp_splatt(ft[m], mats, m, thds, opts->nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
-      if(rinfo->layer_size[m] > 1) {
+      if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
         mpi_add_my_partials(ft[m]->indmap, mats[MAX_NMODES], m1, rinfo,
