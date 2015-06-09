@@ -163,15 +163,11 @@ static void __setup_1d(
   rank_info * const rinfo)
 {
   rinfo->comm_3d = MPI_COMM_WORLD;
-  rinfo->layer_comm[0] = MPI_COMM_WORLD;
-  rinfo->layer_comm[1] = MPI_COMM_WORLD;
-  rinfo->layer_comm[2] = MPI_COMM_WORLD;
-  rinfo->layer_size[0] = 1;
-  rinfo->layer_size[1] = 1;
-  rinfo->layer_size[2] = 1;
-  rinfo->dims_3d[0] = rinfo->npes;
-  rinfo->dims_3d[1] = rinfo->npes;
-  rinfo->dims_3d[2] = rinfo->npes;
+  for(idx_t m=0; m < rinfo->nmodes; ++m) {
+    rinfo->layer_comm[m] = MPI_COMM_WORLD;
+    rinfo->layer_size[m] = 1;
+    rinfo->dims_3d[m] = rinfo->npes;
+  }
 }
 
 
@@ -245,15 +241,9 @@ void mpi_compute_ineed(
 
 
 void mpi_setup_comms(
-  rank_info * const rinfo,
-  idx_t const distribution)
+  rank_info * const rinfo)
 {
-  MPI_Comm_size(MPI_COMM_WORLD, &(rinfo->npes));
-  MPI_Comm_rank(MPI_COMM_WORLD, &(rinfo->rank));
-
-  rinfo->distribution = distribution;
-
-  switch(distribution) {
+  switch(rinfo->distribution) {
   case 1:
     __setup_1d(rinfo);
     break;
@@ -261,8 +251,8 @@ void mpi_setup_comms(
     __setup_3d(rinfo);
     break;
   default:
-    fprintf(stderr, "SPLATT: distribution %"SS_IDX" not supported."
-                    "Choose from {1,3}.\n", distribution);
+    fprintf(stderr, "SPLATT: distribution %"SS_IDX" not supported. "
+                    "Choose from {1,3}.\n", rinfo->distribution);
     abort();
   }
 }

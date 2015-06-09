@@ -32,6 +32,7 @@ typedef struct
 typedef struct
 {
   /* Tensor information */
+  idx_t nmodes;
   idx_t global_nnz;
   idx_t global_dims[MAX_NMODES];
   idx_t mat_start[MAX_NMODES];
@@ -114,6 +115,7 @@ typedef enum
   SPLATT_SPARSEREDUCE
 } splatt_comm_type;
 
+#define DEFAULT_COMM SPLATT_POINT2POINT
 
 
 /******************************************************************************
@@ -259,9 +261,8 @@ void mpi_compute_ineed(
 * @brief Each rank reads their 3D partition of a tensor.
 *
 * @param ifname The file containing the tensor.
-* @param rinfo Rank information, assumes mpi_setup_comms() has been called
-*              first!
-*
+* @param rinfo Rank information.
+* 
 * @return The rank's subtensor.
 */
 sptensor_t * mpi_tt_read(
@@ -326,11 +327,9 @@ void mpi_find_owned(
 *        communicator, etc.
 *
 * @param rinfo The rank data structure.
-* @param distribution The dimension of the distribution to perform (1-3).
 */
 void mpi_setup_comms(
-  rank_info * const rinfo,
-  idx_t const distribution);
+  rank_info * const rinfo);
 
 
 #define rank_free splatt_rank_free

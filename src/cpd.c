@@ -404,8 +404,10 @@ void default_cpd_opts(
   args->rank         = DEFAULT_NFACTORS;
   args->nthreads     = DEFAULT_THREADS;
   args->tile         = DEFAULT_TILE;
-  args->distribution = DEFAULT_MPI_DISTRIBUTION;
   args->verbose = 0;
-  args->mpi_dims[0] = args->mpi_dims[1] = args->mpi_dims[2] = 1;
+  args->distribution = DEFAULT_MPI_DISTRIBUTION;
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    args->mpi_dims[m] = 1;
+  }
 }
 

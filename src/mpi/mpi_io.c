@@ -84,7 +84,6 @@ static void __find_my_slices(
           rinfo->rank, m+1);
       rinfo->layer_starts[m] = dims[m];
       rinfo->layer_ends[m] = dims[m];
-      //abort();
     }
   }
 }
@@ -96,9 +95,7 @@ static void __find_my_slices_1d(
   idx_t const nnz,
   rank_info * const rinfo)
 {
-  idx_t pnnz = nnz / rinfo->npes;
   idx_t const * const dims = rinfo->global_dims;
-
   /* find start/end slices for my partition */
   for(idx_t m=0; m < nmodes; ++m) {
     /* current processor */
@@ -106,12 +103,13 @@ static void __find_my_slices_1d(
     idx_t lastn = 0;
     idx_t nnzcnt = 0;
 
+    idx_t pnnz = nnz / rinfo->npes;
+
     rinfo->layer_starts[m] = 0;
     rinfo->layer_ends[m] = dims[m];
 
     rinfo->mat_start[m] = 0;
     rinfo->mat_end[m] = dims[m];
-
     for(idx_t s=0; s < dims[m]; ++s) {
       if(nnzcnt >= lastn + pnnz) {
         /* choose this slice or the previous, whichever is closer */
@@ -563,6 +561,92 @@ static void __get_dims(
   fclose(fin);
 }
 
+
+/**
+* @brief Return a list of the prime factors (including multiplicatives) of N.
+*        The returned list is sorted in increasing order.
+*
+* @param N The number to factor.
+* @param nprimes The number of primes found.
+*
+* @return The list of primes. This must be deallocated with free().
+*/
+static int * __get_primes(
+  int N,
+  int * nprimes)
+{
+  int size = 10;
+  int * p = (int *) malloc(size * sizeof(int));
+  int np = 0;
+
+  while(N != 1) {
+    int i;
+    for(i=2; i <= N; ++i) {
+      if(N % i == 0) {
+        /* found the next prime */
+        break;
+      }
+    }
+
+    /* realloc if necessary */
+    if(size == np) {
+      p = (int *) realloc(p, size * 2 * sizeof(int));
+    }
+
+    p[np++] = i;
+    N /= i;
+  }
+
+  *nprimes = np;
+  return p;
+}
+
+
+/**
+* @brief Fill in the best MPI dimensions we can find. The truly optimal
+*        solution should involve the tensor's sparsity pattern, but in general
+*        this works as good (but usually better) than the hand-tuned dimensions
+*        that we tried.
+*
+* @param rinfo MPI rank information.
+*/
+static void __get_best_mpi_dim(
+  rank_info * const rinfo)
+{
+  int nprimes = 0;
+  int * primes = __get_primes(rinfo->npes, &nprimes);
+
+  idx_t total_size = 0;
+  for(idx_t m=0; m < rinfo->distribution; ++m) {
+    total_size += rinfo->global_dims[m];
+
+    /* reset mpi dims */
+    rinfo->dims_3d[m] = 1;
+  }
+  int target = total_size / rinfo->npes;
+
+  long diffs[MAX_NMODES];
+
+  /* start from the largest prime */
+  for(int p = nprimes-1; p >= 0; --p) {
+    int furthest = 0;
+    /* find dim furthest from target */
+    for(idx_t m=0; m < rinfo->distribution; ++m) {
+      /* distance is current - target */
+      diffs[m] = (rinfo->global_dims[m] / rinfo->dims_3d[m]) - target;
+      if(diffs[m] > diffs[furthest]) {
+        furthest = m;
+      }
+    }
+
+    /* assign p processes to furthest mode */
+    rinfo->dims_3d[furthest] *= primes[p];
+  }
+
+  free(primes);
+}
+
+
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
@@ -578,10 +662,18 @@ sptensor_t * mpi_tt_read(
     /* get tensor stats */
     __get_dims(ifname, &(rinfo->global_nnz), &nmodes, rinfo->global_dims);
   }
-
   MPI_Bcast(&(rinfo->global_nnz), 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
   MPI_Bcast(&nmodes, 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
   MPI_Bcast(rinfo->global_dims, nmodes, SS_MPI_IDX, 0, MPI_COMM_WORLD);
+  rinfo->nmodes = nmodes;
+
+  /* first compute MPI dimension if not specified by the user */
+  if(rinfo->distribution == DEFAULT_MPI_DISTRIBUTION) {
+    rinfo->distribution = nmodes;
+    __get_best_mpi_dim(rinfo);
+  }
+
+  mpi_setup_comms(rinfo);
 
   idx_t * ssizes[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {

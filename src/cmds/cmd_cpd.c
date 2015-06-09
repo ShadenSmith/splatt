@@ -128,6 +128,9 @@ void splatt_cpd_cmd(
   rank_info rinfo;
 #ifdef SPLATT_USE_MPI
   MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &rinfo.npes);
+
+  rinfo.distribution = args.distribution;
   for(idx_t d=0; d < args.distribution; ++d) {
     rinfo.dims_3d[d] = SS_MAX(args.mpi_dims[d], 1);
   }
@@ -140,8 +143,14 @@ void splatt_cpd_cmd(
   }
 
 #ifdef SPLATT_USE_MPI
-  mpi_setup_comms(&rinfo, args.distribution);
   tt = mpi_tt_read(args.ifname, &rinfo);
+
+  /* In the default setting, mpi_tt_read will set rinfo distribution.
+   * Copy that back into args. TODO: make this less dumb. */
+  args.distribution = rinfo.distribution;
+  for(idx_t m=0; m < args.distribution; ++m) {
+    args.mpi_dims[m] = rinfo.dims_3d[m];
+  }
 
   /* print stats */
   if(rinfo.rank == 0) {
@@ -149,11 +158,11 @@ void splatt_cpd_cmd(
   }
 
   /* determine matrix distribution - this also calls tt_remove_empty() */
-  permutation_t * perm = mpi_distribute_mats(&rinfo, tt, args.distribution);
+  permutation_t * perm = mpi_distribute_mats(&rinfo, tt, rinfo.distribution);
 
   /* 1D and 2D distributions require filtering because tt has nonzeros that
    * don't belong in each ftensor */
-  if(args.distribution == 1) {
+  if(rinfo.distribution == 1) {
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
 
