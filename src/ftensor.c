@@ -226,7 +226,7 @@ ftensor_t * ften_alloc(
   ft->vals = (val_t *) malloc(ft->nnz * sizeof(val_t));
 
   tt_sort(tt, mode, ft->dim_perms);
-  if(tile) {
+  if(tile == SPLATT_NOTILE) {
     ft->tiled = 1;
     tt_tile(tt, ft->dim_perms);
   }

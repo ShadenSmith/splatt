@@ -213,7 +213,7 @@ void stats_tt(
 void mpi_global_stats(
   sptensor_t * const tt,
   rank_info * const rinfo,
-  cpd_opts const * const args)
+  char const * const ifname)
 {
   idx_t * tmpdims = tt->dims;
   idx_t tmpnnz = tt->nnz;
@@ -221,7 +221,7 @@ void mpi_global_stats(
   tt->nnz = rinfo->global_nnz;
 
   /* print stats */
-  stats_tt(tt, args->ifname, STATS_BASIC, 0, NULL);
+  stats_tt(tt, ifname, STATS_BASIC, 0, NULL);
 
   /* restore local stats */
   tt->dims = tmpdims;
@@ -230,8 +230,7 @@ void mpi_global_stats(
 
 void mpi_rank_stats(
   sptensor_t const * const tt,
-  rank_info const * const rinfo,
-  cpd_opts const * const args)
+  rank_info const * const rinfo)
 {
   idx_t totnnz = 0;
   idx_t maxnnz = 0;
@@ -253,7 +252,7 @@ void mpi_rank_stats(
 
   if(rinfo->rank == 0) {
     printf("MPI information ------------------------------------------------\n");
-    printf("DISTRIBUTION=%"SS_IDX"D ", args->distribution);
+    printf("DISTRIBUTION=%"SS_IDX"D ", rinfo->distribution);
     printf("DIMS=%dx%dx%d\n", rinfo->dims_3d[0], rinfo->dims_3d[1],
         rinfo->dims_3d[2]);
     idx_t avgvolume = totvolume / rinfo->npes;

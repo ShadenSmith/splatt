@@ -6,6 +6,8 @@
 #include "cpd.h"
 #include "matrix.h"
 #include "mttkrp.h"
+#include "sptensor.h"
+#include "stats.h"
 #include "timer.h"
 #include "thd_info.h"
 #include "tile.h"
@@ -13,6 +15,7 @@
 
 #include <math.h>
 #include <omp.h>
+
 
 
 /******************************************************************************
@@ -25,9 +28,38 @@ int splatt_cpd(
     idx_t ** const inds,
     val_t * const vals,
     val_t ** const mats,
-    val_t * const lambda)
+    val_t * const lambda,
+    double const * const options)
 {
+  sptensor_t tt;
+  tt_fill(&tt, nnz, nmodes, inds, vals);
+  tt_remove_empty(&tt);
+  stats_tt(&tt, NULL, STATS_BASIC, 0, NULL);
 
+  matrix_t * globmats[MAX_NMODES];
+
+  rank_info rinfo;
+  rinfo.rank = 0;
+
+  /* fill each ftensor */
+  ftensor_t * ft[MAX_NMODES];
+  for(idx_t m=0; m < tt.nmodes; ++m) {
+    ft[m] = ften_alloc(&tt, m, (int) options[SPLATT_OPTION_TILE]);
+
+    globmats[m] = (matrix_t *) malloc(sizeof(matrix_t));
+    globmats[m]->I = tt.dims[m];
+    globmats[m]->J = rank;
+    globmats[m]->vals = mats[m];
+    globmats[m]->rowmajor = 1;
+  }
+
+  /* do the factorization! */
+  cpd_als(ft, globmats, globmats, lambda, rank, &rinfo, options);
+
+  for(idx_t m=0; m < tt.nmodes; ++m) {
+    ften_free(ft[m]);
+    free(globmats[m]);
+  }
   return SPLATT_SUCCESS;
 }
 
@@ -209,15 +241,16 @@ void cpd_als(
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,
+  idx_t const nfactors,
   rank_info * const rinfo,
-  cpd_opts const * const opts)
+  double const * const opts)
 {
-  idx_t const nfactors = opts->rank;
   idx_t const nmodes = ft[0]->nmodes;
+  idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
-  omp_set_num_threads(opts->nthreads);
-  thd_info * thds =  thd_init(opts->nthreads, 2,
+  omp_set_num_threads(nthreads);
+  thd_info * thds =  thd_init(nthreads, 2,
     (nfactors * nfactors * sizeof(val_t)) + 64,
     TILE_SIZES[0] * nfactors * sizeof(val_t) + 64);
 
@@ -238,7 +271,7 @@ void cpd_als(
 
   val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
   val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
-  if(opts->distribution == 3) {
+  if(rinfo->distribution == 3) {
     m1 = mat_alloc(maxdim, nfactors);
   }
 
@@ -256,7 +289,7 @@ void cpd_als(
   matrix_t * aTa[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
     aTa[m] = mat_alloc(nfactors, nfactors);
-    mat_aTa(globmats[m], aTa[m], rinfo, thds, opts->nthreads);
+    mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
   }
   /* used as buffer space */
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
@@ -283,7 +316,8 @@ void cpd_als(
   sp_timer_t modetime[MAX_NMODES];
   timer_start(&timers[TIMER_CPD]);
 
-  for(idx_t it=0; it < opts->niters; ++it) {
+  idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
+  for(idx_t it=0; it < niters; ++it) {
     timer_fstart(&itertime);
     for(idx_t m=0; m < nmodes; ++m) {
       timer_fstart(&modetime[m]);
@@ -293,7 +327,7 @@ void cpd_als(
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
-      mttkrp_splatt(ft[m], mats, m, thds, opts->nthreads);
+      mttkrp_splatt(ft[m], mats, m, thds, nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
       if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
@@ -319,11 +353,9 @@ void cpd_als(
 
       /* normalize columns and extract lambda */
       if(it == 0) {
-        mat_normalize(globmats[m], lambda, MAT_NORM_2, rinfo, thds,
-            opts->nthreads);
+        mat_normalize(globmats[m], lambda, MAT_NORM_2, rinfo, thds, nthreads);
       } else {
-        mat_normalize(globmats[m], lambda, MAT_NORM_MAX, rinfo, thds,
-            opts->nthreads);
+        mat_normalize(globmats[m], lambda, MAT_NORM_MAX, rinfo, thds,nthreads);
       }
 
 #ifdef SPLATT_USE_MPI
@@ -333,25 +365,25 @@ void cpd_als(
 #endif
 
       /* update A^T*A */
-      mat_aTa(globmats[m], aTa[m], rinfo, thds, opts->nthreads);
+      mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
       timer_stop(&modetime[m]);
     } /* foreach mode */
 
-    fit = __calc_fit(nmodes, rinfo, thds, opts->nthreads, ttnormsq, lambda,
+    fit = __calc_fit(nmodes, rinfo, thds, nthreads, ttnormsq, lambda,
         globmats, m1, aTa);
     timer_stop(&itertime);
 
     if(rinfo->rank == 0) {
       printf("  its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
           it+1, itertime.seconds, fit, fit - oldfit);
-      if(opts->verbose) {
+      if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_LOW) {
         for(idx_t m=0; m < nmodes; ++m) {
           printf("     mode = %1"SS_IDX" (%0.3fs)\n", m+1,
               modetime[m].seconds);
         }
       }
     }
-    if(it > 0 && fabs(fit - oldfit) < opts->tol) {
+    if(it > 0 && fabs(fit - oldfit) < opts[SPLATT_OPTION_TOLERANCE]) {
       break;
     }
     oldfit = fit;
@@ -366,7 +398,7 @@ void cpd_als(
   /* normalize each mat and adjust lambda */
   val_t * tmp = (val_t *) malloc(nfactors * sizeof(val_t));
   for(idx_t m=0; m < nmodes; ++m) {
-    mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds, opts->nthreads);
+    mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds, nthreads);
     for(idx_t f=0; f < nfactors; ++f) {
       lambda[f] *= tmp[f];
     }
@@ -379,9 +411,9 @@ void cpd_als(
   }
   mat_free(aTa[MAX_NMODES]);
 
-  thd_free(thds, opts->nthreads);
+  thd_free(thds, nthreads);
 #ifdef SPLATT_USE_MPI
-  if(opts->distribution == 3) {
+  if(rinfo->distribution == 3) {
     mat_free(m1ptr);
   }
   free(local2nbr_buf);
@@ -394,20 +426,28 @@ void cpd_als(
 }
 
 
-void default_cpd_opts(
-  cpd_opts * args)
+
+/******************************************************************************
+ * CPD OPTIONS FUNCTIONS
+ *****************************************************************************/
+double * splatt_default_opts(void)
 {
-  args->ifname = NULL;
-  args->write        = DEFAULT_WRITE;
-  args->niters       = DEFAULT_ITS;
-  args->tol          = DEFAULT_TOL;
-  args->rank         = DEFAULT_NFACTORS;
-  args->nthreads     = DEFAULT_THREADS;
-  args->tile         = DEFAULT_TILE;
-  args->verbose = 0;
-  args->distribution = DEFAULT_MPI_DISTRIBUTION;
-  for(idx_t m=0; m < MAX_NMODES; ++m) {
-    args->mpi_dims[m] = 1;
+  double * opts = (double *) malloc(SPLATT_OPTION_NOPTIONS * sizeof(double));
+  for(int i=0; i < SPLATT_OPTION_NOPTIONS; ++i) {
+    opts[i] = SPLATT_VAL_OFF;
   }
+  opts[SPLATT_OPTION_TOLERANCE] = DEFAULT_TOL;
+  opts[SPLATT_OPTION_NITER]     = DEFAULT_ITS;
+  opts[SPLATT_OPTION_NTHREADS]  = DEFAULT_THREADS;
+  opts[SPLATT_OPTION_TILE]      = SPLATT_NOTILE;
+  opts[SPLATT_OPTION_VERBOSITY] = SPLATT_VERBOSITY_LOW;
+
+  return opts;
+}
+
+void splatt_free_opts(
+  double * opts)
+{
+  free(opts);
 }
 

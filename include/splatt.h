@@ -58,6 +58,17 @@ typedef enum
 
 
 /**
+* @brief Types of tiling used by SPLATT.
+*/
+typedef enum
+{
+  SPLATT_NOTILE,
+  SPLATT_SYNCTILE,
+  SPLATT_COOPTILE
+} splatt_tile_t;
+
+
+/**
 * @brief Enum for defining SPLATT options.
 */
 typedef enum
@@ -69,8 +80,7 @@ typedef enum
   SPLATT_OPTION_RANDSEED,   /** Random number seed */
   SPLATT_OPTION_VERBOSITY,  /** Verbosity level */
   SPLATT_OPTION_NOPTIONS    /** Gives the size of the options array. */
-}
-splatt_option_t;
+} splatt_option_t;
 
 static double const SPLATT_VAL_OFF = -DBL_MAX;
 
@@ -85,6 +95,21 @@ extern 'C' {
 #endif
 
 /**
+* @brief Allocate and fill an options array with default options.
+*
+* @return The options array.
+*/
+double * splatt_default_opts(void);
+
+
+/**
+* @brief Free an options array allocated with splatt_default_opts().
+*/
+void  splatt_free_opts(
+    double * opts);
+
+
+/**
 * @brief Compute the CPD using alternating least squares.
 *
 * @param rank The rank of the decomposition to perform.
@@ -96,9 +121,10 @@ extern 'C' {
 *             WILL be rearranged during computation (for sorting, etc.).
 * @param vals The nonzero values of the tensor. These values WILL be rearranged
 *             during computation (for sorting. etc.).
-* @param mats The factor matrices, pre-initialized. Layout is assumed to be
+* @param mats The factor matrices, pre-allocated. Layout is assumed to be
 *             row-major.
 * @param lambda The scaling factors extracted from mats.
+* @param options Options array for SPLATT.
 *
 * @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
@@ -109,7 +135,8 @@ int splatt_cpd(
     splatt_idx_t ** const inds,
     splatt_val_t * const vals,
     splatt_val_t ** const mats,
-    splatt_val_t * const lambda);
+    splatt_val_t * const lambda,
+    double const * const options);
 
 #ifdef __cplusplus
 }
