@@ -47,6 +47,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -funroll-loops")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftree-vectorize")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstrict-aliasing")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec-missed")
 
@@ -74,6 +75,8 @@ file(GLOB SPLATT_SOURCES src/*.c ${MPI_SOURCES})
 
 # Generate splatt library
 add_subdirectory(lib)
+
+add_subdirectory(include)
 
 # Compile applications
 add_subdirectory(src)

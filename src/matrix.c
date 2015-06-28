@@ -513,11 +513,7 @@ matrix_t * mat_rand(
   matrix_t * mat = mat_alloc(nrows, ncols);
   val_t * const vals = mat->vals;
 
-  for(idx_t i=0; i < nrows; ++i) {
-    for(idx_t j=0; j < ncols; ++j) {
-      vals[j + (i*ncols)] = rand_val();
-    }
-  }
+  fill_rand(vals, nrows * ncols);
 
   return mat;
 }

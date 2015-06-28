@@ -28,6 +28,16 @@ idx_t rand_idx(void)
 }
 
 
+void fill_rand(
+  val_t * const restrict vals,
+  idx_t const nelems)
+{
+  for(idx_t i=0; i < nelems; ++i) {
+    vals[i] = rand_val();
+  }
+}
+
+
 char * bytes_str(
   idx_t const bytes)
 {

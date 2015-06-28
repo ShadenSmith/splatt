@@ -112,7 +112,7 @@ void  splatt_free_opts(
 /**
 * @brief Compute the CPD using alternating least squares.
 *
-* @param rank The rank of the decomposition to perform.
+* @param nfactors The rank of the decomposition to perform.
 * @param nmodes The number of modes in the tensor. Optimizations are currently
 *               only present for nmodes=3.
 * @param nnz The number of nonzeros in the tensor.
@@ -129,7 +129,7 @@ void  splatt_free_opts(
 * @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
 int splatt_cpd(
-    splatt_idx_t const rank,
+    splatt_idx_t const nfactors,
     splatt_idx_t const nmodes,
     splatt_idx_t const nnz,
     splatt_idx_t ** const inds,
