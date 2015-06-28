@@ -30,6 +30,7 @@ typedef double        splatt_val_t;
  * ENUMS / CONSTANTS
  *****************************************************************************/
 
+#define MAX_NMODES ((splatt_idx_t) 8)
 
 /**
 * @brief Return codes used by SPLATT.
@@ -137,6 +138,15 @@ int splatt_cpd(
     splatt_val_t ** const mats,
     splatt_val_t * const lambda,
     double const * const options);
+
+
+int splatt_load(
+  char const * const fname,
+  splatt_idx_t * nmodes,
+  splatt_idx_t ** dims,
+  splatt_idx_t * nnz,
+  splatt_idx_t *** inds,
+  splatt_val_t ** vals);
 
 #ifdef __cplusplus
 }

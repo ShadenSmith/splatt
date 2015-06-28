@@ -83,6 +83,33 @@ static sptensor_t * __tt_read_file(
 }
 
 
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+int splatt_load(
+  char const * const fname,
+  splatt_idx_t * nmodes,
+  splatt_idx_t ** dims,
+  splatt_idx_t * nnz,
+  splatt_idx_t *** inds,
+  splatt_val_t ** vals)
+{
+  sptensor_t * tt = tt_read_file(fname);
+
+  *nmodes = tt->nmodes;
+  *dims = tt->dims;
+  *nnz = tt->nnz;
+  *vals = tt->vals;
+  *inds = tt->ind;
+
+  free(tt);
+
+  return SPLATT_SUCCESS;
+}
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/

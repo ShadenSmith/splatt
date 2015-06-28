@@ -2,6 +2,9 @@
 *.swp
 *.o
 
+# compiled matlab files
+*.mex
+
 build/
 
 mode*.mat
