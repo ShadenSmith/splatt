@@ -50,6 +50,7 @@ static void __mk_double(
   memcpy(__get_data(mxstruct, field), vals, len * sizeof(double));
 }
 
+
 /**
 * @brief Keys for structure entries.
 */
@@ -65,6 +66,7 @@ static char const * keys[] = {
   "fids",
   "inds",
   "vals",
+  "has_indmap",  /* marks whether indmap is NULL or not after packing */
   "indmap",
   "tiled",
   "nslabs",
@@ -119,7 +121,11 @@ void mexFunction(
 
     if(tt[m]->indmap != NULL) {
       __mk_uint64(curr, "indmap", tt[m]->nslcs, tt[m]->indmap);
+    } else {
+      uint64_t no = 0;
+      __mk_uint64(curr, "has_indmap", 1, &(no));
     }
+
 
     /* tiled fields */
     __mk_int32(curr, "tiled", 1, &(tt[m]->tiled));

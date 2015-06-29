@@ -199,7 +199,7 @@ static void __tt_insertionsort3(
   idx_t ibuf;
 
   for(size_t i=start+1; i < end; ++i) {
-    ssize_t j = i;
+    size_t j = i;
     while (j > 0 && __ttcmp3(ind0, ind1, ind2, i, j-1) < 0) {
       --j;
     }
@@ -244,7 +244,7 @@ static void __tt_insertionsort(
   idx_t ibuf;
 
   for(size_t i=start+1; i < end; ++i) {
-    ssize_t j = i;
+    size_t j = i;
     while (j > 0 && __ttcmp(tt, cmplt, i, j-1) < 0) {
       --j;
     }
@@ -478,7 +478,7 @@ void insertion_sort(
   timer_start(&timers[TIMER_SORT]);
   for(size_t i=1; i < n; ++i) {
     idx_t b = a[i];
-    ssize_t j = i;
+    size_t j = i;
     while (j > 0 &&  a[j-1] > b) {
       --j;
     }

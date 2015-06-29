@@ -2,6 +2,8 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
+#include <stddef.h>
+
 #include "base.h"
 #include "io.h"
 #include "sptensor.h"
@@ -23,7 +25,7 @@ static sptensor_t * __tt_read_file(
   idx_t nnz = 0;
   idx_t nmodes = 0;
   char * line = NULL;
-  ssize_t read;
+  int64_t read;
   size_t len = 0;
   while((read = getline(&line, &len, fin)) != -1) {
     if(read > 1 && line[0] != '#') {
