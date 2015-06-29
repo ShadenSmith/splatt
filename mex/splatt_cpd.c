@@ -40,28 +40,29 @@ void mexFunction(
   }
   splatt_csf_free(factored.nmodes, tt);
 
+  mwSize dim = (mwSize) nmodes;
+  mxArray * mxLambda = mxCreateDoubleMatrix(nfactors, 1, mxREAL);
+  memcpy(mxGetPr(mxLambda), factored.lambda, nfactors * sizeof(double));
+
+  mxArray * matcell = mxCreateCellArray(1, &dim);
+  mxSetCell(matcell, 0, mxCreateDoubleMatrix(1, nfactors, mxREAL));
+  mxSetCell(matcell, 1, mxCreateDoubleMatrix(2, nfactors, mxREAL));
+  mxSetCell(matcell, 2, mxCreateDoubleMatrix(3, nfactors, mxREAL));
+  for(m=0; m < nmodes; ++m) {
+    splatt_idx_t const nrows = ttdims[m];
+    mxSetCell(matcell, m, mxCreateDoubleMatrix(nrows, nfactors, mxREAL));
+    memcpy(mxGetPr(mxGetCell(matcell, m)), factored.factors[m],
+        nrows * nfactors * sizeof(double));
+  }
+
+  char const * keys[] = {"lambda", "U", "fit"};
+  mxArray * ret = mxCreateStructMatrix(1, 1, 3, keys);
+  mxSetField(ret, 0, "lambda", mxLambda);
+  mxSetField(ret, 0, "U", matcell);
+  mxSetField(ret, 0, "fit", mxCreateDoubleScalar(factored.fit));
+
   /* copy output to matlab structure if requested */
   if(nlhs > 0) {
-    mwSize dim = (mwSize) nmodes;
-    mxArray * mxLambda = mxCreateDoubleMatrix(nfactors, 1, mxREAL);
-    memcpy(mxGetPr(mxLambda), factored.lambda, nfactors * sizeof(double));
-
-    mxArray * matcell = mxCreateCellArray(1, &dim);
-    mxSetCell(matcell, 0, mxCreateDoubleMatrix(1, nfactors, mxREAL));
-    mxSetCell(matcell, 1, mxCreateDoubleMatrix(2, nfactors, mxREAL));
-    mxSetCell(matcell, 2, mxCreateDoubleMatrix(3, nfactors, mxREAL));
-    for(m=0; m < nmodes; ++m) {
-      splatt_idx_t const nrows = ttdims[m];
-      mxSetCell(matcell, m, mxCreateDoubleMatrix(nrows, nfactors, mxREAL));
-      memcpy(mxGetPr(mxGetCell(matcell, m)), factored.factors[m],
-          nrows * nfactors * sizeof(double));
-    }
-
-    char const * keys[] = {"lambda", "U", "fit"};
-    mxArray * ret = mxCreateStructMatrix(1, 1, 3, keys);
-    mxSetField(ret, 0, "lambda", mxLambda);
-    mxSetField(ret, 0, "U", matcell);
-    mxSetField(ret, 0, "fit", mxCreateDoubleScalar(factored.fit));
     plhs[0] = ret;
   }
 

@@ -4,6 +4,7 @@
 
 # compiled matlab files
 *.mex
+*.mexa64
 
 build/
 
