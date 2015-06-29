@@ -1,6 +1,7 @@
 
 #include "mex.h"
 
+#include <string.h>
 #include <splatt.h>
 
 void mexFunction(
@@ -19,46 +20,53 @@ void mexFunction(
     mexErrMsgTxt("SPLATT must be compiled with double-precision floats.\n");
   }
 
+  splatt_idx_t const nfactors = (splatt_idx_t) mxGetScalar(prhs[1]);
+
   /* parse the tensor! */
   char * fname = (char *) mxArrayToString(prhs[0]);
-
-  splatt_idx_t nmodes;
-  splatt_idx_t nnz;
-  splatt_idx_t * dims;
-  splatt_idx_t ** inds;
-  splatt_val_t * vals;
-
-  splatt_load(fname, &nmodes, &dims, &nnz, &inds, &vals);
-
-  splatt_idx_t const nfactors = (splatt_idx_t) mxGetScalar(prhs[1]);
-  mxArray * mxLambda = mxCreateDoubleMatrix(nfactors, 1, mxREAL);
-  splatt_val_t * lambda = mxGetPr(mxLambda);
-
   double * cpd_opts = splatt_default_opts();
-  cpd_opts[SPLATT_OPTION_NTHREADS] = 2;
-
-  mxArray * mxMats[MAX_NMODES];
-  double * mats[MAX_NMODES];
-  for(m=0; m < nmodes; ++m) {
-    mxMats[m] = mxCreateDoubleMatrix(dims[m], nfactors, mxREAL);
-    mats[m] = (splatt_val_t *) mxGetPr(mxMats[m]);
-  }
+  splatt_idx_t nmodes;
+  splatt_csf_t ** tt = splatt_csf_load(fname, &nmodes, cpd_opts);
+  mxFree(fname);
 
   /* do the factorization! */
-  splatt_cpd(nfactors, nmodes, nnz, inds, vals, mats, lambda, cpd_opts);
+  splatt_kruskal_t factored;
+  splatt_cpd(nfactors, nmodes, tt, cpd_opts, &factored);
 
-  if(nlhs > 0) {
-    plhs[0] = mxLambda;
-  }
-
-  /* clean up */
+  /* save dims and free memory */
+  splatt_idx_t ttdims[MAX_NMODES];
   for(m=0; m < nmodes; ++m) {
-    free(inds[m]);
+    ttdims[m] = tt[0]->dims[m];
   }
-  free(inds);
-  free(vals);
-  free(dims);
-  mxFree(fname);
+  splatt_csf_free(factored.nmodes, tt);
+
+  /* copy output to matlab structure if requested */
+  if(nlhs > 0) {
+    mwSize dim = (mwSize) nmodes;
+    mxArray * mxLambda = mxCreateDoubleMatrix(nfactors, 1, mxREAL);
+    memcpy(mxGetPr(mxLambda), factored.lambda, nfactors * sizeof(double));
+
+    mxArray * matcell = mxCreateCellArray(1, &dim);
+    mxSetCell(matcell, 0, mxCreateDoubleMatrix(1, nfactors, mxREAL));
+    mxSetCell(matcell, 1, mxCreateDoubleMatrix(2, nfactors, mxREAL));
+    mxSetCell(matcell, 2, mxCreateDoubleMatrix(3, nfactors, mxREAL));
+    for(m=0; m < nmodes; ++m) {
+      splatt_idx_t const nrows = ttdims[m];
+      mxSetCell(matcell, m, mxCreateDoubleMatrix(nrows, nfactors, mxREAL));
+      memcpy(mxGetPr(mxGetCell(matcell, m)), factored.factors[m],
+          nrows * nfactors * sizeof(double));
+    }
+
+    char const * keys[] = {"lambda", "U", "fit"};
+    mxArray * ret = mxCreateStructMatrix(1, 1, 3, keys);
+    mxSetField(ret, 0, "lambda", mxLambda);
+    mxSetField(ret, 0, "U", matcell);
+    mxSetField(ret, 0, "fit", mxCreateDoubleScalar(factored.fit));
+    plhs[0] = ret;
+  }
+
+  /* cleanup */
+  splatt_free_kruskal(&factored);
   splatt_free_opts(cpd_opts);
 }
 

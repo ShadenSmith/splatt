@@ -70,7 +70,8 @@ typedef enum
 
 
 /**
-* @brief Enum for defining SPLATT options.
+* @brief Enum for defining SPLATT options. Use the splatt_default_opts() and
+*        splatt_free_opts() functions to initialize and free an options array.
 */
 typedef enum
 {
@@ -86,8 +87,28 @@ typedef enum
 static double const SPLATT_VAL_OFF = -DBL_MAX;
 
 
+
+/******************************************************************************
+ * STRUCTURES
+ *****************************************************************************/
+
 /**
-* @brief Struct describing SPLATT's compressed sparse fiber (CSF) format.
+* @brief Struct describing a Kruskal tensor, allocated and returned by
+*        splatt_cpd.
+*/
+typedef struct splatt_kruskal_t
+{
+  splatt_idx_t nmodes;                  /** Number of modes (i.e., factors[])*/
+  splatt_idx_t rank;                    /** Number of columns in each factor */
+  double fit;                           /** The quality [0,1] of the CPD */
+  splatt_val_t * lambda;                /** Scaling factors for each column */
+  splatt_val_t * factors[MAX_NMODES];   /** Row-major matrix for each mode */
+} splatt_kruskal_t;
+
+
+/**
+* @brief Struct describing SPLATT's compressed sparse fiber (CSF) format. Use
+*        the splatt_csf_* functions to allocate, fill, and free this structure.
 */
 typedef struct splatt_csf_t
 {
@@ -123,6 +144,83 @@ extern 'C' {
 #endif
 
 /**
+* @brief Compute the CPD using alternating least squares.
+*
+* @param nfactors The rank of the decomposition to perform.
+* @param nmodes The number of modes in the tensor. Optimizations are currently
+*               only present for nmodes=3.
+* @param nnz The number of nonzeros in the tensor.
+* @param inds The nonzero indices of the tensor. The nth nonzero can be found
+*             at inds[0][n], inds[1][n], ... , inds[m][n]. These indices
+*             WILL be rearranged during computation (for sorting, etc.).
+* @param vals The nonzero values of the tensor. These values WILL be rearranged
+*             during computation (for sorting. etc.).
+* @param options Options array for SPLATT.
+* @param factored The factored tensor in Kruskal format.
+*
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
+*/
+int splatt_cpd(
+    splatt_idx_t const nfactors,
+    splatt_idx_t const nmodes,
+    splatt_csf_t ** tensors,
+    double const * const options,
+    splatt_kruskal_t * factored);
+
+
+/**
+* @brief Read a tensor from a file and convert to CSF format.
+*
+* @param fname The filename to read from.
+* @param nmodes SPLATT will fill in the number of modes found.
+* @param options An options array allocated by splatt_default_opts(). Option
+*        SPLATT_OPTION_TILE is used here.
+*
+* @return A pointer to an array of splatt_csf_t structures, one for each mode.
+*         The 'nmodes' param will be filled with the length of the array.
+*/
+splatt_csf_t ** splatt_csf_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    double const * const options);
+
+
+/**
+* @brief Convert a tensor in coordinate format [(i,j,k]=v] to CSF.
+*
+* @param nmodes The number of modes in the tensor.
+* @param nnz The number of nonzero values in the tensor.
+* @param inds An array of indices for each mode. Nonzero 'n' is found at
+*             inds[0][n-1], inds[1][n-1], ..., inds[nmodes-1][n-1].
+* @param vals The actual values of the nonzeros. Nonzero 'n' is found at
+*             vals[n-1].
+* @param options Options array allocated by splatt_default_opts(). Use the
+*                splatt_option_t enum to change these values.
+*                SPLATT_OPTION_TILE is used here.
+*
+* @return A pointer to an array of splatt_csf_t structures, one for each mode.
+*         The 'nmodes' param will be filled with the length of the array.
+*/
+splatt_csf_t ** splatt_csf_convert(
+    splatt_idx_t const nmodes,
+    splatt_idx_t const nnz,
+    splatt_idx_t ** const inds,
+    splatt_val_t * const vals,
+    double const * const options);
+
+
+/**
+* @brief Free the memory allocated by an array of CSF tensors.
+*
+* @param nmodes The number of modes to free.
+* @param tensors The array of CSF tensors. The pointer will also be freed!
+*/
+void splatt_csf_free(
+    splatt_idx_t const nmodes,
+    splatt_csf_t ** tensors);
+
+
+/**
 * @brief Allocate and fill an options array with default options.
 *
 * @return The options array.
@@ -138,50 +236,12 @@ void  splatt_free_opts(
 
 
 /**
-* @brief Compute the CPD using alternating least squares.
+* @brief Free a splatt_kruskal_t allocated by splatt_cpd().
 *
-* @param nfactors The rank of the decomposition to perform.
-* @param nmodes The number of modes in the tensor. Optimizations are currently
-*               only present for nmodes=3.
-* @param nnz The number of nonzeros in the tensor.
-* @param inds The nonzero indices of the tensor. The nth nonzero can be found
-*             at inds[0][n], inds[1][n], ... , inds[m][n]. These indices
-*             WILL be rearranged during computation (for sorting, etc.).
-* @param vals The nonzero values of the tensor. These values WILL be rearranged
-*             during computation (for sorting. etc.).
-* @param mats The factor matrices, pre-allocated. Layout is assumed to be
-*             row-major.
-* @param lambda The scaling factors extracted from mats.
-* @param options Options array for SPLATT.
-*
-* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
+* @param factored The factored tensor to free.
 */
-int splatt_cpd(
-    splatt_idx_t const nfactors,
-    splatt_idx_t const nmodes,
-    splatt_csf_t ** tensors,
-    splatt_val_t ** const mats,
-    splatt_val_t * const lambda,
-    double const * const options);
-
-
-splatt_csf_t ** splatt_csf_load(
-    char const * const fname,
-    splatt_idx_t * nmodes,
-    double const * const options);
-
-
-splatt_csf_t ** splatt_csf_convert(
-    splatt_idx_t const nmodes,
-    splatt_idx_t const nnz,
-    splatt_idx_t ** const inds,
-    splatt_val_t * const vals,
-    double const * const options);
-
-
-void splatt_csf_free(
-    splatt_idx_t const nmodes,
-    splatt_csf_t ** tensors);
+void splatt_free_kruskal(
+    splatt_kruskal_t * factored);
 
 #ifdef __cplusplus
 }

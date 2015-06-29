@@ -26,9 +26,8 @@ int splatt_cpd(
     splatt_idx_t const nfactors,
     splatt_idx_t const nmodes,
     splatt_csf_t ** tensors,
-    splatt_val_t ** const mats,
-    splatt_val_t * const lambda,
-    double const * const options)
+    double const * const options,
+    splatt_kruskal_t * factored)
 {
   matrix_t * globmats[MAX_NMODES+1];
 
@@ -37,25 +36,39 @@ int splatt_cpd(
 
   idx_t maxdim = 0;
   for(idx_t m=0; m < nmodes; ++m) {
-    globmats[m] = (matrix_t *) malloc(sizeof(matrix_t));
-    globmats[m]->I = tensors[0]->dims[m];
-    globmats[m]->J = nfactors;
-    globmats[m]->vals = mats[m];
-    globmats[m]->rowmajor = 1;
-
-    fill_rand(globmats[m]->vals, globmats[m]->I * globmats[m]->J);
+    globmats[m] = (matrix_t *) mat_rand(tensors[0]->dims[m], nfactors);
     maxdim = SS_MAX(globmats[m]->I, maxdim);
   }
   globmats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
 
+  val_t * lambda = (val_t *) malloc(nfactors * sizeof(val_t));
+
   /* do the factorization! */
-  cpd_als(tensors, globmats, globmats, lambda, nfactors, &rinfo, options);
+  factored->fit = cpd_als(tensors, globmats, globmats, lambda, nfactors,
+      &rinfo, options);
+
+  /* store output */
+  factored->rank = nfactors;
+  factored->nmodes = nmodes;
+  factored->lambda = lambda;
+  for(idx_t m=0; m < nmodes; ++m) {
+    factored->factors[m] = globmats[m]->vals;
+  }
 
   mat_free(globmats[MAX_NMODES]);
   for(idx_t m=0; m < nmodes; ++m) {
-    free(globmats[m]); /* just the matrix_t ptr, data is safely in mats */
+    free(globmats[m]); /* just the matrix_t ptr, data is safely in factored */
   }
   return SPLATT_SUCCESS;
+}
+
+void splatt_free_kruskal(
+    splatt_kruskal_t * factored)
+{
+  free(factored->lambda);
+  for(idx_t m=0; m < factored->nmodes; ++m) {
+    free(factored->factors[m]);
+  }
 }
 
 
@@ -281,7 +294,7 @@ static void __calc_M2(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-void cpd_als(
+val_t cpd_als(
   ftensor_t ** ft,
   matrix_t ** mats,
   matrix_t ** globmats,
@@ -468,6 +481,8 @@ void cpd_als(
 #ifdef SPLATT_USE_MPI
   mpi_time_stats(rinfo);
 #endif
+
+  return fit;
 }
 
 
