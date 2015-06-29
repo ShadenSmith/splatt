@@ -24,14 +24,14 @@ void mttkrp_splatt(
   thd_info * const thds,
   idx_t const nthreads)
 {
-  if(ft->tiled) {
+  if(ft->tiled == SPLATT_COOPTILE) {
     mttkrp_splatt_coop_tiled(ft, mats, mode, thds, nthreads);
     return;
   }
 
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[1]];
-  matrix_t const * const B = mats[ft->dim_perms[2]];
+  matrix_t const * const A = mats[ft->dim_perm[1]];
+  matrix_t const * const B = mats[ft->dim_perm[2]];
   idx_t const nslices = ft->dims[mode];
   idx_t const rank = M->J;
 
@@ -98,8 +98,8 @@ void mttkrp_splatt_tiled(
   idx_t const nthreads)
 {
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[1]];
-  matrix_t const * const B = mats[ft->dim_perms[2]];
+  matrix_t const * const A = mats[ft->dim_perm[1]];
+  matrix_t const * const B = mats[ft->dim_perm[2]];
 
   idx_t const nslabs = ft->nslabs;
   idx_t const rank = M->J;
@@ -166,8 +166,8 @@ void mttkrp_splatt_coop_tiled(
   idx_t const nthreads)
 {
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[1]];
-  matrix_t const * const B = mats[ft->dim_perms[2]];
+  matrix_t const * const A = mats[ft->dim_perm[1]];
+  matrix_t const * const B = mats[ft->dim_perm[2]];
 
   idx_t const nslabs = ft->nslabs;
   idx_t const rank = M->J;

@@ -23,6 +23,44 @@
  * API FUNCTIONS
  *****************************************************************************/
 int splatt_cpd(
+    splatt_idx_t const nfactors,
+    splatt_idx_t const nmodes,
+    splatt_csf_t ** tensors,
+    splatt_val_t ** const mats,
+    splatt_val_t * const lambda,
+    double const * const options)
+{
+  matrix_t * globmats[MAX_NMODES+1];
+
+  rank_info rinfo;
+  rinfo.rank = 0;
+
+  idx_t maxdim = 0;
+  for(idx_t m=0; m < nmodes; ++m) {
+    globmats[m] = (matrix_t *) malloc(sizeof(matrix_t));
+    globmats[m]->I = tensors[0]->dims[m];
+    globmats[m]->J = nfactors;
+    globmats[m]->vals = mats[m];
+    globmats[m]->rowmajor = 1;
+
+    fill_rand(globmats[m]->vals, globmats[m]->I * globmats[m]->J);
+    maxdim = SS_MAX(globmats[m]->I, maxdim);
+  }
+  globmats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
+
+  /* do the factorization! */
+  cpd_als(tensors, globmats, globmats, lambda, nfactors, &rinfo, options);
+
+  mat_free(globmats[MAX_NMODES]);
+  for(idx_t m=0; m < nmodes; ++m) {
+    free(globmats[m]); /* just the matrix_t ptr, data is safely in mats */
+  }
+  return SPLATT_SUCCESS;
+}
+
+
+#if 0
+int splatt_cpd(
     idx_t const nfactors,
     idx_t const nmodes,
     idx_t const nnz,
@@ -68,6 +106,7 @@ int splatt_cpd(
   }
   return SPLATT_SUCCESS;
 }
+#endif
 
 
 /******************************************************************************

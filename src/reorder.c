@@ -106,7 +106,7 @@ static void __reorder_fibs(
   permutation_t * const perm,
   idx_t const mode)
 {
-  idx_t const pm = ft->dim_perms[1];
+  idx_t const pm = ft->dim_perm[1];
   idx_t const nslices = ft->dims[mode];
   idx_t const nfids = ft->dims[pm];
   idx_t const nfibs = ft->nfibs;
@@ -186,12 +186,12 @@ static void __reorder_inds(
   permutation_t * const perm,
   idx_t const mode)
 {
-  idx_t const pm = ft->dim_perms[2];
+  idx_t const pm = ft->dim_perm[2];
   idx_t * const indperm  = perm->perms[pm];
   idx_t * const indiperm = perm->iperms[pm];
 
   idx_t const nslices = ft->dims[mode];
-  idx_t const nfids = ft->dims[ft->dim_perms[1]];
+  idx_t const nfids = ft->dims[ft->dim_perm[1]];
   idx_t const ninds = ft->dims[pm];
   idx_t const nfibs = ft->nfibs;
   idx_t const * const fptr = ft->fptr;
@@ -390,7 +390,7 @@ permutation_t * perm_hgraph(
   for(idx_t n=0; n < ncut; ++n) {
     if(uncuts[n] < ft->dims[mode]) {
       ++nslices;
-    } else if(uncuts[n] < ft->dims[mode] + ft->dims[ft->dim_perms[1]]) {
+    } else if(uncuts[n] < ft->dims[mode] + ft->dims[ft->dim_perm[1]]) {
       ++nfibs;
     } else {
       ++ninds;

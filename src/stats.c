@@ -121,14 +121,14 @@ static void __stats_hparts(
   idx_t * unique[MAX_NMODES];
   idx_t nunique[MAX_NMODES];
   for(idx_t m=0; m < ft->nmodes; ++m) {
-    unique[m] = (idx_t *) malloc(ft->dims[ft->dim_perms[m]]
+    unique[m] = (idx_t *) malloc(ft->dims[ft->dim_perm[m]]
       * sizeof(idx_t));
   }
 
   /* now track unique ind info for each partition */
   for(idx_t p=0; p < nparts; ++p) {
     for(idx_t m=0; m < ft->nmodes; ++m) {
-      memset(unique[m], 0, ft->dims[ft->dim_perms[m]] * sizeof(idx_t));
+      memset(unique[m], 0, ft->dims[ft->dim_perm[m]] * sizeof(idx_t));
       nunique[m] = 0;
     }
 
@@ -170,9 +170,9 @@ static void __stats_hparts(
     printf("I: %"SS_IDX" (%4.1f%%)  ", nunique[0],
       100. * (val_t)nunique[0] / (val_t) ft->dims[mode]);
     printf("K: %"SS_IDX" (%4.1f%%)  ", nunique[1],
-      100. * (val_t)nunique[1] / (val_t) ft->dims[ft->dim_perms[1]]);
+      100. * (val_t)nunique[1] / (val_t) ft->dims[ft->dim_perm[1]]);
     printf("J: %"SS_IDX" (%4.1f%%)\n", nunique[2],
-      100. * (val_t)nunique[2] / (val_t) ft->dims[ft->dim_perms[2]]);
+      100. * (val_t)nunique[2] / (val_t) ft->dims[ft->dim_perm[2]]);
   }
 
 

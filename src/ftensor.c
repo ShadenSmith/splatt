@@ -26,7 +26,7 @@ static void __create_fptr(
   /* permuted tt->ind makes things a bit easier */
   idx_t * ttinds[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    ttinds[m] = tt->ind[ft->dim_perms[m]];
+    ttinds[m] = tt->ind[ft->dim_perm[m]];
   }
   /* this avoids some maybe-uninitialized warnings */
   for(idx_t m=nmodes; m < MAX_NMODES; ++m) {
@@ -58,7 +58,7 @@ static void __create_fptr(
   ft->nfibs = nfibs;
   ft->fptr = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
   ft->fids = (idx_t *) malloc(nfibs * sizeof(idx_t));
-  if(ft->tiled) {
+  if(ft->tiled != SPLATT_NOTILE) {
     ft->sids = (idx_t *) malloc(nfibs * sizeof(idx_t));
   }
 
@@ -66,7 +66,7 @@ static void __create_fptr(
   ft->fptr[0] = 0;
   ft->fptr[nfibs] = nnz;
   ft->fids[0] = ttinds[1][0];
-  if(ft->tiled) {
+  if(ft->tiled != SPLATT_NOTILE) {
     ft->sids[0] = ttinds[0][0];
   }
 
@@ -83,7 +83,7 @@ static void __create_fptr(
     if(newfib) {
       ft->fptr[fib] = n;
       ft->fids[fib] = ttinds[1][n];
-      if(ft->tiled) {
+      if(ft->tiled != SPLATT_NOTILE) {
         ft->sids[fib] = ttinds[0][n];
       }
       ++fib;
@@ -162,7 +162,7 @@ static void __create_sliceptr(
   /* permuted tt->ind makes things a bit easier */
   idx_t * ttinds[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    ttinds[m] = tt->ind[ft->dim_perms[m]];
+    ttinds[m] = tt->ind[ft->dim_perm[m]];
   }
   /* this avoids some maybe-uninitialized warnings */
   for(idx_t m=nmodes; m < MAX_NMODES; ++m) {
@@ -215,27 +215,30 @@ ftensor_t * ften_alloc(
   for(idx_t m=0; m < tt->nmodes; ++m) {
     ft->dims[m] = tt->dims[m];
   }
-
   ft->tiled = tt->tiled;
 
   /* compute permutation of modes */
-  fib_mode_order(tt->dims, tt->nmodes, mode, ft->dim_perms);
+  fib_mode_order(tt->dims, tt->nmodes, mode, ft->dim_perm);
 
   /* allocate modal data */
   ft->inds = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
   ft->vals = (val_t *) malloc(ft->nnz * sizeof(val_t));
 
-  tt_sort(tt, mode, ft->dim_perms);
-  if(tile == SPLATT_NOTILE) {
+  tt_sort(tt, mode, ft->dim_perm);
+  if(tile != SPLATT_NOTILE) {
     ft->tiled = 1;
-    tt_tile(tt, ft->dim_perms);
+    tt_tile(tt, ft->dim_perm);
   }
 
   __create_fptr(ft, tt, mode);
-  if(ft->tiled) {
-    __create_slabptr(ft, tt, mode);
-  } else {
+
+  switch(ft->tiled) {
+  case SPLATT_NOTILE:
     __create_sliceptr(ft, tt, mode);
+    break;
+  case SPLATT_COOPTILE:
+    __create_slabptr(ft, tt, mode);
+    break;
   }
 
   /* copy indmap if necessary */
@@ -254,7 +257,7 @@ spmatrix_t * ften_spmat(
   ftensor_t * const ft)
 {
   idx_t const nrows = ft->nfibs;
-  idx_t const ncols = ft->dims[ft->dim_perms[2]];
+  idx_t const ncols = ft->dims[ft->dim_perm[2]];
   spmatrix_t * mat = spmat_alloc(nrows, ncols, ft->nnz);
 
   memcpy(mat->rowptr, ft->fptr, (nrows+1) * sizeof(idx_t));
@@ -274,7 +277,7 @@ void ften_free(
   free(ft->vals);
   free(ft->sptr);
   free(ft->indmap);
-  if(ft->tiled) {
+  if(ft->tiled != SPLATT_NOTILE) {
     free(ft->slabptr);
     free(ft->sids);
   }
@@ -328,7 +331,7 @@ size_t ften_storage(
   bytes += (ft->nfibs + 1) * sizeof(idx_t);           /* fptr */
   bytes += ft->nfibs * sizeof(idx_t);                 /* fids */
 
-  if(!ft->tiled) {
+  if(!ft->tiled != SPLATT_NOTILE) {
     bytes += (ft->nslcs + 1) * sizeof(idx_t);         /* sptr */
   } else {
     bytes += (ft->nslabs + 1) * sizeof(idx_t);        /* slabptr */
@@ -336,5 +339,62 @@ size_t ften_storage(
   }
 
   return bytes;
+}
+
+
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+
+splatt_csf_t ** splatt_csf_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    double const * const options)
+{
+  sptensor_t * tt = tt_read(fname);
+  tt_remove_empty(tt);
+
+  splatt_csf_t ** fts =
+      (splatt_csf_t *) malloc(tt->nmodes * sizeof(splatt_csf_t *));
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    fts[m] = ften_alloc(tt, m, (int) options[SPLATT_OPTION_TILE]);
+  }
+
+  *nmodes = tt->nmodes;
+
+  tt_free(tt);
+
+  return fts;
+}
+
+splatt_csf_t ** splatt_csf_convert(
+    splatt_idx_t const nmodes,
+    splatt_idx_t const nnz,
+    splatt_idx_t ** const inds,
+    splatt_val_t * const vals,
+    double const * const options)
+{
+  splatt_csf_t ** fts = (splatt_csf_t *) malloc(nmodes * sizeof(splatt_csf_t *));
+
+  sptensor_t tt;
+  tt_fill(&tt, nnz, nmodes, inds, vals);
+  tt_remove_empty(&tt);
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    fts[m] = ften_alloc(&tt, m, (int) options[SPLATT_OPTION_TILE]);
+  }
+
+  return fts;
+}
+
+void splatt_csf_free(
+  splatt_idx_t const nmodes,
+  splatt_csf_t ** tensors)
+{
+  for(idx_t m=0; m < nmodes; ++m) {
+    ften_free(tensors[m]);
+  }
+  free(tensors);
 }
 

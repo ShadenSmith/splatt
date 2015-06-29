@@ -22,7 +22,7 @@ static void __fill_emap(
   idx_t h = 0;
   idx_t const nmodes = ft[0]->nmodes;
   for(idx_t m=0; m < nmodes; ++m) {
-    idx_t pm = ft->dim_perms[mode][m];
+    idx_t pm = ft->dim_perm[mode][m];
     emaps[m] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
     memset(emaps[m], 0, ft->dims[pm]);
 
@@ -49,7 +49,7 @@ static void __fill_emap_fibonly(
   }
 
   hg->nhedges = 0;
-  idx_t const pm = ft->dim_perms[mode][2];
+  idx_t const pm = ft->dim_perm[mode][2];
   emaps[2] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
   memset(emaps[2], 0, ft->dims[pm]);
   idx_t h = 0;

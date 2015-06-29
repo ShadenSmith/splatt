@@ -86,6 +86,33 @@ typedef enum
 static double const SPLATT_VAL_OFF = -DBL_MAX;
 
 
+/**
+* @brief Struct describing SPLATT's compressed sparse fiber (CSF) format.
+*/
+typedef struct splatt_csf_t
+{
+  splatt_idx_t nnz;                     /** Number of nonzeros */
+  splatt_idx_t nmodes;                  /** Number of modes */
+  splatt_idx_t dims[MAX_NMODES];        /** Dimension of each mode */
+  splatt_idx_t dim_perm[MAX_NMODES];    /** Permutation of modes */
+
+  splatt_idx_t  nslcs;    /** Number of slices (length of sptr) */
+  splatt_idx_t  nfibs;    /** Number of fibers (length of fptr) */
+  splatt_idx_t * sptr;    /** Indexes into fptr the start/end of each slice */
+  splatt_idx_t * fptr;    /** Indexes into vals the start/end of each fiber */
+  splatt_idx_t * fids;    /** ID of each fiber (for mode dim_perm[nmodes-2])*/
+  splatt_idx_t * inds;    /** ID of each nnz (for dim_perm[nmodes-1]) */
+  splatt_val_t * vals;    /** Floating point value of each nonzero */
+
+  splatt_idx_t * indmap;  /** Maps local to global indices if empty slices */
+
+  /* TILED STRUCTURES */
+  int tiled;                /** splatt_tile_t type */
+  splatt_idx_t    nslabs;   /** Number of slabs (length of slabptr) */
+  splatt_idx_t * slabptr;   /** Indexes into fptr the start/end of each slab */
+  splatt_idx_t * sids;      /** ID of each fiber (for dim_perm[0]) */
+} splatt_csf_t;
+
 
 /******************************************************************************
  * API FUNCTIONS
@@ -132,21 +159,29 @@ void  splatt_free_opts(
 int splatt_cpd(
     splatt_idx_t const nfactors,
     splatt_idx_t const nmodes,
-    splatt_idx_t const nnz,
-    splatt_idx_t ** const inds,
-    splatt_val_t * const vals,
+    splatt_csf_t ** tensors,
     splatt_val_t ** const mats,
     splatt_val_t * const lambda,
     double const * const options);
 
 
-int splatt_load(
-  char const * const fname,
-  splatt_idx_t * nmodes,
-  splatt_idx_t ** dims,
-  splatt_idx_t * nnz,
-  splatt_idx_t *** inds,
-  splatt_val_t ** vals);
+splatt_csf_t ** splatt_csf_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    double const * const options);
+
+
+splatt_csf_t ** splatt_csf_convert(
+    splatt_idx_t const nmodes,
+    splatt_idx_t const nnz,
+    splatt_idx_t ** const inds,
+    splatt_val_t * const vals,
+    double const * const options);
+
+
+void splatt_csf_free(
+    splatt_idx_t const nmodes,
+    splatt_csf_t ** tensors);
 
 #ifdef __cplusplus
 }
