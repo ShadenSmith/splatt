@@ -5,6 +5,7 @@
 #include <string.h>
 #include <splatt.h>
 
+#include "splatt_shared.h"
 
 /******************************************************************************
  * PRIVATE FUNCTIONS

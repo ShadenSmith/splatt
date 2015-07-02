@@ -5,6 +5,8 @@
 #include <string.h>
 #include <splatt.h>
 
+#include "splatt_shared.h"
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
@@ -71,7 +73,6 @@ static splatt_csf_t ** __unpack_csf_cell(
 
 
 
-
 /******************************************************************************
  * ENTRY FUNCTION
  *****************************************************************************/
@@ -82,7 +83,7 @@ void mexFunction(
     mxArray const * prhs[])
 {
   splatt_idx_t m;
-  if(nrhs != 2) {
+  if(nrhs < 2) {
     mexPrintf("ARG2 must be nfactors\n");
     return;
   }
@@ -96,6 +97,9 @@ void mexFunction(
   }
 
   double * cpd_opts = splatt_default_opts();
+  if(nrhs > 2) {
+    __parse_opts(prhs[2], cpd_opts);
+  }
 
   /* parse the tensor! */
   splatt_idx_t nmodes;
