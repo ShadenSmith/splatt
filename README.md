@@ -68,7 +68,53 @@ output formats.
 
 API
 ---
-Coming soon!
+SPLATT provides a C API which is callable from C and C++. The `splatt.h` header
+file must be included. Please see the documented header file for call
+signatures.
+
+**IO**
+
+Unless otherwise noted, SPLATT expects tensors to be stored in the compressed
+sparse fiber (CSF) format. SPLATT provides two functions for forming a tensor
+in CSF:
+
+* `splatt_csf_load` reads a tensor from a file
+* `splatt_csf_convert` converts a tensor from coordinate format to CSF
+
+
+**Computation**
+
+* `splatt_cpd` computes the CPD and returns a Kruskal tensor
+* `splatt_default_opts` allocates and returns an options array with defaults
+
+
+**Cleanup**
+
+All memory allocated by the SPLATT API should be freed by these functions:
+
+* `splatt_free_csf` deallocates a list of CSF tensors
+* `splatt_free_opts` deallocates a SPLATT options array
+* `splatt_free_kruskal` deallocates a Kruskal tensor
+
+**Example**
+
+The following is an example usage of the SPLATT API:
+
+    /* allocate default options */
+    double * cpd_opts = splatt_default_opts();
+
+    /* load the tensor from a file */
+    splatt_idx_t nmodes;
+    splatt_csf_t ** tt = splatt_csf_load("mytensor.tns", &nmodes, cpd_opts);
+
+    /* do the factorization! */
+    splatt_kruskal_t factored;
+    splatt_cpd(10, nmodes, tt, cpd_opts, &factored);
+
+    /* cleanup */
+    splatt_csf_free(nmodes, tt);
+    splatt_free_kruskal(&factored);
+    splatt_free_opts(cpd_opts);
 
 
 Licensing
