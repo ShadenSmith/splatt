@@ -1,22 +1,29 @@
+% Adapted from MetisMEX
 function make
-c = computer;
-switch c
-case 'MACI64'
-    mex splatt_load.c -I../include -L../build/Darwin-x86_64/lib ...
-    -lsplatt -lgomp -lm
-    mex splatt_cpd.c -I../include -L../build/Darwin-x86_64/lib ...
-    -lsplatt -lgomp -lm
+  % octave uses mkoctfile instead of mex
+  if(exist('OCTAVE_VERSION', 'builtin') ~= 0)
+    make_octave;
+    return;
+  end
 
-case 'GLNXA64'
-  mex splatt_load.c -I../include -L../build/Linux-x86_64/lib ...
+  c = computer;
+  switch c
+  case 'MACI64'
+      mex splatt_load.c -I../include -L../build/Darwin-x86_64/lib ...
       -lsplatt -lgomp -lm
-  mex splatt_cpd.c -I../include -L../build/Linux-x86_64/lib ...
+      mex splatt_cpd.c -I../include -L../build/Darwin-x86_64/lib ...
       -lsplatt -lgomp -lm
 
-case 'GLNX32'
-    mex splatt_load.c -I../include -L../build/Linux-x86/lib ...
+  case 'GLNXA64'
+    mex splatt_load.c -I../include -L../build/Linux-x86_64/lib ...
         -lsplatt -lgomp -lm
-    mex splatt_cpd.c -I../include -L../build/Linux-x86/lib ...
+    mex splatt_cpd.c -I../include -L../build/Linux-x86_64/lib ...
         -lsplatt -lgomp -lm
-    %mex -O -largeArrayDims
-end
+
+  case 'GLNX32'
+      mex splatt_load.c -I../include -L../build/Linux-x86/lib ...
+          -lsplatt -lgomp -lm
+      mex splatt_cpd.c -I../include -L../build/Linux-x86/lib ...
+          -lsplatt -lgomp -lm
+      %mex -O -largeArrayDims
+  end
