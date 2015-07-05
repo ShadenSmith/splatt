@@ -211,7 +211,7 @@ sptensor_t * tt_alloc(
   idx_t const nmodes)
 {
   sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
-  tt->tiled = 0;
+  tt->tiled = SPLATT_NOTILE;
 
   tt->nnz = nnz;
   tt->vals = (val_t*) malloc(nnz * sizeof(val_t));
@@ -237,7 +237,7 @@ void tt_fill(
   idx_t ** const inds,
   val_t * const vals)
 {
-  tt->tiled = 0;
+  tt->tiled = SPLATT_NOTILE;
   tt->nnz = nnz;
   tt->vals = vals;
   tt->ind = inds;

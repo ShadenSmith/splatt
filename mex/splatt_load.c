@@ -76,32 +76,68 @@ static char const * keys[] = {
 };
 
 
-/******************************************************************************
- * ENTRY FUNCTION
- *****************************************************************************/
-void mexFunction(
-    int nlhs,
-    mxArray * plhs[],
-    int nrhs,
-    mxArray const * prhs[])
+/**
+* @brief Convert an inds matrix and vals vector (from sptensor) to CSF.
+*
+* @param mat_inds An (nnz x nmodes) matrix of indices.
+* @param mat_vals An (nnz x 1) vector of values.
+* @param nmodes A point to to be set specifying the number of found modes.
+* @param cpd_opts SPLATT options array.
+*
+* @return An array of splatt_csf_t* tensors.
+*/
+static splatt_csf_t ** __convert_sptensor(
+    mxArray const * const mat_inds,
+    mxArray const * const mat_vals,
+    splatt_idx_t * const nmodes,
+    double const * const cpd_opts)
 {
-  splatt_idx_t m, m2;
+  splatt_idx_t m;
 
-  if(nrhs != 1 || !mxIsChar(prhs[0])) {
-    mexErrMsgTxt("ARG1 must be a file\n");
+  /* parse from tensor toolbox's sptensor */
+  mwSize * dims = mxGetDimensions(mat_inds);
+  splatt_idx_t nnz = dims[0];
+  *nmodes = dims[1];
+
+  /* allocate extra tensor for re-arranging */
+  splatt_val_t * vals = (splatt_val_t *) malloc(nnz * sizeof(splatt_val_t));
+  splatt_idx_t * inds[MAX_NMODES];
+  for(m=0; m < *nmodes; ++m) {
+    inds[m] = (splatt_idx_t *) malloc(nnz * sizeof(splatt_idx_t));
   }
 
-  /* parse the tensor */
-  char * fname = (char *) mxArrayToString(prhs[0]);
-  double * cpd_opts = splatt_default_opts();
-  splatt_idx_t nmodes;
-  splatt_csf_t ** tt = splatt_csf_load(fname, &nmodes, cpd_opts);
-  mxFree(fname);
+  /* subs will be a column-major matrix of size (nnz x nmodes) */
+  double const * const mxinds = mxGetPr(mat_inds);
+  double const * const mxvals = mxGetPr(mat_vals);
 
+  /* copy indices to inds and adjust for 1-indexing */
+  splatt_idx_t n;
+  for(n=0; n < nnz; ++n) {
+    for(m=0; m < *nmodes; ++m) {
+      inds[m][n] = (splatt_idx_t) mxinds[n + (m*nnz)] - 1;
+    }
+    vals[n] = (splatt_val_t) mxvals[n];
+  }
+
+  splatt_csf_t ** tt = splatt_csf_convert(*nmodes, nnz, inds, vals, cpd_opts);
+
+  for(m=0; m < *nmodes; ++m) {
+    free(inds[m]);
+  }
+  free(vals);
+
+  return tt;
+}
+
+static mxArray * __pack_csf(
+    splatt_csf_t ** tt,
+    splatt_idx_t const nmodes)
+{
   /* create splatt_csf_t matlab struct */
   mwSize dim = (mwSize) nmodes;
   mxArray * csf = mxCreateCellArray(1, &dim);
 
+  splatt_idx_t m;
   for(m=0; m < nmodes; ++m) {
     uint64_t * data;
     mxArray * curr =
@@ -127,7 +163,6 @@ void mexFunction(
       __mk_uint64(curr, "has_indmap", 1, &(no));
     }
 
-
     /* tiled fields */
     __mk_int32(curr, "tiled", 1, &(tt[m]->tiled));
     if(tt[m]->tiled != SPLATT_NOTILE) {
@@ -139,6 +174,40 @@ void mexFunction(
     /* store struct */
     mxSetCell(csf, m, curr);
   }
+
+  return csf;
+}
+
+/******************************************************************************
+ * ENTRY FUNCTION
+ *****************************************************************************/
+void mexFunction(
+    int nlhs,
+    mxArray * plhs[],
+    int nrhs,
+    mxArray const * prhs[])
+{
+  if(nrhs == 0) {
+    mexErrMsgTxt("ARG1 must be a file or sptensor\n");
+  }
+
+  double * cpd_opts = splatt_default_opts();
+
+  splatt_idx_t nmodes;
+  splatt_csf_t ** tt = NULL;
+  /* parse the tensor from a file */
+  if(mxIsChar(prhs[0])) {
+    char * fname = (char *) mxArrayToString(prhs[0]);
+    tt = splatt_csf_load(fname, &nmodes, cpd_opts);
+    mxFree(fname);
+  } else if(nrhs == 2) {
+    tt = __convert_sptensor(prhs[0], prhs[1], &nmodes, cpd_opts);
+  } else {
+    mexErrMsgTxt("Missing arguments. See 'help splatt_load' for usage.\n");
+    return;
+  }
+
+  mxArray * csf = __pack_csf(tt, nmodes);
 
   if(nlhs > 0) {
     plhs[0] = csf;

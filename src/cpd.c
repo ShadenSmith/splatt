@@ -72,56 +72,6 @@ void splatt_free_kruskal(
 }
 
 
-#if 0
-int splatt_cpd(
-    idx_t const nfactors,
-    idx_t const nmodes,
-    idx_t const nnz,
-    idx_t ** const inds,
-    val_t * const vals,
-    val_t ** const mats,
-    val_t * const lambda,
-    double const * const options)
-{
-  sptensor_t tt;
-  tt_fill(&tt, nnz, nmodes, inds, vals);
-  tt_remove_empty(&tt);
-
-  matrix_t * globmats[MAX_NMODES+1];
-
-  rank_info rinfo;
-  rinfo.rank = 0;
-
-  /* fill each ftensor */
-  idx_t maxdim = 0;
-  ftensor_t * ft[MAX_NMODES];
-  for(idx_t m=0; m < tt.nmodes; ++m) {
-    ft[m] = ften_alloc(&tt, m, (int) options[SPLATT_OPTION_TILE]);
-
-    globmats[m] = (matrix_t *) malloc(sizeof(matrix_t));
-    globmats[m]->I = tt.dims[m];
-    globmats[m]->J = nfactors;
-    globmats[m]->vals = mats[m];
-    globmats[m]->rowmajor = 1;
-    fill_rand(globmats[m]->vals, globmats[m]->I * globmats[m]->J);
-
-    maxdim = SS_MAX(globmats[m]->I, maxdim);
-  }
-  globmats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
-
-  /* do the factorization! */
-  cpd_als(ft, globmats, globmats, lambda, nfactors, &rinfo, options);
-
-  mat_free(globmats[MAX_NMODES]);
-  for(idx_t m=0; m < tt.nmodes; ++m) {
-    ften_free(ft[m]);
-    free(globmats[m]);
-  }
-  return SPLATT_SUCCESS;
-}
-#endif
-
-
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/

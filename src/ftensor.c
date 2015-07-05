@@ -356,7 +356,7 @@ splatt_csf_t ** splatt_csf_load(
   tt_remove_empty(tt);
 
   splatt_csf_t ** fts =
-      (splatt_csf_t *) malloc(tt->nmodes * sizeof(splatt_csf_t *));
+      (splatt_csf_t **) malloc(tt->nmodes * sizeof(splatt_csf_t *));
   for(idx_t m=0; m < tt->nmodes; ++m) {
     fts[m] = ften_alloc(tt, m, (int) options[SPLATT_OPTION_TILE]);
   }
@@ -375,7 +375,8 @@ splatt_csf_t ** splatt_csf_convert(
     splatt_val_t * const vals,
     double const * const options)
 {
-  splatt_csf_t ** fts = (splatt_csf_t *) malloc(nmodes * sizeof(splatt_csf_t *));
+  splatt_csf_t ** fts =
+      (splatt_csf_t **) malloc(nmodes * sizeof(splatt_csf_t *));
 
   sptensor_t tt;
   tt_fill(&tt, nnz, nmodes, inds, vals);
