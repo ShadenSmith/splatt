@@ -1,11 +1,16 @@
 function splatt_cpd
-% SPLATT-CPD  Call splatt-cpd from Matlab.
+% SPLATT-CPD  Compute the Canonical Polyadic Decomposition (CPD) using SPLATT.
 %
-% [K] = splatt_cpd(X,nfactors) computes the rank-'nfactors' factorization of X
-% using default options.
+% [K] = splatt_cpd(filename, nfactors);
+% [K] = splatt_cpd(X, nfactors);
+% [K] = splatt_cpd(..., options);
 %
-% [K] = splatt_cpd(X,nfactors,options) computes the rank-'nfactors' CPD of X
-% using user-specified options.
+% SPLATT-CPD accepts either a filename or a tensor in CSF format and returns
+% its CPD. The 'nfactors' parameter specifies the rank of the decomposition.
+% If read from a file, nonzero indices are expected to be 1-indexed. If
+% SPLATT-CPD is to be called repeatedly (i.e., for exploration of various
+% nfactors parameters), SPLATT-LOAD can be used to avoid repeated IO and
+% pre-processing costs.
 %
 % options is a structure with the following fields:
 %   'tol'     : minimum fit-change for convergence (default: 1e-4)
