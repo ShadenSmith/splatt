@@ -21,4 +21,4 @@ function splatt_load
 %
 % The output and options commands are optional.
 %
-% See also SPLATT-CPD
+% See also splatt_cpd, splatt_mttkrp

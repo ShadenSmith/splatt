@@ -10,9 +10,53 @@
 
 
 /******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+int splatt_mttkrp(
+    splatt_idx_t const mode,
+    splatt_idx_t const ncolumns,
+    splatt_csf_t const * const tensor,
+    splatt_val_t ** matrices,
+    splatt_val_t * const matout,
+    double const * const options)
+{
+  idx_t const nmodes = tensor->nmodes;
+
+  /* fill matrix pointers  */
+  matrix_t * mats[MAX_NMODES+1];
+  for(idx_t m=0; m < nmodes; ++m) {
+    mats[m]->I = tensor->dims[m];
+    mats[m]->J = ncolumns,
+    mats[m]->rowmajor = 1;
+    mats[m]->vals = matrices[m];
+  }
+  mats[MAX_NMODES]->I = tensor->dims[mode];
+  mats[MAX_NMODES]->J = ncolumns;
+  mats[MAX_NMODES]->rowmajor = 1;
+  mats[MAX_NMODES]->vals = matout;
+
+  idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
+
+  /* Setup thread structures. + 64 bytes is to avoid false sharing. */
+  omp_set_num_threads(nthreads);
+  thd_info * thds =  thd_init(nthreads, 2,
+    (ncolumns * ncolumns * sizeof(val_t)) + 64,
+    TILE_SIZES[0] * ncolumns * sizeof(val_t) + 64);
+
+  /* do the MTTKRP */
+  mttkrp_splatt(tensor, mats, mode, thds, nthreads);
+
+  /* cleanup */
+  thd_free(thds, nthreads);
+
+  return SPLATT_SUCCESS;
+}
+
+
+
+/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-
 
 /******************************************************************************
  * SPLATT MTTKRP

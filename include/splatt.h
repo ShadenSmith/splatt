@@ -168,6 +168,29 @@ int splatt_cpd(
     splatt_kruskal_t * factored);
 
 
+
+/**
+* @brief Matricized Tensor times Khatri-Rao Product (MTTKRP) with a sparse
+*        tensor in CSF format.
+*
+* @param mode Which mode we are operating on.
+* @param ncolumns How many columns each matrix has ('nfactors').
+* @param tensor The CSF tensor to multipy with.
+* @param matrices The row-major dense matrices to multiply with.
+* @param matout The output matrix.
+* @param options SPLATT options array.
+*
+* @return SPLATT error code. SPLATT_SUCCESS on success.
+*/
+int splatt_mttkrp(
+    splatt_idx_t const mode,
+    splatt_idx_t const ncolumns,
+    splatt_csf_t const * const tensor,
+    splatt_val_t ** matrices,
+    splatt_val_t * const matout,
+    double const * const options);
+
+
 /**
 * @brief Read a tensor from a file and convert to CSF format.
 *
