@@ -7,71 +7,10 @@
 
 #include "splatt_shared.h"
 
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-
-static uint64_t * __get_uint64_data(
-    mxArray const * const mxstruct,
-    char const * const field)
-{
-  return (uint64_t *) mxGetData(mxGetField(mxstruct, 0, field));
-}
-
-static double * __get_double_data(
-    mxArray const * const mxstruct,
-    char const * const field)
-{
-  return (double *) mxGetData(mxGetField(mxstruct, 0, field));
-}
-
-
-static splatt_csf_t ** __unpack_csf_cell(
-    mxArray const * const cell,
-    splatt_idx_t * outnmodes)
-{
-  splatt_idx_t m;
-  splatt_csf_t ** tt = NULL;
-  splatt_idx_t nmodes = (splatt_idx_t) mxGetNumberOfElements(cell);
-
-  tt = (splatt_csf_t **) malloc(nmodes * sizeof(splatt_csf_t *));
-
-  for(m=0; m < nmodes; ++m) {
-    tt[m] = (splatt_csf_t *) malloc(sizeof(splatt_csf_t));
-
-    mxArray const * const curr = mxGetCell(cell, m);
-
-    tt[m]->nmodes = nmodes;
-    tt[m]->nnz = *(__get_uint64_data(curr, "nnz"));
-    memcpy(tt[m]->dims, __get_uint64_data(curr, "dims"),
-        nmodes * sizeof(uint64_t));
-    memcpy(tt[m]->dim_perm, __get_uint64_data(curr, "dim_perm"),
-        nmodes * sizeof(uint64_t));
-    tt[m]->nslcs = *(__get_uint64_data(curr, "nslcs"));
-    tt[m]->nfibs = *(__get_uint64_data(curr, "nfibs"));
-    tt[m]->sptr = __get_uint64_data(curr, "sptr");
-    tt[m]->fptr = __get_uint64_data(curr, "fptr");
-    tt[m]->fids = __get_uint64_data(curr, "fids");
-    tt[m]->inds = __get_uint64_data(curr, "inds");
-    tt[m]->vals = __get_double_data(curr, "vals");
-
-    if(*__get_uint64_data(curr, "has_indmap") == 1) {
-      tt[m]->indmap = __get_uint64_data(curr, "indmap");
-    }
-
-    tt[m]->tiled = (int) *(__get_uint64_data(curr, "tiled"));
-    if(tt[m]->tiled != SPLATT_NOTILE) {
-      tt[m]->nslabs = *(__get_uint64_data(curr, "nslabs"));
-      tt[m]->slabptr = __get_uint64_data(curr, "slabptr");
-      tt[m]->sids = __get_uint64_data(curr, "sids");
-    }
-  }
-
-  *outnmodes = nmodes;
-  return tt;
-}
-
-
 
 /******************************************************************************
  * ENTRY FUNCTION
@@ -93,24 +32,17 @@ void mexFunction(
   }
 
   if(sizeof(splatt_idx_t) != sizeof(uint64_t)) {
-    mexErrMsgTxt("SPLATT must be compiled with double-precision floats.\n");
+    mexErrMsgTxt("SPLATT must be compiled with 64-bit ints.\n");
   }
 
   double * cpd_opts = splatt_default_opts();
-  if(nrhs > 2) {
-    __parse_opts(prhs[2], cpd_opts);
+  if(nrhs > 1 && mxIsStruct(prhs[nrhs-1])) {
+    __parse_opts(prhs[nrhs-1], cpd_opts);
   }
 
   /* parse the tensor! */
   splatt_idx_t nmodes;
-  splatt_csf_t ** tt;
-  if(mxIsCell(prhs[0])) {
-    tt = __unpack_csf_cell(prhs[0], &nmodes);
-  } else {
-    char * fname = (char *) mxArrayToString(prhs[0]);
-    tt = splatt_csf_load(fname, &nmodes, cpd_opts);
-    mxFree(fname);
-  }
+  splatt_csf_t ** tt = __parse_tensor(nrhs, prhs, &nmodes, cpd_opts);
 
   splatt_idx_t const nfactors = (splatt_idx_t) mxGetScalar(prhs[1]);
 
@@ -124,6 +56,7 @@ void mexFunction(
     ttdims[m] = tt[0]->dims[m];
   }
 
+#if 0
   if(mxIsCell(prhs[0])) {
     /* just clean up pointers, not actual input data */
     for(m=0; m < nmodes; ++m) {
@@ -134,6 +67,7 @@ void mexFunction(
     /* free parsed/converted data */
     splatt_csf_free(factored.nmodes, tt);
   }
+#endif
 
   mwSize dim = (mwSize) nmodes;
   mxArray * mxLambda = mxCreateDoubleMatrix(nfactors, 1, mxREAL);
