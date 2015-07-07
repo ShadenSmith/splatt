@@ -23,16 +23,18 @@ void mexFunction(
 {
   splatt_idx_t m;
   if(nrhs < 2) {
-    mexPrintf("ARG2 must be nfactors\n");
+    mexErrMsgTxt("ARG2 must be nfactors\n");
     return;
   }
 
   if(sizeof(splatt_val_t) != sizeof(double)) {
     mexErrMsgTxt("SPLATT must be compiled with double-precision floats.\n");
+    return;
   }
 
   if(sizeof(splatt_idx_t) != sizeof(uint64_t)) {
     mexErrMsgTxt("SPLATT must be compiled with 64-bit ints.\n");
+    return;
   }
 
   double * cpd_opts = splatt_default_opts();
@@ -80,8 +82,16 @@ void mexFunction(
   for(m=0; m < nmodes; ++m) {
     splatt_idx_t const nrows = ttdims[m];
     mxSetCell(matcell, m, mxCreateDoubleMatrix(nrows, nfactors, mxREAL));
-    memcpy(mxGetPr(mxGetCell(matcell, m)), factored.factors[m],
-        nrows * nfactors * sizeof(double));
+
+    /* we have to transpose due to column-major ordering in matlab */
+    double * const mxpr = mxGetPr(mxGetCell(matcell, m));
+    double const * const sppr = factored.factors[m];
+    splatt_idx_t i, j;
+    for(j=0; j < nfactors; ++j) {
+      for(i=0; i < nrows; ++i) {
+        mxpr[i + (j*nrows)] = sppr[j + (i*nfactors)];
+      }
+    }
   }
 
   char const * keys[] = {"lambda", "U", "fit"};
