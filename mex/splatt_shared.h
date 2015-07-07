@@ -167,10 +167,10 @@ static splatt_csf_t ** __unpack_csf_cell(
   splatt_csf_t ** tt = NULL;
   splatt_idx_t nmodes = (splatt_idx_t) mxGetNumberOfElements(cell);
 
-  tt = (splatt_csf_t **) malloc(nmodes * sizeof(splatt_csf_t *));
+  tt = (splatt_csf_t **) mxMalloc(nmodes * sizeof(splatt_csf_t *));
 
   for(m=0; m < nmodes; ++m) {
-    tt[m] = (splatt_csf_t *) malloc(sizeof(splatt_csf_t));
+    tt[m] = (splatt_csf_t *) mxMalloc(sizeof(splatt_csf_t));
 
     mxArray const * const curr = mxGetCell(cell, m);
 
