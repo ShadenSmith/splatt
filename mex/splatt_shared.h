@@ -129,10 +129,10 @@ static splatt_csf_t ** __convert_sptensor(
   *nmodes = dims[1];
 
   /* allocate extra tensor for re-arranging */
-  splatt_val_t * vals = (splatt_val_t *) malloc(nnz * sizeof(splatt_val_t));
+  splatt_val_t * vals = (splatt_val_t *) mxMalloc(nnz * sizeof(splatt_val_t));
   splatt_idx_t * inds[MAX_NMODES];
   for(m=0; m < *nmodes; ++m) {
-    inds[m] = (splatt_idx_t *) malloc(nnz * sizeof(splatt_idx_t));
+    inds[m] = (splatt_idx_t *) mxMalloc(nnz * sizeof(splatt_idx_t));
   }
 
   /* subs will be a column-major matrix of size (nnz x nmodes) */
@@ -151,9 +151,9 @@ static splatt_csf_t ** __convert_sptensor(
   splatt_csf_t ** tt = splatt_csf_convert(*nmodes, nnz, inds, vals, cpd_opts);
 
   for(m=0; m < *nmodes; ++m) {
-    free(inds[m]);
+    mxFree(inds[m]);
   }
-  free(vals);
+  mxFree(vals);
 
   return tt;
 }
