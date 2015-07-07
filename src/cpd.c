@@ -383,7 +383,7 @@ val_t cpd_als(
 
     if(rinfo->rank == 0 &&
         opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
-      printf("  its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
+      printf("  its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.4e\n",
           it+1, itertime.seconds, fit, fit - oldfit);
       if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_LOW) {
         for(idx_t m=0; m < nmodes; ++m) {
