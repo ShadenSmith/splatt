@@ -381,7 +381,8 @@ val_t cpd_als(
         globmats, m1, aTa);
     timer_stop(&itertime);
 
-    if(rinfo->rank == 0) {
+    if(rinfo->rank == 0 &&
+        opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
       printf("  its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.5f\n",
           it+1, itertime.seconds, fit, fit - oldfit);
       if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_LOW) {
@@ -398,7 +399,8 @@ val_t cpd_als(
   }
   timer_stop(&timers[TIMER_CPD]);
 
-  if(rinfo->rank == 0) {
+  if(rinfo->rank == 0 &&
+      opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
     printf("Final fit: %0.5f\n", fit);
   }
 

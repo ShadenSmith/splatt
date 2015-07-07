@@ -389,7 +389,7 @@ splatt_csf_t ** splatt_csf_convert(
   return fts;
 }
 
-void splatt_csf_free(
+void splatt_free_csf(
   splatt_idx_t const nmodes,
   splatt_csf_t ** tensors)
 {

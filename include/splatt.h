@@ -232,16 +232,6 @@ splatt_csf_t ** splatt_csf_convert(
     double const * const options);
 
 
-/**
-* @brief Free the memory allocated by an array of CSF tensors.
-*
-* @param nmodes The number of modes to free.
-* @param tensors The array of CSF tensors. The pointer will also be freed!
-*/
-void splatt_csf_free(
-    splatt_idx_t const nmodes,
-    splatt_csf_t ** tensors);
-
 
 /**
 * @brief Allocate and fill an options array with default options.
@@ -249,6 +239,18 @@ void splatt_csf_free(
 * @return The options array.
 */
 double * splatt_default_opts(void);
+
+
+
+/**
+* @brief Free the memory allocated by an array of CSF tensors.
+*
+* @param nmodes The number of modes to free.
+* @param tensors The array of CSF tensors. The pointer will also be freed!
+*/
+void splatt_free_csf(
+    splatt_idx_t const nmodes,
+    splatt_csf_t ** tensors);
 
 
 /**
