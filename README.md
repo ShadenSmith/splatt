@@ -133,11 +133,11 @@ Please see `splatt.h` for further documentation of SPLATT structures and call
 signatures.
 
 
-SPLATTlab: Octave/Matlab API
+Octave/Matlab API
 ----------------------------
-SPLATT also provides an API callable from Octave and Matlab that mimics the C
-API (SPLATTlab). To compile the interface just enter the `mex/` directory from
-either Octave or Matlab and call `make`.
+SPLATT also provides an API callable from Octave and Matlab that wraps the C
+API. To compile the interface just enter the `mex/` directory from either
+Octave or Matlab and call `make`.
 
     >> cd mex
     >> make
@@ -160,9 +160,9 @@ during successive factorizations,
     >> K25 = splatt_cpd(X, 25);
     >> K50 = splatt_cpd(X, 50);
 
-We also provide option parsing via structures:
+SPLATT accepts non-default parameters via structures:
 
-    >> opts = struct('its', 50, 'tol', 1e-8);
+    >> opts = struct('its', 100, 'tol', 1e-8);
     >> XT = splatt_cpd(X, 25, opts);
 
 
