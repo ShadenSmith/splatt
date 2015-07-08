@@ -29,7 +29,8 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 #define ften_alloc splatt_ften_alloc
-ftensor_t * ften_alloc(
+void ften_alloc(
+  ftensor_t * const ft,
   sptensor_t * const tt,
   idx_t const mode,
   int const tile);
@@ -42,7 +43,7 @@ spmatrix_t * ften_spmat(
 
 #define ften_free splatt_ften_free
 void ften_free(
-  ftensor_t * ft);
+  ftensor_t * const ft);
 
 
 #define fib_mode_order splatt_fib_mode_order

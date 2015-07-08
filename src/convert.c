@@ -180,13 +180,14 @@ static void __convert_fib_hgraph(
   idx_t const mode,
   char const * const ofname)
 {
-  ftensor_t * ft = ften_alloc(tt, mode, 0);
+  ftensor_t ft;
+  ften_alloc(&ft, tt, mode, 0);
 
-  hgraph_t * hg = hgraph_fib_alloc(ft, mode);
+  hgraph_t * hg = hgraph_fib_alloc(&ft, mode);
   hgraph_write(hg, ofname);
 
   hgraph_free(hg);
-  ften_free(ft);
+  ften_free(&ft);
 }
 
 
@@ -205,13 +206,14 @@ static void __convert_fib_mat(
   idx_t const mode,
   char const * const ofname)
 {
-  ftensor_t * ft = ften_alloc(tt, mode, 0);
-  spmatrix_t * mat = ften_spmat(ft);
+  ftensor_t ft;
+  ften_alloc(&ft, tt, mode, 0);
+  spmatrix_t * mat = ften_spmat(&ft);
 
   spmat_write(mat, ofname);
 
   spmat_free(mat);
-  ften_free(ft);
+  ften_free(&ft);
 }
 
 

@@ -204,10 +204,7 @@ void splatt_mpi_cpd_cmd(
       mpi_find_owned(tt, m, &rinfo);
       mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 1);
 
-      ftensor_t * tmp = ften_alloc(tt_filtered, m,
-          (int) args.opts[SPLATT_OPTION_TILE]);
-      ft[m] = *(tmp);
-      free(tmp);
+      ften_alloc(ft + m, tt_filtered, m, (int) args.opts[SPLATT_OPTION_TILE]);
       /* sanity check on nnz */
       idx_t totnnz;
       MPI_Reduce(&ft[m].nnz, &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
@@ -230,9 +227,7 @@ void splatt_mpi_cpd_cmd(
       /* determine isend and ineed lists */
       mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 3);
       /* fill each ftensor */
-      ftensor_t * tmp = ften_alloc(tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
-      ft[m] = *(tmp);
-      free(tmp);
+      ften_alloc(ft + m, tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
     }
   } /* end 3D distribution */
 
@@ -357,9 +352,7 @@ void splatt_cpd_cmd(
 
   /* fill each ftensor */
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    ftensor_t * tmp = ften_alloc(tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
-    ft[m] = *(tmp);
-    free(tmp);
+    ften_alloc(ft + m, tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
   }
 
   idx_t const nmodes = tt->nmodes;

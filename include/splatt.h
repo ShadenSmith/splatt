@@ -215,20 +215,22 @@ int splatt_csf_load(
 *             inds[0][n-1], inds[1][n-1], ..., inds[nmodes-1][n-1].
 * @param vals The actual values of the nonzeros. Nonzero 'n' is found at
 *             vals[n-1].
+* @param tensors [OUT] An array of splatt_csf_t structures, one for each mode.
+*                The 'nmodes' param will be filled with the length of the
+*                array.
 * @param options Options array allocated by splatt_default_opts(). Use the
 *                splatt_option_t enum to change these values.
 *                SPLATT_OPTION_TILE is used here.
 *
-* @return A pointer to an array of splatt_csf_t structures, one for each mode.
-*         The 'nmodes' param will be filled with the length of the array.
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
-splatt_csf_t ** splatt_csf_convert(
+int splatt_csf_convert(
     splatt_idx_t const nmodes,
     splatt_idx_t const nnz,
     splatt_idx_t ** const inds,
     splatt_val_t * const vals,
+    splatt_csf_t ** tensors,
     double const * const options);
-
 
 
 /**

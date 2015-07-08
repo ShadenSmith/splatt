@@ -217,14 +217,13 @@ int splatt_csf_load(
 
   tt_remove_empty(tt);
 
-  *tensors = (splatt_csf_t *) malloc(tt->nmodes * sizeof(splatt_csf_t));
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ftensor_t * tmp = ften_alloc(tt, m, (int) options[SPLATT_OPTION_TILE]);
-    (*tensors)[m] = *(tmp);
+  splatt_csf_t * fts = (splatt_csf_t *) malloc(tt->nmodes*sizeof(splatt_csf_t));
 
-    printf("found %lu nnz\n", (*tensors)[m].nnz);
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ften_alloc(fts + m, tt, m, (int) options[SPLATT_OPTION_TILE]);
   }
 
+  *tensors = fts;
   *nmodes = tt->nmodes;
 
   tt_free(tt);
@@ -232,25 +231,27 @@ int splatt_csf_load(
   return SPLATT_SUCCESS;
 }
 
-splatt_csf_t ** splatt_csf_convert(
+int splatt_csf_convert(
     splatt_idx_t const nmodes,
     splatt_idx_t const nnz,
     splatt_idx_t ** const inds,
     splatt_val_t * const vals,
+    splatt_csf_t ** tensors,
     double const * const options)
 {
-  splatt_csf_t ** fts =
-      (splatt_csf_t **) malloc(nmodes * sizeof(splatt_csf_t *));
+  splatt_csf_t * fts = (splatt_csf_t *) malloc(nmodes * sizeof(splatt_csf_t));
 
   sptensor_t tt;
   tt_fill(&tt, nnz, nmodes, inds, vals);
   tt_remove_empty(&tt);
 
   for(idx_t m=0; m < nmodes; ++m) {
-    fts[m] = ften_alloc(&tt, m, (int) options[SPLATT_OPTION_TILE]);
+    ften_alloc(fts + m, &tt, m, (int) options[SPLATT_OPTION_TILE]);
   }
 
-  return fts;
+  *tensors = fts;
+
+  return SPLATT_SUCCESS;
 }
 
 void splatt_free_csf(
@@ -268,12 +269,12 @@ void splatt_free_csf(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-ftensor_t * ften_alloc(
+void ften_alloc(
+  ftensor_t * const ft,
   sptensor_t * const tt,
   idx_t const mode,
   int const tile)
 {
-  ftensor_t * ft = (ftensor_t *) malloc(sizeof(ftensor_t));
   ft->nnz = tt->nnz;
   ft->nmodes = tt->nmodes;
 
@@ -313,8 +314,6 @@ ftensor_t * ften_alloc(
   } else {
     ft->indmap = NULL;
   }
-
-  return ft;
 }
 
 

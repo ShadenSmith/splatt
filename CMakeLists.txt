@@ -38,6 +38,8 @@ else()
   set(MPI_SOURCES "")
 endif()
 
+add_definitions(-D_GNU_SOURCE)
+
 set(C_DEFINES "${C_DEFINES}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")

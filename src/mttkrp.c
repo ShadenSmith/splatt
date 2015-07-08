@@ -45,7 +45,7 @@ int splatt_mttkrp(
     TILE_SIZES[0] * ncolumns * sizeof(val_t) + 64);
 
   /* do the MTTKRP */
-  mttkrp_splatt(tensor, &mats, mode, thds, nthreads);
+  mttkrp_splatt(tensor, mats, mode, thds, nthreads);
 
   /* cleanup */
   thd_free(thds, nthreads);

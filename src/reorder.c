@@ -284,7 +284,7 @@ permutation_t * tt_perm(
   idx_t nvtxs = 0;
   idx_t * parts = NULL;
   idx_t nparts = 0;
-  ftensor_t * ft = NULL;
+  ftensor_t ft;
 
   permutation_t * perm = NULL;
   switch(type) {
@@ -300,10 +300,10 @@ permutation_t * tt_perm(
     break;
 
   case PERM_HGRAPH:
-    ft = ften_alloc(tt, mode, 0);
-    parts = part_read(pfile, ft->nfibs, &nparts);
-    perm = perm_hgraph(tt, ft, parts, nparts, mode);
-    ften_free(ft);
+    ften_alloc(&ft, tt, mode, 0);
+    parts = part_read(pfile, ft.nfibs, &nparts);
+    perm = perm_hgraph(tt, &ft, parts, nparts, mode);
+    ften_free(&ft);
     break;
   default:
     break;

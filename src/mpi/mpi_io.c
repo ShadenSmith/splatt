@@ -176,7 +176,7 @@ static idx_t __count_my_nnz(
 
   char * ptr = NULL;
   char * line = NULL;
-  size_t read;
+  ssize_t read;
   size_t len = 0;
 
   /* count nnz in my partition */
@@ -225,7 +225,7 @@ static idx_t __count_my_nnz_1d(
 
   char * ptr = NULL;
   char * line = NULL;
-  size_t read;
+  ssize_t read;
   size_t len = 0;
 
   /* count nnz in my partition */
@@ -276,7 +276,7 @@ static void __read_tt_part(
 
   char * ptr = NULL;
   char * line = NULL;
-  size_t read;
+  ssize_t read;
   size_t len = 0;
 
   FILE * fin = open_f(fname, "r");
@@ -324,7 +324,7 @@ static void __read_tt_part_1d(
 
   char * ptr = NULL;
   char * line = NULL;
-  size_t read;
+  ssize_t read;
   size_t len = 0;
 
   FILE * fin = open_f(fname, "r");
@@ -452,7 +452,7 @@ static void __fill_ssizes(
 
   char * ptr = NULL;
   char * line = NULL;
-  size_t read;
+  ssize_t read;
   size_t len = 0;
 
   /* skip to start */
@@ -516,7 +516,7 @@ static void __get_dims(
   char * ptr = NULL;
   idx_t nnz = 0;
   char * line = NULL;
-  size_t read;
+  ssize_t read;
   size_t len = 0;
 
   /* first count modes in tensor */
