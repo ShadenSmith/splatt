@@ -113,9 +113,9 @@ static void __parse_opts(
 * @param nmodes A point to to be set specifying the number of found modes.
 * @param cpd_opts SPLATT options array.
 *
-* @return An array of splatt_csf_t* tensors.
+* @return An array of splatt_csf_t tensors.
 */
-static splatt_csf_t ** __convert_sptensor(
+static splatt_csf_t * __convert_sptensor(
     mxArray const * const mat_inds,
     mxArray const * const mat_vals,
     splatt_idx_t * const nmodes,
@@ -148,7 +148,8 @@ static splatt_csf_t ** __convert_sptensor(
     vals[n] = (splatt_val_t) mxvals[n];
   }
 
-  splatt_csf_t ** tt = splatt_csf_convert(*nmodes, nnz, inds, vals, cpd_opts);
+  splatt_csf_t * tt;
+  splatt_csf_convert(*nmodes, nnz, inds, vals, &tt, cpd_opts);
 
   for(m=0; m < *nmodes; ++m) {
     mxFree(inds[m]);
@@ -159,44 +160,42 @@ static splatt_csf_t ** __convert_sptensor(
 }
 
 
-static splatt_csf_t ** __unpack_csf_cell(
+static splatt_csf_t * __unpack_csf_cell(
     mxArray const * const cell,
     splatt_idx_t * outnmodes)
 {
   splatt_idx_t m;
-  splatt_csf_t ** tt = NULL;
+  splatt_csf_t * tt = NULL;
   splatt_idx_t nmodes = (splatt_idx_t) mxGetNumberOfElements(cell);
 
-  tt = (splatt_csf_t **) mxMalloc(nmodes * sizeof(splatt_csf_t *));
+  tt = (splatt_csf_t *) mxMalloc(nmodes * sizeof(splatt_csf_t));
 
   for(m=0; m < nmodes; ++m) {
-    tt[m] = (splatt_csf_t *) mxMalloc(sizeof(splatt_csf_t));
-
     mxArray const * const curr = mxGetCell(cell, m);
 
-    tt[m]->nmodes = nmodes;
-    tt[m]->nnz = *(__get_uint64_data(curr, "nnz"));
-    memcpy(tt[m]->dims, __get_uint64_data(curr, "dims"),
+    tt[m].nmodes = nmodes;
+    tt[m].nnz = *(__get_uint64_data(curr, "nnz"));
+    memcpy(tt[m].dims, __get_uint64_data(curr, "dims"),
         nmodes * sizeof(uint64_t));
-    memcpy(tt[m]->dim_perm, __get_uint64_data(curr, "dim_perm"),
+    memcpy(tt[m].dim_perm, __get_uint64_data(curr, "dim_perm"),
         nmodes * sizeof(uint64_t));
-    tt[m]->nslcs = *(__get_uint64_data(curr, "nslcs"));
-    tt[m]->nfibs = *(__get_uint64_data(curr, "nfibs"));
-    tt[m]->sptr = __get_uint64_data(curr, "sptr");
-    tt[m]->fptr = __get_uint64_data(curr, "fptr");
-    tt[m]->fids = __get_uint64_data(curr, "fids");
-    tt[m]->inds = __get_uint64_data(curr, "inds");
-    tt[m]->vals = __get_double_data(curr, "vals");
+    tt[m].nslcs = *(__get_uint64_data(curr, "nslcs"));
+    tt[m].nfibs = *(__get_uint64_data(curr, "nfibs"));
+    tt[m].sptr = __get_uint64_data(curr, "sptr");
+    tt[m].fptr = __get_uint64_data(curr, "fptr");
+    tt[m].fids = __get_uint64_data(curr, "fids");
+    tt[m].inds = __get_uint64_data(curr, "inds");
+    tt[m].vals = __get_double_data(curr, "vals");
 
     if(*__get_uint64_data(curr, "has_indmap") == 1) {
-      tt[m]->indmap = __get_uint64_data(curr, "indmap");
+      tt[m].indmap = __get_uint64_data(curr, "indmap");
     }
 
-    tt[m]->tiled = (int) *(__get_uint64_data(curr, "tiled"));
-    if(tt[m]->tiled != SPLATT_NOTILE) {
-      tt[m]->nslabs = *(__get_uint64_data(curr, "nslabs"));
-      tt[m]->slabptr = __get_uint64_data(curr, "slabptr");
-      tt[m]->sids = __get_uint64_data(curr, "sids");
+    tt[m].tiled = (int) *(__get_uint64_data(curr, "tiled"));
+    if(tt[m].tiled != SPLATT_NOTILE) {
+      tt[m].nslabs = *(__get_uint64_data(curr, "nslabs"));
+      tt[m].slabptr = __get_uint64_data(curr, "slabptr");
+      tt[m].sids = __get_uint64_data(curr, "sids");
     }
   }
 
@@ -221,13 +220,13 @@ static splatt_csf_t ** __unpack_csf_cell(
 *
 * @return A list of CSF tensors.
 */
-static splatt_csf_t ** __parse_tensor(
+static splatt_csf_t * __parse_tensor(
     int const nargs,
     mxArray const * const args[],
     splatt_idx_t * nmodes,
     double const * const cpd_opts)
 {
-  splatt_csf_t ** tt = NULL;
+  splatt_csf_t * tt = NULL;
   if(nargs < 1) {
     mexErrMsgTxt("Missing arguments. See 'help splatt_load' for usage.\n");
     return NULL;
@@ -235,7 +234,7 @@ static splatt_csf_t ** __parse_tensor(
 
   if(mxIsChar(args[0])) {
     char * fname = (char *) mxArrayToString(args[0]);
-    tt = splatt_csf_load(fname, nmodes, cpd_opts);
+    splatt_csf_load(fname, nmodes, &tt, cpd_opts);
     mxFree(fname);
   } else if(nargs > 1 && mxIsNumeric(args[0]) && mxIsNumeric(args[1])) {
     tt = __convert_sptensor(args[0], args[1], nmodes, cpd_opts);

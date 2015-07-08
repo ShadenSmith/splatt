@@ -44,7 +44,11 @@ void mexFunction(
 
   /* parse the tensor! */
   splatt_idx_t nmodes;
-  splatt_csf_t ** tt = __parse_tensor(nrhs, prhs, &nmodes, cpd_opts);
+  splatt_csf_t * tt = __parse_tensor(nrhs, prhs, &nmodes, cpd_opts);
+  if(tt == NULL) {
+    splatt_free_opts(cpd_opts);
+    return;
+  }
 
   splatt_idx_t const nfactors = (splatt_idx_t) mxGetScalar(prhs[1]);
 
@@ -55,7 +59,7 @@ void mexFunction(
   /* save dims and free memory */
   splatt_idx_t ttdims[MAX_NMODES];
   for(m=0; m < nmodes; ++m) {
-    ttdims[m] = tt[0]->dims[m];
+    ttdims[m] = tt[0].dims[m];
   }
 
 #if 0
