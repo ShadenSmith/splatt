@@ -17,7 +17,7 @@
  *****************************************************************************/
 #define cpd_als splatt_cpd_als
 val_t cpd_als(
-  ftensor_t ** ft,
+  ftensor_t * ft,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,

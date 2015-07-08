@@ -41,8 +41,8 @@ typedef enum
   SPLATT_ERROR_BADINPUT,  /** SPLATT found an issue with the input.
                               Try splatt-check to debug. */
   SPLATT_ERROR_NOMEMORY   /** SPLATT did not have enough memory to complete.
-                              Try using fewer factors, less precision, or a
-                              smaller tensor. */
+                              Try using fewer factors, a smaller tensor, or
+                              recompile with less precision. */
 } splatt_error_t;
 
 
@@ -149,12 +149,7 @@ extern 'C' {
 * @param nfactors The rank of the decomposition to perform.
 * @param nmodes The number of modes in the tensor. Optimizations are currently
 *               only present for nmodes=3.
-* @param nnz The number of nonzeros in the tensor.
-* @param inds The nonzero indices of the tensor. The nth nonzero can be found
-*             at inds[0][n], inds[1][n], ... , inds[m][n]. These indices
-*             WILL be rearranged during computation (for sorting, etc.).
-* @param vals The nonzero values of the tensor. These values WILL be rearranged
-*             during computation (for sorting. etc.).
+* @param tensors An array of splatt_csf_t created by SPLATT.
 * @param options Options array for SPLATT.
 * @param factored The factored tensor in Kruskal format.
 *
@@ -163,7 +158,7 @@ extern 'C' {
 int splatt_cpd(
     splatt_idx_t const nfactors,
     splatt_idx_t const nmodes,
-    splatt_csf_t ** tensors,
+    splatt_csf_t const * const tensors,
     double const * const options,
     splatt_kruskal_t * factored);
 
@@ -195,16 +190,19 @@ int splatt_mttkrp(
 * @brief Read a tensor from a file and convert to CSF format.
 *
 * @param fname The filename to read from.
-* @param nmodes SPLATT will fill in the number of modes found.
+* @param nmodes [OUT] SPLATT will fill in the number of modes found.
+* @param tensors [OUT] An array of splatt_csf_t structures, one for each mode.
+*                The 'nmodes' param will be filled with the length of the
+*                array.
 * @param options An options array allocated by splatt_default_opts(). Option
 *        SPLATT_OPTION_TILE is used here.
 *
-* @return A pointer to an array of splatt_csf_t structures, one for each mode.
-*         The 'nmodes' param will be filled with the length of the array.
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
-splatt_csf_t ** splatt_csf_load(
+int splatt_csf_load(
     char const * const fname,
     splatt_idx_t * nmodes,
+    splatt_csf_t ** tensors,
     double const * const options);
 
 

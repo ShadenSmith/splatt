@@ -201,6 +201,71 @@ static void __create_sliceptr(
 
 
 /******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+
+int splatt_csf_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    splatt_csf_t ** tensors,
+    double const * const options)
+{
+  sptensor_t * tt = tt_read(fname);
+  if(tt == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
+
+  tt_remove_empty(tt);
+
+  *tensors = (splatt_csf_t *) malloc(tt->nmodes * sizeof(splatt_csf_t));
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ftensor_t * tmp = ften_alloc(tt, m, (int) options[SPLATT_OPTION_TILE]);
+    (*tensors)[m] = *(tmp);
+
+    printf("found %lu nnz\n", (*tensors)[m].nnz);
+  }
+
+  *nmodes = tt->nmodes;
+
+  tt_free(tt);
+
+  return SPLATT_SUCCESS;
+}
+
+splatt_csf_t ** splatt_csf_convert(
+    splatt_idx_t const nmodes,
+    splatt_idx_t const nnz,
+    splatt_idx_t ** const inds,
+    splatt_val_t * const vals,
+    double const * const options)
+{
+  splatt_csf_t ** fts =
+      (splatt_csf_t **) malloc(nmodes * sizeof(splatt_csf_t *));
+
+  sptensor_t tt;
+  tt_fill(&tt, nnz, nmodes, inds, vals);
+  tt_remove_empty(&tt);
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    fts[m] = ften_alloc(&tt, m, (int) options[SPLATT_OPTION_TILE]);
+  }
+
+  return fts;
+}
+
+void splatt_free_csf(
+  splatt_idx_t const nmodes,
+  splatt_csf_t ** tensors)
+{
+  for(idx_t m=0; m < nmodes; ++m) {
+    ften_free(tensors[m]);
+  }
+  free(tensors);
+}
+
+
+
+/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 ftensor_t * ften_alloc(
@@ -281,7 +346,6 @@ void ften_free(
     free(ft->slabptr);
     free(ft->sids);
   }
-  free(ft);
 }
 
 
@@ -339,63 +403,5 @@ size_t ften_storage(
   }
 
   return bytes;
-}
-
-
-
-/******************************************************************************
- * API FUNCTIONS
- *****************************************************************************/
-
-splatt_csf_t ** splatt_csf_load(
-    char const * const fname,
-    splatt_idx_t * nmodes,
-    double const * const options)
-{
-  sptensor_t * tt = tt_read(fname);
-  tt_remove_empty(tt);
-
-  splatt_csf_t ** fts =
-      (splatt_csf_t **) malloc(tt->nmodes * sizeof(splatt_csf_t *));
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    fts[m] = ften_alloc(tt, m, (int) options[SPLATT_OPTION_TILE]);
-  }
-
-  *nmodes = tt->nmodes;
-
-  tt_free(tt);
-
-  return fts;
-}
-
-splatt_csf_t ** splatt_csf_convert(
-    splatt_idx_t const nmodes,
-    splatt_idx_t const nnz,
-    splatt_idx_t ** const inds,
-    splatt_val_t * const vals,
-    double const * const options)
-{
-  splatt_csf_t ** fts =
-      (splatt_csf_t **) malloc(nmodes * sizeof(splatt_csf_t *));
-
-  sptensor_t tt;
-  tt_fill(&tt, nnz, nmodes, inds, vals);
-  tt_remove_empty(&tt);
-
-  for(idx_t m=0; m < nmodes; ++m) {
-    fts[m] = ften_alloc(&tt, m, (int) options[SPLATT_OPTION_TILE]);
-  }
-
-  return fts;
-}
-
-void splatt_free_csf(
-  splatt_idx_t const nmodes,
-  splatt_csf_t ** tensors)
-{
-  for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(tensors[m]);
-  }
-  free(tensors);
 }
 

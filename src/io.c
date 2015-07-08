@@ -47,7 +47,7 @@ static sptensor_t * __tt_read_file(
                     "Found %"SS_IDX". Please recompile with "
                     "MAX_NMODES=%"SS_IDX".\n",
             MAX_NMODES, nmodes, nmodes);
-    exit(1);
+    return NULL;
   }
 
   /* allocate structures */
@@ -121,7 +121,7 @@ sptensor_t * tt_read_file(
   FILE * fin;
   if((fin = fopen(fname, "r")) == NULL) {
     fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
-    exit(1);
+    return NULL;
   }
 
   timer_start(&timers[TIMER_IO]);
@@ -142,7 +142,7 @@ void tt_write(
   } else {
     if((fout = fopen(fname,"w")) == NULL) {
       fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
-      exit(1);
+      return;
     }
   }
 
@@ -178,7 +178,7 @@ void hgraph_write(
   } else {
     if((fout = fopen(fname,"w")) == NULL) {
       fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
-      exit(1);
+      return;
     }
   }
 
@@ -235,7 +235,7 @@ void spmat_write(
   } else {
     if((fout = fopen(fname,"w")) == NULL) {
       fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
-      exit(1);
+      return;
     }
   }
 
@@ -271,7 +271,7 @@ void mat_write(
   } else {
     if((fout = fopen(fname,"w")) == NULL) {
       fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
-      exit(1);
+      return;
     }
   }
 
@@ -321,7 +321,7 @@ void vec_write(
   } else {
     if((fout = fopen(fname,"w")) == NULL) {
       fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
-      exit(1);
+      return;
     }
   }
 
@@ -355,7 +355,7 @@ idx_t * part_read(
   FILE * pfile;
   if((pfile = fopen(ifname, "r")) == NULL) {
     fprintf(stderr, "SPLATT ERROR: unable to open '%s'\n", ifname);
-    exit(1);
+    return NULL;
   }
 
   *nparts = 0;
@@ -364,7 +364,8 @@ idx_t * part_read(
   for(idx_t i=0; i < nvtxs; ++i) {
     if((ret = fscanf(pfile, "%"SS_IDX, &(arr[i]))) == 0) {
       fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n", ifname);
-      exit(1);
+      free(arr);
+      return NULL;
     }
     if(arr[i] > *nparts) {
       *nparts = arr[i];
@@ -394,7 +395,7 @@ void perm_write(
   } else {
     if((fout = fopen(fname,"w")) == NULL) {
       fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
-      exit(1);
+      return;
     }
   }
 

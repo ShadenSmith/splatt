@@ -25,7 +25,7 @@
 int splatt_cpd(
     splatt_idx_t const nfactors,
     splatt_idx_t const nmodes,
-    splatt_csf_t ** tensors,
+    splatt_csf_t const * const tensors,
     double const * const options,
     splatt_kruskal_t * factored)
 {
@@ -36,7 +36,7 @@ int splatt_cpd(
 
   idx_t maxdim = 0;
   for(idx_t m=0; m < nmodes; ++m) {
-    globmats[m] = (matrix_t *) mat_rand(tensors[0]->dims[m], nfactors);
+    globmats[m] = (matrix_t *) mat_rand(tensors[0].dims[m], nfactors);
     maxdim = SS_MAX(globmats[m]->I, maxdim);
   }
   globmats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
@@ -245,7 +245,7 @@ static void __calc_M2(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 val_t cpd_als(
-  ftensor_t ** ft,
+  ftensor_t * ft,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,
@@ -253,7 +253,7 @@ val_t cpd_als(
   rank_info * const rinfo,
   double const * const opts)
 {
-  idx_t const nmodes = ft[0]->nmodes;
+  idx_t const nmodes = ft[0].nmodes;
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
@@ -285,7 +285,7 @@ val_t cpd_als(
 
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
-    mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m],
+    mpi_update_rows(ft[m].indmap, nbr2globs_buf, local2nbr_buf, mats[m],
         globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
   }
 #endif
@@ -307,8 +307,8 @@ val_t cpd_als(
   val_t fit = 0;
   val_t mynorm = 0;
   #pragma omp parallel for reduction(+:mynorm)
-  for(idx_t n=0; n < ft[0]->nnz; ++n) {
-    mynorm += ft[0]->vals[n] * ft[0]->vals[n];
+  for(idx_t n=0; n < ft[0].nnz; ++n) {
+    mynorm += ft[0].vals[n] * ft[0].vals[n];
   }
 
   val_t ttnormsq = 0;
@@ -329,19 +329,19 @@ val_t cpd_als(
     timer_fstart(&itertime);
     for(idx_t m=0; m < nmodes; ++m) {
       timer_fstart(&modetime[m]);
-      mats[MAX_NMODES]->I = ft[0]->dims[m];
+      mats[MAX_NMODES]->I = ft[0].dims[m];
       m1->I = globmats[m]->I;
       m1ptr->I = globmats[m]->I;
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
-      mttkrp_splatt(ft[m], mats, m, thds, nthreads);
+      mttkrp_splatt(&(ft[m]), mats, m, thds, nthreads);
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
       if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
-        mpi_add_my_partials(ft[m]->indmap, mats[MAX_NMODES], m1, rinfo,
+        mpi_add_my_partials(ft[m].indmap, mats[MAX_NMODES], m1, rinfo,
             nfactors, m);
         /* incorporate neighbors' partials */
         mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
@@ -368,7 +368,7 @@ val_t cpd_als(
 
 #ifdef SPLATT_USE_MPI
       /* send updated rows to neighbors */
-      mpi_update_rows(ft[m]->indmap, nbr2globs_buf, local2nbr_buf, mats[m],
+      mpi_update_rows(ft[m].indmap, nbr2globs_buf, local2nbr_buf, mats[m],
           globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
 #endif
 

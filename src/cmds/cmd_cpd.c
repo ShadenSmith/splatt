@@ -155,7 +155,6 @@ void splatt_mpi_cpd_cmd(
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
   sptensor_t * tt = NULL;
-  ftensor_t * ft[MAX_NMODES];
 
   rank_info rinfo;
   MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
@@ -171,6 +170,7 @@ void splatt_mpi_cpd_cmd(
   }
 
   tt = mpi_tt_read(args.ifname, &rinfo);
+  ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
 
   /* In the default setting, mpi_tt_read will set rinfo distribution.
    * Copy that back into args. TODO: make this less dumb. */
@@ -204,10 +204,13 @@ void splatt_mpi_cpd_cmd(
       mpi_find_owned(tt, m, &rinfo);
       mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 1);
 
-      ft[m] = ften_alloc(tt_filtered, m, (int) args.opts[SPLATT_OPTION_TILE]);
+      ftensor_t * tmp = ften_alloc(tt_filtered, m,
+          (int) args.opts[SPLATT_OPTION_TILE]);
+      ft[m] = *(tmp);
+      free(tmp);
       /* sanity check on nnz */
       idx_t totnnz;
-      MPI_Reduce(&ft[m]->nnz, &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
+      MPI_Reduce(&ft[m].nnz, &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
           MPI_COMM_WORLD);
       if(rinfo.rank == 0) {
         assert(totnnz == rinfo.global_nnz);
@@ -227,7 +230,9 @@ void splatt_mpi_cpd_cmd(
       /* determine isend and ineed lists */
       mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 3);
       /* fill each ftensor */
-      ft[m] = ften_alloc(tt, m, (int)args.opts[SPLATT_OPTION_TILE]);
+      ftensor_t * tmp = ften_alloc(tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
+      ft[m] = *(tmp);
+      free(tmp);
     }
   } /* end 3D distribution */
 
@@ -244,8 +249,8 @@ void splatt_mpi_cpd_cmd(
   for(idx_t m=0; m < nmodes; ++m) {
     /* ft[:] have different dimensionalities for 1/2D but ft[m+1] is guaranteed
      * to have the full dimensionality */
-    mats[m] = mat_rand(ft[(m+1) % nmodes]->dims[m], args.nfactors);
-    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes]->dims[m]);
+    mats[m] = mat_rand(ft[(m+1) % nmodes].dims[m], args.nfactors);
+    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes].dims[m]);
 
     /* for actual factor matrix */
     globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m],
@@ -259,8 +264,8 @@ void splatt_mpi_cpd_cmd(
   unsigned long fbytes = 0;
   unsigned long mbytes = 0;
   for(idx_t m=0; m < nmodes; ++m) {
-    fbytes += ften_storage(ft[m]);
-    mbytes += ft[m]->dims[m] * args.nfactors * sizeof(val_t);
+    fbytes += ften_storage(&(ft[m]));
+    mbytes += ft[m].dims[m] * args.nfactors * sizeof(val_t);
   }
   /* get storage across all nodes */
   if(rinfo.rank == 0) {
@@ -298,8 +303,9 @@ void splatt_mpi_cpd_cmd(
 
   /* free up the ftensor allocations */
   for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(ft[m]);
+    ften_free(&(ft[m]));
   }
+  free(ft);
 
   /* write output */
   if(args.write == 1) {
@@ -314,6 +320,7 @@ void splatt_mpi_cpd_cmd(
   }
   mat_free(mats[MAX_NMODES]);
   free(lambda);
+  free(args.opts);
 
   perm_free(perm);
   rank_free(rinfo, nmodes);
@@ -334,19 +341,25 @@ void splatt_cpd_cmd(
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
   sptensor_t * tt = NULL;
-  ftensor_t * ft[MAX_NMODES];
 
   rank_info rinfo;
   rinfo.rank = 0;
   print_header();
 
   tt = tt_read(args.ifname);
+  if(tt == NULL) {
+    return;
+  }
   tt_remove_empty(tt);
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
+  ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
+
   /* fill each ftensor */
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    ft[m] = ften_alloc(tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
+    ftensor_t * tmp = ften_alloc(tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
+    ft[m] = *(tmp);
+    free(tmp);
   }
 
   idx_t const nmodes = tt->nmodes;
@@ -359,8 +372,8 @@ void splatt_cpd_cmd(
   for(idx_t m=0; m < nmodes; ++m) {
     /* ft[:] have different dimensionalities for 1/2D but ft[m+1] is guaranteed
      * to have the full dimensionality */
-    mats[m] = mat_rand(ft[(m+1) % nmodes]->dims[m], args.nfactors);
-    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes]->dims[m]);
+    mats[m] = mat_rand(ft[(m+1) % nmodes].dims[m], args.nfactors);
+    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes].dims[m]);
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.nfactors);
 
@@ -370,8 +383,8 @@ void splatt_cpd_cmd(
   unsigned long fbytes = 0;
   unsigned long mbytes = 0;
   for(idx_t m=0; m < nmodes; ++m) {
-    fbytes += ften_storage(ft[m]);
-    mbytes += ft[m]->dims[m] * args.nfactors * sizeof(val_t);
+    fbytes += ften_storage(&(ft[m]));
+    mbytes += ft[m].dims[m] * args.nfactors * sizeof(val_t);
   }
 
   printf("Factoring "
@@ -399,8 +412,10 @@ void splatt_cpd_cmd(
 
   /* free up the ftensor allocations */
   for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(ft[m]);
+    ften_free(&ft[m]);
   }
+  free(ft);
+  free(args.opts);
 
   /* write output */
   if(args.write == 1) {
