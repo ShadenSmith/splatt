@@ -244,8 +244,8 @@ static void __calc_M2(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-val_t cpd_als(
-  ftensor_t * ft,
+double cpd_als(
+  ftensor_t const * const ft,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,
@@ -303,8 +303,8 @@ val_t cpd_als(
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
 
   /* Compute input tensor norm */
-  val_t oldfit = 0;
-  val_t fit = 0;
+  double oldfit = 0;
+  double fit = 0;
   val_t mynorm = 0;
   #pragma omp parallel for reduction(+:mynorm)
   for(idx_t n=0; n < ft[0].nnz; ++n) {
