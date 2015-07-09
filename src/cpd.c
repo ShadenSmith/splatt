@@ -100,6 +100,18 @@ static void __reset_cpd_timers(
 }
 
 
+/**
+* @brief Find the Frobenius norm squared of a Kruskal tensor. This equivalent
+*        to via computing <X,X>, the inner product of X with itself. We find
+*        this via \lambda^T (AtA * BtB * ...) \lambda, where * is the Hadamard
+*        product.
+*
+* @param nmodes The number of modes in the tensor.
+* @param lambda The vector of column norms.
+* @param aTa An array of Gram Matrices (AtA, BtB, ...).
+*
+* @return The Frobenius norm of X, squared.
+*/
 static val_t __kruskal_norm(
   idx_t const nmodes,
   val_t const * const restrict lambda,
@@ -134,6 +146,22 @@ static val_t __kruskal_norm(
 }
 
 
+/**
+* @brief Compute the inner product of a Kruskal tensor and an unfactored
+*        tensor. Assumes that 'm1' contains the MTTKRP result along the last
+*        mode of the two input tensors. This naturally follows the end of a
+*        CPD iteration.
+*
+* @param nmodes The number of modes in the input tensors.
+* @param rinfo MPI rank information.
+* @param thds OpenMP thread data structures.
+* @param lambda The vector of column norms.
+* @param mats The Kruskal-tensor matrices.
+* @param m1 The result of doing MTTKRP along the last mode.
+*
+* @return The inner product of the two tensors, computed via:
+*         \lambda^T hadamard(mats[nmodes-1], m1) \lambda.
+*/
 static val_t __tt_kruskal_inner(
   idx_t const nmodes,
   rank_info * const rinfo,
@@ -188,12 +216,27 @@ static val_t __tt_kruskal_inner(
 }
 
 
+/**
+* @brief Compute the fit of a Kruskal tensor, Z, to an input tensor, X. This
+*        is computed via 1 - [sqrt(<X,X> + <Z,Z> - 2<X,Z>) / sqrt(<X,X>)].
+*
+* @param nmodes The number of modes in the input tensors.
+* @param rinfo MPI rank information.
+* @param thds OpenMP thread data structures.
+* @param ttnormsq The norm (squared) of the original input tensor, <X,X>.
+* @param lambda The vector of column norms.
+* @param mats The Kruskal-tensor matrices.
+* @param m1 The result of doing MTTKRP along the last mode.
+* @param aTa An array of matrices (length MAX_NMODES)containing BtB, CtC, etc.
+*
+* @return The inner product of the two tensors, computed via:
+*         \lambda^T hadamard(mats[nmodes-1], m1) \lambda.
+*/
 static val_t __calc_fit(
   idx_t const nmodes,
   rank_info * const rinfo,
   thd_info * const thds,
-  idx_t const nthreads,
-  val_t const ttnorm,
+  val_t const ttnormsq,
   val_t const * const restrict lambda,
   matrix_t ** mats,
   matrix_t const * const m1,
@@ -207,12 +250,21 @@ static val_t __calc_fit(
   /* Compute inner product of tensor with new model */
   val_t const inner = __tt_kruskal_inner(nmodes, rinfo, thds, lambda, mats,m1);
 
-  val_t const residual = sqrt(ttnorm + norm_mats - (2 * inner));
+  val_t const residual = sqrt(ttnormsq + norm_mats - (2 * inner));
   timer_stop(&timers[TIMER_FIT]);
-  return 1 - (residual / sqrt(ttnorm));
+  return 1 - (residual / sqrt(ttnormsq));
 }
 
 
+/**
+* @brief Calculate (BtB * CtC * ...)^-1, where * is the Hadamard product. This
+*        is the Gram Matrix of the CPD.
+*
+* @param mode Which mode we are operating on (it is not used in the product).
+* @param nmodes The number of modes in the tensor.
+* @param aTa An array of matrices (length MAX_NMODES)containing BtB, CtC, etc.
+*            [OUT] The result is stored in ata[MAX_NMODES].
+*/
 static void __calc_M2(
   idx_t const mode,
   idx_t const nmodes,
@@ -244,8 +296,8 @@ static void __calc_M2(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-val_t cpd_als(
-  ftensor_t * ft,
+double cpd_als(
+  ftensor_t const * const ft,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,
@@ -303,8 +355,8 @@ val_t cpd_als(
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
 
   /* Compute input tensor norm */
-  val_t oldfit = 0;
-  val_t fit = 0;
+  double oldfit = 0;
+  double fit = 0;
   val_t mynorm = 0;
   #pragma omp parallel for reduction(+:mynorm)
   for(idx_t n=0; n < ft[0].nnz; ++n) {
@@ -377,8 +429,7 @@ val_t cpd_als(
       timer_stop(&modetime[m]);
     } /* foreach mode */
 
-    fit = __calc_fit(nmodes, rinfo, thds, nthreads, ttnormsq, lambda,
-        globmats, m1, aTa);
+    fit = __calc_fit(nmodes, rinfo, thds, ttnormsq, lambda, globmats, m1, aTa);
     timer_stop(&itertime);
 
     if(rinfo->rank == 0 &&

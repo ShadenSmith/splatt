@@ -16,8 +16,8 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 #define cpd_als splatt_cpd_als
-val_t cpd_als(
-  ftensor_t * ft,
+double cpd_als(
+  ftensor_t const * const ft,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,
