@@ -178,7 +178,7 @@ static val_t __tt_kruskal_inner(
   MPI_Barrier(rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_IDLE]);
 
-  MPI_Allreduce(&myinner, &inner, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+  MPI_Allreduce(&myinner, &inner, 1, SPLATT_MPI_VAL, MPI_SUM, rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_FIT]);
 #else
   inner = myinner;
@@ -313,7 +313,7 @@ val_t cpd_als(
 
   val_t ttnormsq = 0;
 #ifdef SPLATT_USE_MPI
-  MPI_Allreduce(&mynorm, &ttnormsq, 1, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+  MPI_Allreduce(&mynorm, &ttnormsq, 1, SPLATT_MPI_VAL, MPI_SUM, rinfo->comm_3d);
 #else
   ttnormsq = mynorm;
 #endif
@@ -383,11 +383,11 @@ val_t cpd_als(
 
     if(rinfo->rank == 0 &&
         opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
-      printf("  its = %3"SS_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.4e\n",
+      printf("  its = %3"SPLATT_PF_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.4e\n",
           it+1, itertime.seconds, fit, fit - oldfit);
       if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_LOW) {
         for(idx_t m=0; m < nmodes; ++m) {
-          printf("     mode = %1"SS_IDX" (%0.3fs)\n", m+1,
+          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs)\n", m+1,
               modetime[m].seconds);
         }
       }

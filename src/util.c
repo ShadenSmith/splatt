@@ -50,7 +50,7 @@ char * bytes_str(
   }
   char * ret = NULL;
   if(asprintf(&ret, "%0.2f%s", size, suffix[suff]) == -1) {
-    fprintf(stderr, "SPLATT: asprintf failed with%"SS_IDX" bytes.\n", bytes);
+    fprintf(stderr, "SPLATT: asprintf failed with%"SPLATT_PF_IDX" bytes.\n", bytes);
     ret = NULL;
   }
   return ret;

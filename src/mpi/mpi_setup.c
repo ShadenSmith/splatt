@@ -125,8 +125,8 @@ static void __fill_ineed_inds(
 
   /* send my non-local indices and get indices for each neighbors' partials
    * that I will receive */
-  MPI_Alltoallv(nbr2local_inds, local2nbr_ptr, local2nbr_disp, SS_MPI_IDX,
-                nbr2globs_inds, nbr2globs_ptr, nbr2globs_disp, SS_MPI_IDX,
+  MPI_Alltoallv(nbr2local_inds, local2nbr_ptr, local2nbr_disp, SPLATT_MPI_IDX,
+                nbr2globs_inds, nbr2globs_ptr, nbr2globs_disp, SPLATT_MPI_IDX,
                 comm);
 
   /* we don't need nbr2local_inds anymore */
@@ -252,7 +252,7 @@ void mpi_setup_comms(
     __setup_3d(rinfo);
     break;
   default:
-    fprintf(stderr, "SPLATT: distribution %"SS_IDX" not supported. "
+    fprintf(stderr, "SPLATT: distribution %"SPLATT_PF_IDX" not supported. "
                     "Choose from {1,3}.\n", rinfo->distribution);
     abort();
   }

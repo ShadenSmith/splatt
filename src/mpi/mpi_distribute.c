@@ -114,7 +114,7 @@ static int __make_job(
     MPI_Isend(&MSG_MUSTCLAIM, 1, MPI_INT, p0, 0, comm, &(rinfo->req));
   }
 
-  MPI_Isend(&(rinfo->worksize), 1, SS_MPI_IDX, p0, 0, comm, &(rinfo->req));
+  MPI_Isend(&(rinfo->worksize), 1, SPLATT_MPI_IDX, p0, 0, comm, &(rinfo->req));
 
   for(int p=0; p < npes; ++p) {
     if(p != p0) {
@@ -151,8 +151,8 @@ static idx_t __check_job(
 
   int const proc_up = rinfo->status.MPI_SOURCE;
   idx_t nclaimed;
-  MPI_Recv(&nclaimed, 1, SS_MPI_IDX, proc_up, 0, comm, &(rinfo->status));
-  MPI_Recv(rowbuf, nclaimed, SS_MPI_IDX, proc_up, 0, comm, &(rinfo->status));
+  MPI_Recv(&nclaimed, 1, SPLATT_MPI_IDX, proc_up, 0, comm, &(rinfo->status));
+  MPI_Recv(rowbuf, nclaimed, SPLATT_MPI_IDX, proc_up, 0, comm, &(rinfo->status));
 
   pvols[proc_up] += nclaimed;
 
@@ -317,7 +317,7 @@ static void __distribute_u3_rows(
     MPI_Recv(&msg, 1, MPI_INT, 0, 0, comm, &(rinfo->status));
     if(msg == MSG_TRYCLAIM || msg == MSG_MUSTCLAIM) {
       /* get target number of rows */
-      MPI_Recv(&amt, 1, SS_MPI_IDX, 0, 0, comm, &(rinfo->status));
+      MPI_Recv(&amt, 1, SPLATT_MPI_IDX, 0, 0, comm, &(rinfo->status));
       /* see how many I can claim */
       if(msg == MSG_TRYCLAIM) {
         nclaimed = __tryclaim_rows(amt, inds, localdim, rinfo, claimed, dim,
@@ -328,8 +328,8 @@ static void __distribute_u3_rows(
       }
 
       /* send new claims to root process */
-      MPI_Isend(&nclaimed, 1, SS_MPI_IDX, 0, 0, comm, &req);
-      MPI_Isend(myclaims, nclaimed, SS_MPI_IDX, 0, 0, comm, &req);
+      MPI_Isend(&nclaimed, 1, SPLATT_MPI_IDX, 0, 0, comm, &req);
+      MPI_Isend(myclaims, nclaimed, SPLATT_MPI_IDX, 0, 0, comm, &req);
       /* now mark as mine */
       for(idx_t i=0; i < nclaimed; ++i) {
         mine[(*nrows)++] = myclaims[i];
@@ -346,8 +346,8 @@ static void __distribute_u3_rows(
     MPI_Recv(&msg, 1, MPI_INT, 0, 0, comm, &(rinfo->status));
     if(msg == MSG_UPDATES) {
       /* get new rows */
-      MPI_Bcast(&amt, 1, SS_MPI_IDX, 0, comm);
-      MPI_Bcast(bufclaims, amt, SS_MPI_IDX, 0, comm);
+      MPI_Bcast(&amt, 1, SPLATT_MPI_IDX, 0, comm);
+      MPI_Bcast(bufclaims, amt, SPLATT_MPI_IDX, 0, comm);
 
       /* mark as claimed */
       for(idx_t i=0; i < amt; ++i) {
@@ -490,7 +490,7 @@ static void __greedy_mat_distribution(
     pvols = (idx_t *) malloc(lnpes * sizeof(idx_t));
 
     /* root process gathers all communication volumes */
-    MPI_Gather(&myvol, 1, SS_MPI_IDX, pvols, 1, SS_MPI_IDX,
+    MPI_Gather(&myvol, 1, SPLATT_MPI_IDX, pvols, 1, SPLATT_MPI_IDX,
       0, rinfo->layer_comm[m]);
 
     /* now distribute rows with >=3 pcount in a greedy fashion */
@@ -500,7 +500,7 @@ static void __greedy_mat_distribution(
 
     /* prefix sum to get our new mat_start */
     idx_t rowoffset;
-    MPI_Scan(&nrows, &rowoffset, 1, SS_MPI_IDX, MPI_SUM, rinfo->layer_comm[m]);
+    MPI_Scan(&nrows, &rowoffset, 1, SPLATT_MPI_IDX, MPI_SUM, rinfo->layer_comm[m]);
 
     /* ensure all rows are claimed if you are the last rank in the layer */
     if(rinfo->layer_rank[m] == (rinfo->npes / rinfo->dims_3d[m]) - 1) {
@@ -519,7 +519,7 @@ static void __greedy_mat_distribution(
       newlabels[rowoffset+i] = mine[i];
     }
 
-    MPI_Allreduce(MPI_IN_PLACE, newlabels, layerdim, SS_MPI_IDX, MPI_SUM,
+    MPI_Allreduce(MPI_IN_PLACE, newlabels, layerdim, SPLATT_MPI_IDX, MPI_SUM,
         rinfo->layer_comm[m]);
 
     /* fill perm: inewlabels[oldlayerindex] = newlayerindex */
@@ -569,7 +569,7 @@ static void __setup_mat_ptrs(
 
   /* Doing a reduce instead of a gather lets us set location mode_rank
    * instead of the rank in this communicator */
-  MPI_Allreduce(MPI_IN_PLACE, mat_ptrs, npes, SS_MPI_IDX, MPI_SUM, comm);
+  MPI_Allreduce(MPI_IN_PLACE, mat_ptrs, npes, SPLATT_MPI_IDX, MPI_SUM, comm);
 
   assert(rinfo->mat_ptrs[mode][rank    ] == rinfo->mat_start[mode]);
   assert(rinfo->mat_ptrs[mode][rank + 1] == rinfo->mat_end[mode]);
@@ -598,7 +598,7 @@ permutation_t * mpi_distribute_mats(
 
       /* Doing a reduce instead of a gather lets us set location mode_rank
        * instead of the rank in this communicator */
-      MPI_Allreduce(MPI_IN_PLACE, rinfo->mat_ptrs[m], rinfo->npes, SS_MPI_IDX,
+      MPI_Allreduce(MPI_IN_PLACE, rinfo->mat_ptrs[m], rinfo->npes, SPLATT_MPI_IDX,
           MPI_SUM, MPI_COMM_WORLD);
       assert(rinfo->mat_ptrs[m][rinfo->rank    ] == rinfo->mat_start[m]);
       assert(rinfo->mat_ptrs[m][rinfo->rank + 1] == rinfo->mat_end[m]);

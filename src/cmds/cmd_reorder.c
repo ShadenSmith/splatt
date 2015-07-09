@@ -123,7 +123,7 @@ void splatt_reorder(
 
     char * fbuf = NULL;
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      asprintf(&fbuf, "%s.mode%"SS_IDX".perm", args.ofname, m);
+      asprintf(&fbuf, "%s.mode%"SPLATT_PF_IDX".perm", args.ofname, m);
 
       perm_write(perm->perms[m], tt->dims[m], fbuf);
 

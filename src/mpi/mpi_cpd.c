@@ -98,8 +98,8 @@ static void __reduce_rows_all2all(
 
   timer_start(&timers[TIMER_MPI_COMM]);
   /* exchange rows */
-  MPI_Alltoallv(local2nbr_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
-                nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
+  MPI_Alltoallv(local2nbr_buf, nbr2local_ptr, nbr2local_disp, SPLATT_MPI_VAL,
+                nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SPLATT_MPI_VAL,
                 rinfo->layer_comm[m]);
   timer_stop(&timers[TIMER_MPI_COMM]);
 
@@ -170,7 +170,7 @@ static void __reduce_rows_point2point(
       #pragma omp master
       {
         timer_start(&timers[TIMER_MPI_COMM]);
-        MPI_Isend(&(local2nbr_buf[disp*nfactors]), nsends*nfactors, SS_MPI_VAL,
+        MPI_Isend(&(local2nbr_buf[disp*nfactors]), nsends*nfactors, SPLATT_MPI_VAL,
             pdest, 0, rinfo->layer_comm[m], &(rinfo->req));
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
@@ -191,7 +191,7 @@ static void __reduce_rows_point2point(
       #pragma omp master
       {
         timer_start(&timers[TIMER_MPI_COMM]);
-        MPI_Recv(&(nbr2globs_buf[disp*nfactors]), nrecvs*nfactors, SS_MPI_VAL,
+        MPI_Recv(&(nbr2globs_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
             porig, 0, rinfo->layer_comm[m], &(rinfo->status));
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
@@ -274,7 +274,7 @@ static void __update_rows_point2point(
       #pragma omp master
       {
         timer_start(&timers[TIMER_MPI_COMM]);
-        MPI_Isend(&(nbr2globs_buf[disp*nfactors]), nsends*nfactors, SS_MPI_VAL,
+        MPI_Isend(&(nbr2globs_buf[disp*nfactors]), nsends*nfactors, SPLATT_MPI_VAL,
             pdest, 0, rinfo->layer_comm[m], &(rinfo->req));
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
@@ -295,7 +295,7 @@ static void __update_rows_point2point(
       #pragma omp master
       {
         timer_start(&timers[TIMER_MPI_COMM]);
-        MPI_Recv(&(nbr2local_buf[disp*nfactors]), nrecvs*nfactors, SS_MPI_VAL,
+        MPI_Recv(&(nbr2local_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
             porig, 0, rinfo->layer_comm[m], &(rinfo->status));
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
@@ -372,8 +372,8 @@ static void __update_rows_all2all(
 
       /* exchange rows */
       timer_start(&timers[TIMER_MPI_COMM]);
-      MPI_Alltoallv(nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SS_MPI_VAL,
-                    nbr2local_buf, nbr2local_ptr, nbr2local_disp, SS_MPI_VAL,
+      MPI_Alltoallv(nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SPLATT_MPI_VAL,
+                    nbr2local_buf, nbr2local_ptr, nbr2local_disp, SPLATT_MPI_VAL,
                     rinfo->layer_comm[m]);
       timer_stop(&timers[TIMER_MPI_COMM]);
     }

@@ -55,7 +55,7 @@ static void __mat_2norm(
       timer_stop(&timers[TIMER_MPI_IDLE]);
 
       timer_start(&timers[TIMER_MPI_COMM]);
-      MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+      MPI_Allreduce(mylambda, lambda, J, SPLATT_MPI_VAL, MPI_SUM, rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_COMM]);
       timer_stop(&timers[TIMER_MPI_NORM]);
 #else
@@ -119,7 +119,7 @@ static void __mat_maxnorm(
       timer_stop(&timers[TIMER_MPI_IDLE]);
 
       timer_start(&timers[TIMER_MPI_COMM]);
-      MPI_Allreduce(mylambda, lambda, J, SS_MPI_VAL, MPI_MAX, rinfo->comm_3d);
+      MPI_Allreduce(mylambda, lambda, J, SPLATT_MPI_VAL, MPI_MAX, rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_COMM]);
       timer_stop(&timers[TIMER_MPI_NORM]);
 #else
@@ -409,7 +409,7 @@ void mat_aTa(
   timer_stop(&timers[TIMER_MPI_IDLE]);
 
   timer_start(&timers[TIMER_MPI_COMM]);
-  MPI_Allreduce(thds[0].scratch[0], ret->vals, F * F, SS_MPI_VAL, MPI_SUM,
+  MPI_Allreduce(thds[0].scratch[0], ret->vals, F * F, SPLATT_MPI_VAL, MPI_SUM,
       rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_COMM]);
   timer_stop(&timers[TIMER_MPI_ATA]);

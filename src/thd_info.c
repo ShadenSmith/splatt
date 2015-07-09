@@ -184,7 +184,7 @@ void thd_times(
   idx_t const nthreads)
 {
   for(idx_t t=0; t < nthreads; ++t) {
-    printf("  thd: %"SS_IDX" %0.3fs\n", t, thds[t].ttime.seconds);
+    printf("  thd: %"SPLATT_PF_IDX" %0.3fs\n", t, thds[t].ttime.seconds);
   }
 }
 

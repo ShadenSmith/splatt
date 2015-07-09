@@ -273,14 +273,14 @@ void splatt_mpi_cpd_cmd(
   if(rinfo.rank == 0) {
     printf("Factoring "
            "------------------------------------------------------\n");
-    printf("NFACTORS=%"SS_IDX" MAXITS=%"SS_IDX" TOL=%0.1e ",
+    printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
         args.nfactors,
         (idx_t) args.opts[SPLATT_OPTION_NITER],
         args.opts[SPLATT_OPTION_TOLERANCE]);
     printf("RANKS=%d ", rinfo.npes);
-    printf("THREADS=%"SS_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
+    printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
     if((int) args.opts[SPLATT_OPTION_TILE] != SPLATT_NOTILE) {
-      printf("TILE=%"SS_IDX"x%"SS_IDX"x%"SS_IDX"\n",
+      printf("TILE=%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"\n",
         TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
     } else {
       printf("TILE=NO\n");
@@ -382,13 +382,13 @@ void splatt_cpd_cmd(
 
   printf("Factoring "
          "------------------------------------------------------\n");
-  printf("NFACTORS=%"SS_IDX" MAXITS=%"SS_IDX" TOL=%0.1e ",
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
       args.nfactors,
       (idx_t) args.opts[SPLATT_OPTION_NITER],
       args.opts[SPLATT_OPTION_TOLERANCE]);
-  printf("THREADS=%"SS_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
+  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
   if((int) args.opts[SPLATT_OPTION_TILE] != SPLATT_NOTILE) {
-    printf("TILE=%"SS_IDX"x%"SS_IDX"x%"SS_IDX"\n",
+    printf("TILE=%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"\n",
       TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
   } else {
     printf("TILE=NO\n");
