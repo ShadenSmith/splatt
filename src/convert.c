@@ -181,7 +181,7 @@ static void __convert_fib_hgraph(
   char const * const ofname)
 {
   ftensor_t ft;
-  ften_alloc(&ft, tt, mode, 0);
+  ften_alloc(&ft, tt, mode, SPLATT_NOTILE);
 
   hgraph_t * hg = hgraph_fib_alloc(&ft, mode);
   hgraph_write(hg, ofname);
