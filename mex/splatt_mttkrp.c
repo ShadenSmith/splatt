@@ -17,6 +17,9 @@ void mexFunction(
     int nrhs,
     mxArray const * prhs[])
 {
+  mexErrMsgTxt("splatt_mttkrp is not yet implemented.\n");
+  return;
+
   if(nrhs < 3) {
     mexErrMsgTxt("Missing arguments. See 'help splatt_mttkrp' for usage.\n");
     return;
