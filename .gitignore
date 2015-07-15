@@ -12,6 +12,7 @@ Makefile
 CMakeFiles/
 cmake_install.cmake
 
+tags
 src/tags
 
 a.out
