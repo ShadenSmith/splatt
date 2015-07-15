@@ -117,7 +117,7 @@ static void __convert_ijk_graph(
   idx_t nedges = 0;
   for(idx_t n=0; n < tt->nnz; ++n) {
     if(n % 100000 == 0) {
-      printf("n: %"SS_IDX"\n", n);
+      printf("n: %"SPLATT_PF_IDX"\n", n);
     }
     idx_t uoffset = 0;
     /* update each adj list */
@@ -139,17 +139,17 @@ static void __convert_ijk_graph(
   nedges /= 2;
 
   /* print header */
-  fprintf(fout, "%"SS_IDX" %"SS_IDX" 001\n", nvtxs, nedges);
+  fprintf(fout, "%"SPLATT_PF_IDX" %"SPLATT_PF_IDX" 001\n", nvtxs, nedges);
 
   /* now write adj list */
   for(idx_t u=0; u < nvtxs; ++u) {
     for(idx_t v=0; v < adjmkr[u]; ++v) {
-      fprintf(fout, "%"SS_IDX" %u ", 1+adj[u][v].v, adj[u][v].cnt);
+      fprintf(fout, "%"SPLATT_PF_IDX" %u ", 1+adj[u][v].v, adj[u][v].cnt);
     }
     fprintf(fout, "\n");
   }
 
-  printf("reallocs: %"SS_IDX"\n", nreallocs);
+  printf("reallocs: %"SPLATT_PF_IDX"\n", nreallocs);
 
   /* cleanup */
   if(ofname != NULL || strcmp(ofname, "-") != 0) {
@@ -180,13 +180,14 @@ static void __convert_fib_hgraph(
   idx_t const mode,
   char const * const ofname)
 {
-  ftensor_t * ft = ften_alloc(tt, mode, 0);
+  ftensor_t ft;
+  ften_alloc(&ft, tt, mode, SPLATT_NOTILE);
 
-  hgraph_t * hg = hgraph_fib_alloc(ft, mode);
+  hgraph_t * hg = hgraph_fib_alloc(&ft, mode);
   hgraph_write(hg, ofname);
 
   hgraph_free(hg);
-  ften_free(ft);
+  ften_free(&ft);
 }
 
 
@@ -205,13 +206,14 @@ static void __convert_fib_mat(
   idx_t const mode,
   char const * const ofname)
 {
-  ftensor_t * ft = ften_alloc(tt, mode, 0);
-  spmatrix_t * mat = ften_spmat(ft);
+  ftensor_t ft;
+  ften_alloc(&ft, tt, mode, 0);
+  spmatrix_t * mat = ften_spmat(&ft);
 
   spmat_write(mat, ofname);
 
   spmat_free(mat);
-  ften_free(ft);
+  ften_free(&ft);
 }
 
 

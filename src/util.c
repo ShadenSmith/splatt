@@ -28,6 +28,16 @@ idx_t rand_idx(void)
 }
 
 
+void fill_rand(
+  val_t * const restrict vals,
+  idx_t const nelems)
+{
+  for(idx_t i=0; i < nelems; ++i) {
+    vals[i] = rand_val();
+  }
+}
+
+
 char * bytes_str(
   idx_t const bytes)
 {
@@ -40,7 +50,7 @@ char * bytes_str(
   }
   char * ret = NULL;
   if(asprintf(&ret, "%0.2f%s", size, suffix[suff]) == -1) {
-    fprintf(stderr, "SPLATT: asprintf failed with%"SS_IDX" bytes.\n", bytes);
+    fprintf(stderr, "SPLATT: asprintf failed with%"SPLATT_PF_IDX" bytes.\n", bytes);
     ret = NULL;
   }
   return ret;

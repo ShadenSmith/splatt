@@ -7,33 +7,7 @@
 /******************************************************************************
  * STRUCTURES
  *****************************************************************************/
-typedef struct
-{
-  idx_t nnz;
-  idx_t nmodes;
-  idx_t dims[MAX_NMODES];
-
-  /* Perm is a list of modes, starting with the mode we are operating on.
-   * The first m-1 modes are used to define fibers.
-   */
-  idx_t dim_perms[MAX_NMODES];
-
-  idx_t  nslcs;
-  idx_t  nfibs;
-  idx_t * sptr;
-  idx_t * sids;
-  idx_t * fptr;
-  idx_t * fids;
-  idx_t * inds;
-  val_t * vals;
-
-  idx_t * indmap; /** Maps local -> global indices. */
-
-  /* structures for tiled tensors */
-  int tiled;
-  idx_t    nslabs;
-  idx_t * slabptr;
-} ftensor_t;
+#define ftensor_t splatt_csf_t
 
 
 /* 1 selects longer fiber direction, 0 chooses short fibers */
@@ -55,18 +29,22 @@ typedef struct
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 #define ften_alloc splatt_ften_alloc
-ftensor_t * ften_alloc(
+void ften_alloc(
+  ftensor_t * const ft,
   sptensor_t * const tt,
   idx_t const mode,
   int const tile);
+
 
 #define ften_spmat splatt_ften_spmat
 spmatrix_t * ften_spmat(
   ftensor_t * ft);
 
+
 #define ften_free splatt_ften_free
 void ften_free(
-  ftensor_t * ft);
+  ftensor_t * const ft);
+
 
 #define fib_mode_order splatt_fib_mode_order
 void fib_mode_order(

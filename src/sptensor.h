@@ -79,6 +79,16 @@ sptensor_t * tt_alloc(
 
 
 
+#define tt_fill splatt_tt_fill
+void tt_fill(
+  sptensor_t * const tt,
+  idx_t const nnz,
+  idx_t const nmodes,
+  idx_t ** const inds,
+  val_t * const vals);
+
+
+
 #define tt_get_slices splatt_tt_get_slices
 /**
 * @brief Return a list of unique slice ids found in mode m. Slice i will be

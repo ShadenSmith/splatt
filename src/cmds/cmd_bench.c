@@ -253,7 +253,7 @@ void splatt_bench(
   opts.threads = __mkthreads(args.nthreads, args.scale, &opts.nruns);
 
   printf("Benchmarking ---------------------------------------------------\n");
-  printf("RANK=%"SS_IDX" ITS=%"SS_IDX"\n", args.rank, args.niters);
+  printf("RANK=%"SPLATT_PF_IDX" ITS=%"SPLATT_PF_IDX"\n", args.rank, args.niters);
 
   for(int a=0; a < ALG_NALGS; ++a) {
     if(args.which[a]) {

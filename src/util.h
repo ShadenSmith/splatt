@@ -31,6 +31,18 @@ val_t rand_val(void);
 idx_t rand_idx(void);
 
 
+#define fill_rand splatt_fill_rand
+/**
+* @brief Fill a val_t array with random values.
+*
+* @param vals The array of values to fill
+* @param nelems The length of the array.
+*/
+void fill_rand(
+  val_t * const restrict vals,
+  idx_t const nelems);
+
+
 #define bytes_str splatt_bytes_str
 /**
 * @brief Return a string describing a human-readable number of bytes.

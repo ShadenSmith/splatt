@@ -211,7 +211,7 @@ sptensor_t * tt_alloc(
   idx_t const nmodes)
 {
   sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
-  tt->tiled = 0;
+  tt->tiled = SPLATT_NOTILE;
 
   tt->nnz = nnz;
   tt->vals = (val_t*) malloc(nnz * sizeof(val_t));
@@ -228,6 +228,35 @@ sptensor_t * tt_alloc(
 
   return tt;
 }
+
+
+void tt_fill(
+  sptensor_t * const tt,
+  idx_t const nnz,
+  idx_t const nmodes,
+  idx_t ** const inds,
+  val_t * const vals)
+{
+  tt->tiled = SPLATT_NOTILE;
+  tt->nnz = nnz;
+  tt->vals = vals;
+  tt->ind = inds;
+
+  tt->nmodes = nmodes;
+  tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
+
+  tt->dims = (idx_t*) malloc(nmodes * sizeof(idx_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    tt->indmap[m] = NULL;
+
+    tt->dims[m] = inds[m][0];
+    for(idx_t i=1; i < nnz; ++i) {
+      tt->dims[m] = SS_MAX(tt->dims[m], inds[m][i]);
+    }
+  }
+}
+
+
 
 void tt_free(
   sptensor_t * tt)

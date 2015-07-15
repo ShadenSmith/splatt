@@ -10,9 +10,58 @@
 
 
 /******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+int splatt_mttkrp(
+    splatt_idx_t const mode,
+    splatt_idx_t const ncolumns,
+    splatt_csf_t const * const tensor,
+    splatt_val_t ** matrices,
+    splatt_val_t * const matout,
+    double const * const options)
+{
+  idx_t const nmodes = tensor->nmodes;
+
+  /* fill matrix pointers  */
+  matrix_t * mats[MAX_NMODES+1];
+  for(idx_t m=0; m < nmodes; ++m) {
+    mats[m] = (matrix_t *) malloc(sizeof(matrix_t));
+    mats[m]->I = tensor->dims[m];
+    mats[m]->J = ncolumns,
+    mats[m]->rowmajor = 1;
+    mats[m]->vals = matrices[m];
+  }
+  mats[MAX_NMODES] = (matrix_t *) malloc(sizeof(matrix_t));
+  mats[MAX_NMODES]->I = tensor->dims[mode];
+  mats[MAX_NMODES]->J = ncolumns;
+  mats[MAX_NMODES]->rowmajor = 1;
+  mats[MAX_NMODES]->vals = matout;
+
+  /* Setup thread structures. + 64 bytes is to avoid false sharing. */
+  idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
+  omp_set_num_threads(nthreads);
+  thd_info * thds =  thd_init(nthreads, 2,
+    (ncolumns * ncolumns * sizeof(val_t)) + 64,
+    TILE_SIZES[0] * ncolumns * sizeof(val_t) + 64);
+
+  /* do the MTTKRP */
+  mttkrp_splatt(tensor, mats, mode, thds, nthreads);
+
+  /* cleanup */
+  thd_free(thds, nthreads);
+  for(idx_t m=0; m < nmodes; ++m) {
+    free(mats[m]);
+  }
+  free(mats[MAX_NMODES]);
+
+  return SPLATT_SUCCESS;
+}
+
+
+
+/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-
 
 /******************************************************************************
  * SPLATT MTTKRP
@@ -24,14 +73,14 @@ void mttkrp_splatt(
   thd_info * const thds,
   idx_t const nthreads)
 {
-  if(ft->tiled) {
+  if(ft->tiled == SPLATT_COOPTILE) {
     mttkrp_splatt_coop_tiled(ft, mats, mode, thds, nthreads);
     return;
   }
 
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[1]];
-  matrix_t const * const B = mats[ft->dim_perms[2]];
+  matrix_t const * const A = mats[ft->dim_perm[1]];
+  matrix_t const * const B = mats[ft->dim_perm[2]];
   idx_t const nslices = ft->dims[mode];
   idx_t const rank = M->J;
 
@@ -98,8 +147,8 @@ void mttkrp_splatt_tiled(
   idx_t const nthreads)
 {
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[1]];
-  matrix_t const * const B = mats[ft->dim_perms[2]];
+  matrix_t const * const A = mats[ft->dim_perm[1]];
+  matrix_t const * const B = mats[ft->dim_perm[2]];
 
   idx_t const nslabs = ft->nslabs;
   idx_t const rank = M->J;
@@ -166,8 +215,8 @@ void mttkrp_splatt_coop_tiled(
   idx_t const nthreads)
 {
   matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perms[1]];
-  matrix_t const * const B = mats[ft->dim_perms[2]];
+  matrix_t const * const A = mats[ft->dim_perm[1]];
+  matrix_t const * const B = mats[ft->dim_perm[2]];
 
   idx_t const nslabs = ft->nslabs;
   idx_t const rank = M->J;

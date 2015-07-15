@@ -81,7 +81,7 @@ static void __reorder_slices(
     }
   }
 
-  printf("placed: %"SS_IDX"\n", sliceptr);
+  printf("placed: %"SPLATT_PF_IDX"\n", sliceptr);
   /* place untouched slices at end of permutation */
   for(idx_t s=0; s < nslices; ++s) {
     if(sliceperm[s] == nslices) {
@@ -106,7 +106,7 @@ static void __reorder_fibs(
   permutation_t * const perm,
   idx_t const mode)
 {
-  idx_t const pm = ft->dim_perms[1];
+  idx_t const pm = ft->dim_perm[1];
   idx_t const nslices = ft->dims[mode];
   idx_t const nfids = ft->dims[pm];
   idx_t const nfibs = ft->nfibs;
@@ -163,7 +163,7 @@ static void __reorder_fibs(
   }
 
   /* place untouched slices at end of permutation */
-  printf("placed: %"SS_IDX"\n", fidptr);
+  printf("placed: %"SPLATT_PF_IDX"\n", fidptr);
   for(idx_t s=0; s < nfids; ++s) {
     if(fidperm[s] == nfids) {
       fidiperm[fidptr] = s;
@@ -186,12 +186,12 @@ static void __reorder_inds(
   permutation_t * const perm,
   idx_t const mode)
 {
-  idx_t const pm = ft->dim_perms[2];
+  idx_t const pm = ft->dim_perm[2];
   idx_t * const indperm  = perm->perms[pm];
   idx_t * const indiperm = perm->iperms[pm];
 
   idx_t const nslices = ft->dims[mode];
-  idx_t const nfids = ft->dims[ft->dim_perms[1]];
+  idx_t const nfids = ft->dims[ft->dim_perm[1]];
   idx_t const ninds = ft->dims[pm];
   idx_t const nfibs = ft->nfibs;
   idx_t const * const fptr = ft->fptr;
@@ -250,7 +250,7 @@ static void __reorder_inds(
   }
 
   /* place untouched slices at end of permutation */
-  printf("placed: %"SS_IDX"\n", indptr);
+  printf("placed: %"SPLATT_PF_IDX"\n", indptr);
   for(idx_t s=0; s < ninds; ++s) {
     if(indperm[s] == ninds) {
       indiperm[indptr] = s;
@@ -284,7 +284,7 @@ permutation_t * tt_perm(
   idx_t nvtxs = 0;
   idx_t * parts = NULL;
   idx_t nparts = 0;
-  ftensor_t * ft = NULL;
+  ftensor_t ft;
 
   permutation_t * perm = NULL;
   switch(type) {
@@ -300,10 +300,10 @@ permutation_t * tt_perm(
     break;
 
   case PERM_HGRAPH:
-    ft = ften_alloc(tt, mode, 0);
-    parts = part_read(pfile, ft->nfibs, &nparts);
-    perm = perm_hgraph(tt, ft, parts, nparts, mode);
-    ften_free(ft);
+    ften_alloc(&ft, tt, mode, 0);
+    parts = part_read(pfile, ft.nfibs, &nparts);
+    perm = perm_hgraph(tt, &ft, parts, nparts, mode);
+    ften_free(&ft);
     break;
   default:
     break;
@@ -376,13 +376,13 @@ permutation_t * perm_hgraph(
     nhedges += ft->dims[m];
   }
 
-  printf("nvtxs: %"SS_IDX" nhedges: %"SS_IDX"  nparts: %"SS_IDX"\n",
+  printf("nvtxs: %"SPLATT_PF_IDX" nhedges: %"SPLATT_PF_IDX"  nparts: %"SPLATT_PF_IDX"\n",
     nvtxs, nhedges, nparts);
 
   idx_t ncut = 0;
   idx_t * uncuts  = hgraph_uncut(hg, parts, &ncut);
   hgraph_free(hg);
-  printf("cut: %"SS_IDX"  notcut: %"SS_IDX"\n", nhedges - ncut, ncut);
+  printf("cut: %"SPLATT_PF_IDX"  notcut: %"SPLATT_PF_IDX"\n", nhedges - ncut, ncut);
 
   idx_t nslices = 0;
   idx_t nfibs = 0;
@@ -390,13 +390,13 @@ permutation_t * perm_hgraph(
   for(idx_t n=0; n < ncut; ++n) {
     if(uncuts[n] < ft->dims[mode]) {
       ++nslices;
-    } else if(uncuts[n] < ft->dims[mode] + ft->dims[ft->dim_perms[1]]) {
+    } else if(uncuts[n] < ft->dims[mode] + ft->dims[ft->dim_perm[1]]) {
       ++nfibs;
     } else {
       ++ninds;
     }
   }
-  printf("slices: %"SS_IDX"  fibs: %"SS_IDX"  inds: %"SS_IDX"\n", nslices, nfibs, ninds);
+  printf("slices: %"SPLATT_PF_IDX"  fibs: %"SPLATT_PF_IDX"  inds: %"SPLATT_PF_IDX"\n", nslices, nfibs, ninds);
 
   __reorder_slices(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
   __reorder_fibs(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
@@ -429,7 +429,7 @@ permutation_t * perm_graph(
       perm->iperms[m][n] = dims[m];
     }
   }
-  printf("nvtxs: %"SS_IDX" nparts: %"SS_IDX"\n", nvtxs, nparts);
+  printf("nvtxs: %"SPLATT_PF_IDX" nparts: %"SPLATT_PF_IDX"\n", nvtxs, nparts);
 
   idx_t * pptr = NULL;
   idx_t * plookup = NULL;

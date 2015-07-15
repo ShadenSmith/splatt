@@ -14,7 +14,6 @@
 #include "../util.h"
 #include "../timer.h"
 
-
 /******************************************************************************
  * SPLATT CPD
  *****************************************************************************/
@@ -41,12 +40,48 @@ static struct argp_option cpd_options[] = {
 };
 
 
+typedef struct
+{
+  char * ifname;   /** file that we read the tensor from */
+  int write;       /** do we write output to file? */
+  double * opts;   /** splatt_cpd options */
+  idx_t nfactors;
+#ifdef SPLATT_USE_MPI
+  int distribution;
+  int mpi_dims[MAX_NMODES];
+#endif
+} cpd_cmd_args;
+
+
+/**
+* @brief Fill a cpd_opts struct with default values.
+*
+* @param args The cpd_opts struct to fill.
+*/
+void default_cpd_opts(
+  cpd_cmd_args * args)
+{
+  args->opts = splatt_default_opts();
+  args->ifname    = NULL;
+  args->write     = DEFAULT_WRITE;
+  args->nfactors  = DEFAULT_NFACTORS;
+
+#ifdef SPLATT_USE_MPI
+  args->distribution = DEFAULT_MPI_DISTRIBUTION;
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    args->mpi_dims[m] = 1;
+  }
+#endif
+}
+
+
+
 static error_t parse_cpd_opt(
   int key,
   char * arg,
   struct argp_state * state)
 {
-  cpd_opts *args = state->input;
+  cpd_cmd_args * args = state->input;
   char * buf;
   int cnt = 0;
 
@@ -56,27 +91,27 @@ static error_t parse_cpd_opt(
   }
 
   switch(key) {
-  case TT_NOWRITE:
-    args->write = 0;
-    break;
   case 'i':
-    args->niters = atoi(arg);
+    args->opts[SPLATT_OPTION_NITER] = (double) atoi(arg);
     break;
   case TT_TOL:
-    args->tol = atof(arg);
-    break;
-  case 'r':
-    args->rank = atoi(arg);
+    args->opts[SPLATT_OPTION_TOLERANCE] = atof(arg);
     break;
   case 't':
-    args->nthreads = atoi(arg);
+    args->opts[SPLATT_OPTION_NTHREADS] = (double) atoi(arg);
     break;
   case 'v':
     timer_inc_verbose();
-    args->verbose = 1;
+    args->opts[SPLATT_OPTION_VERBOSITY] += 1;
     break;
   case TT_TILE:
-    args->tile = 1;
+    args->opts[SPLATT_OPTION_TILE] = SPLATT_COOPTILE;
+    break;
+  case TT_NOWRITE:
+    args->write = 0;
+    break;
+  case 'r':
+    args->nfactors = atoi(arg);
     break;
 #ifdef SPLATT_USE_MPI
   case 'd':
@@ -109,52 +144,44 @@ static struct argp cpd_argp =
   {cpd_options, parse_cpd_opt, cpd_args_doc, cpd_doc};
 
 
-
-/******************************************************************************
- * SPLATT-CPD
- *****************************************************************************/
-void splatt_cpd_cmd(
+#ifdef SPLATT_USE_MPI
+void splatt_mpi_cpd_cmd(
   int argc,
   char ** argv)
 {
   /* assign defaults and parse arguments */
-  cpd_opts args;
+  cpd_cmd_args args;
   default_cpd_opts(&args);
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
   sptensor_t * tt = NULL;
-  ftensor_t * ft[MAX_NMODES];
 
   rank_info rinfo;
-#ifdef SPLATT_USE_MPI
   MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
   MPI_Comm_size(MPI_COMM_WORLD, &rinfo.npes);
 
   rinfo.distribution = args.distribution;
-  for(idx_t d=0; d < args.distribution; ++d) {
+  for(int d=0; d < args.distribution; ++d) {
     rinfo.dims_3d[d] = SS_MAX(args.mpi_dims[d], 1);
   }
-#else
-  rinfo.rank = 0;
-#endif
 
   if(rinfo.rank == 0) {
     print_header();
   }
 
-#ifdef SPLATT_USE_MPI
   tt = mpi_tt_read(args.ifname, &rinfo);
+  ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
 
   /* In the default setting, mpi_tt_read will set rinfo distribution.
    * Copy that back into args. TODO: make this less dumb. */
   args.distribution = rinfo.distribution;
-  for(idx_t m=0; m < args.distribution; ++m) {
+  for(int m=0; m < args.distribution; ++m) {
     args.mpi_dims[m] = rinfo.dims_3d[m];
   }
 
   /* print stats */
   if(rinfo.rank == 0) {
-    mpi_global_stats(tt, &rinfo, &args);
+    mpi_global_stats(tt, &rinfo, args.ifname);
   }
 
   /* determine matrix distribution - this also calls tt_remove_empty() */
@@ -175,12 +202,12 @@ void splatt_cpd_cmd(
       assert(tt_filtered->dims[m] == rinfo.mat_end[m] - rinfo.mat_start[m]);
 
       mpi_find_owned(tt, m, &rinfo);
-      mpi_compute_ineed(&rinfo, tt, m, args.rank, 1);
+      mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 1);
 
-      ft[m] = ften_alloc(tt_filtered, m, args.tile);
+      ften_alloc(ft + m, tt_filtered, m, (int) args.opts[SPLATT_OPTION_TILE]);
       /* sanity check on nnz */
       idx_t totnnz;
-      MPI_Reduce(&ft[m]->nnz, &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
+      MPI_Reduce(&ft[m].nnz, &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
           MPI_COMM_WORLD);
       if(rinfo.rank == 0) {
         assert(totnnz == rinfo.global_nnz);
@@ -198,23 +225,13 @@ void splatt_cpd_cmd(
       /* index into local tensor to grab owned rows */
       mpi_find_owned(tt, m, &rinfo);
       /* determine isend and ineed lists */
-      mpi_compute_ineed(&rinfo, tt, m, args.rank, 3);
+      mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 3);
       /* fill each ftensor */
-      ft[m] = ften_alloc(tt, m, args.tile);
+      ften_alloc(ft + m, tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
     }
   } /* end 3D distribution */
 
-  mpi_rank_stats(tt, &rinfo, &args);
-#else
-  tt = tt_read(args.ifname);
-  tt_remove_empty(tt);
-  stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
-
-  /* fill each ftensor */
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ft[m] = ften_alloc(tt, m, args.tile);
-  }
-#endif
+  mpi_rank_stats(tt, &rinfo);
 
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
@@ -227,28 +244,24 @@ void splatt_cpd_cmd(
   for(idx_t m=0; m < nmodes; ++m) {
     /* ft[:] have different dimensionalities for 1/2D but ft[m+1] is guaranteed
      * to have the full dimensionality */
-    mats[m] = mat_rand(ft[(m+1) % nmodes]->dims[m], args.rank);
-    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes]->dims[m]);
+    mats[m] = mat_rand(ft[(m+1) % nmodes].dims[m], args.nfactors);
+    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes].dims[m]);
 
     /* for actual factor matrix */
-#ifdef SPLATT_USE_MPI
-    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m], args.rank);
-#else
-    globmats[m] = mats[m];
-#endif
+    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m],
+        args.nfactors);
   }
-  mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
+  mats[MAX_NMODES] = mat_alloc(max_dim, args.nfactors);
 
-  val_t * lambda = (val_t *) malloc(args.rank * sizeof(val_t));
+  val_t * lambda = (val_t *) malloc(args.nfactors * sizeof(val_t));
 
   /* find total storage */
   unsigned long fbytes = 0;
   unsigned long mbytes = 0;
   for(idx_t m=0; m < nmodes; ++m) {
-    fbytes += ften_storage(ft[m]);
-    mbytes += ft[m]->dims[m] * args.rank * sizeof(val_t);
+    fbytes += ften_storage(&(ft[m]));
+    mbytes += ft[m].dims[m] * args.nfactors * sizeof(val_t);
   }
-#ifdef SPLATT_USE_MPI
   /* get storage across all nodes */
   if(rinfo.rank == 0) {
     MPI_Reduce(MPI_IN_PLACE, &fbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
@@ -256,19 +269,18 @@ void splatt_cpd_cmd(
   } else {
     MPI_Reduce(&fbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   }
-#endif
 
   if(rinfo.rank == 0) {
     printf("Factoring "
            "------------------------------------------------------\n");
-    printf("NFACTORS=%"SS_IDX" MAXITS=%"SS_IDX" TOL=%0.1e ", args.rank,
-        args.niters, args.tol);
-#ifdef SPLATT_USE_MPI
+    printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
+        args.nfactors,
+        (idx_t) args.opts[SPLATT_OPTION_NITER],
+        args.opts[SPLATT_OPTION_TOLERANCE]);
     printf("RANKS=%d ", rinfo.npes);
-#endif
-    printf("THREADS=%"SS_IDX" ", args.nthreads);
-    if(args.tile == 1) {
-      printf("TILE=%"SS_IDX"x%"SS_IDX"x%"SS_IDX"\n",
+    printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
+    if((int) args.opts[SPLATT_OPTION_TILE] != SPLATT_NOTILE) {
+      printf("TILE=%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"\n",
         TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
     } else {
       printf("TILE=NO\n");
@@ -282,38 +294,135 @@ void splatt_cpd_cmd(
   }
 
   /* do the factorization! */
-  cpd_als(ft, mats, globmats, lambda, &rinfo, &args);
+  cpd_als(ft, mats, globmats, lambda, args.nfactors, &rinfo, args.opts);
 
   /* free up the ftensor allocations */
   for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(ft[m]);
+    ften_free(&(ft[m]));
   }
+  free(ft);
 
   /* write output */
   if(args.write == 1) {
-#ifndef SPLATT_USE_MPI
-    mat_write(globmats[0], "mode1.mat");
-    mat_write(globmats[1], "mode2.mat");
-    mat_write(globmats[2], "mode3.mat");
-#else
     mpi_write_mats(globmats, perm, &rinfo, "mode", nmodes);
-#endif
-    vec_write(lambda, args.rank, "lambda.mat");
+    vec_write(lambda, args.nfactors, "lambda.mat");
   }
 
   /* free factor matrix allocations */
   for(idx_t m=0;m < nmodes; ++m) {
     mat_free(mats[m]);
-#ifdef SPLATT_USE_MPI
     mat_free(globmats[m]);
-#endif
   }
   mat_free(mats[MAX_NMODES]);
   free(lambda);
+  free(args.opts);
 
-#ifdef SPLATT_USE_MPI
   perm_free(perm);
   rank_free(rinfo, nmodes);
+}
 #endif
+
+
+/******************************************************************************
+ * SPLATT-CPD
+ *****************************************************************************/
+void splatt_cpd_cmd(
+  int argc,
+  char ** argv)
+{
+  /* assign defaults and parse arguments */
+  cpd_cmd_args args;
+  default_cpd_opts(&args);
+  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+
+  sptensor_t * tt = NULL;
+
+  rank_info rinfo;
+  rinfo.rank = 0;
+  print_header();
+
+  tt = tt_read(args.ifname);
+  if(tt == NULL) {
+    return;
+  }
+  tt_remove_empty(tt);
+  stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+
+  ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
+
+  /* fill each ftensor */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ften_alloc(ft + m, tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
+  }
+
+  idx_t const nmodes = tt->nmodes;
+  tt_free(tt);
+
+  /* allocate / initialize matrices */
+  idx_t max_dim = 0;
+  /* M, the result matrix is stored at mats[MAX_NMODES] */
+  matrix_t * mats[MAX_NMODES+1];
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* ft[:] have different dimensionalities for 1/2D but ft[m+1] is guaranteed
+     * to have the full dimensionality */
+    mats[m] = mat_rand(ft[(m+1) % nmodes].dims[m], args.nfactors);
+    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes].dims[m]);
+  }
+  mats[MAX_NMODES] = mat_alloc(max_dim, args.nfactors);
+
+  val_t * lambda = (val_t *) malloc(args.nfactors * sizeof(val_t));
+
+  /* find total storage */
+  unsigned long fbytes = 0;
+  unsigned long mbytes = 0;
+  for(idx_t m=0; m < nmodes; ++m) {
+    fbytes += ften_storage(&(ft[m]));
+    mbytes += ft[m].dims[m] * args.nfactors * sizeof(val_t);
+  }
+
+  printf("Factoring "
+         "------------------------------------------------------\n");
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
+      args.nfactors,
+      (idx_t) args.opts[SPLATT_OPTION_NITER],
+      args.opts[SPLATT_OPTION_TOLERANCE]);
+  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
+  if((int) args.opts[SPLATT_OPTION_TILE] != SPLATT_NOTILE) {
+    printf("TILE=%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"\n",
+      TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
+  } else {
+    printf("TILE=NO\n");
+  }
+  char * fstorage = bytes_str(fbytes);
+  char * mstorage = bytes_str(mbytes);
+  printf("CSF-STORAGE=%s FACTOR-STORAGE=%s", fstorage, mstorage);
+  free(fstorage);
+  free(mstorage);
+  printf("\n\n");
+
+  /* do the factorization! */
+  cpd_als(ft, mats, mats, lambda, args.nfactors, &rinfo, args.opts);
+
+  /* free up the ftensor allocations */
+  for(idx_t m=0; m < nmodes; ++m) {
+    ften_free(&ft[m]);
+  }
+  free(ft);
+  free(args.opts);
+
+  /* write output */
+  if(args.write == 1) {
+    mat_write(mats[0], "mode1.mat");
+    mat_write(mats[1], "mode2.mat");
+    mat_write(mats[2], "mode3.mat");
+    vec_write(lambda, args.nfactors, "lambda.mat");
+  }
+
+  /* free factor matrix allocations */
+  for(idx_t m=0;m < nmodes; ++m) {
+    mat_free(mats[m]);
+  }
+  mat_free(mats[MAX_NMODES]);
+  free(lambda);
 }
 

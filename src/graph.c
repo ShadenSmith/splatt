@@ -11,70 +11,58 @@
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
-#if 0
-static void __fill_emap(
-  ftensor_t ** ft,
-  hgraph_t * const hg,
-  idx_t const mode,
-  idx_t ** emaps)
-{
-  hg->nhedges = 0;
-  idx_t h = 0;
-  idx_t const nmodes = ft[0]->nmodes;
-  for(idx_t m=0; m < nmodes; ++m) {
-    idx_t pm = ft->dim_perms[mode][m];
-    emaps[m] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
-    memset(emaps[m], 0, ft->dims[pm]);
 
-    for(idx_t s=0; s < ft->dims[pm]; ++s) {
-      /* if slice is non-empty */
-      if(ft->sptr[pm][s] != ft->sptr[pm][s+1]) {
-        emaps[m][s] = h++;
-        ++(hg->nhedges);
-      } else {
-        emaps[m][s] = -1;
-      }
-    }
-  }
-}
-
-static void __fill_emap_fibonly(
-  ftensor_t const * const ft,
-  hgraph_t * const hg,
-  idx_t const mode,
-  idx_t ** emaps)
-{
-  for(idx_t m=0; m < ft->nmodes; ++m) {
-    emaps[m] = NULL;
-  }
-
-  hg->nhedges = 0;
-  idx_t const pm = ft->dim_perms[mode][2];
-  emaps[2] = (idx_t *) malloc(ft->dims[pm] * sizeof(idx_t));
-  memset(emaps[2], 0, ft->dims[pm]);
-  idx_t h = 0;
-  for(idx_t s=0; s < ft->dims[pm]; ++s) {
-    /* if slice is non-empty */
-    if(ft->sptr[pm][s] != ft->sptr[pm][s+1]) {
-      emaps[2][s] = h++;
-      ++(hg->nhedges);
-    } else {
-      emaps[2][s] = -1;
-    }
-  }
-}
-#endif
-
+/**
+* @brief Fill the vertex weights array.
+*
+* @param ft The CSF tensor to derive vertex weights from.
+* @param hg The hypegraph structure to modify.
+* @param which Vertex weight model to follow, see graph.h.
+*/
 static void __fill_vwts(
   ftensor_t const * const ft,
-  hgraph_t * const hg)
+  hgraph_t * const hg,
+  hgraph_vwt_type const which)
 {
-  hg->vwts = (idx_t *) malloc(hg->nvtxs * sizeof(idx_t));
-  for(idx_t v=0; v < hg->nvtxs; ++v) {
-    hg->vwts[v] = ft->fptr[v+1] - ft->fptr[v];
+  switch(which) {
+  case VTX_WT_NONE:
+    hg->vwts = NULL;
+    break;
+
+  /* weight based on nnz in fiber */
+  case VTX_WT_FIB_NNZ:
+    hg->vwts = (idx_t *) malloc(hg->nvtxs * sizeof(idx_t));
+    #pragma omp parallel for
+    for(idx_t v=0; v < hg->nvtxs; ++v) {
+      hg->vwts[v] = ft->fptr[v+1] - ft->fptr[v];
+    }
   }
 }
 
+
+/**
+* @brief Maps an index in a mode of a permuted CSF tensor to a global vertex
+*        index. This accounts for the mode permutation using the CSF dim-perm.
+*
+* @param id The index we are converting (local to the mode).
+* @param mode The mode the index lies in (LOCAL TO THE CSF TENSOR).
+*             EXAMPLE: a 3 mode tensor would use mode-0 to represent slices,
+*             mode-1 to represent fids, and mode-2 to represent the fiber nnz
+* @param ft The CSF tensor with dim_perm.
+*
+* @return 'id', converted to global vertex indices. EXAMPLE: k -> (I+J+k).
+*/
+static idx_t __map_idx(
+  idx_t id,
+  idx_t const mode,
+  ftensor_t const * const ft)
+{
+  idx_t m = 0;
+  while(m != ft->dim_perm[mode]) {
+    id += ft->dims[m++];
+  }
+  return id;
+}
 
 
 /******************************************************************************
@@ -85,73 +73,68 @@ hgraph_t * hgraph_fib_alloc(
   idx_t const mode)
 {
   hgraph_t * hg = (hgraph_t *) malloc(sizeof(hgraph_t));
-  hg->nvtxs = ft->nfibs;
-  hg->vwts = NULL;
-  hg->hewts = NULL;
 
   /* vertex weights are nnz per fiber */
-  __fill_vwts(ft, hg);
+  hg->nvtxs = ft->nfibs;
+  __fill_vwts(ft, hg, VTX_WT_FIB_NNZ);
 
-  /* count hedges and map ind to hedge - this is necessary because empty
-   * slices are possible */
-  idx_t * emaps[MAX_NMODES];
-#if 0
-  /* XXX: TODO */
-  __fill_emap(ft, hg, mode, emaps);
-#endif
+  /* # hyper-edges = I + J + K + ... */
+  hg->hewts = NULL;
+  hg->nhedges = 0;
+  for(idx_t m=0; m < ft->nmodes; ++m) {
+    hg->nhedges += ft->dims[m];
+  }
 
-  /* a) each nnz induces a hyperedge connection
-     b) each non-fiber mode accounts for a hyperedge connection */
-  idx_t neind = ft->nnz + ((ft->nmodes-1) * hg->nvtxs);
-  hg->eptr = (idx_t *) malloc((hg->nhedges+1) * sizeof(idx_t));
-  memset(hg->eptr, 0, (hg->nhedges+1) * sizeof(idx_t));
-  hg->eind = (idx_t *) malloc(neind * sizeof(idx_t));
+  /* fill in eptr shifted by 1 idx:
+   *   a) each nnz induces a hyperedge connection
+   *   b) each non-fiber mode accounts for a hyperedge connection
+   */
+  hg->eptr = (idx_t *) calloc(hg->nhedges+1, sizeof(idx_t));
+  idx_t * const restrict eptr = hg->eptr;
+  for(idx_t s=0; s < ft->nslcs; ++s) {
+    /* the slice hyperedge has nfibers more connections */
+    eptr[1+__map_idx(s, 0, ft)] += ft->sptr[s+1] - ft->sptr[s];
 
-  /* fill in eptr - all offset by 1 to do a prefix sum later */
-  for(idx_t s=0; s < ft->dims[mode]; ++s) {
-    /* slice hyperedge */
-    idx_t hs = emaps[0][s];
-    hg->eptr[hs+1] = ft->sptr[s+1] - ft->sptr[s];
-    for(idx_t f = ft->sptr[s]; f < ft->sptr[s+1]; ++f) {
-      idx_t hfid = emaps[1][ft->fids[f]];
-      hg->eptr[hfid+1] += 1;
-      for(idx_t jj= ft->fptr[f]; jj < ft->fptr[f+1]; ++jj) {
-        idx_t hjj = emaps[2][ft->inds[jj]];
-        hg->eptr[hjj+1] += 1;
+    for(idx_t f=ft->sptr[s]; f < ft->sptr[s+1]; ++f) {
+      /* fiber makes another connection with fid */
+      eptr[1+__map_idx(ft->fids[f], 1, ft)] += 1;
+
+      /* each nnz now has a contribution too */
+      for(idx_t jj=ft->fptr[f]; jj < ft->fptr[f+1]; ++jj) {
+        eptr[1+__map_idx(ft->inds[jj], 2, ft)] += 1;
       }
     }
   }
 
   /* do a shifted prefix sum to get eptr */
-  idx_t saved = hg->eptr[1];
-  hg->eptr[1] = 0;
+  idx_t saved = eptr[1];
+  eptr[1] = 0;
   for(idx_t i=2; i <= hg->nhedges; ++i) {
-    idx_t tmp = hg->eptr[i];
-    hg->eptr[i] = hg->eptr[i-1] + saved;
+    idx_t tmp = eptr[i];
+    eptr[i] = eptr[i-1] + saved;
     saved = tmp;
   }
 
+  hg->eind = (idx_t *) malloc(eptr[hg->nhedges] * sizeof(idx_t));
+  idx_t * const restrict eind = hg->eind;
+
   /* now fill in eind while using eptr as a marker */
-  idx_t vtx = 0;
-  for(idx_t s=0; s < ft->dims[mode]; ++s) {
-    idx_t hs = emaps[0][s];
+  for(idx_t s=0; s < ft->nslcs; ++s) {
+    idx_t const sid = __map_idx(s, 0, ft);
     for(idx_t f = ft->sptr[s]; f < ft->sptr[s+1]; ++f) {
-      idx_t hfid = emaps[1][ft->fids[f]];
-      hg->eind[hg->eptr[hs+1]++]   = vtx;
-      hg->eind[hg->eptr[hfid+1]++] = vtx;
-      for(idx_t jj= ft->fptr[f]; jj < ft->fptr[f+1]; ++jj) {
-        idx_t hjj = emaps[2][ft->inds[jj]];
-        hg->eind[hg->eptr[hjj+1]++] = vtx;
+      idx_t const fid = __map_idx(ft->fids[f], 1, ft);
+      eind[eptr[1+sid]++] = f;
+      eind[eptr[1+fid]++] = f;
+      for(idx_t jj=ft->fptr[f]; jj < ft->fptr[f+1]; ++jj) {
+        idx_t const nid = __map_idx(ft->inds[jj], 2, ft);
+        eind[eptr[1+nid]++] = f;
       }
-      ++vtx;
     }
   }
 
-  for(idx_t m=0; m < ft->nmodes; ++m) {
-    free(emaps[m]);
-  }
   return hg;
 }
+
 
 idx_t * hgraph_uncut(
   hgraph_t const * const hg,
@@ -201,6 +184,7 @@ idx_t * hgraph_uncut(
 
   return cut;
 }
+
 
 
 void hgraph_free(

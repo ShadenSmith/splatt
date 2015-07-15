@@ -9,7 +9,6 @@
 #include <argp.h>
 
 
-
 /******************************************************************************
  * PRIVATE STRUCTURES
  *****************************************************************************/
@@ -56,7 +55,11 @@ static inline void cmd_not_implemented(int argc, char ** argv)
  *****************************************************************************/
 
 /* prototypes */
+#ifdef SPLATT_USE_MPI
+void splatt_mpi_cpd_cmd(int argc, char ** argv);
+#else
 void splatt_cpd_cmd(int argc, char ** argv);
+#endif
 void splatt_bench(int argc, char ** argv);
 void splatt_check(int argc, char ** argv);
 void splatt_convert(int argc, char ** argv);
@@ -79,7 +82,11 @@ typedef enum splatt_cmd
 
 
 static void (*splatt_cmds[CMD_NCMDS]) (int argc, char ** argv) = {
+#ifdef SPLATT_USE_MPI
+  [CMD_CPD]     = splatt_mpi_cpd_cmd,
+#else
   [CMD_CPD]     = splatt_cpd_cmd,
+#endif
   [CMD_BENCH]   = splatt_bench,
   [CMD_CHECK]   = splatt_check,
   [CMD_CONVERT] = splatt_convert,

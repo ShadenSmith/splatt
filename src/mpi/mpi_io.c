@@ -484,7 +484,7 @@ static void __fill_ssizes(
 
   /* reduce to get total slice counts */
   for(idx_t m=0; m < nmodes; ++m) {
-    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) dims[m], SS_MPI_IDX, MPI_SUM,
+    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) dims[m], SPLATT_MPI_IDX, MPI_SUM,
         MPI_COMM_WORLD);
 
     idx_t count = 0;
@@ -662,9 +662,9 @@ sptensor_t * mpi_tt_read(
     /* get tensor stats */
     __get_dims(ifname, &(rinfo->global_nnz), &nmodes, rinfo->global_dims);
   }
-  MPI_Bcast(&(rinfo->global_nnz), 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
-  MPI_Bcast(&nmodes, 1, SS_MPI_IDX, 0, MPI_COMM_WORLD);
-  MPI_Bcast(rinfo->global_dims, nmodes, SS_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(rinfo->global_nnz), 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(rinfo->global_dims, nmodes, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
   rinfo->nmodes = nmodes;
 
   /* first compute MPI dimension if not specified by the user */
@@ -822,10 +822,10 @@ void mpi_write_mats(
 
   /* get the largest local dim */
   if(rinfo->rank == 0) {
-    MPI_Reduce(MPI_IN_PLACE, &maxlocaldim, 1, SS_MPI_IDX, MPI_MAX, 0,
+    MPI_Reduce(MPI_IN_PLACE, &maxlocaldim, 1, SPLATT_MPI_IDX, MPI_MAX, 0,
       rinfo->comm_3d);
   } else {
-    MPI_Reduce(&maxlocaldim, NULL, 1, SS_MPI_IDX, MPI_MAX, 0,
+    MPI_Reduce(&maxlocaldim, NULL, 1, SPLATT_MPI_IDX, MPI_MAX, 0,
       rinfo->comm_3d);
   }
 
@@ -838,7 +838,7 @@ void mpi_write_mats(
   for(idx_t m=0; m < nmodes; ++m) {
     /* root handles the writing */
     if(rinfo->rank == 0) {
-      asprintf(&fname, "%s%"SS_IDX".mat", basename, m+1);
+      asprintf(&fname, "%s%"SPLATT_PF_IDX".mat", basename, m+1);
       matbuf->I = rinfo->global_dims[m];
 
       /* copy root's matrix to buffer */
@@ -853,11 +853,11 @@ void mpi_write_mats(
       for(int p=1; p < rinfo->npes; ++p) {
         idx_t layerstart;
         idx_t nrows;
-        MPI_Recv(&layerstart, 1, SS_MPI_IDX, p, 0, rinfo->comm_3d, &status);
-        MPI_Recv(&nrows, 1, SS_MPI_IDX, p, 0, rinfo->comm_3d, &status);
-        MPI_Recv(vbuf, nrows * nfactors, SS_MPI_VAL, p, 0, rinfo->comm_3d,
+        MPI_Recv(&layerstart, 1, SPLATT_MPI_IDX, p, 0, rinfo->comm_3d, &status);
+        MPI_Recv(&nrows, 1, SPLATT_MPI_IDX, p, 0, rinfo->comm_3d, &status);
+        MPI_Recv(vbuf, nrows * nfactors, SPLATT_MPI_VAL, p, 0, rinfo->comm_3d,
             &status);
-        MPI_Recv(loc_iperm, nrows, SS_MPI_IDX, p, 0, rinfo->comm_3d, &status);
+        MPI_Recv(loc_iperm, nrows, SPLATT_MPI_IDX, p, 0, rinfo->comm_3d, &status);
 
         /* permute buffer and copy into matbuf */
         for(idx_t i=0; i < nrows; ++i) {
@@ -875,11 +875,11 @@ void mpi_write_mats(
       free(fname);
     } else {
       /* send matrix to root */
-      MPI_Send(&(rinfo->layer_starts[m]), 1, SS_MPI_IDX, 0, 0, rinfo->comm_3d);
-      MPI_Send(&(mats[m]->I), 1, SS_MPI_IDX, 0, 0, rinfo->comm_3d);
-      MPI_Send(mats[m]->vals, mats[m]->I * mats[m]->J, SS_MPI_VAL, 0, 0,
+      MPI_Send(&(rinfo->layer_starts[m]), 1, SPLATT_MPI_IDX, 0, 0, rinfo->comm_3d);
+      MPI_Send(&(mats[m]->I), 1, SPLATT_MPI_IDX, 0, 0, rinfo->comm_3d);
+      MPI_Send(mats[m]->vals, mats[m]->I * mats[m]->J, SPLATT_MPI_VAL, 0, 0,
           rinfo->comm_3d);
-      MPI_Send(perm->iperms[m] + rinfo->mat_start[m], mats[m]->I, SS_MPI_IDX,
+      MPI_Send(perm->iperms[m] + rinfo->mat_start[m], mats[m]->I, SPLATT_MPI_IDX,
           0, 0, rinfo->comm_3d);
     }
   } /* foreach mode */
@@ -915,9 +915,9 @@ void mpi_write_part(
       }
 
       /* write index */
-      fprintf(fout, "%"SS_IDX" ", 1+idx);
+      fprintf(fout, "%"SPLATT_PF_IDX" ", 1+idx);
     }
-    fprintf(fout, "%"SS_VAL"\n", tt->vals[n]);
+    fprintf(fout, "%"SPLATT_PF_VAL"\n", tt->vals[n]);
   }
   fclose(fout);
 }
