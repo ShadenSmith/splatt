@@ -41,9 +41,8 @@ static void __fill_vwts(
 
 
 /**
-* @brief Maps an index in a mode [0, MODE_SIZE) of a permuted CSF tensor to a
-*        global vertex index. This accounts for the mode permutation using
-*        the CSF dim-perm.
+* @brief Maps an index in a mode of a permuted CSF tensor to a global vertex
+*        index. This accounts for the mode permutation using the CSF dim-perm.
 *
 * @param id The index we are converting (local to the mode).
 * @param mode The mode the index lies in (LOCAL TO THE CSF TENSOR).
