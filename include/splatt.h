@@ -293,7 +293,7 @@ double * splatt_default_opts(void);
 */
 void splatt_free_csf(
     splatt_idx_t const nmodes,
-    splatt_csf_t ** tensors);
+    splatt_csf_t * tensors);
 
 
 /**

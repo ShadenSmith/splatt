@@ -66,8 +66,7 @@ This runs `splatt-cpd` on 'mytensor.tns' and finds a rank-25 CPD of the tensor.
 Adding '-t 4' instructs SPLATT to use four OpenMP threads during the
 computation. SPLATT will use all available CPU cores by default.  The matrix
 factors are written to `modeN.mat` and lambda, the vector for scaling, is
-written to `lambda.mat`. See the '--help' option to see available output
-formats.
+written to `lambda.mat`.
 
 
 C/C++ API
@@ -111,12 +110,14 @@ The following is an example usage of the SPLATT API:
     double * cpd_opts = splatt_default_opts();
 
     /* load the tensor from a file */
+    int ret;
     splatt_idx_t nmodes;
-    splatt_csf_t ** tt = splatt_csf_load("mytensor.tns", &nmodes, cpd_opts);
+    splatt_csf_t * tt;
+    ret = splatt_csf_load("mytensor.tns", &nmodes, &tt, cpd_opts);
 
     /* do the factorization! */
     splatt_kruskal_t factored;
-    splatt_cpd(10, nmodes, tt, cpd_opts, &factored);
+    ret = splatt_cpd(10, nmodes, tt, cpd_opts, &factored);
 
     /* do some processing */
     for(splatt_idx_t m = 0; m < nmodes; ++m) {
@@ -124,7 +125,7 @@ The following is an example usage of the SPLATT API:
     }
 
     /* cleanup */
-    splatt_csf_free(nmodes, tt);
+    splatt_free_csf(nmodes, tt);
     splatt_free_kruskal(&factored);
     splatt_free_opts(cpd_opts);
 

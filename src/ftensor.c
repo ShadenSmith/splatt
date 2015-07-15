@@ -256,12 +256,11 @@ int splatt_csf_convert(
 
 void splatt_free_csf(
   splatt_idx_t const nmodes,
-  splatt_csf_t ** tensors)
+  splatt_csf_t * tensors)
 {
   for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(tensors[m]);
+    ften_free(tensors + m);
   }
-  free(tensors);
 }
 
 
