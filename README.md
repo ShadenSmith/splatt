@@ -6,6 +6,20 @@ shared-memory parallelism with OpenMP and (soon) distributed-memory parallelism
 with MPI.
 
 
+Tensor Format
+-------------
+SPLATT expects tensors to be stored in 1-indexed coordinate format with
+nonzeros separated by newlines. Each line of of the file has the coordinates of
+the nonzero  followed by the value, all separated by spaces.  The following is
+an example 2x2x3 tensor with 5 nonzeros:
+
+    1 1 2 1.5
+    1 2 2 2.5
+    2 1 1 3.7
+    1 2 3 0.5
+    2 1 2 4.1
+
+
 Building & Installing
 ---------------------
 In short,

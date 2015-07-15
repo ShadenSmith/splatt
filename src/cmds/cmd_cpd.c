@@ -28,7 +28,7 @@ static struct argp_option cpd_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
   {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
-  {"threads", 't', "NTHREADS", 0, "number of threads to use (default: 1)"},
+  {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
