@@ -85,10 +85,6 @@ hgraph_t * hgraph_fib_alloc(
     hg->nhedges += ft->dims[m];
   }
 
-  printf("dim: %lu %lu %lu -> %lu %lu %lu\n",
-    ft->dim_perm[0], ft->dim_perm[1], ft->dim_perm[2],
-    __map_idx(0,0,ft), __map_idx(0,1,ft), __map_idx(0,2,ft));
-
   /* fill in eptr shifted by 1 idx:
    *   a) each nnz induces a hyperedge connection
    *   b) each non-fiber mode accounts for a hyperedge connection
