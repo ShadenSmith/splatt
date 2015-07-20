@@ -13,11 +13,15 @@ function make
       -lsplatt -lgomp -lm
       mex splatt_cpd.c -I../include -L../build/Darwin-x86_64/lib ...
       -lsplatt -lgomp -lm
+      mex splatt_mttkrp.c -I../include -L../build/Darwin-x86_64/lib ...
+      -lsplatt -lgomp -lm
 
   case 'GLNXA64'
     mex splatt_load.c -I../include -L../build/Linux-x86_64/lib ...
         -lsplatt -lgomp -lm
     mex splatt_cpd.c -I../include -L../build/Linux-x86_64/lib ...
+        -lsplatt -lgomp -lm
+    mex splatt_mttkrp.c -I../include -L../build/Linux-x86_64/lib ...
         -lsplatt -lgomp -lm
 
   case 'GLNX32'
@@ -25,5 +29,6 @@ function make
           -lsplatt -lgomp -lm
       mex splatt_cpd.c -I../include -L../build/Linux-x86/lib ...
           -lsplatt -lgomp -lm
-      %mex -O -largeArrayDims
+      mex splatt_mttkrp.c -I../include -L../build/Linux-x86/lib ...
+          -lsplatt -lgomp -lm
   end

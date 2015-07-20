@@ -8,6 +8,16 @@
 /******************************************************************************
  * STRUCTURE ACCESS
  *****************************************************************************/
+
+/**
+* @brief Extract a uint64_t pointer from a Matlab struct, given a string
+*        fieldname.
+*
+* @param mxstruct The Matlab struct.
+* @param field The field to extract.
+*
+* @return A pointer to mxstruct.fieldname.
+*/
 static uint64_t * __get_uint64_data(
     mxArray const * const mxstruct,
     char const * const field)
@@ -15,6 +25,15 @@ static uint64_t * __get_uint64_data(
   return (uint64_t *) mxGetData(mxGetField(mxstruct, 0, field));
 }
 
+/**
+* @brief Extract a double pointer from a Matlab struct, given a string
+*        fieldname.
+*
+* @param mxstruct The Matlab struct.
+* @param field The field to extract.
+*
+* @return A pointer to mxstruct.fieldname.
+*/
 static double * __get_double_data(
     mxArray const * const mxstruct,
     char const * const field)
@@ -22,6 +41,15 @@ static double * __get_double_data(
   return (double *) mxGetData(mxGetField(mxstruct, 0, field));
 }
 
+
+/**
+* @brief Create a struct field of type int32_t.
+*
+* @param mxstruct The struct to add a field to.
+* @param field The name of the field to add.
+* @param len The number of elements.
+* @param vals The values to copy in.
+*/
 static void __mk_int32(
     mxArray * const mxstruct,
     char const * const field,
@@ -33,6 +61,15 @@ static void __mk_int32(
   memcpy(__get_uint64_data(mxstruct, field), vals, len * sizeof(int32_t));
 }
 
+
+/**
+* @brief Create a struct field of type int64_t.
+*
+* @param mxstruct The struct to add a field to.
+* @param field The name of the field to add.
+* @param len The number of elements.
+* @param vals The values to copy in.
+*/
 static void __mk_uint64(
     mxArray * const mxstruct,
     char const * const field,
@@ -44,6 +81,15 @@ static void __mk_uint64(
   memcpy(__get_uint64_data(mxstruct, field), vals, len * sizeof(uint64_t));
 }
 
+
+/**
+* @brief Create a struct field of type double.
+*
+* @param mxstruct The struct to add a field to.
+* @param field The name of the field to add.
+* @param len The number of elements.
+* @param vals The values to copy in.
+*/
 static void __mk_double(
     mxArray * const mxstruct,
     char const * const field,
@@ -124,7 +170,7 @@ static splatt_csf_t * __convert_sptensor(
   splatt_idx_t m;
 
   /* parse from tensor toolbox's sptensor */
-  mwSize * dims = mxGetDimensions(mat_inds);
+  mwSize const * dims = mxGetDimensions(mat_inds);
   splatt_idx_t nnz = dims[0];
   *nmodes = dims[1];
 
@@ -248,5 +294,13 @@ static splatt_csf_t * __parse_tensor(
   return tt;
 }
 
+static mxArray * __parse_mx_tensor(
+    int const nargs,
+    mxArray const * const args[],
+    splatt_idx_t * nmodes,
+    double const * const cpd_opts)
+{
+  mxArray * tt = NULL;
+}
 
 #endif

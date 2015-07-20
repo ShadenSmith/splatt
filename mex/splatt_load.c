@@ -106,6 +106,8 @@ void mexFunction(
 
   mxArray * csf = __pack_csf(tt, nmodes);
 
+  splatt_free_csf(nmodes, tt);
+
   splatt_free_opts(cpd_opts);
   if(nlhs > 0) {
     plhs[0] = csf;

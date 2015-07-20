@@ -1,5 +1,6 @@
 function splatt_load
-% SPLATT-LOAD  Load a tensor and convert to CSF format.
+% SPLATT-LOAD  Load a tensor and convert to CSF format. Returns a cell array of
+% the CSF tensors for each mode.
 %
 % [X] = splatt_load('filename');
 % [X] = splatt_load(inds, vals);
