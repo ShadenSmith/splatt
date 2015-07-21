@@ -160,7 +160,7 @@ static val_t __kruskal_norm(
 * @param m1 The result of doing MTTKRP along the last mode.
 *
 * @return The inner product of the two tensors, computed via:
-*         \lambda^T hadamard(mats[nmodes-1], m1) \lambda.
+*         1^T hadamard(mats[nmodes-1], m1) \lambda.
 */
 static val_t __tt_kruskal_inner(
   idx_t const nmodes,
