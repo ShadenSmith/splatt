@@ -39,24 +39,24 @@ void mexFunction(
   splatt_csf_t const * const tt = __parse_tensor(nrhs, prhs, &nmodes,cpd_opts);
 
   splatt_idx_t const mode = (splatt_idx_t) mxGetScalar(prhs[2]) - 1;
-  splatt_idx_t const nrows = tt[0].dims[mode];
 
-  mwSize const * matdims = mxGetDimensions(mxGetCell(matcells, mode));
+  mwSize const * matdims = mxGetDimensions(mxGetCell(matcells, nmodes-1));
   splatt_idx_t const nfactors = (splatt_idx_t) matdims[1];
 
   /* allocate and transpose matrices */
   splatt_val_t * mats[MAX_NMODES];
   for(m=0; m < nmodes; ++m) {
     splatt_idx_t const dim = tt[0].dims[m];
-    mxArray const * const curr = mxGetCell(matcells, m);
-    double const * const matdata = (double *) mxGetPr(curr);
-
     mats[m] = (splatt_val_t *) malloc(dim * nfactors * sizeof(splatt_val_t));
 
     /* only bother transposing if we aren't overwriting */
     if(m == mode) {
       continue;
     }
+
+    mxArray const * const curr = mxGetCell(matcells, m);
+    double const * const matdata = (double *) mxGetPr(curr);
+
     for(i=0; i < dim; ++i) {
       for(j=0; j < nfactors; ++j) {
         mats[m][j+(i*nfactors)] = (splatt_val_t) matdata[i + (j*dim)];
@@ -72,10 +72,10 @@ void mexFunction(
   }
 
   /* allocate and transpose output */
-  mxArray * out = mxCreateDoubleMatrix(nrows, nfactors, mxREAL);
+  splatt_idx_t const dim = tt[0].dims[mode];
+  mxArray * out = mxCreateDoubleMatrix(dim, nfactors, mxREAL);
   double * const outpr = (double *) mxGetPr(out);
   splatt_val_t const * const matpr = mats[mode];
-  splatt_idx_t const dim = tt[0].dims[mode];
   for(j=0; j < nfactors; ++j) {
     for(i=0; i < dim; ++i) {
       outpr[i+(j * dim)] = (double) matpr[j + (i*nfactors)];
