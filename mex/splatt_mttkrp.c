@@ -36,7 +36,7 @@ void mexFunction(
   mxArray const * matcells = prhs[1];
 
   splatt_idx_t nmodes;
-  splatt_csf_t const * const tt = __parse_tensor(nrhs, prhs, &nmodes,cpd_opts);
+  splatt_csf_t * tt = __parse_tensor(nrhs, prhs, &nmodes,cpd_opts);
 
   splatt_idx_t const mode = (splatt_idx_t) mxGetScalar(prhs[2]) - 1;
 
@@ -88,6 +88,7 @@ void mexFunction(
 
   /* cleanup */
   CLEANUP:
+  __free_tensor(nrhs, prhs, nmodes, tt);
   splatt_free_opts(cpd_opts);
   for(m=0; m < nmodes; ++m) {
     free(mats[m]);

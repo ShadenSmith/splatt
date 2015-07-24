@@ -62,18 +62,7 @@ void mexFunction(
     ttdims[m] = tt[0].dims[m];
   }
 
-#if 0
-  if(mxIsCell(prhs[0])) {
-    /* just clean up pointers, not actual input data */
-    for(m=0; m < nmodes; ++m) {
-      free(tt[m]);
-    }
-    free(tt);
-  } else {
-    /* free parsed/converted data */
-    splatt_csf_free(factored.nmodes, tt);
-  }
-#endif
+  __free_tensor(nrhs, prhs, nmodes, tt);
 
   mwSize dim = (mwSize) nmodes;
   mxArray * mxLambda = mxCreateDoubleMatrix(nfactors, 1, mxREAL);

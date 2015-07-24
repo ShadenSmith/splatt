@@ -294,13 +294,32 @@ static splatt_csf_t * __parse_tensor(
   return tt;
 }
 
-static mxArray * __parse_mx_tensor(
+
+/**
+* @brief Free the memory allocated from a CSF tensor. The process may change
+*        depending on the data source.
+*
+* @param nargs The number of arguments (total, may include other params)
+* @param args[] The arguments we can access.
+* @param nmodes The number of modes in the tensor.
+* @param tt The tensor to free.
+*/
+static void __free_tensor(
     int const nargs,
     mxArray const * const args[],
-    splatt_idx_t * nmodes,
-    double const * const cpd_opts)
+    splatt_idx_t const nmodes,
+    splatt_csf_t * tt)
 {
-  mxArray * tt = NULL;
+  if(mxIsChar(args[0])) {
+    splatt_free_csf(nmodes, tt);
+  } else if(nargs > 1 && mxIsNumeric(args[0]) && mxIsNumeric(args[1])) {
+    splatt_free_csf(nmodes, tt);
+  } else if(mxIsCell(args[0])) {
+    /* pointer is mxMalloc'ed, we don't have to do anything */
+  } else {
+    mexErrMsgTxt("Invalid tensor format. See 'help splatt_load' for usage.\n");
+  }
 }
+
 
 #endif
