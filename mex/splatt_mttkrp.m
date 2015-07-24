@@ -12,7 +12,7 @@ function splatt_mttkrp
 % Example usage:
 %   X = splatt_load('mytensor.tns');
 %   for m=1:X{1}.nmodes
-%     mats{m} = splatt_mttkrp(X{m}, mats, m);
+%     mats{m} = splatt_mttkrp(X, mats, m);
 %   end
 %
 % options is a structure with the following fields:
