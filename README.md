@@ -151,10 +151,10 @@ signatures.
 Octave/Matlab API
 ----------------------------
 SPLATT also provides an API callable from Octave and Matlab that wraps the C
-API. To compile the interface just enter the `mex/` directory from either
+API. To compile the interface just enter the `matlab/` directory from either
 Octave or Matlab and call `make`.
 
-    >> cd mex
+    >> cd matlab
     >> make
 
 After compilation the MEX files will be found in the current directory. You can
@@ -177,7 +177,7 @@ during successive factorizations,
 
 SPLATT accepts non-default parameters via structures:
 
-    >> opts = struct('its', 100, 'tol', 1e-8);
+    >> opts = struct('its', 500, 'tol', 1e-8);
     >> XT = splatt_cpd(X, 25, opts);
 
 
