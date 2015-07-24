@@ -98,6 +98,9 @@ int splatt_load(
   splatt_val_t ** vals)
 {
   sptensor_t * tt = tt_read_file(fname);
+  if(tt == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
 
   *nmodes = tt->nmodes;
   *dims = tt->dims;
