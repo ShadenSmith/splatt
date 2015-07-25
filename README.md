@@ -177,8 +177,19 @@ during successive factorizations,
 
 SPLATT accepts non-default parameters via structures:
 
-    >> opts = struct('its', 500, 'tol', 1e-8);
+    >> opts = struct('its', 100, 'tol', 1e-8);
     >> XT = splatt_cpd(X, 25, opts);
+
+Finally, there are several SPLATT routines exposed for developing other tensor
+operations. SPLATT provides:
+
+* `splatt_mttkrp`
+* `splatt_norm`
+* `splatt_dim`
+* `splatt_innerprod`
+
+Please see `help <cmd>` from an Octave/Matlab terminal or read <cmd>.m in the
+`matlab/` directory for more usage information.
 
 
 Licensing
