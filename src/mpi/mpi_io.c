@@ -74,7 +74,7 @@ static void __find_my_slices(
 #else
     idx_t const ideal = dims[m] / rinfo->dims_3d[m];
     rinfo->layer_starts[m] = rinfo->coords_3d[m] * ideal;
-    rinfo->layer_ends[m] = SS_MIN(dims[m], rinfo->coords_3d[m]+1 * ideal);
+    rinfo->layer_ends[m] = SS_MIN(dims[m], (rinfo->coords_3d[m]+1) * ideal);
 #endif
 
     /* it is possible to have a very small dimension and too many ranks */
@@ -152,7 +152,6 @@ static void __find_my_slices_1d(
           rinfo->rank, m+1);
       rinfo->mat_start[m] = dims[m];
       rinfo->mat_end[m] = dims[m];
-      //abort();
     }
   }
 }
