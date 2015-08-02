@@ -45,6 +45,9 @@ hgraph_t * hgraph_fib_alloc(
   ftensor_t const * const ft,
   idx_t const mode);
 
+hgraph_t * hgraph_nnz_alloc(
+  sptensor_t const * const tt);
+
 void hgraph_free(
   hgraph_t * hg);
 

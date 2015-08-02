@@ -13,7 +13,8 @@ static char convert_args_doc[] = "TENSOR OUTPUT";
 static char convert_doc[] =
   "splatt-convert -- Convert a tensor to a different form.\n\n"
   "Mode-dependent conversion types are:\n"
-  "  hgraph\t\tHypergraph modeling the sparsity pattern of fibers\n"
+  "  fib\t\tHypergraph modeling the sparsity pattern of fibers\n"
+  "  nnz\t\tHypergraph modeling the sparsity pattern of nonzeros (fine-grained)\n"
   "  fibmat\t\tCSR matrix whose rows are fibers\n"
   "Mode-independent conversion types are:\n"
   "  graph\t\tTri-partite graph model\n";
@@ -46,8 +47,10 @@ static error_t parse_convert_opt(
     break;
 
   case 't':
-    if(strcmp(arg, "hgraph") == 0) {
+    if(strcmp(arg, "fib") == 0) {
       args->type = CNV_FIB_HGRAPH;
+    } else if(strcmp(arg, "nnz") == 0) {
+      args->type = CNV_NNZ_HGRAPH;
     } else if(strcmp(arg, "graph") == 0) {
       args->type = CNV_IJK_GRAPH;
     } else if(strcmp(arg, "fibmat") == 0) {

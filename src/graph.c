@@ -68,6 +68,61 @@ static idx_t __map_idx(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+hgraph_t * hgraph_nnz_alloc(
+  sptensor_t const * const tt)
+{
+  hgraph_t * hg = (hgraph_t *) malloc(sizeof(hgraph_t));
+  hg->nvtxs = tt->nnz;
+  __fill_vwts(NULL, hg, VTX_WT_NONE);
+
+  /* # hyper-edges = I + J + K + ... */
+  hg->hewts = NULL;
+  hg->nhedges = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    hg->nhedges += tt->dims[m];
+  }
+
+  /* fill in eptr shifted by 1 index. */
+  hg->eptr = (idx_t *) calloc(hg->nhedges+1, sizeof(idx_t));
+  idx_t * const restrict eptr = hg->eptr;
+  idx_t offset = 1;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    idx_t const * const restrict ind = tt->ind[m];
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      eptr[offset+ind[n]] += 1;
+    }
+    offset += tt->dims[m];
+  }
+
+  /* do a shifted prefix sum to get eptr */
+  idx_t saved = eptr[1];
+  eptr[1] = 0;
+  for(idx_t i=2; i <= hg->nhedges; ++i) {
+    idx_t tmp = eptr[i];
+    eptr[i] = eptr[i-1] + saved;
+    saved = tmp;
+  }
+
+  /* each nnz causes 'nmodes' connections */
+  hg->eind = (idx_t *) malloc(tt->nnz * tt->nmodes * sizeof(idx_t));
+  idx_t * const restrict eind = hg->eind;
+
+  offset = 1;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    idx_t const * const restrict ind = tt->ind[m];
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      eind[eptr[offset+ind[n]]++] = n;
+    }
+    offset += tt->dims[m];
+  }
+
+  assert(eptr[hg->nhedges] == tt->nnz * tt->nmodes);
+  return hg;
+}
+
+
+
 hgraph_t * hgraph_fib_alloc(
   ftensor_t const * const ft,
   idx_t const mode)
@@ -107,15 +162,17 @@ hgraph_t * hgraph_fib_alloc(
   }
 
   /* do a shifted prefix sum to get eptr */
+  idx_t ncon = eptr[1];
   idx_t saved = eptr[1];
   eptr[1] = 0;
   for(idx_t i=2; i <= hg->nhedges; ++i) {
+    ncon += eptr[i];
     idx_t tmp = eptr[i];
     eptr[i] = eptr[i-1] + saved;
     saved = tmp;
   }
 
-  hg->eind = (idx_t *) malloc(eptr[hg->nhedges] * sizeof(idx_t));
+  hg->eind = (idx_t *) malloc(ncon * sizeof(idx_t));
   idx_t * const restrict eind = hg->eind;
 
   /* now fill in eind while using eptr as a marker */

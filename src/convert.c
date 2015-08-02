@@ -186,10 +186,27 @@ static void __convert_fib_hgraph(
   hgraph_t * hg = hgraph_fib_alloc(&ft, mode);
   hgraph_write(hg, ofname);
 
-  hgraph_free(hg);
   ften_free(&ft);
+  hgraph_free(hg);
 }
 
+
+/**
+* @brief Convert a sparse tensor to a hypergraph and write to 'ofname'. The
+*        hypergraph uses the nonzeros as vertices and the sparsity pattern
+*        to connect all vertices to <nmodes> hyperedges.
+*
+* @param tt The tensor to convert.
+* @param ofname The filename to write to.
+*/
+static void __convert_nnz_hgraph(
+  sptensor_t const * const tt,
+  char const * const ofname)
+{
+  hgraph_t * hg = hgraph_nnz_alloc(tt);
+  hgraph_write(hg, ofname);
+  hgraph_free(hg);
+}
 
 
 /**
@@ -237,6 +254,9 @@ void tt_convert(
     break;
   case CNV_FIB_HGRAPH:
     __convert_fib_hgraph(tt, mode, ofname);
+    break;
+  case CNV_NNZ_HGRAPH:
+    __convert_nnz_hgraph(tt, ofname);
     break;
   case CNV_FIB_SPMAT:
     __convert_fib_mat(tt, mode, ofname);
