@@ -38,6 +38,13 @@ else()
   set(MPI_SOURCES "")
 endif()
 
+# check for PatoH support
+if (DEFINED USE_PATOH)
+  message("Building with PaToH support.")
+  add_definitions(-DSPLATT_USE_PATOH=${USE_PATOH})
+  set(PATOH_LIB "patoh")
+endif()
+
 add_definitions(-D_GNU_SOURCE)
 
 set(C_DEFINES "${C_DEFINES}")

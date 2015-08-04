@@ -56,4 +56,20 @@ idx_t * hgraph_uncut(
   idx_t const * const parts,
   idx_t * const ncut);
 
+
+#ifdef SPLATT_USE_PATOH
+/**
+* @brief Partition a hypergraph using PaToH, optimizing for cut with 'speed'
+*        emphasis.
+*
+* @param hg The hypergraph to partition.
+* @param nparts The number of partitions.
+*
+* @return A partitioning of the hypergraph vertices.
+*/
+idx_t * patoh_part(
+    hgraph_t const * const hg,
+    idx_t const nparts);
+#endif /* patoh functions */
+
 #endif

@@ -29,12 +29,14 @@ show_help() {
   echo "USAGE: configure [options]"
   echo ""
   echo "OPTIONS:"
-  echo "  --mpi"
-  echo "    Build with MPI support"
   echo "  --prefix=<prefix>"
   echo "    Set the install prefix."
   echo "  --cc=<cc>"
   echo "    Set the C compiler to use."
+  echo "  --patoh"
+  echo "    Build with PaToH hypergraph partitioning (must be previously installed)."
+  echo "  --mpi"
+  echo "    Build with MPI support"
   echo "  --debug"
   echo "    Build with debugging symbols, assertions, and turn optimizations off."
   echo "  --dev"
@@ -68,6 +70,9 @@ for i in "${@}"; do
     # MPI support
     --mpi)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    ;;
+    --patoh)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"
     ;;
     # prefix
     --prefix=*)

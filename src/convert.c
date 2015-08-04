@@ -204,6 +204,7 @@ static void __convert_nnz_hgraph(
   char const * const ofname)
 {
   hgraph_t * hg = hgraph_nnz_alloc(tt);
+
   hgraph_write(hg, ofname);
   hgraph_free(hg);
 }

@@ -6,6 +6,9 @@
 #include "base.h"
 #include "graph.h"
 
+#ifdef SPLATT_USE_PATOH
+#include <patoh.h>
+#endif
 
 
 /******************************************************************************
@@ -243,7 +246,6 @@ idx_t * hgraph_uncut(
 }
 
 
-
 void hgraph_free(
   hgraph_t * hg)
 {
@@ -253,4 +255,80 @@ void hgraph_free(
   free(hg->hewts);
   free(hg);
 }
+
+#ifdef SPLATT_USE_PATOH
+idx_t * patoh_part(
+    hgraph_t const * const hg,
+    idx_t const nparts)
+{
+  PaToH_Parameters args;
+  PaToH_Initialize_Parameters(&args, PATOH_CUTPART, PATOH_SUGPARAM_SPEED);
+
+  int const nvtxs = hg->nvtxs;
+  int const nnets = hg->nhedges;
+  int const ncon = 1;
+
+  /* vertex weights */
+  int * vwts = (int *) malloc(nvtxs * sizeof(int));
+  if(hg->vwts != NULL) {
+    for(int v=0; v < nvtxs; ++v) {
+      vwts[v] = (int) hg->vwts[v];
+    }
+  } else {
+    for(int v=0; v < nvtxs; ++v) {
+      vwts[v] = 1;
+    }
+  }
+
+  /* edge weights */
+  int * hwts = NULL;
+  if(hg->hewts != NULL) {
+    hwts = (int *) malloc(nnets * sizeof(int));
+    for(int h=0; h < nnets; ++h) {
+      hwts[h] = (int) hg->hewts[h];
+    }
+  }
+
+  /* net start/end */
+  int * eptr = (int *) malloc((nnets+1) * sizeof(int));
+  for(int v=0; v <= nnets; ++v) {
+    eptr[v] = (int) hg->eptr[v];
+  }
+
+  /* netted vertices */
+  int * eind = (int *) malloc(eptr[nnets] * sizeof(int));
+  for(int v=0; v < eptr[nnets]; ++v) {
+    eind[v] = (int) hg->eind[v];
+  }
+
+  int * pvec = (int *) malloc(nvtxs * sizeof(int));
+  int * pwts = (int *) malloc(nparts * sizeof(int));
+  int cut;
+
+  args._k = (int) nparts;
+  PaToH_Alloc(&args, nvtxs, nnets, ncon, vwts, hwts, eptr, eind);
+
+  /* do the partitioning! */
+  PaToH_Part(&args, nvtxs, nnets, ncon, 0, vwts, hwts, eptr, eind, NULL, pvec,
+      pwts, &cut);
+
+  /* copy patoh output to idx_t */
+  idx_t * parts = (idx_t *) malloc(nvtxs * sizeof(idx_t));
+  for(idx_t p=0; p < nvtxs; ++p) {
+    parts[p] = (idx_t) pvec[p];
+  }
+
+  PaToH_Free();
+  free(vwts);
+  free(hwts);
+  free(eptr);
+  free(eind);
+  free(pvec);
+  free(pwts);
+
+  return parts;
+}
+#endif
+
+
 
