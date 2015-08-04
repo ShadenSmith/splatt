@@ -314,7 +314,7 @@ idx_t * patoh_part(
 
   /* copy patoh output to idx_t */
   idx_t * parts = (idx_t *) malloc(nvtxs * sizeof(idx_t));
-  for(idx_t p=0; p < nvtxs; ++p) {
+  for(idx_t p=0; p < hg->nvtxs; ++p) {
     parts[p] = (idx_t) pvec[p];
   }
 
