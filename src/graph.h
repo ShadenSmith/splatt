@@ -58,6 +58,7 @@ idx_t * hgraph_uncut(
 
 
 #ifdef SPLATT_USE_PATOH
+#define patoh_part splatt_patoh_part
 /**
 * @brief Partition a hypergraph using PaToH, optimizing for cut with 'speed'
 *        emphasis.
@@ -68,6 +69,22 @@ idx_t * hgraph_uncut(
 * @return A partitioning of the hypergraph vertices.
 */
 idx_t * patoh_part(
+    hgraph_t const * const hg,
+    idx_t const nparts);
+#endif /* patoh functions */
+
+
+#ifdef SPLATT_USE_ASHADO
+#define ashado_part splatt_ashado_part
+/**
+* @brief Partition a hypergraph using Ashado.
+*
+* @param hg The hypergraph to partition.
+* @param nparts The number of partitions.
+*
+* @return A partitioning of the hypergraph vertices.
+*/
+idx_t * ashado_part(
     hgraph_t const * const hg,
     idx_t const nparts);
 #endif /* patoh functions */

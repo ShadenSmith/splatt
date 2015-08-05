@@ -13,7 +13,6 @@
 #include "stats.h"
 #include "timer.h"
 
-#include <ashado.h>
 
 /******************************************************************************
  * TYPES
@@ -205,33 +204,6 @@ static void __convert_nnz_hgraph(
   char const * const ofname)
 {
   hgraph_t * hg = hgraph_nnz_alloc(tt);
-
-  sp_timer_t ptime;
-
-#if 0
-  timer_fstart(&ptime);
-  idx_t * part = patoh_part(hg, 512);
-  timer_stop(&ptime);
-  printf("patoh: %0.3fs\n", ptime.seconds);
-  perm_write(part, 512, "patoh.nnz.part");
-  free(part);
-#else
-
-  double * opts = ashado_default_opts();
-  idx_t * part = (idx_t *) malloc(hg->nvtxs * sizeof(idx_t));
-
-  timer_fstart(&ptime);
-  ashado_partition(512, hg->nvtxs, hg->nhedges, hg->eptr, hg->eind, hg->vwts,
-      hg->hewts, opts, 5, part);
-  timer_stop(&ptime);
-
-  printf("ashado: %0.3fs\n", ptime.seconds);
-
-  perm_write(part, 512, "ashado.nnz.part");
-  free(opts);
-
-#endif
-
   hgraph_write(hg, ofname);
   hgraph_free(hg);
 }

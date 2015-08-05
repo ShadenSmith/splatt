@@ -10,6 +10,10 @@
 #include <patoh.h>
 #endif
 
+#ifdef SPLATT_USE_ASHADO
+#include <ashado.h>
+#endif
+
 
 /******************************************************************************
  * STATIC FUNCTIONS
@@ -331,4 +335,19 @@ idx_t * patoh_part(
 #endif
 
 
+#ifdef SPLATT_USE_ASHADO
+idx_t * ashado_part(
+    hgraph_t const * const hg,
+    idx_t const nparts)
+{
+  double * opts = ashado_default_opts();
+  idx_t * part = (idx_t *) malloc(hg->nvtxs * sizeof(idx_t));
+
+  ashado_partition(nparts, hg->nvtxs, hg->nhedges, hg->eptr, hg->eind,
+      hg->vwts, hg->hewts, opts, 5, part);
+
+  free(opts);
+  return part;
+}
+#endif
 

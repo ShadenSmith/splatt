@@ -35,6 +35,8 @@ show_help() {
   echo "    Set the C compiler to use."
   echo "  --patoh"
   echo "    Build with PaToH hypergraph partitioning (must be previously installed)."
+  echo "  --ashado"
+  echo "    Build with Ashado hypergraph partitioning (must be previously installed)."
   echo "  --mpi"
   echo "    Build with MPI support"
   echo "  --debug"
@@ -73,6 +75,9 @@ for i in "${@}"; do
     ;;
     --patoh)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"
+    ;;
+    --ashado)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_ASHADO=1"
     ;;
     # prefix
     --prefix=*)

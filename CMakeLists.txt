@@ -45,6 +45,13 @@ if (DEFINED USE_PATOH)
   set(PATOH_LIB "patoh")
 endif()
 
+# check for Ashado support
+if (DEFINED USE_ASHADO)
+  message("Building with Ashado support.")
+  add_definitions(-DSPLATT_USE_ASHADO=${USE_ASHADO})
+  set(ASHADO_LIB "ashado")
+endif()
+
 add_definitions(-D_GNU_SOURCE)
 
 set(C_DEFINES "${C_DEFINES}")
