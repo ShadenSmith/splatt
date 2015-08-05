@@ -41,20 +41,61 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+#define hgraph_fib_alloc splatt_hgraph_fib_alloc
+/**
+* @brief Allocate and fill a hypergraph from a CSF tensor. The tensor fibers
+*        become vertices and modes are mapped to nets. This is a sort of
+*        fine-grained model for fibers.
+*
+* @param ft The CSF tensor to convert.
+* @param mode Which mode we are operating on.
+*
+* @return The hypergraph.
+*/
 hgraph_t * hgraph_fib_alloc(
   ftensor_t const * const ft,
   idx_t const mode);
 
+
+#define hgraph_nnz_alloc splatt_hgraph_nnz_alloc
+/**
+* @brief Allocate and fill a hypergraph from a coordinate tensor. The nonzeros
+*        become vertices and modes are mapped to nets. This is a fine-grained
+*        model for nonzeros.
+*
+* @param tt The coordinate tensor to convert.
+*
+* @return The hypergraph.
+*/
 hgraph_t * hgraph_nnz_alloc(
   sptensor_t const * const tt);
 
+
+#define hgraph_free splatt_hgraph_free
+/**
+* @brief Free all memory allocated for a hypergraph. NOTE: this frees the
+*        pointer too!
+*
+* @param hg The hypergraph to free.
+*/
 void hgraph_free(
   hgraph_t * hg);
 
+
+#define hgraph_uncut splatt_hgraph_uncut
+/**
+* @brief Given a hypergraph partitioning, return a list of the uncut nets.
+*
+* @param hg The hypergraph to inspect.
+* @param parts A partitioning of the vertices.
+* @param nnotcut [OUT] This will be set to the number of uncut nets.
+*
+* @return A list of the 'ncut' uncut nets.
+*/
 idx_t * hgraph_uncut(
   hgraph_t const * const hg,
   idx_t const * const parts,
-  idx_t * const ncut);
+  idx_t * const nnotcut);
 
 
 #ifdef SPLATT_USE_PATOH

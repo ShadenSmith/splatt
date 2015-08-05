@@ -86,12 +86,26 @@ void build_pptr(
 
 
 #define perm_apply splatt_perm_apply
+/**
+* @brief Reorders a coordinate tensor based on a permutation for each mode.
+*
+* @param tt The tensor to reorder.
+* @param perm A list of permutations (one for each mode).
+*/
 void perm_apply(
   sptensor_t * const tt,
   idx_t ** perm);
 
 
 #define perm_rand splatt_perm_rand
+/**
+* @brief Computes a random permutation of a tensor, applies the permutation,
+*        and returns the permutation.
+*
+* @param tt The tensor to reorder.
+*
+* @return The random permutation.
+*/
 permutation_t * perm_rand(
   sptensor_t * const tt);
 

@@ -203,7 +203,7 @@ hgraph_t * hgraph_fib_alloc(
 idx_t * hgraph_uncut(
   hgraph_t const * const hg,
   idx_t const * const parts,
-  idx_t * const ret_ncut)
+  idx_t * const ret_nnotcut)
 {
   idx_t const nhedges = (idx_t) hg->nhedges;
   idx_t const nvtxs = (idx_t)hg->nvtxs;
@@ -226,7 +226,7 @@ idx_t * hgraph_uncut(
       ++ncut;
     }
   }
-  *ret_ncut = ncut;
+  *ret_nnotcut = ncut;
 
   /* go back and fill in uncut edges */
   idx_t * cut = (idx_t *) malloc(ncut * sizeof(idx_t));
