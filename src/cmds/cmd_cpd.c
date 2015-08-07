@@ -13,6 +13,7 @@
 #include "../sort.h"
 #include "../util.h"
 #include "../timer.h"
+#include "../csf.h"
 
 /******************************************************************************
  * SPLATT CPD
@@ -347,6 +348,9 @@ void splatt_cpd_cmd(
   }
   tt_remove_empty(tt);
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+
+  csf_t cs;
+  csf_alloc(&cs, tt, 0, SPLATT_NOTILE);
 
   ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
 
