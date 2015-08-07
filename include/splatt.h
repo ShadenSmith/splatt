@@ -23,7 +23,7 @@
 
 /* Set type constants based on width. */
 #if   SPLATT_IDX_TYPEWIDTH == 32
-  typedef uint32_T splatt_idx_t;
+  typedef uint32_t splatt_idx_t;
 
   #define SPLATT_IDX_MAX UINT32_MAX
   #define SPLATT_PF_IDX PRIu32
@@ -36,7 +36,7 @@
   #define SPLATT_PF_IDX PRIu64
   #define SPLATT_MPI_IDX MPI_UINT64_T
 #else
-  #error "Incorrect user-supplied value fo SPLATT_IDX_TYPEWIDTH"
+  #error "Incorrect user-supplied value of SPLATT_IDX_TYPEWIDTH"
 #endif
 
 
