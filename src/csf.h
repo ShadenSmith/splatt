@@ -21,6 +21,13 @@ typedef struct
 } csf_t;
 
 
+/* The types of mode ordering available. */
+typedef enum
+{
+  CSF_SORTED_SMALLFIRST, /** sort the modes in non-decreasing order */
+  CSF_SORTED_BIGFIRST,   /** sort the modes in non-increasing order */
+} csf_mode_type;
+
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
@@ -35,11 +42,21 @@ typedef struct
 void csf_alloc(
   csf_t * const ft,
   sptensor_t * const tt,
-  idx_t const mode,
   splatt_tile_t which_tile);
 
 #define csf_free splatt_csf_free
 void csf_free(
   csf_t * const ft);
+
+#define csf_storage splatt_csf_storage
+idx_t csf_storage(
+  csf_t const * const ft);
+
+#define csf_find_mode_order splatt_csf_find_mode_order
+void csf_find_mode_order(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  csf_mode_type which,
+  idx_t * const perm_dims);
 
 #endif

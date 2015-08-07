@@ -350,7 +350,7 @@ void splatt_cpd_cmd(
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
   csf_t cs;
-  csf_alloc(&cs, tt, 0, SPLATT_NOTILE);
+  csf_alloc(&cs, tt, SPLATT_NOTILE);
 
   ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
 
