@@ -5,11 +5,75 @@
 #include "csf.h"
 #include "sort.h"
 
+#include "io.h"
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-#if 0
+static void __order_dims_small(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t * const perm_dims)
+{
+  idx_t sorted[MAX_NMODES];
+  idx_t matched[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    sorted[m] = dims[m];
+    matched[m] = 0;
+  }
+  quicksort(sorted, nmodes);
+
+  /* silly n^2 comparison to grab modes from sorted dimensions.
+   * TODO: make a key/val sort...*/
+  for(idx_t mfind=0; mfind < nmodes; ++mfind) {
+    for(idx_t mcheck=0; mcheck < nmodes; ++mcheck) {
+      if(sorted[mfind] == dims[mcheck] && !matched[mcheck]) {
+        perm_dims[mfind] = mcheck;
+        matched[mcheck] = 1;
+        break;
+      }
+    }
+  }
+}
+
+
+static void __order_dims_large(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t * const perm_dims)
+{
+  idx_t sorted[MAX_NMODES];
+  idx_t matched[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    sorted[m] = dims[m];
+    matched[m] = 0;
+  }
+  /* sort small -> large */
+  quicksort(sorted, nmodes);
+
+  /* reverse list */
+  for(idx_t m=0; m < nmodes/2; ++m) {
+    idx_t tmp = sorted[nmodes-m-1];
+    sorted[nmodes-m-1] = sorted[m];
+    sorted[m] = tmp;
+  }
+
+  /* silly n^2 comparison to grab modes from sorted dimensions.
+   * TODO: make a key/val sort...*/
+  for(idx_t mfind=0; mfind < nmodes; ++mfind) {
+    for(idx_t mcheck=0; mcheck < nmodes; ++mcheck) {
+      if(sorted[mfind] == dims[mcheck] && !matched[mcheck]) {
+        perm_dims[mfind] = mcheck;
+        matched[mcheck] = 1;
+        break;
+      }
+    }
+  }
+
+}
+
+
 static void __print_csf(
   csf_t const * const ft)
 {
@@ -21,8 +85,16 @@ static void __print_csf(
   }
   printf("\n");
 
+  /* write slices */
   printf("fptr:\n");
-  for(idx_t m=0; m < ft->nmodes-1; ++m) {
+  printf("[%lu] ", ft->nfibs[0]);
+  for(idx_t f=0; f < ft->nfibs[0]; ++f) {
+    printf(" %lu", ft->fptr[0][f]);
+  }
+  printf(" %lu\n", ft->fptr[0][ft->nfibs[0]]);
+
+  /* inner nodes */
+  for(idx_t m=1; m < ft->nmodes-1; ++m) {
     printf("[%lu] ", ft->nfibs[m]);
     for(idx_t f=0; f < ft->nfibs[m]; ++f) {
       printf(" (%lu, %lu)", ft->fptr[m][f], ft->fids[m][f]);
@@ -43,7 +115,6 @@ static void __print_csf(
 
   printf("-----------\n\n");
 }
-#endif
 
 
 static void __mk_outerptr(
@@ -150,7 +221,6 @@ static void __mk_fptr(
 void csf_alloc(
   csf_t * const ft,
   sptensor_t * const tt,
-  idx_t const mode,
   splatt_tile_t which_tile)
 {
   idx_t const nmodes = tt->nmodes;
@@ -158,15 +228,16 @@ void csf_alloc(
   ft->nnz = tt->nnz;
   ft->fptr = (idx_t **) malloc(tt->nmodes * sizeof(idx_t *));
   ft->fids = (idx_t **) malloc(tt->nmodes * sizeof(idx_t *));
+
   for(idx_t m=0; m < nmodes; ++m) {
     ft->dims[m] = tt->dims[m];
-    ft->dim_perm[m] = m;
     ft->fptr[m] = NULL;
     ft->fids[m] = NULL;
   }
 
   /* get the indices in order */
-  tt_sort(tt, mode, ft->dim_perm);
+  csf_find_mode_order(tt->dims, tt->nmodes, CSF_SORTED_SMALLFIRST, ft->dim_perm);
+  tt_sort(tt, ft->dim_perm[0], ft->dim_perm);
 
   /* last row of fptr is just nonzero inds */
   ft->nfibs[nmodes-1] = ft->nnz;
@@ -179,6 +250,11 @@ void csf_alloc(
   for(idx_t m=0; m < tt->nmodes-1; ++m) {
     __mk_fptr(ft, tt, m);
   }
+
+#if 0
+  tt_write(tt, NULL);
+  __print_csf(ft);
+#endif
 
   csf_free(ft);
 }
@@ -197,3 +273,39 @@ void csf_free(
 }
 
 
+
+void csf_find_mode_order(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  csf_mode_type which,
+  idx_t * const perm_dims)
+{
+  switch(which) {
+  case CSF_SORTED_SMALLFIRST:
+    __order_dims_small(dims, nmodes, perm_dims);
+    break;
+  case CSF_SORTED_BIGFIRST:
+    __order_dims_large(dims, nmodes, perm_dims);
+    break;
+  default:
+    fprintf(stderr, "SPLATT: csf_mode_type '%d' not recognized.\n", which);
+    break;
+  }
+}
+
+
+idx_t csf_storage(
+  csf_t const * const ft)
+{
+  idx_t bytes = 0;
+  bytes += ft->nnz * sizeof(val_t); /* vals */
+  bytes += ft->nnz * sizeof(idx_t); /* fids[nmodes] */
+  for(idx_t m=0; m < ft->nmodes-1; ++m) {
+    bytes += (ft->nfibs[m]+1) * sizeof(idx_t); /* fptr */
+    /* only look at fids for non-outer mode */
+    if(m > 0) {
+      bytes += ft->nfibs[m] * sizeof(idx_t); /* fids */
+    }
+  }
+  return bytes;
+}

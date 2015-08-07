@@ -56,7 +56,7 @@ static void __stats_basic(
   printf(" NNZ=%"SPLATT_PF_IDX, tt->nnz);
   printf(" DENSITY=%e\n" , __tt_density(tt));
 
-  char * bytestr = bytes_str(tt->nnz * ((sizeof(idx_t) * 3) + sizeof(val_t)));
+  char * bytestr = bytes_str(tt->nnz * ((sizeof(idx_t) * tt->nmodes) + sizeof(val_t)));
   printf("COORD-STORAGE=%s\n", bytestr);
   printf("\n");
   free(bytestr);
