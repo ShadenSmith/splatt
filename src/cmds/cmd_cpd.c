@@ -15,6 +15,9 @@
 #include "../timer.h"
 #include "../csf.h"
 
+
+#include "../mttkrp.h"
+
 /******************************************************************************
  * SPLATT CPD
  *****************************************************************************/
@@ -360,7 +363,7 @@ void splatt_cpd_cmd(
   }
 
   idx_t const nmodes = tt->nmodes;
-  tt_free(tt);
+  //tt_free(tt);
 
   /* allocate / initialize matrices */
   idx_t max_dim = 0;
@@ -406,6 +409,50 @@ void splatt_cpd_cmd(
 
   /* do the factorization! */
   cpd_als(ft, mats, mats, lambda, args.nfactors, &rinfo, args.opts);
+
+  int const nthreads = 4;
+  thd_info * thds =  thd_init(4, 3,
+    (args.nfactors * args.nfactors * sizeof(val_t)) + 64,
+    TILE_SIZES[0] * args.nfactors * sizeof(val_t) + 64,
+    (nmodes * args.nfactors * sizeof(val_t)) + 64);
+
+  omp_set_num_threads(nthreads);
+
+  idx_t const mode_mt = 0;
+  printf("mode: %lu (%lu)\n", mode_mt, tt->dims[mode_mt]);
+  printf("perm: %lu", cs.dim_perm[0]);
+  for(idx_t m=1; m < nmodes; ++m) {
+    printf("->%lu", cs.dim_perm[m]);
+  }
+  printf("\n");
+
+  mats[MAX_NMODES]->I = tt->dims[mode_mt];
+
+  sp_timer_t ttime;
+  timer_fstart(&ttime);
+  mttkrp_stream(tt, mats, mode_mt);
+  timer_stop(&ttime);
+  printf("stm: %0.3fs\n", ttime.seconds);
+  mat_write(mats[MAX_NMODES], "gold.mat");
+
+#if 1
+  printf("\n");
+  timer_fstart(&ttime);
+  mttkrp_splatt(ft + mode_mt, mats, mode_mt, thds, nthreads);
+  timer_stop(&ttime);
+  printf("fts: %0.3fs\n", ttime.seconds);
+  mat_write(mats[MAX_NMODES], "splatt.mat");
+#endif
+
+  printf("\n");
+  timer_fstart(&ttime);
+  mttkrp_csf(&cs, mats, mode_mt, thds, nthreads);
+  timer_stop(&ttime);
+  printf("csf: %0.3fs\n", ttime.seconds);
+  mat_write(mats[MAX_NMODES], "csf.mat");
+
+  csf_free(&cs);
+
 
   /* free up the ftensor allocations */
   for(idx_t m=0; m < nmodes; ++m) {
