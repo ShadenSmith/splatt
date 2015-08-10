@@ -83,7 +83,11 @@ static void __print_csf(
   for(idx_t m=1; m < ft->nmodes; ++m) {
     printf("x%lu", ft->dims[m]);
   }
-  printf("\n");
+  printf(" (%lu", ft->dim_perm[0]);
+  for(idx_t m=1; m < ft->nmodes; ++m) {
+    printf("->%lu", ft->dim_perm[m]);
+  }
+  printf(")\n");
 
   /* write slices */
   printf("fptr:\n");
@@ -105,7 +109,7 @@ static void __print_csf(
   /* vals/inds */
   printf("[%lu] ", ft->nfibs[ft->nmodes-1]);
   for(idx_t f=0; f < ft->nfibs[ft->nmodes-1]; ++f) {
-    printf(" %3lu", ft->fids[ft->nmodes-1][f] + 1);
+    printf(" %3lu", ft->fids[ft->nmodes-1][f]);
   }
   printf("\n");
   for(idx_t n=0; n < ft->nnz; ++n) {
@@ -243,7 +247,7 @@ void csf_alloc(
   ft->nfibs[nmodes-1] = ft->nnz;
   ft->fids[nmodes-1] = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
   ft->vals           = (val_t *) malloc(ft->nnz * sizeof(val_t));
-  memcpy(ft->fids[nmodes-1], tt->ind[nmodes-1], ft->nnz * sizeof(idx_t));
+  memcpy(ft->fids[nmodes-1], tt->ind[ft->dim_perm[nmodes-1]], ft->nnz * sizeof(idx_t));
   memcpy(ft->vals, tt->vals, ft->nnz * sizeof(val_t));
 
   /* create fptr entries for the rest of the modes, working up from */
@@ -255,8 +259,6 @@ void csf_alloc(
   tt_write(tt, NULL);
   __print_csf(ft);
 #endif
-
-  csf_free(ft);
 }
 
 
@@ -285,6 +287,8 @@ void csf_find_mode_order(
     __order_dims_small(dims, nmodes, perm_dims);
     break;
   case CSF_SORTED_BIGFIRST:
+    fprintf(stderr, "SPLATT: using 'CSF_SORTED_BIGFIRST' for csf_alloc. "
+                    "Not recommended.\n");
     __order_dims_large(dims, nmodes, perm_dims);
     break;
   default:
@@ -309,3 +313,5 @@ idx_t csf_storage(
   }
   return bytes;
 }
+
+
