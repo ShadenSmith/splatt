@@ -16,6 +16,7 @@
 #include "../csf.h"
 
 
+#include <omp.h>
 #include "../mttkrp.h"
 
 /******************************************************************************
@@ -410,16 +411,16 @@ void splatt_cpd_cmd(
   /* do the factorization! */
   cpd_als(ft, mats, mats, lambda, args.nfactors, &rinfo, args.opts);
 
-  int const nthreads = 4;
-  thd_info * thds =  thd_init(4, 3,
+  int const nthreads = (int) args.opts[SPLATT_OPTION_NTHREADS];
+  thd_info * thds =  thd_init(nthreads, 3,
     (args.nfactors * args.nfactors * sizeof(val_t)) + 64,
     TILE_SIZES[0] * args.nfactors * sizeof(val_t) + 64,
     (nmodes * args.nfactors * sizeof(val_t)) + 64);
 
   omp_set_num_threads(nthreads);
 
-  idx_t const mode_mt = 0;
-  printf("mode: %lu (%lu)\n", mode_mt, tt->dims[mode_mt]);
+  idx_t const mode_mt = 2;
+  printf("mode: %lu (%lu) nthreads: %d\n", mode_mt, tt->dims[mode_mt], nthreads);
   printf("perm: %lu", cs.dim_perm[0]);
   for(idx_t m=1; m < nmodes; ++m) {
     printf("->%lu", cs.dim_perm[m]);
