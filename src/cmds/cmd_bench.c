@@ -17,6 +17,7 @@ static char bench_doc[] =
   "splatt-bench -- benchmark MTTKRP algorithms.\n\n"
   "Available MTTKRP algorithms are:\n"
   "  splatt\tThe algorithm introduced by splatt\n"
+  "  csf\t\tGeneralized CSF format.\n"
   "  giga\t\tGigaTensor algorithm adapted from the MapReduce paradigm\n"
   "  ttbox\t\tTensor-Vector products as done by Tensor Toolbox\n"
   "Available reordering algorithms are:\n"
@@ -27,6 +28,7 @@ static char bench_doc[] =
 typedef enum
 {
   ALG_SPLATT,
+  ALG_CSF,
   ALG_GIGA,
   ALG_DFACTO,
   ALG_TTBOX,
@@ -40,6 +42,7 @@ static void (*bench_funcs[ALG_NALGS]) (sptensor_t * const tt,
                                        bench_opts const * const opts)
   = {
     [ALG_SPLATT] = bench_splatt,
+    [ALG_CSF]    = bench_csf,
     [ALG_GIGA]   = bench_giga,
     [ALG_TTBOX]  = bench_ttbox
   };
@@ -88,6 +91,8 @@ static error_t parse_bench_opt(
   case 'a':
     if(strcmp(arg, "splatt") == 0) {
       args->which[ALG_SPLATT] = 1;
+    } else if(strcmp(arg, "csf") == 0) {
+      args->which[ALG_CSF] = 1;
     } else if(strcmp(arg, "giga") == 0) {
       args->which[ALG_GIGA] = 1;
     } else if(strcmp(arg, "dfacto") == 0) {

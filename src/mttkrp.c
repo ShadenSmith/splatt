@@ -112,7 +112,7 @@ static void __csf_mttkrp_internal(
   idx_t const mode,
   thd_info * const thds)
 {
-  printf("INTERNAL\n");
+  printf("INTL");
   /* extract tensor structures */
   idx_t const nmodes = ft->nmodes;
   idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
@@ -128,6 +128,8 @@ static void __csf_mttkrp_internal(
   #pragma omp parallel default(shared)
   {
     int const tid = omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+
     val_t * mvals[MAX_NMODES];
     val_t * buf[MAX_NMODES];
     idx_t idxstack[MAX_NMODES];
@@ -138,7 +140,7 @@ static void __csf_mttkrp_internal(
     }
 
     /* foreach outer slice */
-    #pragma omp for schedule(dynamic, 16)
+    #pragma omp for schedule(dynamic, 16) nowait
     for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
       idx_t depth = 0;
       /* push current outer slice */
@@ -229,6 +231,8 @@ static void __csf_mttkrp_internal(
         }
       } /* end DFS */
     } /* end outer slice loop */
+
+    timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
 
@@ -239,7 +243,7 @@ static void __csf_mttkrp_leaf(
   idx_t const mode,
   thd_info * const thds)
 {
-  printf("LEAF\n");
+  printf("LEAF");
   /* extract tensor structures */
   idx_t const nmodes = ft->nmodes;
   idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
@@ -250,6 +254,8 @@ static void __csf_mttkrp_leaf(
   #pragma omp parallel default(shared)
   {
     int const tid = omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+
     val_t * mvals[MAX_NMODES];
     val_t * buf[MAX_NMODES];
     idx_t idxstack[MAX_NMODES];
@@ -261,7 +267,7 @@ static void __csf_mttkrp_leaf(
     }
 
     /* foreach outer slice */
-    #pragma omp for schedule(dynamic, 16)
+    #pragma omp for schedule(dynamic, 16) nowait
     for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
       idx_t depth = 0;
       /* push current outer slice */
@@ -316,6 +322,8 @@ static void __csf_mttkrp_leaf(
         }
       } /* end DFS */
     } /* end outer slice loop */
+
+    timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
 
@@ -326,7 +334,7 @@ static void __csf_mttkrp_root(
   idx_t const mode,
   thd_info * const thds)
 {
-  printf("root\n");
+  printf("ROOT");
   /* extract tensor structures */
   idx_t const nmodes = ft->nmodes;
   idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
@@ -338,6 +346,7 @@ static void __csf_mttkrp_root(
   #pragma omp parallel default(shared)
   {
     int const tid = omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
 
     val_t * mvals[MAX_NMODES];
     val_t * buf[MAX_NMODES];
@@ -351,7 +360,7 @@ static void __csf_mttkrp_root(
     }
     val_t * const ovals = mats[MAX_NMODES]->vals;
 
-    #pragma omp for schedule(dynamic, 16)
+    #pragma omp for schedule(dynamic, 16) nowait
     for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
       idx_t depth = 0;
       /* push current outer slice */
@@ -411,6 +420,8 @@ static void __csf_mttkrp_root(
         brow[f] = 0;
       }
     } /* end outer slice loop */
+
+    timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
 
