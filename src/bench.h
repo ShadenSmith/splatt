@@ -50,5 +50,9 @@ void bench_ttbox(
   matrix_t ** mats,
   bench_opts const * const opts);
 
+void bench_coord(
+  sptensor_t * const tt,
+  matrix_t ** mats,
+  bench_opts const * const opts);
 
 #endif

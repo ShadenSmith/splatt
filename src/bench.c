@@ -285,6 +285,66 @@ void bench_giga(
 }
 
 
+void bench_coord(
+  sptensor_t * const tt,
+  matrix_t ** mats,
+  bench_opts const * const opts)
+{
+  idx_t const niters = opts->niters;
+  idx_t const * const threads = opts->threads;
+  idx_t const nruns = opts->nruns;
+  char matname[64];
+
+  /* shuffle matrices if permutation exists */
+  __shuffle_mats(mats, opts->perm->perms, tt->nmodes);
+
+  sp_timer_t itertime;
+  sp_timer_t modetime;
+
+  idx_t const nfactors = mats[0]->J;
+
+  printf("** COORD **\n");
+  char * bstr = bytes_str(tt->nnz * ((sizeof(idx_t) * tt->nmodes) + sizeof(val_t)));
+  printf("CSF-STORAGE: %s\n\n", bstr);
+  free(bstr);
+
+  timer_start(&timers[TIMER_MISC]);
+
+  /* for each # threads */
+  for(idx_t t=0; t < nruns; ++t) {
+    idx_t const nthreads = threads[t];
+    omp_set_num_threads(nthreads);
+    if(nruns > 1) {
+      printf("## THREADS %" SPLATT_PF_IDX "\n", nthreads);
+    }
+
+    for(idx_t i=0; i < niters; ++i) {
+      timer_fstart(&itertime);
+      /* time each mode */
+      for(idx_t m=0; m < tt->nmodes; ++m) {
+        timer_fstart(&modetime);
+        mttkrp_stream(tt, mats, m);
+        timer_stop(&modetime);
+        printf("  mode %" SPLATT_PF_IDX " %0.3fs\n", m+1, modetime.seconds);
+        if(opts->write && t == 0 && i == 0) {
+          idx_t oldI = mats[MAX_NMODES]->I;
+          mats[MAX_NMODES]->I = tt->dims[m];
+          sprintf(matname, "csf_mode%"SPLATT_PF_IDX".mat", m+1);
+          __log_mat(matname, mats[MAX_NMODES], opts->perm->iperms[m]);
+          mats[MAX_NMODES]->I = oldI;
+        }
+      }
+      timer_stop(&itertime);
+      printf("    its = %3"SPLATT_PF_IDX" (%0.3fs)\n", i+1, itertime.seconds);
+    }
+  }
+  timer_stop(&timers[TIMER_MISC]);
+
+  /* fix any matrices that we shuffled */
+  __shuffle_mats(mats, opts->perm->iperms, tt->nmodes);
+}
+
+
 void bench_ttbox(
   sptensor_t * const tt,
   matrix_t ** mats,
