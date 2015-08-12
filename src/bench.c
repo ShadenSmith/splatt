@@ -305,7 +305,7 @@ void bench_coord(
 
   printf("** COORD **\n");
   char * bstr = bytes_str(tt->nnz * ((sizeof(idx_t) * tt->nmodes) + sizeof(val_t)));
-  printf("CSF-STORAGE: %s\n\n", bstr);
+  printf("COORD-STORAGE: %s\n\n", bstr);
   free(bstr);
 
   timer_start(&timers[TIMER_MISC]);
@@ -329,7 +329,7 @@ void bench_coord(
         if(opts->write && t == 0 && i == 0) {
           idx_t oldI = mats[MAX_NMODES]->I;
           mats[MAX_NMODES]->I = tt->dims[m];
-          sprintf(matname, "csf_mode%"SPLATT_PF_IDX".mat", m+1);
+          sprintf(matname, "coord_mode%"SPLATT_PF_IDX".mat", m+1);
           __log_mat(matname, mats[MAX_NMODES], opts->perm->iperms[m]);
           mats[MAX_NMODES]->I = oldI;
         }

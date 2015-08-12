@@ -88,17 +88,10 @@ static inline void __csf_process_fiber(
   idx_t const * const inds,
   val_t const * const vals)
 {
-  /* initialize with first nonzero */
-  val_t const * const restrict rowfirst = leafmat + (nfactors * inds[start]);
-  val_t const vfirst = vals[start];
-  for(idx_t f=0; f < nfactors; ++f){
-    accumbuf[f] = vfirst * rowfirst[f];
-  }
-
   /* foreach nnz in fiber */
-  for(idx_t jj=start+1; jj < end; ++jj) {
-    val_t const v = vals[jj];
-    val_t const * const restrict row = leafmat + (nfactors * inds[jj]);
+  for(idx_t j=start; j < end; ++j) {
+    val_t const v = vals[j];
+    val_t const * const restrict row = leafmat + (nfactors * inds[j]);
     for(idx_t f=0; f < nfactors; ++f) {
       accumbuf[f] += v * row[f];
     }
@@ -426,6 +419,79 @@ static void __csf_mttkrp_root(
 }
 
 
+static void __csf_mttkrp_root2(
+  csf_t const * const ft,
+  matrix_t ** mats,
+  idx_t const mode,
+  thd_info * const thds)
+{
+  printf("ROOT2");
+  /* extract tensor structures */
+  idx_t const nmodes = ft->nmodes;
+  idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
+  idx_t const * const * const restrict fids = (idx_t const * const *) ft->fids;
+  val_t const * const vals = ft->vals;
+
+  idx_t const nfactors = mats[0]->J;
+
+  #pragma omp parallel default(shared)
+  {
+    int const tid = omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+
+    val_t * mvals[MAX_NMODES];
+    val_t * buf[MAX_NMODES];
+    idx_t idxstack[MAX_NMODES];
+
+    for(idx_t m=0; m < nmodes; ++m) {
+      mvals[m] = mats[ft->dim_perm[m]]->vals;
+      /* grab the next row of buf from thds */
+      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+      memset(buf[m], 0, nfactors * sizeof(idx_t));
+    }
+
+    #pragma omp for schedule(dynamic, 16) nowait
+    for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
+      /* just accumulate into the output */
+      buf[0] = mats[MAX_NMODES]->vals + (s * nfactors);
+      memset(buf[0], 0, nfactors * sizeof(idx_t));
+
+      /* push current outer slice and initialize idxstack */
+      idx_t depth = 0;
+      idxstack[depth++] = s;
+      for(idx_t m=1; m < ft->nmodes-1; ++m) {
+        idxstack[m] = fp[m-1][idxstack[m-1]];
+      }
+
+      idx_t const outer_end = fp[0][s+1];
+      while(idxstack[1] < outer_end) {
+        /* skip to last internal mode */
+        depth = nmodes - 2;
+
+        /* process all nonzeros [start, end) into buf[depth]*/
+        idx_t const start = fp[depth][idxstack[depth]];
+        idx_t const end   = fp[depth][idxstack[depth]+1];
+        __csf_process_fiber(buf[depth], nfactors, mvals[depth+1],
+            start, end, fids[depth+1], vals);
+
+        /* Propagate up until we reach a node with more children to process */
+        do {
+          /* propagate result up and clear buffer for next sibling */
+          val_t const * const restrict fibrow
+              = mvals[depth] + (fids[depth][idxstack[depth]] * nfactors);
+          __add_hada_clear(buf[depth-1], buf[depth], fibrow, nfactors);
+
+          ++idxstack[depth];
+          --depth;
+        } while(depth > 0 && idxstack[depth] < fp[depth][idxstack[depth]]+1);
+      } /* end DFS */
+    } /* end foreach outer slice */
+
+    timer_start(&thds[tid].ttime);
+  } /* end omp parallel */
+}
+
+
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
@@ -493,17 +559,14 @@ void mttkrp_csf(
   /* clear output matrix */
   matrix_t * const M = mats[MAX_NMODES];
   M->I = ft->dims[mode];
+  memset(M->vals, 0, M->I * M->J * sizeof(val_t));
 
   omp_set_num_threads(nthreads);
-
   if(mode == ft->dim_perm[0]) {
-    /* root() writes directly to rows, no need to memset */
-    __csf_mttkrp_root(ft, mats, mode, thds);
+    __csf_mttkrp_root2(ft, mats, mode, thds);
   } else if(mode == ft->dim_perm[ft->nmodes-1]) {
-    memset(M->vals, 0, M->I * M->J * sizeof(val_t));
     __csf_mttkrp_leaf(ft, mats, mode, thds);
   } else {
-    memset(M->vals, 0, M->I * M->J * sizeof(val_t));
     __csf_mttkrp_internal(ft, mats, mode, thds);
   }
 }

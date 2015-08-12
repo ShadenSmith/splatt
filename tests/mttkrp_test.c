@@ -9,7 +9,7 @@
 CTEST_DATA(mttkrp)
 {
   int ntensors;
-  sptensor_t * tensors[128];;
+  sptensor_t * tensors[128];
 };
 
 CTEST_SETUP(mttkrp)
