@@ -418,6 +418,76 @@ static void __csf_mttkrp_root(
   } /* end omp parallel */
 }
 
+static void __csf_mttkrp_leaf2(
+  csf_t const * const ft,
+  matrix_t ** mats,
+  idx_t const mode,
+  thd_info * const thds)
+{
+  printf("LEAF2");
+  /* extract tensor structures */
+  idx_t const nmodes = ft->nmodes;
+  idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
+  idx_t const * const * const restrict fids = (idx_t const * const *) ft->fids;
+
+  idx_t const nfactors = mats[0]->J;
+
+  int const tid = 0;
+  timer_start(&thds[tid].ttime);
+
+  val_t * mvals[MAX_NMODES];
+  val_t * buf[MAX_NMODES];
+  idx_t idxstack[MAX_NMODES];
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    mvals[m] = mats[ft->dim_perm[m]]->vals;
+    /* grab the next row of buf from thds */
+    buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+  }
+
+  /* foreach outer slice */
+  for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
+    idx_t depth = 0;
+    /* push current outer slice */
+    idxstack[depth++] = s;
+
+    /* clear out stale data */
+    for(idx_t m=1; m < ft->nmodes-1; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
+    }
+
+    /* first buf will always just be a matrix row */
+    val_t const * const restrict rootrow = mvals[0] + (s*nfactors);
+    buf[0] = rootrow;
+
+    idx_t const outer_end = fp[0][s+1];
+    while(idxstack[1] < outer_end) {
+
+      /* move down to an nnz node */
+      for(; depth < nmodes-2; ++depth) {
+        /* propogate buf down */
+        val_t const * const restrict drow
+            = mvals[depth] + (fids[depth][idxstack[depth]] * nfactors);
+        __assign_hada(buf[depth], buf[depth-1], drow, nfactors);
+      }
+
+      printf("depth: %lu\n", depth);
+
+      /* process all nonzeros [start, end) */
+      idx_t const start = fp[depth][idxstack[depth]];
+      idx_t const end   = fp[depth][idxstack[depth]+1];
+      __csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
+          nfactors, start, end, fids[depth+1], ft->vals);
+
+      /* now move back up to the next unprocessed child */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth] < fp[depth][idxstack[depth]]+1);
+    } /* end DFS */
+  } /* end outer slice loop */
+}
+
 
 static void __csf_mttkrp_root2(
   csf_t const * const ft,
@@ -565,7 +635,7 @@ void mttkrp_csf(
   if(mode == ft->dim_perm[0]) {
     __csf_mttkrp_root2(ft, mats, mode, thds);
   } else if(mode == ft->dim_perm[ft->nmodes-1]) {
-    __csf_mttkrp_leaf(ft, mats, mode, thds);
+    __csf_mttkrp_leaf2(ft, mats, mode, thds);
   } else {
     __csf_mttkrp_internal(ft, mats, mode, thds);
   }
