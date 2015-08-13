@@ -426,7 +426,7 @@ static void __csf_mttkrp_leaf2(
 
   idx_t const nfactors = mats[0]->J;
 
-  #pragma omp parallel
+  #pragma omp parallel default(shared)
   {
     int const tid = omp_get_thread_num();
     timer_start(&thds[tid].ttime);
@@ -442,7 +442,7 @@ static void __csf_mttkrp_leaf2(
     }
 
     /* foreach outer slice */
-    #pragma omp for
+    #pragma omp for schedule(dynamic, 16)
     for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
       /* push current outer slice */
       idxstack[0] = s;
@@ -488,6 +488,59 @@ static void __csf_mttkrp_leaf2(
 }
 
 
+static inline void __propagate_up(
+  val_t * const out,
+  val_t * const * const buf,
+  idx_t * const restrict idxstack,
+  idx_t const init_depth,
+  idx_t const init_idx,
+  idx_t const * const * const fp,
+  idx_t const * const * const fids,
+  val_t const * const restrict vals,
+  val_t ** mvals,
+  idx_t const nmodes,
+  idx_t const nfactors)
+{
+  /* push initial idx initialize idxstack */
+  idxstack[init_depth] = init_idx;
+  for(idx_t m=init_depth+1; m < nmodes-1; ++m) {
+    idxstack[m] = fp[m-1][idxstack[m-1]];
+  }
+
+  for(idx_t f=0; f < nfactors; ++f) {
+    buf[init_depth][f] = 0;
+  }
+
+  idx_t const stop = fp[init_depth][init_idx+1];
+  while(idxstack[init_depth+1] < stop) {
+    /* skip to last internal mode */
+    idx_t depth = nmodes - 2;
+
+    /* process all nonzeros [start, end) into buf[depth]*/
+    idx_t const start = fp[depth][idxstack[depth]];
+    idx_t const end   = fp[depth][idxstack[depth]+1];
+    __csf_process_fiber(buf[depth], nfactors, mvals[depth+1],
+        start, end, fids[depth+1], vals);
+
+    /* Propagate up until we reach a node with more children to process */
+    do {
+      /* propagate result up and clear buffer for next sibling */
+      val_t const * const restrict fibrow
+          = mvals[depth] + (fids[depth][idxstack[depth]] * nfactors);
+      __add_hada_clear(buf[depth-1], buf[depth], fibrow, nfactors);
+
+      ++idxstack[depth];
+      --depth;
+    } while(depth > init_depth &&
+        idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+  } /* end DFS */
+
+  /* copy to out */
+  for(idx_t f=0; f < nfactors; ++f) {
+    out[f] = buf[init_depth][f];
+  }
+}
+
 static void __csf_mttkrp_root2(
   csf_t const * const ft,
   matrix_t ** mats,
@@ -519,43 +572,12 @@ static void __csf_mttkrp_root2(
       memset(buf[m], 0, nfactors * sizeof(idx_t));
     }
 
+    val_t * const ovals = mats[MAX_NMODES]->vals;
+
     #pragma omp for schedule(dynamic, 16) nowait
     for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
-      /* just accumulate into the output */
-      buf[0] = mats[MAX_NMODES]->vals + (s * nfactors);
-      for(idx_t f=0; f < nfactors; ++f) {
-        buf[0][f] = 0;
-      }
-
-      /* push current outer slice and initialize idxstack */
-      idxstack[0] = s;
-      for(idx_t m=1; m < ft->nmodes-1; ++m) {
-        idxstack[m] = fp[m-1][idxstack[m-1]];
-      }
-
-      idx_t const outer_end = fp[0][s+1];
-      while(idxstack[1] < outer_end) {
-        /* skip to last internal mode */
-        idx_t depth = nmodes - 2;
-
-        /* process all nonzeros [start, end) into buf[depth]*/
-        idx_t const start = fp[depth][idxstack[depth]];
-        idx_t const end   = fp[depth][idxstack[depth]+1];
-        __csf_process_fiber(buf[depth], nfactors, mvals[depth+1],
-            start, end, fids[depth+1], vals);
-
-        /* Propagate up until we reach a node with more children to process */
-        do {
-          /* propagate result up and clear buffer for next sibling */
-          val_t const * const restrict fibrow
-              = mvals[depth] + (fids[depth][idxstack[depth]] * nfactors);
-          __add_hada_clear(buf[depth-1], buf[depth], fibrow, nfactors);
-
-          ++idxstack[depth];
-          --depth;
-        } while(depth > 0 &&
-            idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
-      } /* end DFS */
+      __propagate_up(ovals + (s * nfactors), buf, idxstack, 0, s, fp, fids, vals,
+          mvals, nmodes, nfactors);
     } /* end foreach outer slice */
 
     timer_start(&thds[tid].ttime);
