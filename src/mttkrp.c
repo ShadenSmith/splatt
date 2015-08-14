@@ -178,7 +178,14 @@ static void __csf_mttkrp_internal2(
   val_t const * const vals = ft->vals;
 
   idx_t const nfactors = mats[0]->J;
-  idx_t const outdepth = ft->dim_perm[mode];
+  /* find out which level in the tree this is */
+  idx_t outdepth = 0;
+  for(idx_t m=0; m < ft->nmodes; ++m) {
+    if(ft->dim_perm[m] == mode) {
+      outdepth = m;
+      break;
+    }
+  }
 
   #pragma omp parallel default(shared)
   {
@@ -748,10 +755,19 @@ void mttkrp_csf(
   M->I = ft->dims[mode];
   memset(M->vals, 0, M->I * M->J * sizeof(val_t));
 
+  /* find out which level in the tree this is */
+  idx_t outdepth = 0;
+  for(idx_t m=0; m < ft->nmodes; ++m) {
+    if(ft->dim_perm[m] == mode) {
+      outdepth = m;
+      break;
+    }
+  }
+
   omp_set_num_threads(nthreads);
-  if(mode == ft->dim_perm[0]) {
+  if(outdepth == 0) {
     __csf_mttkrp_root2(ft, mats, mode, thds);
-  } else if(mode == ft->dim_perm[ft->nmodes-1]) {
+  } else if(outdepth == ft->nmodes-1) {
     __csf_mttkrp_leaf2(ft, mats, mode, thds);
   } else {
     __csf_mttkrp_internal2(ft, mats, mode, thds);
