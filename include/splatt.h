@@ -109,7 +109,8 @@ typedef enum
 {
   SPLATT_NOTILE,
   SPLATT_SYNCTILE,
-  SPLATT_COOPTILE
+  SPLATT_COOPTILE,
+  SPLATT_THREADTILE
 } splatt_tile_t;
 
 

@@ -6,6 +6,7 @@
 #include "splatt_test.h"
 
 
+#if 0
 CTEST_DATA(mttkrp)
 {
   int ntensors;
@@ -36,4 +37,5 @@ CTEST2(mttkrp, giga)
 {
 
 }
+#endif
 

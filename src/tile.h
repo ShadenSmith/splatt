@@ -11,17 +11,39 @@
  *  TODO: make this configurable? */
 static idx_t const TILE_SIZES[] = { 2048, 2048, 2048 };
 
-typedef enum
-{
-  TILE_NO,
-  TILE_INDV,
-  TILE_COOP
-} splatt_tile_type;
+
+static idx_t const TILE_BEGIN = SPLATT_IDX_MAX - 1;
+static idx_t const TILE_END   = SPLATT_IDX_MAX;
 
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+idx_t get_tile_id(
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const * const tile_coord);
+
+
+void fill_tile_coords(
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const tile_id,
+  idx_t * const tile_coord);
+
+
+idx_t get_next_tileid(
+  idx_t const previd,
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const mode_traversed);
+
+
+void tt_threadtile(
+  sptensor_t * const tt,
+  idx_t const nthreads);
+
 
 #define tt_tile splatt_tt_tile
 /**

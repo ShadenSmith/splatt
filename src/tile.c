@@ -257,3 +257,75 @@ void tt_tile(
 }
 
 
+
+void tt_threadtile(
+  sptensor_t * const tt,
+  idx_t const nthreads)
+{
+
+}
+
+
+idx_t get_tile_id(
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const * const tile_coord)
+{
+  idx_t id = 0;
+  idx_t mult = 1;
+  for(idx_t m=nmodes; m-- != 0;) {
+    id += (tile_coord[m]-1) * mult;
+    mult *= tile_dims[m];
+  }
+  return id;
+}
+
+
+void fill_tile_coords(
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const tile_id,
+  idx_t * const tile_coord)
+{
+  idx_t id = tile_id;
+  for(idx_t m = nmodes; m-- != 0; ) {
+    tile_coord[m] = (id % tile_dims[m]) + 1;
+    id /= tile_dims[m];
+  }
+}
+
+
+idx_t get_next_tileid(
+  idx_t const previd,
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const mode_traversed)
+{
+  idx_t coords[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    coords[m] = 1;
+  }
+
+  if(previd == TILE_BEGIN) {
+    coords[mode_traversed] = 2;
+    return get_tile_id(tile_dims, nmodes, coords);
+  }
+
+  /* convert previd to coords */
+  fill_tile_coords(tile_dims, nmodes, previd, coords);
+
+  printf("(");
+  for(idx_t m=0; m < nmodes; ++m) {
+    printf(" %lu", coords[m]);
+  }
+  printf(" )\n");
+
+  ++coords[mode_traversed];
+  if(coords[mode_traversed] > tile_dims[mode_traversed]) {
+    return TILE_END;
+  }
+
+  return get_tile_id(tile_dims, nmodes, coords);
+}
+
+
