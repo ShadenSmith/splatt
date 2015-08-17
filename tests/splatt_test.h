@@ -16,25 +16,4 @@ static char const * const datasets[] = {
 };
 #define MAX_DSETS 16
 
-static inline idx_t load_tensors(
-  sptensor_t ** tensors)
-{
-  idx_t ntensors = sizeof(datasets) / sizeof(datasets[0]);
-  for(idx_t i=0; i < ntensors; ++i) {
-    tensors[i] = tt_read(datasets[i]);
-  }
-
-  return ntensors;
-}
-
-static inline void free_tensors(
-  sptensor_t ** tensors)
-{
-  idx_t ntensors = sizeof(datasets) / sizeof(datasets[0]);
-  for(idx_t i=0; i < ntensors; ++i) {
-    tt_free(tensors[i]);
-  }
-}
-
-
 #endif
