@@ -37,7 +37,8 @@ idx_t get_next_tileid(
   idx_t const previd,
   idx_t const * const tile_dims,
   idx_t const nmodes,
-  idx_t const mode_traversed);
+  idx_t const mode,
+  idx_t const mode_idx);
 
 
 void tt_threadtile(

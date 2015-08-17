@@ -274,7 +274,7 @@ idx_t get_tile_id(
   idx_t id = 0;
   idx_t mult = 1;
   for(idx_t m=nmodes; m-- != 0;) {
-    id += (tile_coord[m]-1) * mult;
+    id += tile_coord[m] * mult;
     mult *= tile_dims[m];
   }
   return id;
@@ -289,7 +289,7 @@ void fill_tile_coords(
 {
   idx_t id = tile_id;
   for(idx_t m = nmodes; m-- != 0; ) {
-    tile_coord[m] = (id % tile_dims[m]) + 1;
+    tile_coord[m] = id % tile_dims[m];
     id /= tile_dims[m];
   }
 }
@@ -299,33 +299,52 @@ idx_t get_next_tileid(
   idx_t const previd,
   idx_t const * const tile_dims,
   idx_t const nmodes,
-  idx_t const mode_traversed)
+  idx_t const iter_mode,
+  idx_t const mode_idx)
 {
   idx_t coords[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    coords[m] = 1;
+    coords[m] = 0;
   }
 
   if(previd == TILE_BEGIN) {
-    coords[mode_traversed] = 2;
+    coords[iter_mode] = mode_idx;
     return get_tile_id(tile_dims, nmodes, coords);
   }
 
   /* convert previd to coords */
   fill_tile_coords(tile_dims, nmodes, previd, coords);
 
-  printf("(");
-  for(idx_t m=0; m < nmodes; ++m) {
-    printf(" %lu", coords[m]);
-  }
-  printf(" )\n");
+  /* overflowing this mode means TILE_END */
+  idx_t const overmode = (iter_mode == 0) ? 1 : 0;
 
-  ++coords[mode_traversed];
-  if(coords[mode_traversed] > tile_dims[mode_traversed]) {
-    return TILE_END;
+  /* increment least significant mode (unless we're iterating over it) and
+   * propagate overflows */
+  idx_t pmode = (iter_mode == nmodes-1) ? nmodes-2 : nmodes-1;
+  ++coords[pmode];
+  while(coords[pmode] == tile_dims[pmode]) {
+    if(pmode == overmode) {
+      return TILE_END;
+    }
+
+    /* overflow this one too and move on */
+    coords[pmode] = 0;
+    --pmode;
+
+    /* we don't alter the mode we are iterating over */
+    if(pmode == iter_mode) {
+      /* XXX: checking for overmode should catch this */
+      assert(pmode > 0);
+      /* if we aren't at the end just skip over it */
+      --pmode;
+    }
+
+    /* we're now at a valid mode, carry over previous overflow */
+    ++coords[pmode];
   }
 
   return get_tile_id(tile_dims, nmodes, coords);
 }
+
 
 
