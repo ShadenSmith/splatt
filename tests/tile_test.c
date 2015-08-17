@@ -73,6 +73,59 @@ CTEST2(tile_traverse, get_tile_id_3d)
   }
 }
 
+/*
+ * Test get_tile_id on a 3D problem with weird dimensions.
+ */
+CTEST2(tile_traverse, get_tile_id_weird_dim)
+{
+  idx_t const nmodes = 3;
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    data->dims[m] = m+1;
+  }
+
+  idx_t id = 0;
+  for(idx_t m1=0; m1 < data->dims[0]; ++m1) {
+    data->coords[0] = m1;
+    for(idx_t m2=0; m2 < data->dims[1]; ++m2) {
+      data->coords[1] = m2;
+      for(idx_t m3=0; m3 < data->dims[2]; ++m3) {
+        data->coords[2] = m3;
+        ASSERT_EQUAL(id, get_tile_id(data->dims, nmodes, data->coords));
+        ++id;
+      }
+    }
+  }
+}
+
+
+/*
+ * Test get_tile_id on out of bounds values.
+ */
+CTEST2(tile_traverse, get_tile_id_oob)
+{
+  idx_t const nmodes = MAX_NMODES;
+  for(idx_t m=0; m < nmodes; ++m) {
+    data->dims[m] = m+1;
+    data->coords[m] = m+1;
+  }
+
+  /* check out of bounds */
+  ASSERT_EQUAL(TILE_ERR, get_tile_id(data->dims, nmodes, data->coords));
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    data->coords[m] = m;
+  }
+  ASSERT_NOT_EQUAL(TILE_ERR, get_tile_id(data->dims, nmodes, data->coords));
+
+  /* check each mode individually */
+  for(idx_t m=0; m < nmodes; ++m) {
+    ++data->coords[m];
+    ASSERT_EQUAL(TILE_ERR, get_tile_id(data->dims, nmodes, data->coords));
+    --data->coords[m];
+  }
+}
+
 
 CTEST2(tile_traverse, fill_tile_coords)
 {
@@ -91,6 +144,37 @@ CTEST2(tile_traverse, fill_tile_coords)
   }
 }
 
+
+/* Test invalid values for fill_tile_coords() */
+CTEST2(tile_traverse, fill_tile_coords_oob)
+{
+  idx_t nmodes = MAX_NMODES;
+  idx_t ntiles = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    data->dims[m] = m+1;
+    ntiles *= data->dims[m];
+  }
+
+  /* check max tile */
+  fill_tile_coords(data->dims, nmodes, ntiles, data->coords);
+  for(idx_t m=0; m < nmodes; ++m) {
+    ASSERT_EQUAL(data->dims[m], data->coords[m]);
+  }
+
+  /* check other invalids */
+  fill_tile_coords(data->dims, nmodes, TILE_BEGIN, data->coords);
+  for(idx_t m=0; m < nmodes; ++m) {
+    ASSERT_EQUAL(data->dims[m], data->coords[m]);
+  }
+  fill_tile_coords(data->dims, nmodes, TILE_END, data->coords);
+  for(idx_t m=0; m < nmodes; ++m) {
+    ASSERT_EQUAL(data->dims[m], data->coords[m]);
+  }
+  fill_tile_coords(data->dims, nmodes, TILE_ERR, data->coords);
+  for(idx_t m=0; m < nmodes; ++m) {
+    ASSERT_EQUAL(data->dims[m], data->coords[m]);
+  }
+}
 
 /*
  * Test TILE_BEGIN functionality.
@@ -187,4 +271,83 @@ CTEST2(tile_traverse, get_tile_id)
   }
 }
 
+
+/*
+ * Do a traversal of the space with non-uniform tile dimensions.
+ */
+CTEST2(tile_traverse, tile_weird_dim)
+{
+  idx_t const nmodes = 5;
+  for(idx_t m=0; m < nmodes; ++m) {
+    data->dims[m] = m+1;
+  }
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* empty tiles */
+    __fill_arr(data->coords, nmodes, 0);
+
+    /* the number of tiles that the traversal should go through */
+    idx_t ntiles = 1;
+    for(idx_t m2=0; m2 < nmodes; ++m2) {
+      if(m2 != m) {
+        ntiles *= data->dims[m2];
+      }
+    }
+
+    /* now ensure every idx in the mode sees that it is the end */
+    for(idx_t d=0; d < data->dims[m]; ++d) {
+      idx_t startid = get_next_tileid(TILE_BEGIN, data->dims, nmodes, m, d);
+
+      /* compute start id manually */
+      data->coords[m] = d;
+      idx_t const manual = get_tile_id(data->dims, nmodes, data->coords);
+      ASSERT_EQUAL(manual, startid);
+
+      /* Iterate over all tiles and also check last+1. Start from one because
+       * TILE_BEGIN has already happened. */
+      idx_t id = startid;
+      for(idx_t t=1; t < ntiles; ++t) {
+        id = get_next_tileid(id, data->dims, nmodes, m, d);
+        ASSERT_NOT_EQUAL(startid, id);
+        ASSERT_NOT_EQUAL(TILE_END, id);
+      }
+      id = get_next_tileid(id, data->dims, nmodes, m, d);
+      ASSERT_EQUAL(TILE_END, id);
+    }
+  }
+}
+
+
+/*
+ * Test out-of-bounds tile traversals.
+ */
+CTEST2(tile_traverse, tile_oob)
+{
+  idx_t const nmodes = 5;
+  for(idx_t m=0; m < nmodes; ++m) {
+    data->dims[m] = m+1;
+  }
+
+  idx_t id;
+  id = get_next_tileid(TILE_END, data->dims, nmodes, 0, 0);
+  ASSERT_EQUAL(TILE_ERR, id);
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    data->dims[m] = m+1;
+  }
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* now ensure every idx in the mode sees that it is the end */
+    for(idx_t d=0; d < data->dims[m]; ++d) {
+      idx_t id = get_next_tileid(TILE_BEGIN, data->dims, nmodes, m, d);
+      while(id != TILE_END) {
+        id = get_next_tileid(id, data->dims, nmodes, m, d);
+      }
+      id = get_next_tileid(id, data->dims, nmodes, m, d);
+      ASSERT_EQUAL(TILE_ERR, id);
+      id = get_next_tileid(id, data->dims, nmodes, m, d);
+      ASSERT_EQUAL(TILE_ERR, id);
+    }
+  }
+}
 

@@ -277,6 +277,10 @@ idx_t get_tile_id(
     id += tile_coord[m] * mult;
     mult *= tile_dims[m];
   }
+  /* bounds check */
+  if(id >= mult) {
+    id = TILE_ERR;
+  }
   return id;
 }
 
@@ -287,6 +291,19 @@ void fill_tile_coords(
   idx_t const tile_id,
   idx_t * const tile_coord)
 {
+  /* Check for invalid id first */
+  idx_t maxid = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    maxid *= tile_dims[m];
+  }
+  if(tile_id >= maxid) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      tile_coord[m] = tile_dims[m];
+    }
+    return;
+  }
+
+  /* test passed, convert! */
   idx_t id = tile_id;
   for(idx_t m = nmodes; m-- != 0; ) {
     tile_coord[m] = id % tile_dims[m];
@@ -302,14 +319,21 @@ idx_t get_next_tileid(
   idx_t const iter_mode,
   idx_t const mode_idx)
 {
+  idx_t maxid = 1;
   idx_t coords[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
     coords[m] = 0;
+    maxid *= tile_dims[m];
   }
 
   if(previd == TILE_BEGIN) {
     coords[iter_mode] = mode_idx;
     return get_tile_id(tile_dims, nmodes, coords);
+  }
+
+  /* check for out of bounds */
+  if(previd >= maxid) {
+    return TILE_ERR;
   }
 
   /* convert previd to coords */
