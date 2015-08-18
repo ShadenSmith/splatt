@@ -18,7 +18,7 @@ CTEST_SETUP(tile_csf)
   data->tt = tt_read(DATASET(med4.tns));
   data->ntiles = 1;
   for(idx_t m=0; m < data->tt->nmodes; ++m) {
-    data->tile_dims[m] = 2;
+    data->tile_dims[m] = 4;
     data->ntiles *= data->tile_dims[m];
   }
 }
@@ -112,6 +112,46 @@ CTEST2(tile_csf, no_missing_nnz_traverse)
   for(idx_t m=0; m < data->tt->nmodes; ++m) {
     ASSERT_EQUAL(0, cksums[m]);
   }
+  free(ptr);
+}
 
+
+/*
+ * Perform a dense tiling and ensure every nnz has the index range that is
+ * expected.
+ */
+CTEST2(tile_csf, check_tile_bounds)
+{
+  idx_t * ptr = tt_densetile(data->tt, data->tile_dims);
+
+  idx_t coords[MAX_NMODES];
+
+  sptensor_t const * const tt = data->tt;
+  for(idx_t i=0; i < data->tile_dims[0]; ++i) {
+    idx_t id;
+    id = get_next_tileid(TILE_BEGIN, data->tile_dims, data->tt->nmodes, 0, i);
+    while(id != TILE_END) {
+      fill_tile_coords(data->tile_dims, tt->nmodes, id, coords);
+      idx_t const startnnz = ptr[id];
+      idx_t const endnnz = ptr[id+1];
+      for(idx_t x=startnnz; x < endnnz; ++x) {
+        for(idx_t m=0; m < tt->nmodes; ++m) {
+          idx_t const tsize = tt->dims[m] / data->tile_dims[m];
+          idx_t const minidx = coords[m] * tsize;
+          idx_t const maxidx = (coords[m] + 1) * tsize;
+
+          /* assert we are in the correct range */
+          ASSERT_EQUAL(1, tt->ind[m][x] >= minidx);
+          /* last coordinate may have overflow */
+          if(coords[m]+1 < data->tile_dims[m]) {
+            ASSERT_EQUAL(1, tt->ind[m][x] < maxidx);
+          }
+        }
+      }
+
+      /* next tile */
+      id = get_next_tileid(id, data->tile_dims, tt->nmodes, 0, i);
+    }
+  }
   free(ptr);
 }

@@ -257,7 +257,6 @@ void tt_tile(
 }
 
 
-
 idx_t * tt_densetile(
   sptensor_t * const tt,
   idx_t const * const tile_dims)
@@ -280,7 +279,8 @@ idx_t * tt_densetile(
   idx_t coord[MAX_NMODES];
   for(idx_t x=0; x < tt->nnz; ++x) {
     for(idx_t m=0; m < nmodes; ++m) {
-      coord[m] = tt->ind[m][x] / tsizes[m];
+      /* capping at dims-1 fixes overflow when dims don't divide evenly */
+      coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
     }
     /* offset by 1 to make prefix sum easy */
     idx_t const id = get_tile_id(tile_dims, nmodes, coord);
@@ -298,7 +298,7 @@ idx_t * tt_densetile(
   /* copy old tensor into new tiled one */
   for(idx_t x=0; x < tt->nnz; ++x) {
     for(idx_t m=0; m < nmodes; ++m) {
-      coord[m] = tt->ind[m][x] / tsizes[m];
+      coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
     }
     /* offset by 1 to make prefix sum easy */
     idx_t const id = get_tile_id(tile_dims, nmodes, coord);
