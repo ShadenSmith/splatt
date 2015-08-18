@@ -153,29 +153,61 @@ static void __mk_outerptr(
 static void __mk_tiled_outerptr(
   csf_t * const ft,
   sptensor_t const * const tt,
-  idx_t const * const tile_ptr,
-  idx_t const mode)
+  idx_t const * const tile_ptr)
 {
   /* the mode after accounting for dim_perm */
-  idx_t const mperm = ft->dim_perm[mode];
+  idx_t const mperm = ft->dim_perm[0];
   idx_t const * const restrict ttind = tt->ind[mperm];
 
   /* Count fibers summed across all tiles. Each tile will need its own
    * start/end fibers */
   idx_t nfibs = 0;
-  for(idx_t i=0; i < ft->tile_dims[mode]; ++i) {
+  idx_t ntiles = 0;
+  for(idx_t i=0; i < ft->tile_dims[mperm]; ++i) {
     idx_t id;
-    id = get_next_tileid(TILE_BEGIN, ft->tile_dims, tt->nmodes, 0, i);
+    id = get_next_tileid(TILE_BEGIN, ft->tile_dims, tt->nmodes, mperm, i);
     while(id != TILE_END) {
       idx_t const start = tile_ptr[id];
       idx_t const end = tile_ptr[id+1];
-      for(idx_t m=0; m < tt->nmodes; ++m) {
-        for(idx_t x=start; x < end; ++x) {
+      ++ntiles;
+      ++nfibs;
+      for(idx_t x=start+1; x < end; ++x) {
+        if(ttind[x] != ttind[x-1]) {
+          ++nfibs;
         }
       }
 
       /* next tile */
-      id = get_next_tileid(id, ft->tile_dims, tt->nmodes, 0, i);
+      id = get_next_tileid(id, ft->tile_dims, tt->nmodes, mperm, i);
+    }
+  }
+
+  /* allocate fptr */
+  ft->tile_ptr = (idx_t *) malloc((ntiles+1) * sizeof(idx_t));
+  ft->nfibs[0] = nfibs;
+  ft->fptr[0] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
+  ft->fids[0] = (idx_t *) malloc(nfibs * sizeof(idx_t));
+  ft->fptr[0][0] = 0;
+
+  idx_t * const restrict fp = ft->fptr[0];
+  idx_t * const restrict fi = ft->fids[0];
+
+  /* fill in fptr and tile_ptr */
+  idx_t nfound = 0;
+  for(idx_t i=0; i < ft->tile_dims[mperm]; ++i) {
+    idx_t id;
+    id = get_next_tileid(TILE_BEGIN, ft->tile_dims, tt->nmodes, mperm, i);
+    while(id != TILE_END) {
+      idx_t const start = tile_ptr[id];
+      idx_t const end = tile_ptr[id+1];
+
+      for(idx_t x=start+1; x < end; ++x) {
+        if(ttind[x] != ttind[x-1]) {
+        }
+      }
+
+      /* next tile */
+      id = get_next_tileid(id, ft->tile_dims, tt->nmodes, mperm, i);
     }
   }
 
@@ -310,8 +342,7 @@ static void __csf_alloc_densetile(
       ft->nnz * sizeof(idx_t));
   memcpy(ft->vals, tt->vals, ft->nnz * sizeof(val_t));
 
-  /* XXX: do we account for dim_perm instead of 0 here? */
-  __mk_tiled_outerptr(ft, tt, nnz_ptr, 0);
+  __mk_tiled_outerptr(ft, tt, nnz_ptr);
   /* create fptr entries for the rest of the modes, working up from */
   for(idx_t m=0; m < tt->nmodes-1; ++m) {
     //__mk_fptr(ft, tt, m);

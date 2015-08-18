@@ -24,6 +24,12 @@ typedef struct
   idx_t * tile_ptr;
 } csf_t;
 
+typedef struct
+{
+  csf_t * fts;
+
+} ctensor_t;
+
 
 /* The types of mode ordering available. */
 typedef enum
