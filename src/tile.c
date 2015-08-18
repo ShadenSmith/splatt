@@ -258,12 +258,69 @@ void tt_tile(
 
 
 
-void tt_threadtile(
+idx_t * tt_densetile(
   sptensor_t * const tt,
-  idx_t const nthreads)
+  idx_t const * const tile_dims)
 {
+  idx_t const nmodes = tt->nmodes;
+  idx_t ntiles = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    ntiles *= tile_dims[m];
+  }
 
+  /* the actual number of indices to place in each tile */
+  idx_t tsizes[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    tsizes[m] = tt->dims[m] / tile_dims[m];
+  }
+
+  idx_t * tcounts = (idx_t *) calloc(ntiles+2, sizeof(idx_t));
+
+  /* count tile sizes (in nnz) */
+  idx_t coord[MAX_NMODES];
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      coord[m] = tt->ind[m][x] / tsizes[m];
+    }
+    /* offset by 1 to make prefix sum easy */
+    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+    assert(id < ntiles);
+    ++tcounts[2+id];
+  }
+
+  /* prefix sum */
+  for(idx_t t=3; t <= ntiles+1; ++t) {
+    tcounts[t] += tcounts[t-1];
+  }
+
+  sptensor_t * newtt = tt_alloc(tt->nnz, tt->nmodes);
+
+  /* copy old tensor into new tiled one */
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      coord[m] = tt->ind[m][x] / tsizes[m];
+    }
+    /* offset by 1 to make prefix sum easy */
+    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+    assert(id < ntiles);
+
+    idx_t newidx = tcounts[id+1]++;
+    newtt->vals[newidx] = tt->vals[x];
+    for(idx_t m=0; m < nmodes; ++m) {
+      newtt->ind[m][newidx] = tt->ind[m][x];
+    }
+  }
+
+  /* copy data into old struct */
+  memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
+  }
+  tt_free(newtt);
+
+  return tcounts;
 }
+
 
 
 idx_t get_tile_id(

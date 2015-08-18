@@ -93,9 +93,24 @@ idx_t get_next_tileid(
   idx_t const mode_idx);
 
 
-void tt_threadtile(
+#define tt_densetile splatt_tt_densetile
+/**
+* @brief Rearrange the nonzeros of a sparse tensor for cache tiling. Blocks
+*        are 'densely' defined, meaning they do not grow following the sparsity
+*        pattern of the tensor. Specifying tile dimensions group nonzeros by
+*        index value, not number of unique indices like the tt_sparsetile()
+*        function.
+*
+* @param tt The sparse tensor to tile.
+* @param tile_dims The number of tiles to use along each dimension of the
+*                  tensor.
+*
+* @return A pointer into the rearranged tensor marking the start and end of
+*         each tile. These can be indexed via get_next_tileid().
+*/
+idx_t * tt_densetile(
   sptensor_t * const tt,
-  idx_t const nthreads);
+  idx_t const * const tile_dims);
 
 
 #define tt_tile splatt_tt_tile
