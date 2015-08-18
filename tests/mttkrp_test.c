@@ -29,7 +29,7 @@ static void __compare_mats(
 
 CTEST_DATA(mttkrp)
 {
-  int ntensors;
+  idx_t ntensors;
   idx_t nfactors;
   sptensor_t * tensors[MAX_DSETS];
   matrix_t * mats[MAX_DSETS][MAX_NMODES+1];
@@ -76,8 +76,8 @@ CTEST2(mttkrp, splatt)
   thd_info * thds =  thd_init(nthreads, 1,
     (data->nfactors * data->nfactors * sizeof(val_t)) + 64);
 
-  for(int i=0; i < data->ntensors; ++i) {
-    sptensor_t const * const tt = data->tensors[i];
+  for(idx_t i=0; i < data->ntensors; ++i) {
+    sptensor_t * const tt = data->tensors[i];
     if(tt->nmodes > 3) {
       continue;
     }
@@ -110,10 +110,12 @@ CTEST2(mttkrp, csf)
   idx_t const nthreads = 7;
   omp_set_num_threads(nthreads);
 
-  for(int i=0; i < data->ntensors; ++i) {
-    sptensor_t const * const tt = data->tensors[i];
+  double * opts = splatt_default_opts();
+
+  for(idx_t i=0; i < data->ntensors; ++i) {
+    sptensor_t * const tt = data->tensors[i];
     csf_t cs;
-    csf_alloc(&cs, tt, SPLATT_NOTILE);
+    csf_alloc(&cs, tt, opts);
 
     /* add 64 bytes to avoid false sharing */
     thd_info * thds = thd_init(nthreads, 3,

@@ -4,6 +4,7 @@
  *****************************************************************************/
 #include "csf.h"
 #include "sort.h"
+#include "tile.h"
 
 #include "io.h"
 
@@ -149,6 +150,38 @@ static void __mk_outerptr(
 }
 
 
+static void __mk_tiled_outerptr(
+  csf_t * const ft,
+  sptensor_t const * const tt,
+  idx_t const * const tile_ptr,
+  idx_t const mode)
+{
+  /* the mode after accounting for dim_perm */
+  idx_t const mperm = ft->dim_perm[mode];
+  idx_t const * const restrict ttind = tt->ind[mperm];
+
+  /* Count fibers summed across all tiles. Each tile will need its own
+   * start/end fibers */
+  idx_t nfibs = 0;
+  for(idx_t i=0; i < ft->tile_dims[mode]; ++i) {
+    idx_t id;
+    id = get_next_tileid(TILE_BEGIN, ft->tile_dims, tt->nmodes, 0, i);
+    while(id != TILE_END) {
+      idx_t const start = tile_ptr[id];
+      idx_t const end = tile_ptr[id+1];
+      for(idx_t m=0; m < tt->nmodes; ++m) {
+        for(idx_t x=start; x < end; ++x) {
+        }
+      }
+
+      /* next tile */
+      id = get_next_tileid(id, ft->tile_dims, tt->nmodes, 0, i);
+    }
+  }
+
+}
+
+
 static void __mk_fptr(
   csf_t * const ft,
   sptensor_t const * const tt,
@@ -218,6 +251,76 @@ static void __mk_fptr(
 }
 
 
+/**
+* @brief Allocate and fill a CSF tensor from a coordinate tensor without
+*        tiling.
+*
+* @param ft The CSF tensor to fill out.
+* @param tt The sparse tensor to start from.
+*/
+static void __csf_alloc_untiled(
+  csf_t * const ft,
+  sptensor_t * const tt)
+{
+  idx_t const nmodes = tt->nmodes;
+  tt_sort(tt, ft->dim_perm[0], ft->dim_perm);
+
+  /* last row of fptr is just nonzero inds */
+  ft->nfibs[nmodes-1] = ft->nnz;
+  ft->fids[nmodes-1] = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
+  ft->vals           = (val_t *) malloc(ft->nnz * sizeof(val_t));
+  memcpy(ft->fids[nmodes-1], tt->ind[ft->dim_perm[nmodes-1]],
+      ft->nnz * sizeof(idx_t));
+  memcpy(ft->vals, tt->vals, ft->nnz * sizeof(val_t));
+
+  /* create fptr entries for the rest of the modes, working up from */
+  for(idx_t m=0; m < tt->nmodes-1; ++m) {
+    __mk_fptr(ft, tt, m);
+  }
+}
+
+
+/**
+* @brief Reorder the nonzeros in a sparse tensor using dense tiling and fill
+*        a CSF tensor with the data.
+*
+* @param ft The CSF tensor to fill.
+* @param tt The sparse tensor to start from.
+* @param splatt_opts Options array for SPLATT - used for tile dimensions.
+*/
+static void __csf_alloc_densetile(
+  csf_t * const ft,
+  sptensor_t * const tt,
+  double const * const splatt_opts)
+{
+  idx_t const nmodes = tt->nmodes;
+
+  idx_t ntiles = 1;
+  for(idx_t m=0; m < ft->nmodes; ++m) {
+    ft->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
+    ntiles *= ft->tile_dims[m];
+  }
+  idx_t * nnz_ptr = tt_densetile(tt, ft->tile_dims);
+
+  /* last row of fptr is just nonzero inds */
+  ft->nfibs[nmodes-1] = ft->nnz;
+  ft->fids[nmodes-1] = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
+  ft->vals           = (val_t *) malloc(ft->nnz * sizeof(val_t));
+  memcpy(ft->fids[nmodes-1], tt->ind[ft->dim_perm[nmodes-1]],
+      ft->nnz * sizeof(idx_t));
+  memcpy(ft->vals, tt->vals, ft->nnz * sizeof(val_t));
+
+  /* XXX: do we account for dim_perm instead of 0 here? */
+  __mk_tiled_outerptr(ft, tt, nnz_ptr, 0);
+  /* create fptr entries for the rest of the modes, working up from */
+  for(idx_t m=0; m < tt->nmodes-1; ++m) {
+    //__mk_fptr(ft, tt, m);
+  }
+
+  free(nnz_ptr);
+}
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -225,36 +328,36 @@ static void __mk_fptr(
 void csf_alloc(
   csf_t * const ft,
   sptensor_t * const tt,
-  splatt_tile_t which_tile)
+  double const * const splatt_opts)
 {
-  idx_t const nmodes = tt->nmodes;
-  ft->nmodes = nmodes;
+  ft->nmodes = tt->nmodes;
   ft->nnz = tt->nnz;
   ft->fptr = (idx_t **) malloc(tt->nmodes * sizeof(idx_t *));
   ft->fids = (idx_t **) malloc(tt->nmodes * sizeof(idx_t *));
 
-  for(idx_t m=0; m < nmodes; ++m) {
+  for(idx_t m=0; m < tt->nmodes; ++m) {
     ft->dims[m] = tt->dims[m];
     ft->fptr[m] = NULL;
     ft->fids[m] = NULL;
   }
 
   /* get the indices in order */
-  csf_find_mode_order(tt->dims, tt->nmodes, CSF_SORTED_SMALLFIRST, ft->dim_perm);
-  tt_sort(tt, ft->dim_perm[0], ft->dim_perm);
+  csf_find_mode_order(tt->dims, tt->nmodes, CSF_SORTED_SMALLFIRST,
+      ft->dim_perm);
 
-  /* last row of fptr is just nonzero inds */
-  ft->nfibs[nmodes-1] = ft->nnz;
-  ft->fids[nmodes-1] = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
-  ft->vals           = (val_t *) malloc(ft->nnz * sizeof(val_t));
-  memcpy(ft->fids[nmodes-1], tt->ind[ft->dim_perm[nmodes-1]], ft->nnz * sizeof(idx_t));
-  memcpy(ft->vals, tt->vals, ft->nnz * sizeof(val_t));
-
-  /* create fptr entries for the rest of the modes, working up from */
-  for(idx_t m=0; m < tt->nmodes-1; ++m) {
-    __mk_fptr(ft, tt, m);
+  splatt_tile_t which_tile = (splatt_tile_t) splatt_opts[SPLATT_OPTION_TILE];
+  switch(which_tile) {
+  case SPLATT_NOTILE:
+    __csf_alloc_untiled(ft, tt);
+    break;
+  case SPLATT_DENSETILE:
+    __csf_alloc_densetile(ft, tt, splatt_opts);
+    break;
+  default:
+    fprintf(stderr, "SPLATT: tiling '%d' unsupported for CSF tensors.\n",
+        which_tile);
+    break;
   }
-
 #if 0
   tt_write(tt, NULL);
   __print_csf(ft);

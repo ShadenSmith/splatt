@@ -155,7 +155,7 @@ void bench_csf(
     (tt->nmodes * nfactors * sizeof(val_t)) + 64);
 
   csf_t cs;
-  csf_alloc(&cs, tt, opts->tile);
+  csf_alloc(&cs, tt, SPLATT_NOTILE);
 
   printf("** CSF **\n");
   unsigned long cs_bytes = csf_storage(&cs);

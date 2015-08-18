@@ -18,6 +18,10 @@ typedef struct
   idx_t ** fptr;
   idx_t ** fids;
   val_t * vals;
+
+  splatt_tile_t which_tile;
+  idx_t tile_dims[MAX_NMODES];
+  idx_t * tile_ptr;
 } csf_t;
 
 
@@ -42,7 +46,7 @@ typedef enum
 void csf_alloc(
   csf_t * const ft,
   sptensor_t * const tt,
-  splatt_tile_t which_tile);
+  double const * const splatt_opts);
 
 #define csf_free splatt_csf_free
 void csf_free(
