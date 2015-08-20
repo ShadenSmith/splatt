@@ -166,10 +166,9 @@ static void __ctensor_mttkrp_root(
   ctensor_t const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  idx_t const mode,
   thd_info * const thds)
 {
-  printf("ROOT2");
+  printf("ROOT2\n");
   /* extract tensor structures */
   idx_t const nmodes = ct->nmodes;
   idx_t const * const * const restrict fp
@@ -199,8 +198,13 @@ static void __ctensor_mttkrp_root(
     val_t * const ovals = mats[MAX_NMODES]->vals;
 
     #pragma omp for schedule(dynamic, 16) nowait
-    for(idx_t s=0; s < ct->dims[ct->dim_perm[0]]; ++s) {
-      __propagate_up(ovals + (s * nfactors), buf, idxstack, 0, s, fp, fids,
+    for(idx_t s=0; s < ct->pt[tile_id].nfibs[0]; ++s) {
+      idx_t fid = s;
+      if(fids[0] != NULL) {
+        fid = fids[0][s];
+      }
+
+      __propagate_up(ovals + (fid * nfactors), buf, idxstack, 0, fid, fp, fids,
           vals, mvals, nmodes, nfactors);
     } /* end foreach outer slice */
 
@@ -809,7 +813,7 @@ void mttkrp_ctensor(
 
   omp_set_num_threads(nthreads);
   if(outdepth == 0) {
-    __ctensor_mttkrp_root(ct, 0, mats, mode, thds);
+    __ctensor_mttkrp_root(ct, 0, mats, thds);
   }
 }
 

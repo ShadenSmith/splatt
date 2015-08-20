@@ -4,6 +4,8 @@
 #include "../src/csf.h"
 #include "../src/thd_info.h"
 
+#include "../src/io.h"
+
 #include "ctest/ctest.h"
 
 #include "splatt_test.h"
@@ -39,7 +41,7 @@ CTEST_DATA(mttkrp)
 
 CTEST_SETUP(mttkrp)
 {
-  data->nfactors = 13;
+  data->nfactors = 3;
   data->ntensors = sizeof(datasets) / sizeof(datasets[0]);
   for(idx_t i=0; i < data->ntensors; ++i) {
     data->tensors[i] = tt_read(datasets[i]);
@@ -137,6 +139,14 @@ CTEST2(mttkrp, csf)
 
       /* compute splatt */
       mttkrp_ctensor(&cs, data->mats[i], m, thds, nthreads);
+
+#if 0
+      printf("GOLD:\n");
+      mat_write(data->gold[i], NULL);
+
+      printf("CSF:\n");
+      mat_write(data->mats[i][MAX_NMODES], NULL);
+#endif
 
       __compare_mats(data->mats[i][MAX_NMODES], data->gold[i]);
     }

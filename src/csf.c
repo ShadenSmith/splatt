@@ -75,53 +75,54 @@ static void __order_dims_large(
 }
 
 
-#if 0
 static void __print_csf(
-  csf_t const * const ft)
+  ctensor_t const * const ct)
 {
   printf("-----------\n");
-  printf("nmodes: %lu nnz: %lu\n", ft->nmodes, ft->nnz);
-  printf("dims: %lu", ft->dims[0]);
-  for(idx_t m=1; m < ft->nmodes; ++m) {
-    printf("x%lu", ft->dims[m]);
+  printf("nmodes: %lu nnz: %lu ntiles: %lu\n", ct->nmodes, ct->nnz, ct->ntiles);
+  printf("dims: %lu", ct->dims[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("x%lu", ct->dims[m]);
   }
-  printf(" (%lu", ft->dim_perm[0]);
-  for(idx_t m=1; m < ft->nmodes; ++m) {
-    printf("->%lu", ft->dim_perm[m]);
+  printf(" (%lu", ct->dim_perm[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("->%lu", ct->dim_perm[m]);
   }
   printf(")\n");
 
-  /* write slices */
-  printf("fptr:\n");
-  printf("[%lu] ", ft->nfibs[0]);
-  for(idx_t f=0; f < ft->nfibs[0]; ++f) {
-    printf(" %lu", ft->fptr[0][f]);
-  }
-  printf(" %lu\n", ft->fptr[0][ft->nfibs[0]]);
-
-  /* inner nodes */
-  for(idx_t m=1; m < ft->nmodes-1; ++m) {
-    printf("[%lu] ", ft->nfibs[m]);
-    for(idx_t f=0; f < ft->nfibs[m]; ++f) {
-      printf(" (%lu, %lu)", ft->fptr[m][f], ft->fids[m][f]);
+  for(idx_t t=0; t < ct->ntiles; ++t) {
+    csf_sparsity_t const * const ft = ct->pt + t;
+    /* write slices */
+    printf("fptr:\n");
+    printf("[%lu] ", ft->nfibs[0]);
+    for(idx_t f=0; f < ft->nfibs[0]; ++f) {
+      printf(" %lu", ft->fptr[0][f]);
     }
-    printf(" %lu\n", ft->fptr[m][ft->nfibs[m]]);
-  }
+    printf(" %lu\n", ft->fptr[0][ft->nfibs[0]]);
 
-  /* vals/inds */
-  printf("[%lu] ", ft->nfibs[ft->nmodes-1]);
-  for(idx_t f=0; f < ft->nfibs[ft->nmodes-1]; ++f) {
-    printf(" %3lu", ft->fids[ft->nmodes-1][f]);
+    /* inner nodes */
+    for(idx_t m=1; m < ct->nmodes-1; ++m) {
+      printf("[%lu] ", ft->nfibs[m]);
+      for(idx_t f=0; f < ft->nfibs[m]; ++f) {
+        printf(" (%lu, %lu)", ft->fptr[m][f], ft->fids[m][f]);
+      }
+      printf(" %lu\n", ft->fptr[m][ft->nfibs[m]]);
+    }
+
+    /* vals/inds */
+    printf("[%lu] ", ft->nfibs[ct->nmodes-1]);
+    for(idx_t f=0; f < ft->nfibs[ct->nmodes-1]; ++f) {
+      printf(" %3lu", ft->fids[ct->nmodes-1][f]);
+    }
+    printf("\n");
+    for(idx_t n=0; n < ct->nnz; ++n) {
+      printf(" %0.1f", ft->vals[n]);
+    }
+    printf("\n");
   }
-  printf("\n");
-  for(idx_t n=0; n < ft->nnz; ++n) {
-    printf(" %0.1f", ft->vals[n]);
-  }
-  printf("\n");
 
   printf("-----------\n\n");
 }
-#endif
 
 
 static void __mk_outerptr(
@@ -319,8 +320,7 @@ static void __mk_fptr(
 
   /* account for empty slices? */
   while(nfound <= pt->nfibs[mode]) {
-    idx_t const last = fp[nfound-1];
-    fp[nfound++] = last;
+    fp[nfound++] = nnztile_ptr[tile_id+1];
   }
 }
 
@@ -444,8 +444,10 @@ void ctensor_alloc(
     break;
   }
 #if 0
-  tt_write(tt, NULL);
-  __print_csf(ct);
+  if(tt->nnz < 100) {
+    tt_write(tt, NULL);
+    __print_csf(ct);
+  }
 #endif
 }
 
