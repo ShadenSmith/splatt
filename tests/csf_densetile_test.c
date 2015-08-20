@@ -29,15 +29,15 @@ CTEST_TEARDOWN(csf_densetile)
   tt_free(data->tt);
 }
 
-CTEST2(csf_densetile, fill)
+CTEST2_SKIP(csf_densetile, fill)
 {
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
   opts[SPLATT_OPTION_NTHREADS] = 4;
 
-  csf_t cs;
-  csf_alloc(&cs, data->tt, opts);
+  ctensor_t cs;
+  ctensor_alloc(&cs, data->tt, opts);
 
-  //csf_free(&cs);
+  ctensor_free(&cs);
 }
 

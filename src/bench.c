@@ -147,6 +147,7 @@ void bench_csf(
   sp_timer_t itertime;
   sp_timer_t modetime;
 
+#if 0
   idx_t const nfactors = mats[0]->J;
   /* add 64 bytes to avoid false sharing */
   thd_info * thds = thd_init(threads[nruns-1], 3,
@@ -205,6 +206,7 @@ void bench_csf(
   thd_free(thds, threads[nruns-1]);
   /* clean up */
   csf_free(&cs);
+#endif
 
   /* fix any matrices that we shuffled */
   __shuffle_mats(mats, opts->perm->iperms, tt->nmodes);

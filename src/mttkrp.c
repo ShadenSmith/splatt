@@ -164,6 +164,7 @@ static inline void __propagate_up(
 
 
 
+#if 0
 static void __csf_mttkrp_internal2(
   csf_t const * const ft,
   matrix_t ** mats,
@@ -684,6 +685,7 @@ static void __csf_mttkrp_root2(
     timer_start(&thds[tid].ttime);
   } /* end omp parallel */
 }
+#endif
 
 
 /******************************************************************************
@@ -739,10 +741,33 @@ int splatt_mttkrp(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+void mttkrp_ctensor(
+  ctensor_t const * const ct,
+  matrix_t ** mats,
+  idx_t const mode,
+  thd_info * const thds,
+  idx_t const nthreads)
+{
+  /* clear output matrix */
+  matrix_t * const M = mats[MAX_NMODES];
+  M->I = ct->dims[mode];
+  memset(M->vals, 0, M->I * M->J * sizeof(val_t));
+
+  /* find out which level in the tree this is */
+  idx_t outdepth = 0;
+  for(idx_t m=0; m < ct->nmodes; ++m) {
+    if(ct->dim_perm[m] == mode) {
+      outdepth = m;
+      break;
+    }
+  }
+}
+
 
 /******************************************************************************
  * SPLATT MTTKRP
  *****************************************************************************/
+#if 0
 void mttkrp_csf(
   csf_t const * const ft,
   matrix_t ** mats,
@@ -773,6 +798,7 @@ void mttkrp_csf(
     __csf_mttkrp_internal2(ft, mats, mode, thds);
   }
 }
+#endif
 
 
 
