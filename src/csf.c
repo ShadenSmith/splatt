@@ -490,22 +490,23 @@ void csf_find_mode_order(
 }
 
 
-#if 0
-idx_t csf_storage(
-  csf_t const * const ft)
+idx_t ctensor_storage(
+  ctensor_t const * const ct)
 {
   idx_t bytes = 0;
-  bytes += ft->nnz * sizeof(val_t); /* vals */
-  bytes += ft->nnz * sizeof(idx_t); /* fids[nmodes] */
-  for(idx_t m=0; m < ft->nmodes-1; ++m) {
-    bytes += (ft->nfibs[m]+1) * sizeof(idx_t); /* fptr */
-    /* only look at fids for non-outer mode */
-    if(m > 0) {
-      bytes += ft->nfibs[m] * sizeof(idx_t); /* fids */
+  bytes += ct->nnz * sizeof(val_t); /* vals */
+  bytes += ct->nnz * sizeof(idx_t); /* fids[nmodes] */
+  for(idx_t t=0; t < ct->ntiles; ++t) {
+    csf_sparsity_t const * const pt = ct->pt + t;
+
+    for(idx_t m=0; m < ct->nmodes-1; ++m) {
+      bytes += (pt->nfibs[m]+1) * sizeof(idx_t); /* fptr */
+      if(pt->fids[m] != NULL) {
+        bytes += pt->nfibs[m] * sizeof(idx_t); /* fids */
+      }
     }
   }
   return bytes;
 }
-#endif
 
 

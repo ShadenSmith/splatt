@@ -105,12 +105,12 @@ CTEST2(mttkrp, splatt)
   thd_free(thds, nthreads);
 }
 
-CTEST2_SKIP(mttkrp, csf)
+CTEST2(mttkrp, csf)
 {
   idx_t const nthreads = 7;
-  omp_set_num_threads(nthreads);
 
   double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS] = nthreads;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * const tt = data->tensors[i];
@@ -136,7 +136,7 @@ CTEST2_SKIP(mttkrp, csf)
       data->gold[i] = tmp;
 
       /* compute splatt */
-      //mttkrp_csf(&cs, data->mats[i], m, thds, nthreads);
+      mttkrp_ctensor(&cs, data->mats[i], m, thds, nthreads);
 
       __compare_mats(data->mats[i][MAX_NMODES], data->gold[i]);
     }

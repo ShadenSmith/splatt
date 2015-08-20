@@ -16,14 +16,12 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-#if 0
-void mttkrp_csf(
-  csf_t const * const ft,
+void mttkrp_ctensor(
+  ctensor_t const * const ft,
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds,
   idx_t const nthreads);
-#endif
 
 void mttkrp_splatt(
   ftensor_t const * const ft,

@@ -162,6 +162,51 @@ static inline void __propagate_up(
   }
 }
 
+static void __ctensor_mttkrp_root(
+  ctensor_t const * const ct,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  idx_t const mode,
+  thd_info * const thds)
+{
+  printf("ROOT2");
+  /* extract tensor structures */
+  idx_t const nmodes = ct->nmodes;
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) ct->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) ct->pt[tile_id].fids;
+  val_t const * const vals = ct->pt[tile_id].vals;
+
+  idx_t const nfactors = mats[0]->J;
+
+  #pragma omp parallel default(shared)
+  {
+    int const tid = omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+
+    val_t * mvals[MAX_NMODES];
+    val_t * buf[MAX_NMODES];
+    idx_t idxstack[MAX_NMODES];
+
+    for(idx_t m=0; m < nmodes; ++m) {
+      mvals[m] = mats[ct->dim_perm[m]]->vals;
+      /* grab the next row of buf from thds */
+      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+      memset(buf[m], 0, nfactors * sizeof(idx_t));
+    }
+
+    val_t * const ovals = mats[MAX_NMODES]->vals;
+
+    #pragma omp for schedule(dynamic, 16) nowait
+    for(idx_t s=0; s < ct->dims[ct->dim_perm[0]]; ++s) {
+      __propagate_up(ovals + (s * nfactors), buf, idxstack, 0, s, fp, fids,
+          vals, mvals, nmodes, nfactors);
+    } /* end foreach outer slice */
+
+    timer_start(&thds[tid].ttime);
+  } /* end omp parallel */
+}
 
 
 #if 0
@@ -760,6 +805,11 @@ void mttkrp_ctensor(
       outdepth = m;
       break;
     }
+  }
+
+  omp_set_num_threads(nthreads);
+  if(outdepth == 0) {
+    __ctensor_mttkrp_root(ct, 0, mats, mode, thds);
   }
 }
 
