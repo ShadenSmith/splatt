@@ -40,6 +40,13 @@ CTEST2(csf_alloc, fill)
     ASSERT_EQUAL(1, cs.tile_dims[m]);
   }
 
+  /* with 1 tile, vals should be exactly the same ordering */
+  val_t const * const restrict ttvals = data->tt->vals;
+  val_t const * const restrict csvals = cs.pt->vals;
+  for(idx_t n=0; n < data->tt->nnz; ++n) {
+    ASSERT_DBL_NEAR_TOL((double)ttvals[n], (double) csvals[n], 0);
+  }
+
   ctensor_free(&cs);
 }
 
