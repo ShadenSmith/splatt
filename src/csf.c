@@ -328,11 +328,10 @@ static void __csf_alloc_densetile(
     ct->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
     ntiles *= ct->tile_dims[m];
   }
+  /* perform tensor tiling */
   idx_t * nnz_ptr = tt_densetile(tt, ct->tile_dims);
 
   ct->ntiles = ntiles;
-  printf("\nntiles: %lu\n", ntiles);
-
   ct->pt = (csf_sparsity_t *) malloc(ntiles * sizeof(csf_sparsity_t));
 
   for(idx_t t=0; t < ntiles; ++t) {

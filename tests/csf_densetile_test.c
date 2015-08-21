@@ -38,6 +38,30 @@ CTEST2(csf_densetile, fill)
   ctensor_t cs;
   ctensor_alloc(&cs, data->tt, opts);
 
+  ASSERT_EQUAL(data->ntiles, cs.ntiles);
+  ASSERT_EQUAL(data->tt->nnz, cs.nnz);
+  ASSERT_EQUAL(data->tt->nmodes, cs.nmodes);
+
+  /* make sure nnz in all tiles adds */
+  idx_t countnnz = 0;
+  for(idx_t t=0; t < cs.ntiles; ++t) {
+    countnnz += cs.pt[t].nfibs[cs.nmodes-1];
+  }
+  ASSERT_EQUAL(cs.nnz, countnnz);
+
+  /* compare vals */
+  idx_t * nnzptr = tt_densetile(data->tt, cs.tile_dims);
+  for(idx_t t=0; t < cs.ntiles; ++t) {
+    ASSERT_EQUAL(nnzptr[t+1] - nnzptr[t], cs.pt[t].nfibs[cs.nmodes-1]);
+
+    val_t const * const restrict ttvals = data->tt->vals;
+    val_t const * const restrict csvals = cs.pt[t].vals;
+    for(idx_t v=nnzptr[t]; v < nnzptr[t+1]; ++v) {
+      ASSERT_DBL_NEAR_TOL((double)ttvals[v], (double) csvals[v-nnzptr[t]], 0);
+    }
+  }
+
+  free(nnzptr);
   ctensor_free(&cs);
   free(opts);
 }
