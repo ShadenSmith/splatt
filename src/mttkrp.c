@@ -162,6 +162,7 @@ static inline void __propagate_up(
   }
 }
 
+
 static void __ctensor_mttkrp_root(
   ctensor_t const * const ct,
   idx_t const tile_id,
@@ -213,25 +214,110 @@ static void __ctensor_mttkrp_root(
 }
 
 
-#if 0
-static void __csf_mttkrp_internal2(
-  csf_t const * const ft,
+static void __ctensor_mttkrp_leaf(
+  ctensor_t const * const ct,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  thd_info * const thds)
+{
+  printf("LEAF2");
+  /* extract tensor structures */
+  idx_t const nmodes = ct->nmodes;
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) ct->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) ct->pt[tile_id].fids;
+  val_t const * const vals = ct->pt[tile_id].vals;
+
+  idx_t const nfactors = mats[0]->J;
+
+  #pragma omp parallel default(shared)
+  {
+    int const tid = omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+
+    val_t * mvals[MAX_NMODES];
+    val_t * buf[MAX_NMODES];
+    idx_t idxstack[MAX_NMODES];
+
+    for(idx_t m=0; m < nmodes; ++m) {
+      mvals[m] = mats[ct->dim_perm[m]]->vals;
+      /* grab the next row of buf from thds */
+      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+    }
+
+    /* foreach outer slice */
+    #pragma omp for schedule(dynamic, 16) nowait
+    for(idx_t s=0; s < ct->pt[tile_id].nfibs[0]; ++s) {
+      idx_t fid = s;
+      if(fids[0] != NULL) {
+        fid = fids[0][s];
+      }
+      idxstack[0] = fid;
+
+      /* clear out stale data */
+      for(idx_t m=1; m < nmodes-1; ++m) {
+        idxstack[m] = fp[m-1][idxstack[m-1]];
+      }
+
+      /* first buf will always just be a matrix row */
+      val_t const * const restrict rootrow = mvals[0] + (fid*nfactors);
+      val_t * const rootbuf = buf[0];
+      for(idx_t f=0; f < nfactors; ++f) {
+        rootbuf[f] = rootrow[f];
+      }
+
+      idx_t depth = 0;
+
+      idx_t const outer_end = fp[0][s+1];
+      while(idxstack[1] < outer_end) {
+        /* move down to an nnz node */
+        for(; depth < nmodes-2; ++depth) {
+          /* propogate buf down */
+          val_t const * const restrict drow
+              = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
+          __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
+        }
+
+        /* process all nonzeros [start, end) */
+        idx_t const start = fp[depth][idxstack[depth]];
+        idx_t const end   = fp[depth][idxstack[depth]+1];
+        __csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
+            nfactors, start, end, fids[depth+1], vals);
+
+        /* now move back up to the next unprocessed child */
+        do {
+          ++idxstack[depth];
+          --depth;
+        } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+      } /* end DFS */
+    } /* end outer slice loop */
+  } /* end omp parallel */
+}
+
+
+static void __ctensor_mttkrp_internal(
+  ctensor_t const * const ct,
+  idx_t const tile_id,
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds)
 {
   printf("INTL2");
   /* extract tensor structures */
-  idx_t const nmodes = ft->nmodes;
-  idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
-  idx_t const * const * const restrict fids = (idx_t const * const *) ft->fids;
-  val_t const * const vals = ft->vals;
+  idx_t const nmodes = ct->nmodes;
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) ct->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) ct->pt[tile_id].fids;
+  val_t const * const vals = ct->pt[tile_id].vals;
 
   idx_t const nfactors = mats[0]->J;
+
   /* find out which level in the tree this is */
   idx_t outdepth = 0;
-  for(idx_t m=0; m < ft->nmodes; ++m) {
-    if(ft->dim_perm[m] == mode) {
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(ct->dim_perm[m] == mode) {
       outdepth = m;
       break;
     }
@@ -247,23 +333,29 @@ static void __csf_mttkrp_internal2(
     idx_t idxstack[MAX_NMODES];
 
     for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ft->dim_perm[m]]->vals;
+      mvals[m] = mats[ct->dim_perm[m]]->vals;
       /* grab the next row of buf from thds */
       buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
       memset(buf[m], 0, nfactors * sizeof(idx_t));
     }
     val_t * const ovals = mats[MAX_NMODES]->vals;
 
+    /* foreach outer slice */
     #pragma omp for schedule(dynamic, 16)
-    for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
+    for(idx_t s=0; s < ct->dims[ct->dim_perm[0]]; ++s) {
+      idx_t fid = s;
+      if(fids[0] != NULL) {
+        fid = fids[0][s];
+      }
+
       /* push outer slice and fill stack */
-      idxstack[0] = s;
+      idxstack[0] = fid;
       for(idx_t m=1; m <= outdepth; ++m) {
         idxstack[m] = fp[m-1][idxstack[m-1]];
       }
 
       /* fill first buf */
-      val_t const * const restrict rootrow = mvals[0] + (s*nfactors);
+      val_t const * const restrict rootrow = mvals[0] + (fid*nfactors);
       for(idx_t f=0; f < nfactors; ++f) {
         buf[0][f] = rootrow[f];
       }
@@ -302,7 +394,7 @@ static void __csf_mttkrp_internal2(
   } /* end omp parallel */
 }
 
-
+#if 0
 static void __csf_mttkrp_internal(
   csf_t const * const ft,
   matrix_t ** mats,
@@ -615,125 +707,6 @@ static void __csf_mttkrp_root(
     timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
-
-static void __csf_mttkrp_leaf2(
-  csf_t const * const ft,
-  matrix_t ** mats,
-  idx_t const mode,
-  thd_info * const thds)
-{
-  printf("LEAF2");
-  /* extract tensor structures */
-  idx_t const nmodes = ft->nmodes;
-  idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
-  idx_t const * const * const restrict fids = (idx_t const * const *) ft->fids;
-
-  idx_t const nfactors = mats[0]->J;
-
-  #pragma omp parallel default(shared)
-  {
-    int const tid = omp_get_thread_num();
-    timer_start(&thds[tid].ttime);
-
-    val_t * mvals[MAX_NMODES];
-    val_t * buf[MAX_NMODES];
-    idx_t idxstack[MAX_NMODES];
-
-    for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ft->dim_perm[m]]->vals;
-      /* grab the next row of buf from thds */
-      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-    }
-
-    /* foreach outer slice */
-    #pragma omp for schedule(dynamic, 16)
-    for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
-      /* push current outer slice */
-      idxstack[0] = s;
-
-      /* clear out stale data */
-      for(idx_t m=1; m < ft->nmodes-1; ++m) {
-        idxstack[m] = fp[m-1][idxstack[m-1]];
-      }
-
-      /* first buf will always just be a matrix row */
-      val_t const * const restrict rootrow = mvals[0] + (s*nfactors);
-      val_t * const rootbuf = buf[0];
-      for(idx_t f=0; f < nfactors; ++f) {
-        rootbuf[f] = rootrow[f];
-      }
-
-      idx_t depth = 0;
-
-      idx_t const outer_end = fp[0][s+1];
-      while(idxstack[1] < outer_end) {
-        /* move down to an nnz node */
-        for(; depth < nmodes-2; ++depth) {
-          /* propogate buf down */
-          val_t const * const restrict drow
-              = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-          __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
-        }
-
-        /* process all nonzeros [start, end) */
-        idx_t const start = fp[depth][idxstack[depth]];
-        idx_t const end   = fp[depth][idxstack[depth]+1];
-        __csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
-            nfactors, start, end, fids[depth+1], ft->vals);
-
-        /* now move back up to the next unprocessed child */
-        do {
-          ++idxstack[depth];
-          --depth;
-        } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
-      } /* end DFS */
-    } /* end outer slice loop */
-  } /* end omp parallel */
-}
-
-
-static void __csf_mttkrp_root2(
-  csf_t const * const ft,
-  matrix_t ** mats,
-  idx_t const mode,
-  thd_info * const thds)
-{
-  printf("ROOT2");
-  /* extract tensor structures */
-  idx_t const nmodes = ft->nmodes;
-  idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
-  idx_t const * const * const restrict fids = (idx_t const * const *) ft->fids;
-  val_t const * const vals = ft->vals;
-
-  idx_t const nfactors = mats[0]->J;
-
-  #pragma omp parallel default(shared)
-  {
-    int const tid = omp_get_thread_num();
-    timer_start(&thds[tid].ttime);
-
-    val_t * mvals[MAX_NMODES];
-    val_t * buf[MAX_NMODES];
-    idx_t idxstack[MAX_NMODES];
-
-    for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ft->dim_perm[m]]->vals;
-      /* grab the next row of buf from thds */
-      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-      memset(buf[m], 0, nfactors * sizeof(idx_t));
-    }
-
-    val_t * const ovals = mats[MAX_NMODES]->vals;
-
-    #pragma omp for schedule(dynamic, 16) nowait
-    for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
-      __propagate_up(ovals + (s * nfactors), buf, idxstack, 0, s, fp, fids,
-          vals, mvals, nmodes, nfactors);
-    } /* end foreach outer slice */
-
-    timer_start(&thds[tid].ttime);
-  } /* end omp parallel */
-}
 #endif
 
 
@@ -812,9 +785,33 @@ void mttkrp_ctensor(
   }
 
   omp_set_num_threads(nthreads);
-  if(outdepth == 0) {
-    __ctensor_mttkrp_root(ct, 0, mats, thds);
+
+  /* set of untiled functions, use mutexes where required */
+  if(ct->tile_dims[outdepth] == 1) {
+    if(outdepth == 0) {
+      __ctensor_mttkrp_root(ct, 0, mats, thds);
+    } else if(outdepth == ct->nmodes - 1) {
+      __ctensor_mttkrp_leaf(ct, 0, mats, thds);
+    } else {
+      __ctensor_mttkrp_internal(ct, 0, mats, mode, thds);
+    }
+    return;
   }
+
+#if 0
+  #pragma omp parallel
+  {
+    /* tiled functions, no locking required */
+    idx_t id = get_next_tileid(TILE_BEGIN,);
+    if(outdepth == 0) {
+      __ctensor_mttkrp_root(ct, 0, mats, thds);
+    } else if(outdepth == ct->nmodes - 1) {
+      __ctensor_mttkrp_leaf(ct, 0, mats, thds);
+    } else {
+      __ctensor_mttkrp_internal(ct, 0, mats, mode, thds);
+    }
+  }
+#endif
 }
 
 
@@ -1176,13 +1173,11 @@ void mttkrp_ttbox(
     #pragma omp parallel for
     for(idx_t x=0; x < nnz; ++x) {
       scratch[x] = vals[x] * av[indA[x]] * bv[indB[x]];
-      //scratch[x] = vals[x] * A->vals[r + (rank*indA[x])] * B->vals[r + (rank*indB[x])];
     }
 
     /* now accumulate into m1 */
     for(idx_t x=0; x < nnz; ++x) {
       mv[indM[x]] += scratch[x];
-      //M->vals[r + (rank * indM[x])] += scratch[x];
     }
   }
 }

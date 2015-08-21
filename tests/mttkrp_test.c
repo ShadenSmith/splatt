@@ -140,14 +140,6 @@ CTEST2(mttkrp, csf)
       /* compute splatt */
       mttkrp_ctensor(&cs, data->mats[i], m, thds, nthreads);
 
-#if 0
-      printf("GOLD:\n");
-      mat_write(data->gold[i], NULL);
-
-      printf("CSF:\n");
-      mat_write(data->mats[i][MAX_NMODES], NULL);
-#endif
-
       __compare_mats(data->mats[i][MAX_NMODES], data->gold[i]);
     }
     thd_free(thds, nthreads);

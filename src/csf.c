@@ -131,12 +131,14 @@ static void __mk_outerptr(
   idx_t const tile_id,
   idx_t const * const nnztile_ptr)
 {
+  idx_t const nnzstart = nnztile_ptr[tile_id];
+  idx_t const nnzend   = nnztile_ptr[tile_id+1];
+
+  assert(nnzstart < nnzend);
+
   /* the mode after accounting for dim_perm */
   idx_t const mperm = ct->dim_perm[0];
   idx_t const * const restrict ttind = tt->ind[mperm];
-
-  idx_t const nnzstart = nnztile_ptr[tile_id];
-  idx_t const nnzend   = nnztile_ptr[tile_id+1];
 
   /* count fibers */
   idx_t nfibs = 1;
@@ -171,83 +173,18 @@ static void __mk_outerptr(
       if(fi != NULL) {
         fi[nfound] = ttind[n];
       }
-      fp[nfound++] = n;
+      fp[nfound++] = n - nnzstart;
     }
   }
 
   /* account for empty slices? */
   while(nfound <= pt->nfibs[0]) {
-    if(fi != NULL) {
+    if(fi != NULL && nfound < pt->nfibs[0]) {
       fi[nfound] = ttind[nnzend-1];
     }
-    fp[nfound++] = nnzend;
+    fp[nfound++] = nnzend - nnzstart;
   }
 }
-
-
-#if 0
-static void __mk_tiled_outerptr(
-  csf_t * const ft,
-  sptensor_t const * const tt,
-  idx_t const * const tile_ptr)
-{
-  /* the mode after accounting for dim_perm */
-  idx_t const mperm = ft->dim_perm[0];
-  idx_t const * const restrict ttind = tt->ind[mperm];
-
-  /* Count fibers summed across all tiles. Each tile will need its own
-   * start/end fibers */
-  idx_t nfibs = 0;
-  idx_t ntiles = 0;
-  for(idx_t i=0; i < ft->tile_dims[mperm]; ++i) {
-    idx_t id;
-    id = get_next_tileid(TILE_BEGIN, ft->tile_dims, tt->nmodes, mperm, i);
-    while(id != TILE_END) {
-      idx_t const start = tile_ptr[id];
-      idx_t const end = tile_ptr[id+1];
-      ++ntiles;
-      ++nfibs;
-      for(idx_t x=start+1; x < end; ++x) {
-        if(ttind[x] != ttind[x-1]) {
-          ++nfibs;
-        }
-      }
-
-      /* next tile */
-      id = get_next_tileid(id, ft->tile_dims, tt->nmodes, mperm, i);
-    }
-  }
-
-  /* allocate fptr */
-  ft->tile_ptr = (idx_t *) malloc((ntiles+1) * sizeof(idx_t));
-  ft->nfibs[0] = nfibs;
-  ft->fptr[0] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
-  ft->fids[0] = (idx_t *) malloc(nfibs * sizeof(idx_t));
-  ft->fptr[0][0] = 0;
-
-  idx_t * const restrict fp = ft->fptr[0];
-  idx_t * const restrict fi = ft->fids[0];
-
-  /* fill in fptr and tile_ptr */
-  idx_t nfound = 0;
-  for(idx_t i=0; i < ft->tile_dims[mperm]; ++i) {
-    idx_t id;
-    id = get_next_tileid(TILE_BEGIN, ft->tile_dims, tt->nmodes, mperm, i);
-    while(id != TILE_END) {
-      idx_t const start = tile_ptr[id];
-      idx_t const end = tile_ptr[id+1];
-
-      for(idx_t x=start+1; x < end; ++x) {
-        if(ttind[x] != ttind[x-1]) {
-        }
-      }
-
-      /* next tile */
-      id = get_next_tileid(id, ft->tile_dims, tt->nmodes, mperm, i);
-    }
-  }
-}
-#endif
 
 
 static void __mk_fptr(
@@ -259,15 +196,18 @@ static void __mk_fptr(
 {
   assert(mode < ct->nmodes);
 
-  /* the mode after accounting for dim_perm */
-  idx_t const mperm = ct->dim_perm[mode];
-  idx_t const * const restrict ttind = tt->ind[mperm];
+  idx_t const nnzstart = nnztile_ptr[tile_id];
+  idx_t const nnzend   = nnztile_ptr[tile_id+1];
 
   /* outer mode is easy; just look at outer indices */
   if(mode == 0) {
     __mk_outerptr(ct, tt, tile_id, nnztile_ptr);
     return;
   }
+  /* the mode after accounting for dim_perm */
+  idx_t const mperm = ct->dim_perm[mode];
+  idx_t const * const restrict ttind = tt->ind[mperm] + nnzstart;
+
 
   /* we will edit this to point to the new fiber idxs instead of nnz */
   idx_t * const restrict fprev = ct->pt[tile_id].fptr[mode-1];
@@ -320,7 +260,7 @@ static void __mk_fptr(
 
   /* account for empty slices? */
   while(nfound <= pt->nfibs[mode]) {
-    fp[nfound++] = nnztile_ptr[tile_id+1];
+    fp[nfound++] = nnzend - nnzstart;
   }
 }
 
@@ -368,7 +308,6 @@ static void __ctensor_alloc_untiled(
 }
 
 
-#if 0
 /**
 * @brief Reorder the nonzeros in a sparse tensor using dense tiling and fill
 *        a CSF tensor with the data.
@@ -378,36 +317,64 @@ static void __ctensor_alloc_untiled(
 * @param splatt_opts Options array for SPLATT - used for tile dimensions.
 */
 static void __csf_alloc_densetile(
-  csf_t * const ft,
+  ctensor_t * const ct,
   sptensor_t * const tt,
   double const * const splatt_opts)
 {
   idx_t const nmodes = tt->nmodes;
 
   idx_t ntiles = 1;
-  for(idx_t m=0; m < ft->nmodes; ++m) {
-    ft->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
-    ntiles *= ft->tile_dims[m];
+  for(idx_t m=0; m < ct->nmodes; ++m) {
+    ct->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
+    ntiles *= ct->tile_dims[m];
   }
-  idx_t * nnz_ptr = tt_densetile(tt, ft->tile_dims);
+  idx_t * nnz_ptr = tt_densetile(tt, ct->tile_dims);
 
-  /* last row of fptr is just nonzero inds */
-  ft->nfibs[nmodes-1] = ft->nnz;
-  ft->fids[nmodes-1] = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
-  ft->vals           = (val_t *) malloc(ft->nnz * sizeof(val_t));
-  memcpy(ft->fids[nmodes-1], tt->ind[ft->dim_perm[nmodes-1]],
-      ft->nnz * sizeof(idx_t));
-  memcpy(ft->vals, tt->vals, ft->nnz * sizeof(val_t));
+  ct->ntiles = ntiles;
+  printf("\nntiles: %lu\n", ntiles);
 
-  __mk_tiled_outerptr(ft, tt, nnz_ptr);
-  /* create fptr entries for the rest of the modes, working up from */
-  for(idx_t m=0; m < tt->nmodes-1; ++m) {
-    //__mk_fptr(ft, tt, m);
+  ct->pt = (csf_sparsity_t *) malloc(ntiles * sizeof(csf_sparsity_t));
+
+  for(idx_t t=0; t < ntiles; ++t) {
+    idx_t const startnnz = nnz_ptr[t];
+    idx_t const endnnz   = nnz_ptr[t+1];
+    idx_t const ptnnz = endnnz - startnnz;
+
+    csf_sparsity_t * const pt = ct->pt + t;
+
+    /* empty tile */
+    if(ptnnz == 0) {
+      for(idx_t m=0; m < ct->nmodes; ++m) {
+        pt->fptr[m] = NULL;
+        pt->fids[m] = NULL;
+        pt->nfibs[m] = 0;
+      }
+      /* first fptr may be accessed anyway */
+      pt->fptr[0] = (idx_t *) malloc(2 * sizeof(idx_t));
+      pt->fptr[0][0] = 0;
+      pt->fptr[0][1] = 0;
+      pt->vals = NULL;
+      continue;
+    }
+
+    /* last row of fptr is just nonzero inds */
+    pt->nfibs[nmodes-1] = ptnnz;
+
+    pt->fids[nmodes-1] = (idx_t *) malloc(ptnnz * sizeof(idx_t));
+    memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]] + startnnz,
+        ptnnz * sizeof(idx_t));
+
+    pt->vals = (val_t *) malloc(ptnnz * sizeof(val_t));
+    memcpy(pt->vals, tt->vals + startnnz, ptnnz * sizeof(val_t));
+
+    /* create fptr entries for the rest of the modes, working up from */
+    for(idx_t m=0; m < tt->nmodes-1; ++m) {
+      __mk_fptr(ct, tt, t, nnz_ptr, m);
+    }
   }
 
   free(nnz_ptr);
 }
-#endif
 
 
 /******************************************************************************
@@ -436,7 +403,7 @@ void ctensor_alloc(
     __ctensor_alloc_untiled(ct, tt);
     break;
   case SPLATT_DENSETILE:
-    //__csf_alloc_densetile(ct, tt, splatt_opts);
+    __csf_alloc_densetile(ct, tt, splatt_opts);
     break;
   default:
     fprintf(stderr, "SPLATT: tiling '%d' unsupported for CSF tensors.\n",
@@ -458,10 +425,11 @@ void ctensor_free(
 {
   /* free each tile of sparsity pattern */
   for(idx_t t=0; t < ct->ntiles; ++t) {
-    free(ct->pt->vals);
+    free(ct->pt[t].vals);
+    free(ct->pt[t].fids[ct->nmodes-1]);
     for(idx_t m=0; m < ct->nmodes-1; ++m) {
-      free(ct->pt->fptr[m]);
-      free(ct->pt->fids[m]);
+      free(ct->pt[t].fptr[m]);
+      free(ct->pt[t].fids[m]);
     }
   }
 
