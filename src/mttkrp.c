@@ -415,24 +415,82 @@ static void __csf_mttkrp_root(
 }
 
 
+static void __csf_mttkrp_leaf_tiled3(
+  csf_t const * const ct,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  thd_info * const thds)
+{
+  assert(ct->nmodes == 3);
+  val_t const * const vals = ct->pt[tile_id].vals;
+
+  idx_t const * const restrict sptr = ct->pt[tile_id].fptr[0];
+  idx_t const * const restrict fptr = ct->pt[tile_id].fptr[1];
+
+  idx_t const * const restrict sids = ct->pt[tile_id].fids[0];
+  idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
+  idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
+
+  val_t const * const avals = mats[ct->dim_perm[0]]->vals;
+  val_t const * const bvals = mats[ct->dim_perm[1]]->vals;
+  val_t * const ovals = mats[MAX_NMODES]->vals;
+  idx_t const nfactors = mats[MAX_NMODES]->J;
+
+  val_t * const restrict accumF
+      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+
+  idx_t const nslices = ct->pt[tile_id].nfibs[0];
+  for(idx_t s=0; s < nslices; ++s) {
+    idx_t const fid = (sids == NULL) ? s : sids[s];
+
+    /* root row */
+    val_t const * const restrict rv = avals + (fid * nfactors);
+
+    /* foreach fiber in slice */
+    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+      /* fill fiber with hada */
+      val_t const * const restrict av = bvals  + (fids[f] * nfactors);
+      for(idx_t r=0; r < nfactors; ++r) {
+        accumF[r] = rv[r] * av[r];
+      }
+
+      /* foreach nnz in fiber, scale with hada and write to ovals */
+      for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
+        val_t const v = vals[jj];
+        val_t * const restrict ov = ovals + (inds[jj] * nfactors);
+        for(idx_t r=0; r < nfactors; ++r) {
+          ov[r] += v * accumF[r];
+        }
+      }
+    }
+  }
+}
+
+
+
+
 static void __csf_mttkrp_leaf_tiled(
   csf_t const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
 {
-  /* extract tensor structures */
-  idx_t const nmodes = ct->nmodes;
-  idx_t const * const * const restrict fp
-      = (idx_t const * const *) ct->pt[tile_id].fptr;
-  idx_t const * const * const restrict fids
-      = (idx_t const * const *) ct->pt[tile_id].fids;
   val_t const * const vals = ct->pt[tile_id].vals;
-
+  idx_t const nmodes = ct->nmodes;
   /* pass empty tiles */
   if(vals == NULL) {
     return;
   }
+  if(nmodes == 3) {
+    __csf_mttkrp_leaf_tiled3(ct, tile_id, mats, thds);
+    return;
+  }
+
+  /* extract tensor structures */
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) ct->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) ct->pt[tile_id].fids;
 
   idx_t const nfactors = mats[0]->J;
 
@@ -571,6 +629,66 @@ static void __csf_mttkrp_leaf(
 }
 
 
+static void __csf_mttkrp_internal_tiled3(
+  csf_t const * const ct,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  thd_info * const thds)
+{
+  assert(ct->nmodes == 3);
+  val_t const * const vals = ct->pt[tile_id].vals;
+
+  idx_t const * const restrict sptr = ct->pt[tile_id].fptr[0];
+  idx_t const * const restrict fptr = ct->pt[tile_id].fptr[1];
+
+  idx_t const * const restrict sids = ct->pt[tile_id].fids[0];
+  idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
+  idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
+
+  val_t const * const avals = mats[ct->dim_perm[0]]->vals;
+  val_t const * const bvals = mats[ct->dim_perm[2]]->vals;
+  val_t * const ovals = mats[MAX_NMODES]->vals;
+  idx_t const nfactors = mats[MAX_NMODES]->J;
+
+  val_t * const restrict accumF
+      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+
+  idx_t const nslices = ct->pt[tile_id].nfibs[0];
+  for(idx_t s=0; s < nslices; ++s) {
+    idx_t const fid = (sids == NULL) ? s : sids[s];
+
+    /* root row */
+    val_t const * const restrict rv = avals + (fid * nfactors);
+
+    /* foreach fiber in slice */
+    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+      /* first entry of the fiber is used to initialize accumF */
+      idx_t const jjfirst  = fptr[f];
+      val_t const vfirst   = vals[jjfirst];
+      val_t const * const restrict bv = bvals + (inds[jjfirst] * nfactors);
+      for(idx_t r=0; r < nfactors; ++r) {
+        accumF[r] = vfirst * bv[r];
+      }
+
+      /* foreach nnz in fiber */
+      for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
+        val_t const v = vals[jj];
+        val_t const * const restrict bv = bvals + (inds[jj] * nfactors);
+        for(idx_t r=0; r < nfactors; ++r) {
+          accumF[r] += v * bv[r];
+        }
+      }
+
+      /* write to fiber row */
+      val_t * const restrict ov = ovals  + (fids[f] * nfactors);
+      for(idx_t r=0; r < nfactors; ++r) {
+        ov[r] += rv[r] * accumF[r];
+      }
+    }
+  }
+}
+
+
 static void __csf_mttkrp_internal_tiled(
   csf_t const * const ct,
   idx_t const tile_id,
@@ -578,18 +696,22 @@ static void __csf_mttkrp_internal_tiled(
   idx_t const mode,
   thd_info * const thds)
 {
-  /* extract tensor structures */
-  idx_t const nmodes = ct->nmodes;
-  idx_t const * const * const restrict fp
-      = (idx_t const * const *) ct->pt[tile_id].fptr;
-  idx_t const * const * const restrict fids
-      = (idx_t const * const *) ct->pt[tile_id].fids;
   val_t const * const vals = ct->pt[tile_id].vals;
-
   /* pass empty tiles */
   if(vals == NULL) {
     return;
   }
+  /* extract tensor structures */
+  idx_t const nmodes = ct->nmodes;
+  if(nmodes == 3) {
+    __csf_mttkrp_internal_tiled3(ct, tile_id, mats, thds);
+    return;
+  }
+
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) ct->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) ct->pt[tile_id].fids;
 
   idx_t const nfactors = mats[0]->J;
 
