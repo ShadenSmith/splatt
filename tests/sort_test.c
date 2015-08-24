@@ -21,7 +21,7 @@
 * @return 1 if a < b, otherwise 0.
 */
 static int __idx_cmp(
-  idx_t const * const * const inds,
+  idx_t ** inds,
   idx_t const mode,
   idx_t const nmodes,
   idx_t const a,

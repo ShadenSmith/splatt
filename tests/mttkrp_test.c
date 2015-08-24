@@ -149,7 +149,7 @@ CTEST2(mttkrp, csf)
 
 CTEST2(mttkrp, csf_densetile)
 {
-  idx_t const nthreads = 2;
+  idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_NTHREADS] = nthreads;

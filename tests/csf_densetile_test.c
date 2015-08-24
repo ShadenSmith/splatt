@@ -54,8 +54,8 @@ CTEST2(csf_densetile, fill5)
 
     val_t const * const ttvals = data->tt->vals;
     val_t const * const csvals = cs.pt[t].vals;
-    val_t const * const ttinds = data->tt->ind[cs.dim_perm[cs.nmodes-1]];
-    val_t const * const csinds = cs.pt[t].fids[cs.nmodes-1];
+    idx_t const * const ttinds = data->tt->ind[cs.dim_perm[cs.nmodes-1]];
+    idx_t const * const csinds = cs.pt[t].fids[cs.nmodes-1];
     for(idx_t v=nnzptr[t]; v < nnzptr[t+1]; ++v) {
       ASSERT_DBL_NEAR_TOL((double)ttvals[v], (double) csvals[v-nnzptr[t]], 0);
       ASSERT_EQUAL(ttinds[v], csinds[v-nnzptr[t]]);
@@ -99,8 +99,8 @@ CTEST2(csf_densetile, fill1)
 
     val_t const * const ttvals = data->tt->vals;
     val_t const * const csvals = cs.pt[t].vals;
-    val_t const * const ttinds = data->tt->ind[cs.dim_perm[cs.nmodes-1]];
-    val_t const * const csinds = cs.pt[t].fids[cs.nmodes-1];
+    idx_t const * const ttinds = data->tt->ind[cs.dim_perm[cs.nmodes-1]];
+    idx_t const * const csinds = cs.pt[t].fids[cs.nmodes-1];
     for(idx_t v=nnzptr[t]; v < nnzptr[t+1]; ++v) {
       ASSERT_DBL_NEAR_TOL((double)ttvals[v], (double) csvals[v-nnzptr[t]], 0);
       ASSERT_EQUAL(ttinds[v], csinds[v-nnzptr[t]]);

@@ -78,6 +78,24 @@ static inline void __csf_process_fiber_lock(
   }
 }
 
+static inline void __csf_process_fiber_nolock(
+  val_t * const leafmat,
+  val_t const * const restrict accumbuf,
+  idx_t const nfactors,
+  idx_t const start,
+  idx_t const end,
+  idx_t const * const restrict inds,
+  val_t const * const restrict vals)
+{
+  for(idx_t jj=start; jj < end; ++jj) {
+    val_t * const restrict leafrow = leafmat + (inds[jj] * nfactors);
+    val_t const v = vals[jj];
+    for(idx_t f=0; f < nfactors; ++f) {
+      leafrow[f] += v * accumbuf[f];
+    }
+  }
+}
+
 
 static inline void __csf_process_fiber(
   val_t * const restrict accumbuf,
@@ -296,7 +314,7 @@ static void __ctensor_mttkrp_leaf_tiled(
       /* process all nonzeros [start, end) */
       idx_t const start = fp[depth][idxstack[depth]];
       idx_t const end   = fp[depth][idxstack[depth]+1];
-      __csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
+      __csf_process_fiber_nolock(mats[MAX_NMODES]->vals, buf[depth],
           nfactors, start, end, fids[depth+1], vals);
 
       /* now move back up to the next unprocessed child */
@@ -471,9 +489,7 @@ static void __ctensor_mttkrp_internal_tiled(
           fp, fids, vals, mvals, nmodes, nfactors);
 
       val_t * const restrict outbuf = ovals + (noderow * nfactors);
-      omp_set_lock(locks + (noderow % NLOCKS));
       __add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
-      omp_unset_lock(locks + (noderow % NLOCKS));
 
       /* backtrack to next unfinished node */
       do {
