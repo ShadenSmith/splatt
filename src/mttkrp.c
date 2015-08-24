@@ -661,7 +661,7 @@ void mttkrp_csf(
         }
       } else if(outdepth == ct->nmodes - 1) {
 
-        #pragma omp for schedule(dynamic, 2)
+        #pragma omp for schedule(dynamic, 1) nowait
         for(idx_t t=0; t < ct->tile_dims[mode]; ++t) {
           idx_t id = get_next_tileid(TILE_BEGIN, ct->tile_dims, ct->nmodes,
               mode, t);
@@ -673,7 +673,7 @@ void mttkrp_csf(
 
       } else {
 
-        #pragma omp for schedule(dynamic, 2)
+        #pragma omp for schedule(dynamic, 1) nowait
         for(idx_t t=0; t < ct->tile_dims[mode]; ++t) {
           idx_t id = get_next_tileid(TILE_BEGIN, ct->tile_dims, ct->nmodes,
               mode, t);
