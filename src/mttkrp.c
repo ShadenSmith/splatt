@@ -198,13 +198,11 @@ static void __csf_mttkrp_root(
 
   idx_t const nfactors = mats[0]->J;
 
-  int const tid = omp_get_thread_num();
-  timer_start(&thds[tid].ttime);
-
   val_t * mvals[MAX_NMODES];
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
+  int const tid = omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -235,8 +233,6 @@ static void __csf_mttkrp_root(
       orow[f] += obuf[f];
     }
   } /* end foreach outer slice */
-
-  timer_start(&thds[tid].ttime);
 }
 
 
@@ -261,13 +257,11 @@ static void __csf_mttkrp_leaf_tiled(
 
   idx_t const nfactors = mats[0]->J;
 
-  int const tid = omp_get_thread_num();
-  timer_start(&thds[tid].ttime);
-
   val_t * mvals[MAX_NMODES];
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
+  int const tid = omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -339,13 +333,11 @@ static void __csf_mttkrp_leaf(
 
   idx_t const nfactors = mats[0]->J;
 
-  int const tid = omp_get_thread_num();
-  timer_start(&thds[tid].ttime);
-
   val_t * mvals[MAX_NMODES];
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
+  int const tid = omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -426,13 +418,11 @@ static void __csf_mttkrp_internal_tiled(
   /* find out which level in the tree this is */
   idx_t outdepth = csf_mode_depth(mode, ct->dim_perm, nmodes);
 
-  int const tid = omp_get_thread_num();
-  timer_start(&thds[tid].ttime);
-
   val_t * mvals[MAX_NMODES];
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
+  int const tid = omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -488,8 +478,6 @@ static void __csf_mttkrp_internal_tiled(
       } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
     } /* end DFS */
   } /* end foreach outer slice */
-
-  timer_stop(&thds[tid].ttime);
 }
 
 
@@ -513,13 +501,11 @@ static void __csf_mttkrp_internal(
   /* find out which level in the tree this is */
   idx_t outdepth = csf_mode_depth(mode, ct->dim_perm, nmodes);
 
-  int const tid = omp_get_thread_num();
-  timer_start(&thds[tid].ttime);
-
   val_t * mvals[MAX_NMODES];
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
+  int const tid = omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -577,8 +563,6 @@ static void __csf_mttkrp_internal(
       } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
     } /* end DFS */
   } /* end foreach outer slice */
-
-  timer_stop(&thds[tid].ttime);
 }
 
 
@@ -653,6 +637,7 @@ void mttkrp_csf(
   omp_set_num_threads(nthreads);
   #pragma omp parallel default(shared)
   {
+    timer_start(&thds[omp_get_thread_num()].ttime);
     /* set of untiled functions, use mutexes where required */
     if(ct->ntiles == 1) {
       if(outdepth == 0) {
@@ -699,6 +684,7 @@ void mttkrp_csf(
         }
       }
     }
+    timer_stop(&thds[omp_get_thread_num()].ttime);
   } /* end omp parallel */
 }
 
