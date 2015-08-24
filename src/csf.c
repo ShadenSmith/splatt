@@ -76,7 +76,7 @@ static void __order_dims_large(
 
 
 static void __print_csf(
-  ctensor_t const * const ct)
+  csf_t const * const ct)
 {
   printf("-----------\n");
   printf("nmodes: %lu nnz: %lu ntiles: %lu\n", ct->nmodes, ct->nnz, ct->ntiles);
@@ -88,7 +88,12 @@ static void __print_csf(
   for(idx_t m=1; m < ct->nmodes; ++m) {
     printf("->%lu", ct->dim_perm[m]);
   }
-  printf(")\n");
+  printf(") ");
+  printf("tile dims: %lu", ct->tile_dims[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("x%lu", ct->tile_dims[m]);
+  }
+  printf("\n");
 
   for(idx_t t=0; t < ct->ntiles; ++t) {
     csf_sparsity_t const * const ft = ct->pt + t;
@@ -135,7 +140,7 @@ static void __print_csf(
 
 
 static void __mk_outerptr(
-  ctensor_t * const ct,
+  csf_t * const ct,
   sptensor_t const * const tt,
   idx_t const tile_id,
   idx_t const * const nnztile_ptr)
@@ -164,7 +169,7 @@ static void __mk_outerptr(
   csf_sparsity_t * const pt = ct->pt + tile_id;
 
   pt->fptr[0] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
-  if(ct->tile_dims[ct->dim_perm[0]] > 1) {
+  if(ct->ntiles > 1) {
     pt->fids[0] = (idx_t *) malloc(nfibs * sizeof(idx_t));
   } else {
     pt->fids[0] = NULL;
@@ -193,7 +198,7 @@ static void __mk_outerptr(
 
 
 static void __mk_fptr(
-  ctensor_t * const ct,
+  csf_t * const ct,
   sptensor_t const * const tt,
   idx_t const tile_id,
   idx_t const * const nnztile_ptr,
@@ -272,8 +277,8 @@ static void __mk_fptr(
 * @param ft The CSF tensor to fill out.
 * @param tt The sparse tensor to start from.
 */
-static void __ctensor_alloc_untiled(
-  ctensor_t * const ct,
+static void __csf_alloc_untiled(
+  csf_t * const ct,
   sptensor_t * const tt)
 {
   idx_t const nmodes = tt->nmodes;
@@ -317,7 +322,7 @@ static void __ctensor_alloc_untiled(
 * @param splatt_opts Options array for SPLATT - used for tile dimensions.
 */
 static void __csf_alloc_densetile(
-  ctensor_t * const ct,
+  csf_t * const ct,
   sptensor_t * const tt,
   double const * const splatt_opts)
 {
@@ -325,9 +330,15 @@ static void __csf_alloc_densetile(
 
   idx_t ntiles = 1;
   for(idx_t m=0; m < ct->nmodes; ++m) {
-    ct->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
+    idx_t const depth = csf_mode_depth(m, ct->dim_perm, ct->nmodes);
+    if(depth >= MIN_TILE_DEPTH) {
+      ct->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
+    } else {
+      ct->tile_dims[m] = 1;
+    }
     ntiles *= ct->tile_dims[m];
   }
+
   /* perform tensor tiling */
   tt_sort(tt, ct->dim_perm[0], ct->dim_perm);
   idx_t * nnz_ptr = tt_densetile(tt, ct->tile_dims);
@@ -381,8 +392,8 @@ static void __csf_alloc_densetile(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void ctensor_alloc(
-  ctensor_t * const ct,
+void csf_alloc(
+  csf_t * const ct,
   sptensor_t * const tt,
   double const * const splatt_opts)
 {
@@ -400,7 +411,7 @@ void ctensor_alloc(
   splatt_tile_t which_tile = (splatt_tile_t) splatt_opts[SPLATT_OPTION_TILE];
   switch(which_tile) {
   case SPLATT_NOTILE:
-    __ctensor_alloc_untiled(ct, tt);
+    __csf_alloc_untiled(ct, tt);
     break;
   case SPLATT_DENSETILE:
     __csf_alloc_densetile(ct, tt, splatt_opts);
@@ -410,18 +421,17 @@ void ctensor_alloc(
         which_tile);
     break;
   }
+
 #if 0
-  if(tt->nnz < 100) {
-    tt_write(tt, NULL);
-    __print_csf(ct);
-  }
+  tt_write(tt, NULL);
+  __print_csf(ct);
 #endif
 }
 
 
 
-void ctensor_free(
-  ctensor_t * const ct)
+void csf_free(
+  csf_t * const ct)
 {
   /* free each tile of sparsity pattern */
   for(idx_t t=0; t < ct->ntiles; ++t) {
@@ -460,12 +470,15 @@ void csf_find_mode_order(
 }
 
 
-idx_t ctensor_storage(
-  ctensor_t const * const ct)
+idx_t csf_storage(
+  csf_t const * const ct)
 {
   idx_t bytes = 0;
+  bytes += sizeof(csf_t);
   bytes += ct->nnz * sizeof(val_t); /* vals */
   bytes += ct->nnz * sizeof(idx_t); /* fids[nmodes] */
+  bytes += ct->ntiles * sizeof(csf_sparsity_t); /* pt */
+
   for(idx_t t=0; t < ct->ntiles; ++t) {
     csf_sparsity_t const * const pt = ct->pt + t;
 

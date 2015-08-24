@@ -147,7 +147,10 @@ void bench_csf(
   sp_timer_t itertime;
   sp_timer_t modetime;
 
-#if 0
+  double * cpd_opts = splatt_default_opts();
+  cpd_opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
+  cpd_opts[SPLATT_OPTION_NTHREADS] = threads[nruns-1];
+
   idx_t const nfactors = mats[0]->J;
   /* add 64 bytes to avoid false sharing */
   thd_info * thds = thd_init(threads[nruns-1], 3,
@@ -156,7 +159,7 @@ void bench_csf(
     (tt->nmodes * nfactors * sizeof(val_t)) + 64);
 
   csf_t cs;
-  csf_alloc(&cs, tt, SPLATT_NOTILE);
+  csf_alloc(&cs, tt, cpd_opts);
 
   printf("** CSF **\n");
   unsigned long cs_bytes = csf_storage(&cs);
@@ -182,7 +185,7 @@ void bench_csf(
         mttkrp_csf(&cs, mats, m, thds, nthreads);
         timer_stop(&modetime);
         printf("  mode %" SPLATT_PF_IDX " %0.3fs\n", m+1, modetime.seconds);
-        if(opts->write && t == 0 && i == 0) {
+        if(opts->write && t == nruns-1 && i == 0) {
           idx_t oldI = mats[MAX_NMODES]->I;
           mats[MAX_NMODES]->I = tt->dims[m];
           sprintf(matname, "csf_mode%"SPLATT_PF_IDX".mat", m+1);
@@ -203,10 +206,10 @@ void bench_csf(
   }
   timer_stop(&timers[TIMER_MISC]);
 
-  thd_free(thds, threads[nruns-1]);
   /* clean up */
   csf_free(&cs);
-#endif
+  thd_free(thds, threads[nruns-1]);
+  free(cpd_opts);
 
   /* fix any matrices that we shuffled */
   __shuffle_mats(mats, opts->perm->iperms, tt->nmodes);

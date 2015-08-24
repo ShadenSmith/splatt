@@ -16,8 +16,8 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void mttkrp_ctensor(
-  ctensor_t const * const ft,
+void mttkrp_csf(
+  csf_t const * const ft,
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds,

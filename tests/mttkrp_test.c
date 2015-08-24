@@ -116,8 +116,8 @@ CTEST2(mttkrp, csf)
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * const tt = data->tensors[i];
-    ctensor_t cs;
-    ctensor_alloc(&cs, tt, opts);
+    csf_t cs;
+    csf_alloc(&cs, tt, opts);
 
     /* add 64 bytes to avoid false sharing */
     thd_info * thds = thd_init(nthreads, 3,
@@ -138,12 +138,12 @@ CTEST2(mttkrp, csf)
       data->gold[i] = tmp;
 
       /* compute splatt */
-      mttkrp_ctensor(&cs, data->mats[i], m, thds, nthreads);
+      mttkrp_csf(&cs, data->mats[i], m, thds, nthreads);
 
       __compare_mats(data->mats[i][MAX_NMODES], data->gold[i]);
     }
     thd_free(thds, nthreads);
-    ctensor_free(&cs);
+    csf_free(&cs);
   }
 }
 
@@ -157,8 +157,8 @@ CTEST2(mttkrp, csf_densetile)
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * const tt = data->tensors[i];
-    ctensor_t cs;
-    ctensor_alloc(&cs, tt, opts);
+    csf_t cs;
+    csf_alloc(&cs, tt, opts);
 
     /* add 64 bytes to avoid false sharing */
     thd_info * thds = thd_init(nthreads, 3,
@@ -179,10 +179,10 @@ CTEST2(mttkrp, csf_densetile)
       data->gold[i] = tmp;
 
       /* compute splatt */
-      mttkrp_ctensor(&cs, data->mats[i], m, thds, nthreads);
+      mttkrp_csf(&cs, data->mats[i], m, thds, nthreads);
 
 #if 0
-      printf("m: %lu\n", m);
+      printf("m: %lu d: %lu\n", m, csf_mode_depth(m, cs.dim_perm, cs.nmodes));
       printf("\n");
       mat_write(data->mats[i][MAX_NMODES], NULL);
       printf("\n");
@@ -192,6 +192,6 @@ CTEST2(mttkrp, csf_densetile)
       __compare_mats(data->mats[i][MAX_NMODES], data->gold[i]);
     }
     thd_free(thds, nthreads);
-    ctensor_free(&cs);
+    csf_free(&cs);
   }
 }

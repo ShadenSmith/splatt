@@ -10,10 +10,6 @@
 
 #include "io.h"
 
-//#define VERB
-#define CSF_DOWN 0
-#define CSF_UP   1
-
 #define NLOCKS 1024
 static omp_lock_t locks[NLOCKS];
 
@@ -181,8 +177,8 @@ static inline void __propagate_up(
 }
 
 
-static void __ctensor_mttkrp_root(
-  ctensor_t const * const ct,
+static void __csf_mttkrp_root(
+  csf_t const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -244,8 +240,8 @@ static void __ctensor_mttkrp_root(
 }
 
 
-static void __ctensor_mttkrp_leaf_tiled(
-  ctensor_t const * const ct,
+static void __csf_mttkrp_leaf_tiled(
+  csf_t const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -327,8 +323,8 @@ static void __ctensor_mttkrp_leaf_tiled(
 }
 
 
-static void __ctensor_mttkrp_leaf(
-  ctensor_t const * const ct,
+static void __csf_mttkrp_leaf(
+  csf_t const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -405,8 +401,8 @@ static void __ctensor_mttkrp_leaf(
 }
 
 
-static void __ctensor_mttkrp_internal_tiled(
-  ctensor_t const * const ct,
+static void __csf_mttkrp_internal_tiled(
+  csf_t const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   idx_t const mode,
@@ -428,13 +424,7 @@ static void __ctensor_mttkrp_internal_tiled(
   idx_t const nfactors = mats[0]->J;
 
   /* find out which level in the tree this is */
-  idx_t outdepth = 0;
-  for(idx_t m=0; m < nmodes; ++m) {
-    if(ct->dim_perm[m] == mode) {
-      outdepth = m;
-      break;
-    }
-  }
+  idx_t outdepth = csf_mode_depth(mode, ct->dim_perm, nmodes);
 
   int const tid = omp_get_thread_num();
   timer_start(&thds[tid].ttime);
@@ -503,8 +493,8 @@ static void __ctensor_mttkrp_internal_tiled(
 }
 
 
-static void __ctensor_mttkrp_internal(
-  ctensor_t const * const ct,
+static void __csf_mttkrp_internal(
+  csf_t const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   idx_t const mode,
@@ -521,13 +511,7 @@ static void __ctensor_mttkrp_internal(
   idx_t const nfactors = mats[0]->J;
 
   /* find out which level in the tree this is */
-  idx_t outdepth = 0;
-  for(idx_t m=0; m < nmodes; ++m) {
-    if(ct->dim_perm[m] == mode) {
-      outdepth = m;
-      break;
-    }
-  }
+  idx_t outdepth = csf_mode_depth(mode, ct->dim_perm, nmodes);
 
   int const tid = omp_get_thread_num();
   timer_start(&thds[tid].ttime);
@@ -597,321 +581,6 @@ static void __ctensor_mttkrp_internal(
   timer_stop(&thds[tid].ttime);
 }
 
-#if 0
-static void __csf_mttkrp_internal(
-  csf_t const * const ft,
-  matrix_t ** mats,
-  idx_t const mode,
-  thd_info * const thds)
-{
-  printf("INTL");
-  /* extract tensor structures */
-  idx_t const nmodes = ft->nmodes;
-  idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
-  idx_t const * const * const restrict fids = (idx_t const * const *) ft->fids;
-
-  idx_t const nfactors = mats[0]->J;
-
-  idx_t const outdepth = ft->dim_perm[mode];
-  idx_t const nnzdepth = nmodes - 2; /* the last internal nodes */
-
-  val_t * const outvals = mats[MAX_NMODES]->vals;
-
-  #pragma omp parallel default(shared)
-  {
-    int const tid = omp_get_thread_num();
-    timer_start(&thds[tid].ttime);
-
-    val_t * mvals[MAX_NMODES];
-    val_t * buf[MAX_NMODES];
-    idx_t idxstack[MAX_NMODES];
-    for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ft->dim_perm[m]]->vals;
-      /* grab the next row of buf from thds */
-      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-    }
-
-    /* foreach outer slice */
-    #pragma omp for schedule(dynamic, 16) nowait
-    for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
-      idx_t depth = 0;
-      /* push current outer slice */
-      idxstack[depth++] = s;
-
-      /* clear out stale data */
-      for(idx_t m=1; m < ft->nmodes-1; ++m) {
-        idxstack[m] = fp[m-1][idxstack[m-1]];
-      }
-
-      /* fill first buf */
-      val_t * const rootbuf = buf[0];
-      val_t * const nextbuf = buf[1];
-      val_t const * const restrict rootrow = mvals[0] + (s*nfactors);
-      val_t const * const restrict nextrow
-          = mvals[1] + (fids[1][idxstack[1]]*nfactors);
-      for(idx_t f=0; f < nfactors; ++f) {
-        rootbuf[f] = rootrow[f];
-        /* also initialize next level if it's not our output */
-        if(outdepth > 1) {
-          nextbuf[f] = rootbuf[f] * nextrow[f];
-        }
-      }
-
-      /* loop until entire tree has been processed */
-      while(idxstack[1] < fp[0][s+1]) {
-        int direction = CSF_DOWN;
-
-        /* index of current row */
-        idx_t noderow = depth > 0 ? fids[depth][idxstack[depth]] : 0;
-
-        val_t * hadabuf;
-        val_t * clearbuf;
-        val_t * multbuf;
-
-        /* Are we at the bottom (nnz) or all children processed? */
-        if(depth == nnzdepth ||
-              idxstack[depth+1] == fp[depth][idxstack[depth]+1]) {
-
-          /* process all nonzeros [start, end) */
-          if(depth == nnzdepth) {
-            idx_t const start = fp[depth][idxstack[depth]];
-            idx_t const end   = fp[depth][idxstack[depth]+1];
-
-            /* regular fiber processing; write to buf[depth] */
-            __csf_process_fiber(buf[depth], nfactors, mvals[depth+1],
-                start, end, fids[depth+1], ft->vals);
-          }
-
-          clearbuf = buf[depth];
-          /* all children have now been processed and multiplied into buf[depth],
-           * we can now add to output */
-          if(depth == outdepth) {
-            /* write to output and use a mutex */
-            hadabuf = outvals + (noderow * nfactors);
-            multbuf = buf[depth-1];
-            omp_set_lock(locks + (noderow % NLOCKS));
-            __add_hada_clear(hadabuf, clearbuf, multbuf, nfactors);
-            omp_unset_lock(locks + (noderow % NLOCKS));
-          } else if(depth > outdepth) {
-            /* just propagate results up tree */
-            hadabuf = buf[depth-1];
-            multbuf = mvals[depth] + (noderow * nfactors);
-            __add_hada_clear(hadabuf, clearbuf, multbuf, nfactors);
-          } else {
-            /* don't accumulate products up the tree if we are above outdepth */
-          }
-
-          /* children are done, move up the tree */
-          direction = CSF_UP;
-        }
-
-        switch(direction) {
-        case CSF_DOWN:
-          ++depth;
-          /* propagate down buf[depth-1] down to new child */
-          if(depth < outdepth) {
-            noderow = fids[depth][idxstack[depth]];
-            __assign_hada(buf[depth], buf[depth-1], mvals[depth]+(noderow*nfactors), nfactors);
-          }
-          break;
-        case CSF_UP:
-
-          /* move up */
-          ++idxstack[depth];
-          --depth;
-          break;
-        }
-      } /* end DFS */
-    } /* end outer slice loop */
-
-    timer_stop(&thds[tid].ttime);
-  } /* end omp parallel */
-}
-
-
-static void __csf_mttkrp_leaf(
-  csf_t const * const ft,
-  matrix_t ** mats,
-  idx_t const mode,
-  thd_info * const thds)
-{
-  printf("LEAF");
-  /* extract tensor structures */
-  idx_t const nmodes = ft->nmodes;
-  idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
-  idx_t const * const * const restrict fids = (idx_t const * const *) ft->fids;
-
-  idx_t const nfactors = mats[0]->J;
-
-  #pragma omp parallel default(shared)
-  {
-    int const tid = omp_get_thread_num();
-    timer_start(&thds[tid].ttime);
-
-    val_t * mvals[MAX_NMODES];
-    val_t * buf[MAX_NMODES];
-    idx_t idxstack[MAX_NMODES];
-
-    for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ft->dim_perm[m]]->vals;
-      /* grab the next row of buf from thds */
-      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-    }
-
-    /* foreach outer slice */
-    #pragma omp for schedule(dynamic, 16) nowait
-    for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
-      idx_t depth = 0;
-      /* push current outer slice */
-      idxstack[depth++] = s;
-
-      /* clear out stale data */
-      for(idx_t m=1; m < ft->nmodes-1; ++m) {
-        idxstack[m] = fp[m-1][idxstack[m-1]];
-      }
-
-      /* fill first bufs */
-      val_t * const rootbuf = buf[0];
-      val_t * const nextbuf = buf[1];
-      val_t const * const restrict rootrow = mvals[0] + (s*nfactors);
-      val_t const * const restrict nextrow
-          = mvals[1] + (fids[1][idxstack[1]]*nfactors);
-      for(idx_t f=0; f < nfactors; ++f) {
-        rootbuf[f] = rootrow[f];
-        nextbuf[f] = rootbuf[f] * nextrow[f];
-      }
-
-      idx_t const outer_end = fp[0][s+1];
-      while(idxstack[1] < outer_end) {
-        /* last node before nonzeros, handle those quickly */
-        if(depth == nmodes - 2) {
-          /* process all nonzeros [start, end) */
-          idx_t const start = fp[depth][idxstack[depth]];
-          idx_t const end   = fp[depth][idxstack[depth]+1];
-
-          __csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
-              nfactors, start, end, fids[depth+1], ft->vals);
-
-          ++idxstack[depth];
-          --depth;
-          continue;
-        }
-
-        /* Node is internal. */
-        /* Are all children processed? */
-        if(idxstack[depth+1] == fp[depth][idxstack[depth]+1]) {
-          ++idxstack[depth];
-          --depth;
-        } else {
-          /* No, move to next child */
-          ++depth;
-          /* propogate buf down */
-          val_t const * const restrict drow
-              = mvals[depth] + (fids[depth][idxstack[depth]] * nfactors);
-          __assign_hada(buf[depth], buf[depth-1], drow, nfactors);
-        }
-      } /* end DFS */
-    } /* end outer slice loop */
-
-    timer_stop(&thds[tid].ttime);
-  } /* end omp parallel */
-}
-
-
-static void __csf_mttkrp_root(
-  csf_t const * const ft,
-  matrix_t ** mats,
-  idx_t const mode,
-  thd_info * const thds)
-{
-  printf("ROOT");
-  /* extract tensor structures */
-  idx_t const nmodes = ft->nmodes;
-  idx_t const * const * const restrict fp = (idx_t const * const *) ft->fptr;
-  idx_t const * const * const restrict fids = (idx_t const * const *) ft->fids;
-  val_t const * const vals = ft->vals;
-
-  idx_t const nfactors = mats[0]->J;
-
-  #pragma omp parallel default(shared)
-  {
-    int const tid = omp_get_thread_num();
-    timer_start(&thds[tid].ttime);
-
-    val_t * mvals[MAX_NMODES];
-    val_t * buf[MAX_NMODES];
-    idx_t idxstack[MAX_NMODES];
-
-    for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ft->dim_perm[m]]->vals;
-      /* grab the next row of buf from thds */
-      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-      memset(buf[m], 0, nfactors * sizeof(idx_t));
-    }
-    val_t * const ovals = mats[MAX_NMODES]->vals;
-
-    #pragma omp for schedule(dynamic, 16) nowait
-    for(idx_t s=0; s < ft->dims[ft->dim_perm[0]]; ++s) {
-      idx_t depth = 0;
-      /* push current outer slice */
-      idxstack[depth++] = s;
-
-      /* clear out stale data */
-      for(idx_t m=1; m < ft->nmodes-1; ++m) {
-        idxstack[m] = fp[m-1][idxstack[m-1]];
-      }
-
-      idx_t const outer_end = fp[0][s+1];
-      while(idxstack[1] < outer_end) {
-        /* last node before nonzeros, handle those quickly */
-        if(depth == nmodes - 2) {
-          /* process all nonzeros [start, end) */
-          idx_t const start = fp[depth][idxstack[depth]];
-          idx_t const end   = fp[depth][idxstack[depth]+1];
-
-          __csf_process_fiber(buf[depth], nfactors, mvals[depth+1],
-              start, end, fids[depth+1], vals);
-
-          /* propagate results up the tree */
-          val_t const * const restrict fibrow
-              = mvals[depth] + (fids[depth][idxstack[depth]] * nfactors);
-          __add_hada_clear(buf[depth-1], buf[depth], fibrow, nfactors);
-
-          ++idxstack[depth];
-          --depth;
-          continue;
-        }
-
-        /* Node is internal. */
-        /* Are all children processed? */
-        if(idxstack[depth+1] == fp[depth][idxstack[depth]+1]) {
-          /* propagate up and clear buffer for next sibling */
-          val_t const * const restrict myrow =
-              mvals[depth] + (nfactors * fids[depth][idxstack[depth]]);
-          __add_hada_clear(buf[depth-1], buf[depth], myrow, nfactors);
-
-          ++idxstack[depth];
-          --depth;
-        } else {
-          /* No, move to next child */
-          ++depth;
-        }
-      } /* end DFS */
-
-      /* flush buffer to matrix row */
-      val_t * const restrict orow = ovals + (nfactors * s);
-      val_t * const restrict brow = buf[0];
-      for(idx_t f=0; f < nfactors; ++f) {
-        orow[f] = brow[f];
-        brow[f] = 0;
-      }
-    } /* end outer slice loop */
-
-    timer_stop(&thds[tid].ttime);
-  } /* end omp parallel */
-}
-#endif
-
 
 /******************************************************************************
  * API FUNCTIONS
@@ -966,8 +635,8 @@ int splatt_mttkrp(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void mttkrp_ctensor(
-  ctensor_t const * const ct,
+void mttkrp_csf(
+  csf_t const * const ct,
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds,
@@ -979,13 +648,7 @@ void mttkrp_ctensor(
   memset(M->vals, 0, M->I * M->J * sizeof(val_t));
 
   /* find out which level in the tree this is */
-  idx_t outdepth = 0;
-  for(idx_t m=0; m < ct->nmodes; ++m) {
-    if(ct->dim_perm[m] == mode) {
-      outdepth = m;
-      break;
-    }
-  }
+  idx_t outdepth = csf_mode_depth(mode, ct->dim_perm, ct->nmodes);
 
   omp_set_num_threads(nthreads);
   #pragma omp parallel default(shared)
@@ -993,11 +656,11 @@ void mttkrp_ctensor(
     /* set of untiled functions, use mutexes where required */
     if(ct->ntiles == 1) {
       if(outdepth == 0) {
-        __ctensor_mttkrp_root(ct, 0, mats, thds);
+        __csf_mttkrp_root(ct, 0, mats, thds);
       } else if(outdepth == ct->nmodes - 1) {
-        __ctensor_mttkrp_leaf(ct, 0, mats, thds);
+        __csf_mttkrp_leaf(ct, 0, mats, thds);
       } else {
-        __ctensor_mttkrp_internal(ct, 0, mats, mode, thds);
+        __csf_mttkrp_internal(ct, 0, mats, mode, thds);
       }
     } else {
       /* tiled functions, no locking required */
@@ -1006,31 +669,31 @@ void mttkrp_ctensor(
           idx_t id = get_next_tileid(TILE_BEGIN, ct->tile_dims, ct->nmodes,
               mode, t);
           while(id != TILE_END) {
-            __ctensor_mttkrp_root(ct, id, mats, thds);
+            __csf_mttkrp_root(ct, id, mats, thds);
             id = get_next_tileid(id, ct->tile_dims, ct->nmodes, mode, t);
             #pragma omp barrier
           }
         }
       } else if(outdepth == ct->nmodes - 1) {
 
-        #pragma omp for
+        #pragma omp for schedule(dynamic, 2)
         for(idx_t t=0; t < ct->tile_dims[mode]; ++t) {
           idx_t id = get_next_tileid(TILE_BEGIN, ct->tile_dims, ct->nmodes,
               mode, t);
           while(id != TILE_END) {
-            __ctensor_mttkrp_leaf_tiled(ct, id, mats, thds);
+            __csf_mttkrp_leaf_tiled(ct, id, mats, thds);
             id = get_next_tileid(id, ct->tile_dims, ct->nmodes, mode, t);
           }
         }
 
       } else {
 
-        #pragma omp for
+        #pragma omp for schedule(dynamic, 2)
         for(idx_t t=0; t < ct->tile_dims[mode]; ++t) {
           idx_t id = get_next_tileid(TILE_BEGIN, ct->tile_dims, ct->nmodes,
               mode, t);
           while(id != TILE_END) {
-            __ctensor_mttkrp_internal_tiled(ct, id, mats, mode, thds);
+            __csf_mttkrp_internal_tiled(ct, id, mats, mode, thds);
             id = get_next_tileid(id, ct->tile_dims, ct->nmodes, mode, t);
           }
         }
@@ -1043,41 +706,6 @@ void mttkrp_ctensor(
 /******************************************************************************
  * SPLATT MTTKRP
  *****************************************************************************/
-#if 0
-void mttkrp_csf(
-  csf_t const * const ft,
-  matrix_t ** mats,
-  idx_t const mode,
-  thd_info * const thds,
-  idx_t const nthreads)
-{
-  /* clear output matrix */
-  matrix_t * const M = mats[MAX_NMODES];
-  M->I = ft->dims[mode];
-  memset(M->vals, 0, M->I * M->J * sizeof(val_t));
-
-  /* find out which level in the tree this is */
-  idx_t outdepth = 0;
-  for(idx_t m=0; m < ft->nmodes; ++m) {
-    if(ft->dim_perm[m] == mode) {
-      outdepth = m;
-      break;
-    }
-  }
-
-  omp_set_num_threads(nthreads);
-  if(outdepth == 0) {
-    __csf_mttkrp_root2(ft, mats, mode, thds);
-  } else if(outdepth == ft->nmodes-1) {
-    __csf_mttkrp_leaf2(ft, mats, mode, thds);
-  } else {
-    __csf_mttkrp_internal2(ft, mats, mode, thds);
-  }
-}
-#endif
-
-
-
 
 void mttkrp_splatt(
   ftensor_t const * const ft,

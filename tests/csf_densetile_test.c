@@ -28,15 +28,9 @@ CTEST2(csf_densetile, fill5)
   opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
   opts[SPLATT_OPTION_NTHREADS] = 5;
 
-  idx_t ntiles = 1;
-  for(idx_t m=0; m < data->tt->nmodes; ++m) {
-    ntiles *= opts[SPLATT_OPTION_NTHREADS];
-  }
+  csf_t cs;
+  csf_alloc(&cs, data->tt, opts);
 
-  ctensor_t cs;
-  ctensor_alloc(&cs, data->tt, opts);
-
-  ASSERT_EQUAL(ntiles, cs.ntiles);
   ASSERT_EQUAL(data->tt->nnz, cs.nnz);
   ASSERT_EQUAL(data->tt->nmodes, cs.nmodes);
 
@@ -63,7 +57,7 @@ CTEST2(csf_densetile, fill5)
   }
 
   free(nnzptr);
-  ctensor_free(&cs);
+  csf_free(&cs);
   free(opts);
 }
 
@@ -78,8 +72,8 @@ CTEST2(csf_densetile, fill1)
     ntiles *= opts[SPLATT_OPTION_NTHREADS];
   }
 
-  ctensor_t cs;
-  ctensor_alloc(&cs, data->tt, opts);
+  csf_t cs;
+  csf_alloc(&cs, data->tt, opts);
 
   ASSERT_EQUAL(ntiles, cs.ntiles);
   ASSERT_EQUAL(data->tt->nnz, cs.nnz);
@@ -108,6 +102,6 @@ CTEST2(csf_densetile, fill1)
   }
 
   free(nnzptr);
-  ctensor_free(&cs);
+  csf_free(&cs);
   free(opts);
 }
