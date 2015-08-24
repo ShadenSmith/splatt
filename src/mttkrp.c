@@ -90,7 +90,7 @@ static inline void __csf_process_fiber(
 {
   /* foreach nnz in fiber */
   for(idx_t j=start; j < end; ++j) {
-    val_t const v = vals[j];
+    val_t const v = vals[j] ;
     val_t const * const restrict row = leafmat + (nfactors * inds[j]);
     for(idx_t f=0; f < nfactors; ++f) {
       accumbuf[f] += v * row[f];
@@ -169,7 +169,6 @@ static void __ctensor_mttkrp_root(
   matrix_t ** mats,
   thd_info * const thds)
 {
-  printf("ROOT2\n");
   /* extract tensor structures */
   idx_t const nmodes = ct->nmodes;
   idx_t const * const * const restrict fp
@@ -178,39 +177,52 @@ static void __ctensor_mttkrp_root(
       = (idx_t const * const *) ct->pt[tile_id].fids;
   val_t const * const vals = ct->pt[tile_id].vals;
 
+  /* empty tile, just return */
+  if(vals == NULL) {
+    return;
+  }
+
   idx_t const nfactors = mats[0]->J;
 
-  #pragma omp parallel default(shared)
-  {
-    int const tid = omp_get_thread_num();
-    timer_start(&thds[tid].ttime);
+  int const tid = omp_get_thread_num();
+  timer_start(&thds[tid].ttime);
 
-    val_t * mvals[MAX_NMODES];
-    val_t * buf[MAX_NMODES];
-    idx_t idxstack[MAX_NMODES];
+  val_t * mvals[MAX_NMODES];
+  val_t * buf[MAX_NMODES];
+  idx_t idxstack[MAX_NMODES];
 
-    for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ct->dim_perm[m]]->vals;
-      /* grab the next row of buf from thds */
-      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-      memset(buf[m], 0, nfactors * sizeof(idx_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    /* grab the next row of buf from thds */
+    buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+    memset(buf[m], 0, nfactors * sizeof(idx_t));
+  }
+
+  val_t * const ovals = mats[MAX_NMODES]->vals;
+
+  idx_t const nfibs = ct->pt[tile_id].nfibs[0];
+  assert(nfibs <= mats[MAX_NMODES]->I);
+
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < nfibs; ++s) {
+    idx_t fid = s;
+    if(fids[0] != NULL) {
+      fid = fids[0][s];
     }
 
-    val_t * const ovals = mats[MAX_NMODES]->vals;
+    assert(fid < mats[MAX_NMODES]->I);
 
-    #pragma omp for schedule(dynamic, 16) nowait
-    for(idx_t s=0; s < ct->pt[tile_id].nfibs[0]; ++s) {
-      idx_t fid = s;
-      if(fids[0] != NULL) {
-        fid = fids[0][s];
-      }
+    __propagate_up(buf[0], buf, idxstack, 0, s, fp, fids,
+        vals, mvals, nmodes, nfactors);
 
-      __propagate_up(ovals + (fid * nfactors), buf, idxstack, 0, fid, fp, fids,
-          vals, mvals, nmodes, nfactors);
-    } /* end foreach outer slice */
+    val_t * const restrict orow = ovals + (fid * nfactors);
+    val_t const * const restrict obuf = buf[0];
+    for(idx_t f=0; f < nfactors; ++f) {
+      orow[f] += obuf[f];
+    }
+  } /* end foreach outer slice */
 
-    timer_start(&thds[tid].ttime);
-  } /* end omp parallel */
+  timer_start(&thds[tid].ttime);
 }
 
 
@@ -220,7 +232,6 @@ static void __ctensor_mttkrp_leaf(
   matrix_t ** mats,
   thd_info * const thds)
 {
-  printf("LEAF2");
   /* extract tensor structures */
   idx_t const nmodes = ct->nmodes;
   idx_t const * const * const restrict fp
@@ -231,68 +242,68 @@ static void __ctensor_mttkrp_leaf(
 
   idx_t const nfactors = mats[0]->J;
 
-  #pragma omp parallel default(shared)
-  {
-    int const tid = omp_get_thread_num();
-    timer_start(&thds[tid].ttime);
+  int const tid = omp_get_thread_num();
+  if(tid == 0) {
+    printf("LEAF2");
+  }
+  timer_start(&thds[tid].ttime);
 
-    val_t * mvals[MAX_NMODES];
-    val_t * buf[MAX_NMODES];
-    idx_t idxstack[MAX_NMODES];
+  val_t * mvals[MAX_NMODES];
+  val_t * buf[MAX_NMODES];
+  idx_t idxstack[MAX_NMODES];
 
-    for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ct->dim_perm[m]]->vals;
-      /* grab the next row of buf from thds */
-      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+  for(idx_t m=0; m < nmodes; ++m) {
+    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    /* grab the next row of buf from thds */
+    buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+  }
+
+  /* foreach outer slice */
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < ct->pt[tile_id].nfibs[0]; ++s) {
+    idx_t fid = s;
+    if(fids[0] != NULL) {
+      fid = fids[0][s];
+    }
+    idxstack[0] = fid;
+
+    /* clear out stale data */
+    for(idx_t m=1; m < nmodes-1; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
     }
 
-    /* foreach outer slice */
-    #pragma omp for schedule(dynamic, 16) nowait
-    for(idx_t s=0; s < ct->pt[tile_id].nfibs[0]; ++s) {
-      idx_t fid = s;
-      if(fids[0] != NULL) {
-        fid = fids[0][s];
-      }
-      idxstack[0] = fid;
+    /* first buf will always just be a matrix row */
+    val_t const * const restrict rootrow = mvals[0] + (fid*nfactors);
+    val_t * const rootbuf = buf[0];
+    for(idx_t f=0; f < nfactors; ++f) {
+      rootbuf[f] = rootrow[f];
+    }
 
-      /* clear out stale data */
-      for(idx_t m=1; m < nmodes-1; ++m) {
-        idxstack[m] = fp[m-1][idxstack[m-1]];
-      }
+    idx_t depth = 0;
 
-      /* first buf will always just be a matrix row */
-      val_t const * const restrict rootrow = mvals[0] + (fid*nfactors);
-      val_t * const rootbuf = buf[0];
-      for(idx_t f=0; f < nfactors; ++f) {
-        rootbuf[f] = rootrow[f];
+    idx_t const outer_end = fp[0][s+1];
+    while(idxstack[1] < outer_end) {
+      /* move down to an nnz node */
+      for(; depth < nmodes-2; ++depth) {
+        /* propogate buf down */
+        val_t const * const restrict drow
+            = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
+        __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
       }
 
-      idx_t depth = 0;
+      /* process all nonzeros [start, end) */
+      idx_t const start = fp[depth][idxstack[depth]];
+      idx_t const end   = fp[depth][idxstack[depth]+1];
+      __csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
+          nfactors, start, end, fids[depth+1], vals);
 
-      idx_t const outer_end = fp[0][s+1];
-      while(idxstack[1] < outer_end) {
-        /* move down to an nnz node */
-        for(; depth < nmodes-2; ++depth) {
-          /* propogate buf down */
-          val_t const * const restrict drow
-              = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-          __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
-        }
-
-        /* process all nonzeros [start, end) */
-        idx_t const start = fp[depth][idxstack[depth]];
-        idx_t const end   = fp[depth][idxstack[depth]+1];
-        __csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
-            nfactors, start, end, fids[depth+1], vals);
-
-        /* now move back up to the next unprocessed child */
-        do {
-          ++idxstack[depth];
-          --depth;
-        } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
-      } /* end DFS */
-    } /* end outer slice loop */
-  } /* end omp parallel */
+      /* now move back up to the next unprocessed child */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+    } /* end DFS */
+  } /* end outer slice loop */
 }
 
 
@@ -303,7 +314,6 @@ static void __ctensor_mttkrp_internal(
   idx_t const mode,
   thd_info * const thds)
 {
-  printf("INTL2");
   /* extract tensor structures */
   idx_t const nmodes = ct->nmodes;
   idx_t const * const * const restrict fp
@@ -323,75 +333,75 @@ static void __ctensor_mttkrp_internal(
     }
   }
 
-  #pragma omp parallel default(shared)
-  {
-    int const tid = omp_get_thread_num();
-    timer_start(&thds[tid].ttime);
+  int const tid = omp_get_thread_num();
+  if(tid == 0) {
+    printf("INTL2");
+  }
+  timer_start(&thds[tid].ttime);
 
-    val_t * mvals[MAX_NMODES];
-    val_t * buf[MAX_NMODES];
-    idx_t idxstack[MAX_NMODES];
+  val_t * mvals[MAX_NMODES];
+  val_t * buf[MAX_NMODES];
+  idx_t idxstack[MAX_NMODES];
 
-    for(idx_t m=0; m < nmodes; ++m) {
-      mvals[m] = mats[ct->dim_perm[m]]->vals;
-      /* grab the next row of buf from thds */
-      buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-      memset(buf[m], 0, nfactors * sizeof(idx_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    /* grab the next row of buf from thds */
+    buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+    memset(buf[m], 0, nfactors * sizeof(idx_t));
+  }
+  val_t * const ovals = mats[MAX_NMODES]->vals;
+
+  /* foreach outer slice */
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < ct->dims[ct->dim_perm[0]]; ++s) {
+    idx_t fid = s;
+    if(fids[0] != NULL) {
+      fid = fids[0][s];
     }
-    val_t * const ovals = mats[MAX_NMODES]->vals;
 
-    /* foreach outer slice */
-    #pragma omp for schedule(dynamic, 16)
-    for(idx_t s=0; s < ct->dims[ct->dim_perm[0]]; ++s) {
-      idx_t fid = s;
-      if(fids[0] != NULL) {
-        fid = fids[0][s];
+    /* push outer slice and fill stack */
+    idxstack[0] = fid;
+    for(idx_t m=1; m <= outdepth; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
+    }
+
+    /* fill first buf */
+    val_t const * const restrict rootrow = mvals[0] + (fid*nfactors);
+    for(idx_t f=0; f < nfactors; ++f) {
+      buf[0][f] = rootrow[f];
+    }
+
+    /* process entire subtree */
+    idx_t depth = 0;
+    while(idxstack[1] < fp[0][s+1]) {
+      /* propagate values down to outdepth-1 */
+      for(; depth < outdepth; ++depth) {
+        val_t const * const restrict drow
+            = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
+        __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
       }
 
-      /* push outer slice and fill stack */
-      idxstack[0] = fid;
-      for(idx_t m=1; m <= outdepth; ++m) {
-        idxstack[m] = fp[m-1][idxstack[m-1]];
-      }
+      /* write to output and clear buf[outdepth] for next subtree */
+      idx_t const noderow = fids[outdepth][idxstack[outdepth]];
 
-      /* fill first buf */
-      val_t const * const restrict rootrow = mvals[0] + (fid*nfactors);
-      for(idx_t f=0; f < nfactors; ++f) {
-        buf[0][f] = rootrow[f];
-      }
+      /* propagate value up to buf[outdepth] */
+      __propagate_up(buf[outdepth], buf, idxstack, outdepth,idxstack[outdepth],
+          fp, fids, vals, mvals, nmodes, nfactors);
 
-      /* process entire subtree */
-      idx_t depth = 0;
-      while(idxstack[1] < fp[0][s+1]) {
-        /* propagate values down to outdepth-1 */
-        for(; depth < outdepth; ++depth) {
-          val_t const * const restrict drow
-              = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-          __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
-        }
+      val_t * const restrict outbuf = ovals + (noderow * nfactors);
+      omp_set_lock(locks + (noderow % NLOCKS));
+      __add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
+      omp_unset_lock(locks + (noderow % NLOCKS));
 
-        /* write to output and clear buf[outdepth] for next subtree */
-        idx_t const noderow = fids[outdepth][idxstack[outdepth]];
+      /* backtrack to next unfinished node */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+    } /* end DFS */
+  } /* end foreach outer slice */
 
-        /* propagate value up to buf[outdepth] */
-        __propagate_up(buf[outdepth], buf, idxstack, outdepth,idxstack[outdepth],
-            fp, fids, vals, mvals, nmodes, nfactors);
-
-        val_t * const restrict outbuf = ovals + (noderow * nfactors);
-        omp_set_lock(locks + (noderow % NLOCKS));
-        __add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
-        omp_unset_lock(locks + (noderow % NLOCKS));
-
-        /* backtrack to next unfinished node */
-        do {
-          ++idxstack[depth];
-          --depth;
-        } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
-      } /* end DFS */
-    } /* end foreach outer slice */
-
-    timer_stop(&thds[tid].ttime);
-  } /* end omp parallel */
+  timer_stop(&thds[tid].ttime);
 }
 
 #if 0
@@ -785,33 +795,36 @@ void mttkrp_ctensor(
   }
 
   omp_set_num_threads(nthreads);
-
-  /* set of untiled functions, use mutexes where required */
-  if(ct->tile_dims[outdepth] == 1) {
-    if(outdepth == 0) {
-      __ctensor_mttkrp_root(ct, 0, mats, thds);
-    } else if(outdepth == ct->nmodes - 1) {
-      __ctensor_mttkrp_leaf(ct, 0, mats, thds);
-    } else {
-      __ctensor_mttkrp_internal(ct, 0, mats, mode, thds);
-    }
-    return;
-  }
-
-#if 0
-  #pragma omp parallel
+  #pragma omp parallel default(shared)
   {
-    /* tiled functions, no locking required */
-    idx_t id = get_next_tileid(TILE_BEGIN,);
-    if(outdepth == 0) {
-      __ctensor_mttkrp_root(ct, 0, mats, thds);
-    } else if(outdepth == ct->nmodes - 1) {
-      __ctensor_mttkrp_leaf(ct, 0, mats, thds);
+    /* set of untiled functions, use mutexes where required */
+    if(ct->ntiles == 1) {
+      if(outdepth == 0) {
+        __ctensor_mttkrp_root(ct, 0, mats, thds);
+      } else if(outdepth == ct->nmodes - 1) {
+        __ctensor_mttkrp_leaf(ct, 0, mats, thds);
+      } else {
+        __ctensor_mttkrp_internal(ct, 0, mats, mode, thds);
+      }
     } else {
-      __ctensor_mttkrp_internal(ct, 0, mats, mode, thds);
+      /* tiled functions, no locking required */
+      if(outdepth == 0) {
+        for(idx_t t=0; t < ct->tile_dims[mode]; ++t) {
+          idx_t id = get_next_tileid(TILE_BEGIN, ct->tile_dims, ct->nmodes,
+              mode, t);
+          while(id != TILE_END) {
+            __ctensor_mttkrp_root(ct, id, mats, thds);
+            id = get_next_tileid(id, ct->tile_dims, ct->nmodes, mode, t);
+            #pragma omp barrier
+          }
+        }
+      } else if(outdepth == ct->nmodes - 1) {
+        //__ctensor_mttkrp_leaf(ct, 0, mats, thds);
+      } else {
+        //__ctensor_mttkrp_internal(ct, 0, mats, mode, thds);
+      }
     }
-  }
-#endif
+  } /* end omp parallel */
 }
 
 

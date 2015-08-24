@@ -31,6 +31,26 @@ void tt_sort(
   idx_t * dim_perm);
 
 
+#define tt_sort_range splatt_tt_sort_range
+/**
+* @brief Sort a tensor using tt_sort on only a range of the nonzero elements.
+*        Nonzeros in the range [start, end) will be sorted.
+*
+* @param tt The tensor to sort.
+* @param mode The primary for sorting.
+* @param dim_perm An permutation array that defines sorting priority. If NULL,
+*                 a default ordering of {0, 1, ..., m} is used.
+* @param start The first nonzero to include in the sorting.
+* @param end The end of the nonzeros to sort (exclusive).
+*/
+void tt_sort_range(
+  sptensor_t * const tt,
+  idx_t const mode,
+  idx_t * dim_perm,
+  idx_t const start,
+  idx_t const end);
+
+
 #define insertion_sort splatt_insertion_sort
 /**
 * @brief An in-place insertion sort implementation for idx_t's.

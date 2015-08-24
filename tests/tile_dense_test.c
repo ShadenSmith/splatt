@@ -140,6 +140,8 @@ CTEST2(tile_dense, check_tile_bounds)
           idx_t const minidx = coords[m] * tsize;
           idx_t const maxidx = (coords[m] + 1) * tsize;
 
+          ASSERT_EQUAL(1, tt->ind[m][x] < tt->dims[m]);
+
           /* assert we are in the correct range */
           ASSERT_EQUAL(1, tt->ind[m][x] >= minidx);
           /* last coordinate may have overflow */

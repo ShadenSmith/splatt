@@ -270,7 +270,7 @@ idx_t * tt_densetile(
   /* the actual number of indices to place in each tile */
   idx_t tsizes[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    tsizes[m] = tt->dims[m] / tile_dims[m];
+    tsizes[m] = SS_MAX(tt->dims[m] / tile_dims[m], 1);
   }
 
   idx_t * tcounts = (idx_t *) calloc(ntiles+2, sizeof(idx_t));
