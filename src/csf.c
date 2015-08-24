@@ -98,7 +98,7 @@ static void __print_csf(
     }
 
     /* write slices */
-    printf("fptr:\n");
+    printf("tile: %lu fptr:\n", t);
     printf("[%lu] ", ft->nfibs[0]);
     for(idx_t f=0; f < ft->nfibs[0]; ++f) {
       if(ft->fids[0] == NULL) {

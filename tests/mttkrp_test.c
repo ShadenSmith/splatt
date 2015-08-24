@@ -149,7 +149,7 @@ CTEST2(mttkrp, csf)
 
 CTEST2(mttkrp, csf_densetile)
 {
-  idx_t const nthreads = 3;
+  idx_t const nthreads = 2;
 
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_NTHREADS] = nthreads;
@@ -182,6 +182,7 @@ CTEST2(mttkrp, csf_densetile)
       mttkrp_ctensor(&cs, data->mats[i], m, thds, nthreads);
 
 #if 0
+      printf("m: %lu\n", m);
       printf("\n");
       mat_write(data->mats[i][MAX_NMODES], NULL);
       printf("\n");
