@@ -6,6 +6,7 @@
 #include "stats.h"
 #include "sptensor.h"
 #include "ftensor.h"
+#include "csf.h"
 #include "io.h"
 #include "reorder.h"
 #include "util.h"
@@ -208,6 +209,37 @@ void stats_tt(
     exit(1);
   }
 }
+
+
+void stats_csf(
+  csf_t const * const ct)
+{
+  printf("nmodes: %lu nnz: %lu\n", ct->nmodes, ct->nnz);
+  printf("dims: %lu", ct->dims[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("x%lu", ct->dims[m]);
+  }
+  printf(" (%lu", ct->dim_perm[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("->%lu", ct->dim_perm[m]);
+  }
+  printf(")\n");
+  printf("ntiles: %lu tile dims: %lu", ct->ntiles, ct->tile_dims[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("x%lu", ct->tile_dims[m]);
+  }
+
+  idx_t empty = 0;
+  for(idx_t t=0; t < ct->ntiles; ++t) {
+    if(ct->pt[t].vals == NULL) {
+      ++empty;
+    }
+  }
+
+  printf("  empty: %lu (%0.1f%%)\n", empty,
+      100. * (double)empty/ (double)ct->ntiles);
+}
+
 
 
 #ifdef SPLATT_USE_MPI

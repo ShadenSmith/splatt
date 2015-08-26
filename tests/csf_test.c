@@ -59,3 +59,60 @@ CTEST2(csf_init, fill)
   csf_free(&cs);
 }
 
+CTEST2(csf_init, mode_order_small)
+{
+  idx_t perm[MAX_NMODES];
+  csf_find_mode_order(data->tt->dims, data->tt->nmodes, CSF_SORTED_SMALLFIRST,
+      perm);
+
+  for(idx_t m=0; m < data->tt->nmodes-1; ++m) {
+    if(data->tt->dims[perm[m]] > data->tt->dims[perm[m+1]]) {
+      ASSERT_FAIL();
+    }
+  }
+}
+
+
+CTEST2(csf_init, mode_order_big)
+{
+  idx_t perm[MAX_NMODES];
+  csf_find_mode_order(data->tt->dims, data->tt->nmodes, CSF_SORTED_BIGFIRST,
+      perm);
+
+  for(idx_t m=0; m < data->tt->nmodes-1; ++m) {
+    if(data->tt->dims[perm[m]] < data->tt->dims[perm[m+1]]) {
+      ASSERT_FAIL();
+    }
+  }
+}
+
+CTEST(csf_init, mode_order_rev)
+{
+  idx_t perm[MAX_NMODES];
+  idx_t const dims[] = {100, 50, 25, 1};
+  idx_t const nmodes = sizeof(dims) / sizeof(dims[0]);
+
+  csf_find_mode_order(dims, nmodes, CSF_SORTED_SMALLFIRST, perm);
+
+  for(idx_t m=0; m < nmodes-1; ++m) {
+    if(dims[perm[m]] > dims[perm[m+1]]) {
+      ASSERT_FAIL();
+    }
+  }
+}
+
+
+CTEST(csf_init, mode_order_mixed)
+{
+  idx_t perm[MAX_NMODES];
+  idx_t const dims[] = {50, 75, 100, 5};
+  idx_t const nmodes = sizeof(dims) / sizeof(dims[0]);
+
+  csf_find_mode_order(dims, nmodes, CSF_SORTED_SMALLFIRST, perm);
+
+  for(idx_t m=0; m < nmodes-1; ++m) {
+    if(dims[perm[m]] > dims[perm[m+1]]) {
+      ASSERT_FAIL();
+    }
+  }
+}

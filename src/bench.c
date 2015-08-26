@@ -12,6 +12,7 @@
 #include "sort.h"
 #include "io.h"
 #include "tile.h"
+#include "stats.h"
 #include "util.h"
 
 #include <omp.h>
@@ -166,6 +167,9 @@ void bench_csf(
   char * bstr = bytes_str(cs_bytes);
   printf("CSF-STORAGE: %s\n\n", bstr);
   free(bstr);
+
+  stats_csf(&cs);
+  printf("\n");
 
   timer_start(&timers[TIMER_MISC]);
 
