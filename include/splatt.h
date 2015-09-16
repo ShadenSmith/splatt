@@ -151,6 +151,20 @@ typedef struct splatt_kruskal_t
 
 
 /**
+* @brief Struct describing a Tucker tensor, allocated and returned by
+*        splatt_tucker_als.
+*/
+typedef struct splatt_tucker_t
+{
+  splatt_idx_t nmodes;                  /** Number of modes (i.e., factors[])*/
+  splatt_idx_t rank[MAX_NMODES];        /** Number of columns in each factor */
+  double fit;                           /** The quality [0,1] of the CPD */
+  splatt_val_t * core;                  /** Core (dense) tensor */
+  splatt_val_t * factors[MAX_NMODES];   /** Row-major matrix for each mode */
+} splatt_tucker_t;
+
+
+/**
 * @brief Struct describing SPLATT's compressed sparse fiber (CSF) format. Use
 *        the splatt_csf_* functions to allocate, fill, and free this structure.
 */
@@ -187,6 +201,7 @@ typedef struct splatt_csf_t
 extern 'C' {
 #endif
 
+
 /**
 * @brief Compute the CPD using alternating least squares.
 *
@@ -206,6 +221,25 @@ int splatt_cpd(
     double const * const options,
     splatt_kruskal_t * factored);
 
+
+
+/**
+* @brief Compute the Tucker decomposition using alternating least squares.
+*
+* @param nfactors The number of factors to use for each mode.
+* @param nmodes The number of modes in the tensor.
+* @param tensors An array of splatt_csf_t created by SPLATT.
+* @param options Options array for SPLATT.
+* @param factored The factored tensor in Kruskal format.
+*
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
+*/
+int splatt_tucker_als(
+    splatt_idx_t const * const nfactors,
+    splatt_idx_t const nmodes,
+    splatt_csf_t const * const tensors,
+    double const * const options,
+    splatt_tucker_t * factored);
 
 
 /**
@@ -229,6 +263,13 @@ int splatt_mttkrp(
     splatt_val_t * const matout,
     double const * const options);
 
+int splatt_ttm(
+    splatt_idx_t const mode,
+    splatt_idx_t const * const ncolumns,
+    splatt_csf_t const * const tensor,
+    splatt_val_t ** matrices,
+    splatt_val_t * const tenout,
+    double const * const options);
 
 /**
 * @brief Read a tensor from a file and convert to CSF format.

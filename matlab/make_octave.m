@@ -8,6 +8,8 @@ case 'x86_64-pc-linux-gnu'
       -lsplatt -lgomp -lm
   mkoctfile --mex  splatt_mttkrp.c -I../include -L../build/Linux-x86_64/lib ...
       -lsplatt -lgomp -lm
+  mkoctfile --mex  splatt_ttm.c -I../include -L../build/Linux-x86_64/lib ...
+      -lsplatt -lgomp -lm
 
 % TODO: What does it use for OSX?
 case 'MACI64'
@@ -17,6 +19,8 @@ case 'MACI64'
     -lsplatt -lgomp -lm
     mkoctfile --mex splatt_mttkrp.c -I../include -L../build/Darwin-x86_64/lib ...
     -lsplatt -lgomp -lm
+    mkoctfile --mex splatt_ttm.c -I../include -L../build/Darwin-x86_64/lib ...
+    -lsplatt -lgomp -lm
 
 % TODO: What does it do for 32-bit Linux?
 case 'GLNX32'
@@ -25,5 +29,7 @@ case 'GLNX32'
     mkoctfile --mex splatt_cpd.c -I../include -L../build/Linux-x86/lib ...
         -lsplatt -lgomp -lm
     mkoctfile --mex splatt_mttkrp.c -I../include -L../build/Linux-x86/lib ...
+        -lsplatt -lgomp -lm
+    mkoctfile --mex splatt_ttm.c -I../include -L../build/Linux-x86/lib ...
         -lsplatt -lgomp -lm
 end
