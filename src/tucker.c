@@ -25,7 +25,6 @@ int splatt_tucker_als(
     double const * const options,
     splatt_tucker_t * factored)
 {
-
   return SPLATT_SUCCESS;
 }
 
@@ -33,3 +32,4 @@ int splatt_tucker_als(
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+

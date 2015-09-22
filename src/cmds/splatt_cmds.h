@@ -17,6 +17,7 @@ static char cmd_doc[] =
   "splatt -- the Surprisingly ParalleL spArse Tensor Toolkit\n\n"
   "The available commands are:\n"
   "  cpd\t\tCompute the Canonical Polyadic Decomposition.\n"
+  "  tucker\t\tCompute the Tucker Decomposition.\n"
   "  bench\t\tBenchmark MTTKRP algorithms.\n"
   "  check\t\tCheck a tensor file for correctness.\n"
   "  convert\tConvert a tensor to different formats.\n"
@@ -60,6 +61,7 @@ void splatt_mpi_cpd_cmd(int argc, char ** argv);
 #else
 void splatt_cpd_cmd(int argc, char ** argv);
 #endif
+void splatt_tucker_cmd(int argc, char ** argv);
 void splatt_bench(int argc, char ** argv);
 void splatt_check(int argc, char ** argv);
 void splatt_convert(int argc, char ** argv);
@@ -67,31 +69,27 @@ void splatt_reorder(int argc, char ** argv);
 void splatt_stats(int argc, char ** argv);
 
 
-typedef enum splatt_cmd
+typedef struct splatt_cmd
 {
-  CMD_CPD,
-  CMD_BENCH,
-  CMD_CHECK,
-  CMD_CONVERT,
-  CMD_REORDER,
-  CMD_STATS,
-  CMD_HELP,
-  CMD_ERROR,
-  CMD_NCMDS
+  char * ch_cmd;
+  void (*func)(int, char**);
 } splatt_cmd;
 
-
-static void (*splatt_cmds[CMD_NCMDS]) (int argc, char ** argv) = {
+static struct splatt_cmd cmds[] =
+{
 #ifdef SPLATT_USE_MPI
-  [CMD_CPD]     = splatt_mpi_cpd_cmd,
+  { "cpd",     splatt_mpi_cpd_cmd },
 #else
-  [CMD_CPD]     = splatt_cpd_cmd,
+  { "cpd",     splatt_cpd_cmd },
 #endif
-  [CMD_BENCH]   = splatt_bench,
-  [CMD_CHECK]   = splatt_check,
-  [CMD_CONVERT] = splatt_convert,
-  [CMD_REORDER] = splatt_reorder,
-  [CMD_STATS]   = splatt_stats,
+  { "tucker",  splatt_tucker_cmd},
+  { "bench",   splatt_bench },
+  { "check",   splatt_check },
+  { "convert", splatt_convert },
+  { "reorder", splatt_reorder },
+  { "stats",   splatt_stats },
+  { "help",    NULL },
+  { NULL,      NULL },
 };
 
 #endif
