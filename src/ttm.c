@@ -130,7 +130,7 @@ void ttm_splatt(
     val_t * const restrict outv = tenout + (s * rankA * rankB);
 
     /* foreach fiber in slice */
-    for(idx_t f=fptr[s]; f < fptr[s+1]; ++f) {
+    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
       /* first entry of the fiber is used to initialize accumF */
       idx_t const jjfirst  = fptr[f];
       val_t const vfirst   = vals[jjfirst];
@@ -154,9 +154,9 @@ void ttm_splatt(
     }
   }
 
+#if 0
   printf("out: %0.3e %0.3e %0.3e %0.3e %0.3e\n",
   tenout[0], tenout[1], tenout[2], tenout[3], tenout[4]);
+#endif
 }
-
-
 
