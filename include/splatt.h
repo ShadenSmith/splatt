@@ -352,6 +352,14 @@ void  splatt_free_opts(
 void splatt_free_kruskal(
     splatt_kruskal_t * factored);
 
+/**
+* @brief Free a splatt_tucker_t allocated by splatt_tucker().
+*
+* @param factored The factored tensor to free.
+*/
+void splatt_free_tucker(
+    splatt_tucker_t * factored);
+
 #ifdef __cplusplus
 }
 #endif

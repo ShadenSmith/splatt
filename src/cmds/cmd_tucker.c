@@ -127,6 +127,40 @@ void splatt_tucker_cmd(
   tt_remove_empty(tt);
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
+  idx_t nfactors[MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    nfactors[m] = args.nfactors;
+  }
+
+  ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
+  /* fill each ftensor */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ften_alloc(ft + m, tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
+  }
+  idx_t const nmodes = tt->nmodes;
   tt_free(tt);
+
+
+  printf("Factoring "
+         "------------------------------------------------------\n");
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
+      args.nfactors,
+      (idx_t) args.opts[SPLATT_OPTION_NITER],
+      args.opts[SPLATT_OPTION_TOLERANCE]);
+  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
+  printf("TILE=NO\n");
+
+  splatt_tucker_t out;
+  splatt_tucker_als(nfactors, nmodes, ft, args.opts, &out);
+
+  /* free up the ftensor allocations */
+  for(idx_t m=0; m < nmodes; ++m) {
+    ften_free(&ft[m]);
+  }
+  free(ft);
+
+  /* output + cleanup */
+  splatt_free_tucker(&out);
+  free(args.opts);
 }
 
