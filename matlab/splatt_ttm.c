@@ -45,7 +45,6 @@ void mexFunction(
   for(m=0; m < nmodes; ++m) {
     mwSize const * matdims = mxGetDimensions(mxGetCell(matcells, m));
     nfactors[m] = (splatt_idx_t) matdims[1];
-    mexPrintf("x%lu\n", nfactors[m]);
     if(m != mode) {
       outcols *= nfactors[m];
     }
@@ -93,10 +92,10 @@ void mexFunction(
   mxArray * out = mxCreateDoubleMatrix(dim, outcols, mxREAL);
   double * const outpr = (double *) mxGetPr(out);
   memcpy(outpr, tenout, dim * outcols * sizeof(double));
-#if 0
+#if 1
   for(j=0; j < outcols; ++j) {
     for(i=0; i < dim; ++i) {
-      outpr[i+(j * dim)] = (double) tenout[j + (i*nfactors[mode])];
+      outpr[i+(j * dim)] = (double) tenout[j + (i*outcols)];
     }
   }
 #endif
