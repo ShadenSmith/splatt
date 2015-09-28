@@ -150,13 +150,9 @@ void ttm_splatt(
 
       /* accumulate outer product into tenout */
       val_t const * const restrict av = avals  + (fids[f] * rankA);
-      __outer_prod(av, rankA, accumF, rankB, outv);
+      //__outer_prod(av, rankA, accumF, rankB, outv);
+      __outer_prod(accumF, rankB, av, rankA, outv);
     }
   }
-
-#if 0
-  printf("out: %0.3e %0.3e %0.3e %0.3e %0.3e\n",
-  tenout[0], tenout[1], tenout[2], tenout[3], tenout[4]);
-#endif
 }
 
