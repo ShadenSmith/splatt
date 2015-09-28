@@ -278,7 +278,7 @@ static void __tt_quicksort3(
   idx_t const start,
   idx_t const end)
 {
-  idx_t vmid;
+  val_t vmid;
   idx_t imid[3];
 
   idx_t * const ind0 = tt->ind[cmplt[0]];
@@ -370,7 +370,7 @@ static void __tt_quicksort(
   idx_t const start,
   idx_t const end)
 {
-  idx_t vmid;
+  val_t vmid;
   idx_t imid[MAX_NMODES];
 
   idx_t * ind;
