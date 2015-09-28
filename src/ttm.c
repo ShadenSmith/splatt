@@ -122,37 +122,43 @@ void ttm_splatt(
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
 
-  int const tid = 0;
-  val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
+  #pragma omp parallel
+  {
+    int const tid = omp_get_thread_num();
+    val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
+    timer_start(&thds[tid].ttime);
 
-  /* foreach slice */
-  for(idx_t s=0; s < nslices; ++s) {
-    val_t * const restrict outv = tenout + (s * rankA * rankB);
+    /* foreach slice */
+    #pragma omp for schedule(dynamic, 16) nowait
+    for(idx_t s=0; s < nslices; ++s) {
+      val_t * const restrict outv = tenout + (s * rankA * rankB);
 
-    /* foreach fiber in slice */
-    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
-      /* first entry of the fiber is used to initialize accumF */
-      idx_t const jjfirst  = fptr[f];
-      val_t const vfirst   = vals[jjfirst];
-      val_t const * const restrict bv = bvals + (inds[jjfirst] * rankB);
-      for(idx_t r=0; r < rankB; ++r) {
-        accumF[r] = vfirst * bv[r];
-      }
-
-      /* foreach nnz in fiber */
-      for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
-        val_t const v = vals[jj];
-        val_t const * const restrict bv = bvals + (inds[jj] * rankB);
+      /* foreach fiber in slice */
+      for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+        /* first entry of the fiber is used to initialize accumF */
+        idx_t const jjfirst  = fptr[f];
+        val_t const vfirst   = vals[jjfirst];
+        val_t const * const restrict bv = bvals + (inds[jjfirst] * rankB);
         for(idx_t r=0; r < rankB; ++r) {
-          accumF[r] += v * bv[r];
+          accumF[r] = vfirst * bv[r];
         }
-      }
 
-      /* accumulate outer product into tenout */
-      val_t const * const restrict av = avals  + (fids[f] * rankA);
-      //__outer_prod(av, rankA, accumF, rankB, outv);
-      __outer_prod(accumF, rankB, av, rankA, outv);
+        /* foreach nnz in fiber */
+        for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
+          val_t const v = vals[jj];
+          val_t const * const restrict bv = bvals + (inds[jj] * rankB);
+          for(idx_t r=0; r < rankB; ++r) {
+            accumF[r] += v * bv[r];
+          }
+        }
+
+        /* accumulate outer product into tenout */
+        val_t const * const restrict av = avals  + (fids[f] * rankA);
+        //__outer_prod(av, rankA, accumF, rankB, outv);
+        __outer_prod(accumF, rankB, av, rankA, outv);
+      }
     }
-  }
+    timer_stop(&thds[tid].ttime);
+  } /* end omp parallel */
 }
 
