@@ -73,6 +73,10 @@ void mttkrp_splatt(
   thd_info * const thds,
   idx_t const nthreads)
 {
+  if(ft->tiled == SPLATT_SYNCTILE) {
+    mttkrp_splatt_sync_tiled(ft, mats, mode, thds, nthreads);
+    return;
+  }
   if(ft->tiled == SPLATT_COOPTILE) {
     mttkrp_splatt_coop_tiled(ft, mats, mode, thds, nthreads);
     return;
@@ -139,7 +143,7 @@ void mttkrp_splatt(
 }
 
 
-void mttkrp_splatt_tiled(
+void mttkrp_splatt_sync_tiled(
   ftensor_t const * const ft,
   matrix_t ** mats,
   idx_t const mode,

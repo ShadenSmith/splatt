@@ -134,7 +134,7 @@ static error_t parse_bench_opt(
     break;
 
   case TT_TILE:
-    args->tile = 1;
+    args->tile = SPLATT_SYNCTILE;
     break;
 
   case ARGP_KEY_ARG:

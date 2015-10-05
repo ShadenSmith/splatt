@@ -105,7 +105,7 @@ static error_t parse_cpd_opt(
     args->opts[SPLATT_OPTION_VERBOSITY] += 1;
     break;
   case TT_TILE:
-    args->opts[SPLATT_OPTION_TILE] = SPLATT_COOPTILE;
+    args->opts[SPLATT_OPTION_TILE] = SPLATT_SYNCTILE;
     break;
   case TT_NOWRITE:
     args->write = 0;

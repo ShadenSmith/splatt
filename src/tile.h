@@ -9,14 +9,7 @@
 
 /** Dimensions to use while tiling
  *  TODO: make this configurable? */
-static idx_t const TILE_SIZES[] = { 2048, 2048, 2048 };
-
-typedef enum
-{
-  TILE_NO,
-  TILE_INDV,
-  TILE_COOP
-} splatt_tile_type;
+static idx_t const TILE_SIZES[] = { 32, 1024, 1024 };
 
 
 /******************************************************************************
