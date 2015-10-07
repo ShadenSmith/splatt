@@ -173,6 +173,23 @@ static void __setup_1d(
 
 
 /**
+* @brief Setup communicator info for a fine-grained distribution.
+*
+* @param rinfo MPI rank information to fill in.
+*/
+static void __setup_fine(
+  rank_info * const rinfo)
+{
+  rinfo->comm_3d = MPI_COMM_WORLD;
+  for(idx_t m=0; m < rinfo->nmodes; ++m) {
+    rinfo->layer_comm[m] = MPI_COMM_WORLD;
+    rinfo->layer_size[m] = rinfo->npes;
+    rinfo->layer_rank[m] = rinfo->rank;
+    rinfo->dims_3d[m] = rinfo->npes;
+  }
+}
+
+/**
 * @brief Setup communicatory info for a 3D distribution.
 *
 * @param rinfo MPI rank information to fill in.
@@ -250,6 +267,9 @@ void mpi_setup_comms(
     break;
   case 3:
     __setup_3d(rinfo);
+    break;
+  case SPLATT_MPI_FINE:
+    __setup_fine(rinfo);
     break;
   default:
     fprintf(stderr, "SPLATT: distribution %"SPLATT_PF_IDX" not supported. "

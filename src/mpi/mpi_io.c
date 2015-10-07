@@ -708,6 +708,8 @@ sptensor_t * mpi_tt_read(
       }
     }
     break;
+  case SPLATT_MPI_FINE:
+    break;
   }
 
   timer_stop(&timers[TIMER_IO]);

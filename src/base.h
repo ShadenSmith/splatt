@@ -36,6 +36,8 @@ static idx_t const DEFAULT_ITS = 50;
 static idx_t const DEFAULT_THREADS = 1;
 static idx_t const DEFAULT_MPI_DISTRIBUTION = 0;
 
+#define SPLATT_MPI_FINE (MAX_NMODES + 1)
+
 static int const DEFAULT_WRITE = 1;
 static int const DEFAULT_TILE = 0;
 

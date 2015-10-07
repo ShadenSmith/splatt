@@ -34,7 +34,8 @@ static struct argp_option cpd_options[] = {
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
 #ifdef SPLATT_USE_MPI
   {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
-                                 "(default: 3)"},
+                                 "(default: 3) 'f' for fine-grained"},
+  {"partition", 'p', "FILE", 0, "MPI: partitioning for fine-grained"},
 #endif
   { 0 }
 };
@@ -49,6 +50,7 @@ typedef struct
 #ifdef SPLATT_USE_MPI
   int distribution;
   int mpi_dims[MAX_NMODES];
+  char * pfname;   /** file that we read the partitioning from */
 #endif
 } cpd_cmd_args;
 
@@ -63,6 +65,7 @@ void default_cpd_opts(
 {
   args->opts = splatt_default_opts();
   args->ifname    = NULL;
+  args->pfname    = NULL;
   args->write     = DEFAULT_WRITE;
   args->nfactors  = DEFAULT_NFACTORS;
 
@@ -115,12 +118,20 @@ static error_t parse_cpd_opt(
     break;
 #ifdef SPLATT_USE_MPI
   case 'd':
+    /* fine-grained decomp */
+    if(arg[0] == 'f') {
+      args->distribution = SPLATT_MPI_FINE;
+      break;
+    }
     buf = strtok(arg, "x");
     while(buf != NULL) {
       args->mpi_dims[cnt++] = atoi(buf);
       buf = strtok(NULL, "x");
     }
     args->distribution = cnt;
+    break;
+  case 'p':
+    args->pfname = arg;
     break;
 #endif
 
