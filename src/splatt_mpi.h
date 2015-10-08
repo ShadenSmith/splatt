@@ -261,12 +261,14 @@ void mpi_compute_ineed(
 * @brief Each rank reads their 3D partition of a tensor.
 *
 * @param ifname The file containing the tensor.
+* @param pfname The file containing partition information, if applicable.
 * @param rinfo Rank information.
 * 
 * @return The rank's subtensor.
 */
 sptensor_t * mpi_tt_read(
   char const * const ifname,
+  char const * const pfname,
   rank_info * const rinfo);
 
 

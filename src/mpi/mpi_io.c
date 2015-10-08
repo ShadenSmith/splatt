@@ -46,6 +46,136 @@ static void __fill_tt_nnz(
 }
 
 
+static int * __distribute_parts(
+  sptensor_t * const ttbuf,
+  char const * const pfname,
+  rank_info * const rinfo)
+{
+  /* root may have more than target_nnz */
+  idx_t const target_nnz = rinfo->global_nnz / rinfo->npes;
+  int * parts = (int *) malloc(SS_MAX(ttbuf->nnz, target_nnz) * sizeof(int));
+
+  if(rinfo->rank == 0) {
+    int ret;
+    FILE * fin = open_f(pfname, "r");
+
+    /* send to all other ranks */
+    for(int p=1; p < rinfo->npes; ++p) {
+      /* read into buffer */
+      for(idx_t n=0; n < target_nnz; ++n) {
+        if((ret = fscanf(fin, "%d", &(parts[n]))) == 0) {
+          fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n",
+              pfname);
+          exit(1);
+        }
+      }
+      MPI_Send(parts, target_nnz, MPI_INT, p, 0, rinfo->comm_3d);
+    }
+
+    /* now read my own part info */
+    for(idx_t n=0; n < ttbuf->nnz; ++n) {
+      if((ret = fscanf(fin, "%d", &(parts[n]))) == 0) {
+        fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n",
+            pfname);
+        exit(1);
+      }
+    }
+    fclose(fin);
+  } else {
+    /* receive part info */
+    MPI_Recv(parts, ttbuf->nnz, MPI_INT, 0, 0, rinfo->comm_3d,
+        &(rinfo->status));
+  }
+  return parts;
+}
+
+
+static sptensor_t * __rearrange_fine(
+  sptensor_t * const ttbuf,
+  char const * const pfname,
+  idx_t * * ssizes,
+  rank_info * const rinfo)
+{
+  /* first distribute partitioning information */
+  int * parts = __distribute_parts(ttbuf, pfname, rinfo);
+
+  /* count how many to send to each process */
+  int * nsend = (int *) calloc(rinfo->npes, sizeof(int));
+  int * nrecv = (int *) calloc(rinfo->npes, sizeof(int));
+  for(idx_t n=0; n < ttbuf->nnz; ++n) {
+    nsend[parts[n]] += 1;
+  }
+  MPI_Alltoall(nsend, 1, MPI_INT, nrecv, 1, MPI_INT, rinfo->comm_3d);
+
+  /* how many nonzeros I'll own */
+  idx_t nowned = 0;
+  for(int p=0; p < rinfo->npes; ++p) {
+    nowned += (idx_t) nrecv[p];
+  }
+
+  int * send_disp = (int *) malloc((rinfo->npes+1) * sizeof(int));
+  int * recv_disp = (int *) malloc((rinfo->npes+1) * sizeof(int));
+
+  /* allocate my tensor and send buffer */
+  sptensor_t * tt = tt_alloc(nowned, rinfo->nmodes);
+  idx_t * isend_buf = (idx_t *) malloc(ttbuf->nnz * sizeof(idx_t));
+#if 1
+  if(rinfo->rank == 2) {
+    printf("nsend:");
+    for(int p=0; p < rinfo->npes; ++p) {
+      printf(" %d", nsend[p]);
+    }
+    printf("\n");
+    printf("send_disp:");
+    for(int p=0; p < rinfo->npes; ++p) {
+      printf(" %d", send_disp[p]);
+    }
+    printf("\n");
+    printf("nrecv:");
+    for(int p=0; p < rinfo->npes; ++p) {
+      printf(" %d", nrecv[p]);
+    }
+    printf("\n");
+    printf("recv_disp:");
+    for(int p=0; p < rinfo->npes; ++p) {
+      printf(" %d", recv_disp[p]);
+    }
+    printf("\n");
+  }
+#endif
+
+  /* rearrange into sendbuf and send one mode at a time */
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+    /* prefix sum to make disps */
+    send_disp[0] = send_disp[1] = 0;
+    recv_disp[0] = recv_disp[1] = 0;
+    for(int p=2; p < rinfo->npes; ++p) {
+      send_disp[p] = send_disp[p-1] + nsend[p-2];
+      recv_disp[p] = recv_disp[p-1] + nrecv[p-2];
+    }
+
+    idx_t const * const ind = ttbuf->ind[m];
+    for(idx_t n=0; n < ttbuf->nnz; ++n) {
+      nsend[parts[n]] += 1;
+
+      idx_t const idx = send_disp[parts[n] + 1]++;
+      if(idx >= ttbuf->nnz) {
+        //printf("fuck\n");
+      }
+      isend_buf[idx] = ind[n];
+    }
+  }
+
+  free(nsend);
+  free(nrecv);
+  free(send_disp);
+  free(recv_disp);
+  free(parts);
+
+  return tt;
+}
+
+
 /**
 * @brief Find the start/end slices in each mode for my partition of X.
 *
@@ -636,6 +766,7 @@ static void __get_best_mpi_dim(
 
 sptensor_t * mpi_tt_read(
   char const * const ifname,
+  char const * const pfname,
   rank_info * const rinfo)
 {
   timer_start(&timers[TIMER_IO]);
@@ -666,7 +797,6 @@ sptensor_t * mpi_tt_read(
   /* first naively distribute tensor nonzeros for analysis */
   sptensor_t * ttbuf = mpi_simple_distribute(ifname, rinfo);
   __fill_ssizes(ttbuf, ssizes, rinfo);
-  tt_free(ttbuf);
 
   /* actually parse tensor */
   sptensor_t * tt = NULL;
@@ -696,11 +826,12 @@ sptensor_t * mpi_tt_read(
     }
     break;
   case SPLATT_MPI_FINE:
+    tt = __rearrange_fine(ttbuf, pfname, ssizes, rinfo);
     break;
   }
 
+  tt_free(ttbuf);
   timer_stop(&timers[TIMER_IO]);
-
   return tt;
 }
 
