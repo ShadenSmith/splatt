@@ -270,8 +270,19 @@ sptensor_t * mpi_tt_read(
   rank_info * const rinfo);
 
 
-#define mpi_read_nnz splatt_mpi_read_nnz
-sptensor_t * mpi_read_nnz(
+#define mpi_simple_distribute splatt_mpi_simple_distribute
+/**
+* @brief Do a simple distribution of the tensor stored in file 'ifname'.
+*        Load balance is based on nonzero count. No communication or other
+*        heuristics used. Tensor nonzeros are distributed among MPI
+*        communicator rinfo->comm_3d.
+*
+* @param ifname The file to read from.
+* @param rinfo MPI rank information.
+*
+* @return My own sub-tensor.
+*/
+sptensor_t * mpi_simple_distribute(
   char const * const ifname,
   rank_info * const rinfo);
 
