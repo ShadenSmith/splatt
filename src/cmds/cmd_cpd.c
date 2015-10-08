@@ -180,6 +180,9 @@ void splatt_mpi_cpd_cmd(
     print_header();
   }
 
+  tt = mpi_read_nnz(args.ifname, &rinfo);
+  return;
+
   tt = mpi_tt_read(args.ifname, &rinfo);
   ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
 

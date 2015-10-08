@@ -923,3 +923,28 @@ void mpi_write_part(
   fclose(fout);
 }
 
+
+sptensor_t * mpi_read_nnz(
+  char const * const ifname,
+  rank_info * const rinfo)
+{
+  /* get tensor stats */
+  if(rinfo->rank == 0) {
+    __get_dims(ifname, &(rinfo->global_nnz), &(rinfo->nmodes),
+        rinfo->global_dims);
+  }
+  MPI_Bcast(&(rinfo->global_nnz), 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(rinfo->nmodes), 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(rinfo->global_dims, rinfo->nmodes, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
+
+  /* compute my even chunk of nonzeros -- root rank gets the extra amount */
+  idx_t mynnz = rinfo->global_nnz / rinfo->npes;
+  if(rinfo->rank == 0) {
+    mynnz = rinfo->global_nnz - ((rinfo->npes-1) * mynnz);
+  }
+
+  sptensor_t * tt = tt_alloc(mynnz, rinfo->nmodes);
+
+  return tt;
+}
+

@@ -270,6 +270,11 @@ sptensor_t * mpi_tt_read(
   rank_info * const rinfo);
 
 
+#define mpi_read_nnz splatt_mpi_read_nnz
+sptensor_t * mpi_read_nnz(
+  char const * const ifname,
+  rank_info * const rinfo);
+
 #define mpi_filter_tt_1d splatt_mpi_filter_tt_1d
 /**
 * @brief Run nonzeros from tt through filter to 'ftt'. This is 1D filtering,
