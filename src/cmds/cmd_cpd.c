@@ -180,7 +180,7 @@ void splatt_mpi_cpd_cmd(
     print_header();
   }
 
-  tt = mpi_tt_read(args.ifname, &rinfo);
+  tt = mpi_tt_read(args.ifname, args.pfname, &rinfo);
   ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
 
   /* In the default setting, mpi_tt_read will set rinfo distribution.

@@ -331,7 +331,7 @@ double cpd_als(
 
   val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
   val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
-  if(rinfo->distribution == 3) {
+  if(rinfo->distribution > 1) {
     m1 = mat_alloc(maxdim, nfactors);
   }
 

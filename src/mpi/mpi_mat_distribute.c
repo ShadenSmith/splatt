@@ -502,10 +502,6 @@ static void __greedy_mat_distribution(
     idx_t rowoffset;
     MPI_Scan(&nrows, &rowoffset, 1, SPLATT_MPI_IDX, MPI_SUM, rinfo->layer_comm[m]);
 
-    /* ensure all rows are claimed if you are the last rank in the layer */
-    if(rinfo->layer_rank[m] == (rinfo->npes / rinfo->dims_3d[m]) - 1) {
-      assert(rowoffset == rinfo->layer_ends[m] - rinfo->layer_starts[m]);
-    }
     rowoffset -= nrows;
 
     /* assign new labels - IPERM is easier to fill first.
@@ -608,6 +604,7 @@ permutation_t * mpi_distribute_mats(
   case 2:
     break;
 
+  case SPLATT_MPI_FINE:
   case 3:
     __greedy_mat_distribution(rinfo, tt, perm);
     perm_apply(tt, perm->perms);
@@ -617,7 +614,6 @@ permutation_t * mpi_distribute_mats(
     }
     break;
   }
-
   return perm;
 }
 

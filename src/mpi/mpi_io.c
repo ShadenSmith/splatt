@@ -107,64 +107,68 @@ static sptensor_t * __rearrange_fine(
   }
   MPI_Alltoall(nsend, 1, MPI_INT, nrecv, 1, MPI_INT, rinfo->comm_3d);
 
-  /* how many nonzeros I'll own */
-  idx_t nowned = 0;
+  idx_t send_total = 0;
+  idx_t recv_total = 0;
   for(int p=0; p < rinfo->npes; ++p) {
-    nowned += (idx_t) nrecv[p];
+    send_total += nsend[p];
+    recv_total += nrecv[p];
   }
+  assert(send_total = ttbuf->nnz);
+
+  /* how many nonzeros I'll own */
+  idx_t nowned = recv_total;
 
   int * send_disp = (int *) malloc((rinfo->npes+1) * sizeof(int));
   int * recv_disp = (int *) malloc((rinfo->npes+1) * sizeof(int));
 
+  /* recv_disp is const so we'll just fill it out once */
+  recv_disp[0] = 0;
+  for(int p=1; p <= rinfo->npes; ++p) {
+    recv_disp[p] = recv_disp[p-1] + nrecv[p-1];
+  }
+
   /* allocate my tensor and send buffer */
   sptensor_t * tt = tt_alloc(nowned, rinfo->nmodes);
   idx_t * isend_buf = (idx_t *) malloc(ttbuf->nnz * sizeof(idx_t));
-#if 1
-  if(rinfo->rank == 2) {
-    printf("nsend:");
-    for(int p=0; p < rinfo->npes; ++p) {
-      printf(" %d", nsend[p]);
-    }
-    printf("\n");
-    printf("send_disp:");
-    for(int p=0; p < rinfo->npes; ++p) {
-      printf(" %d", send_disp[p]);
-    }
-    printf("\n");
-    printf("nrecv:");
-    for(int p=0; p < rinfo->npes; ++p) {
-      printf(" %d", nrecv[p]);
-    }
-    printf("\n");
-    printf("recv_disp:");
-    for(int p=0; p < rinfo->npes; ++p) {
-      printf(" %d", recv_disp[p]);
-    }
-    printf("\n");
-  }
-#endif
 
   /* rearrange into sendbuf and send one mode at a time */
   for(idx_t m=0; m < ttbuf->nmodes; ++m) {
     /* prefix sum to make disps */
     send_disp[0] = send_disp[1] = 0;
-    recv_disp[0] = recv_disp[1] = 0;
-    for(int p=2; p < rinfo->npes; ++p) {
+    for(int p=2; p <= rinfo->npes; ++p) {
       send_disp[p] = send_disp[p-1] + nsend[p-2];
-      recv_disp[p] = recv_disp[p-1] + nrecv[p-2];
     }
 
     idx_t const * const ind = ttbuf->ind[m];
     for(idx_t n=0; n < ttbuf->nnz; ++n) {
-      nsend[parts[n]] += 1;
-
-      idx_t const idx = send_disp[parts[n] + 1]++;
-      if(idx >= ttbuf->nnz) {
-        //printf("fuck\n");
-      }
-      isend_buf[idx] = ind[n];
+      idx_t const index = send_disp[parts[n]+1]++;
+      isend_buf[index] = ind[n];
     }
+
+    /* exchange indices */
+    MPI_Alltoallv(isend_buf, nsend, send_disp, SPLATT_MPI_IDX,
+                  tt->ind[m], nrecv, recv_disp, SPLATT_MPI_IDX,
+                  rinfo->comm_3d);
   }
+  free(isend_buf);
+
+  /* lastly, rearrange vals */
+  val_t * vsend_buf = (val_t *) malloc(ttbuf->nnz * sizeof(val_t));
+  send_disp[0] = send_disp[1] = 0;
+  for(int p=2; p <= rinfo->npes; ++p) {
+    send_disp[p] = send_disp[p-1] + nsend[p-2];
+  }
+
+  val_t const * const vals = ttbuf->vals;
+  for(idx_t n=0; n < ttbuf->nnz; ++n) {
+    idx_t const index = send_disp[parts[n]+1]++;
+    vsend_buf[index] = vals[n];
+  }
+  /* exchange vals */
+  MPI_Alltoallv(vsend_buf, nsend, send_disp, SPLATT_MPI_VAL,
+                tt->vals,  nrecv, recv_disp, SPLATT_MPI_VAL,
+                rinfo->comm_3d);
+  free(vsend_buf);
 
   free(nsend);
   free(nrecv);
@@ -827,6 +831,11 @@ sptensor_t * mpi_tt_read(
     break;
   case SPLATT_MPI_FINE:
     tt = __rearrange_fine(ttbuf, pfname, ssizes, rinfo);
+    /* now fix tt->dims */
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      tt->dims[m] = rinfo->global_dims[m];
+      rinfo->layer_ends[m] = tt->dims[m];
+    }
     break;
   }
 
