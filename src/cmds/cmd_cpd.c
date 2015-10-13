@@ -277,8 +277,11 @@ void splatt_mpi_cpd_cmd(
   if(rinfo.rank == 0) {
     MPI_Reduce(MPI_IN_PLACE, &fbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
         MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, &mbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+        MPI_COMM_WORLD);
   } else {
     MPI_Reduce(&fbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&mbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   }
 
   if(rinfo.rank == 0) {
