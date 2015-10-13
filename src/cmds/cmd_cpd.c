@@ -271,7 +271,7 @@ void splatt_mpi_cpd_cmd(
   unsigned long mbytes = 0;
   for(idx_t m=0; m < nmodes; ++m) {
     fbytes += ften_storage(&(ft[m]));
-    mbytes += ft[m].dims[m] * args.nfactors * sizeof(val_t);
+    mbytes += mats[m]->I * args.nfactors * sizeof(val_t);
   }
   /* get storage across all nodes */
   if(rinfo.rank == 0) {
