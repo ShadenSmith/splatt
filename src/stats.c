@@ -240,7 +240,7 @@ void mpi_rank_stats(
   idx_t volume = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
     /* if a layer has > 1 rank there is a necessary reduction step too */
-    if(rinfo->layer_size[m] > 1) {
+    if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
       volume += 2 * (rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m]);
     } else {
       volume += rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m];
