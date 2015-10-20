@@ -11,7 +11,9 @@
 static char const * const datasets[] = {
   DATASET(small.tns),
   DATASET(med.tns),
-  DATASET(small4.tns)
+  DATASET(small4.tns),
+  DATASET(med4.tns)
 };
+#define MAX_DSETS 16
 
 #endif

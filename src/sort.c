@@ -443,6 +443,17 @@ void tt_sort(
   idx_t const mode,
   idx_t * dim_perm)
 {
+  tt_sort_range(tt, mode, dim_perm, 0, tt->nnz);
+}
+
+
+void tt_sort_range(
+  sptensor_t * const tt,
+  idx_t const mode,
+  idx_t * dim_perm,
+  idx_t const start,
+  idx_t const end)
+{
   idx_t * cmplt;
   if(dim_perm == NULL) {
     cmplt = (idx_t*) malloc(tt->nmodes * sizeof(idx_t));
@@ -457,10 +468,10 @@ void tt_sort(
   timer_start(&timers[TIMER_SORT]);
   switch(tt->type) {
   case SPLATT_NMODE:
-    __tt_quicksort(tt, cmplt, 0, tt->nnz);
+    __tt_quicksort(tt, cmplt, start, end);
     break;
   case SPLATT_3MODE:
-    __tt_quicksort3(tt, cmplt, 0, tt->nnz);
+    __tt_quicksort3(tt, cmplt, start, end);
     break;
   }
 

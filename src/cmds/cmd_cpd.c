@@ -14,6 +14,7 @@
 #include "../util.h"
 #include "../timer.h"
 
+
 /******************************************************************************
  * SPLATT CPD
  *****************************************************************************/
@@ -356,7 +357,7 @@ void splatt_cpd_cmd(
   }
 
   idx_t const nmodes = tt->nmodes;
-  tt_free(tt);
+  //tt_free(tt);
 
   /* allocate / initialize matrices */
   idx_t max_dim = 0;

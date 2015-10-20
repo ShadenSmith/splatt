@@ -24,6 +24,7 @@ typedef enum
  * INCLUDES
  *****************************************************************************/
 #include "sptensor.h"
+#include "csf.h"
 #include "cpd.h"
 #include "splatt_mpi.h"
 
@@ -48,6 +49,15 @@ void stats_tt(
   idx_t const mode,
   char const * const pfile);
 
+
+#define stats_csf splatt_stats_csf
+/**
+* @brief Output statistics about a CSF tensor.
+*
+* @param ct The CSF tensor to analyze.
+*/
+void stats_csf(
+  csf_t const * const ct);
 
 
 /******************************************************************************
