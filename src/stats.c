@@ -116,7 +116,8 @@ static void __stats_hparts(
   printf("Partition information ------------------------------------------\n");
   printf("FILE=%s\n", pfname);
   printf("NVTXS=%"SPLATT_PF_IDX" NHEDGES=%"SPLATT_PF_IDX"\n", nvtxs, nhedges);
-  printf("NPARTS=%"SPLATT_PF_IDX" LIGHTEST=%"SPLATT_PF_IDX" HEAVIEST=%"SPLATT_PF_IDX" AVG=%0.1f\n",
+  printf("NPARTS=%"SPLATT_PF_IDX" LIGHTEST=%"SPLATT_PF_IDX" HEAVIEST="
+         "%"SPLATT_PF_IDX" AVG=%0.1f\n",
     nparts, minp, maxp, (val_t)(ft.nnz) / (val_t) nparts);
   printf("\n");
 
@@ -214,19 +215,21 @@ void stats_tt(
 void stats_csf(
   csf_t const * const ct)
 {
-  printf("nmodes: %lu nnz: %lu\n", ct->nmodes, ct->nnz);
-  printf("dims: %lu", ct->dims[0]);
+  printf("nmodes: %"SPLATT_PF_IDX" nnz: %"SPLATT_PF_IDX"\n", ct->nmodes,
+      ct->nnz);
+  printf("dims: %"SPLATT_PF_IDX"", ct->dims[0]);
   for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("x%lu", ct->dims[m]);
+    printf("x%"SPLATT_PF_IDX"", ct->dims[m]);
   }
-  printf(" (%lu", ct->dim_perm[0]);
+  printf(" (%"SPLATT_PF_IDX"", ct->dim_perm[0]);
   for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("->%lu", ct->dim_perm[m]);
+    printf("->%"SPLATT_PF_IDX"", ct->dim_perm[m]);
   }
   printf(")\n");
-  printf("ntiles: %lu tile dims: %lu", ct->ntiles, ct->tile_dims[0]);
+  printf("ntiles: %"SPLATT_PF_IDX" tile dims: %"SPLATT_PF_IDX"", ct->ntiles,
+      ct->tile_dims[0]);
   for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("x%lu", ct->tile_dims[m]);
+    printf("x%"SPLATT_PF_IDX"", ct->tile_dims[m]);
   }
 
   idx_t empty = 0;
@@ -236,7 +239,7 @@ void stats_csf(
     }
   }
 
-  printf("  empty: %lu (%0.1f%%)\n", empty,
+  printf("  empty: %"SPLATT_PF_IDX" (%0.1f%%)\n", empty,
       100. * (double)empty/ (double)ct->ntiles);
 }
 

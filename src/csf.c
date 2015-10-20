@@ -79,19 +79,20 @@ static void __print_csf(
   csf_t const * const ct)
 {
   printf("-----------\n");
-  printf("nmodes: %lu nnz: %lu ntiles: %lu\n", ct->nmodes, ct->nnz, ct->ntiles);
-  printf("dims: %lu", ct->dims[0]);
+  printf("nmodes: %"SPLATT_PF_IDX" nnz: %"SPLATT_PF_IDX" ntiles: "
+         "%"SPLATT_PF_IDX"\n", ct->nmodes, ct->nnz, ct->ntiles);
+  printf("dims: %"SPLATT_PF_IDX"", ct->dims[0]);
   for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("x%lu", ct->dims[m]);
+    printf("x%"SPLATT_PF_IDX"", ct->dims[m]);
   }
-  printf(" (%lu", ct->dim_perm[0]);
+  printf(" (%"SPLATT_PF_IDX"", ct->dim_perm[0]);
   for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("->%lu", ct->dim_perm[m]);
+    printf("->%"SPLATT_PF_IDX"", ct->dim_perm[m]);
   }
   printf(") ");
-  printf("tile dims: %lu", ct->tile_dims[0]);
+  printf("tile dims: %"SPLATT_PF_IDX"", ct->tile_dims[0]);
   for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("x%lu", ct->tile_dims[m]);
+    printf("x%"SPLATT_PF_IDX"", ct->tile_dims[m]);
   }
   printf("\n");
 
@@ -103,30 +104,32 @@ static void __print_csf(
     }
 
     /* write slices */
-    printf("tile: %lu fptr:\n", t);
-    printf("[%lu] ", ft->nfibs[0]);
+    printf("tile: %"SPLATT_PF_IDX" fptr:\n", t);
+    printf("[%"SPLATT_PF_IDX"] ", ft->nfibs[0]);
     for(idx_t f=0; f < ft->nfibs[0]; ++f) {
       if(ft->fids[0] == NULL) {
-        printf(" %lu", ft->fptr[0][f]);
+        printf(" %"SPLATT_PF_IDX"", ft->fptr[0][f]);
       } else {
-        printf(" (%lu, %lu)", ft->fptr[0][f], ft->fids[0][f]);
+        printf(" (%"SPLATT_PF_IDX", %"SPLATT_PF_IDX")", ft->fptr[0][f],
+            ft->fids[0][f]);
       }
     }
-    printf(" %lu\n", ft->fptr[0][ft->nfibs[0]]);
+    printf(" %"SPLATT_PF_IDX"\n", ft->fptr[0][ft->nfibs[0]]);
 
     /* inner nodes */
     for(idx_t m=1; m < ct->nmodes-1; ++m) {
-      printf("[%lu] ", ft->nfibs[m]);
+      printf("[%"SPLATT_PF_IDX"] ", ft->nfibs[m]);
       for(idx_t f=0; f < ft->nfibs[m]; ++f) {
-        printf(" (%lu, %lu)", ft->fptr[m][f], ft->fids[m][f]);
+        printf(" (%"SPLATT_PF_IDX", %"SPLATT_PF_IDX")", ft->fptr[m][f],
+            ft->fids[m][f]);
       }
-      printf(" %lu\n", ft->fptr[m][ft->nfibs[m]]);
+      printf(" %"SPLATT_PF_IDX"\n", ft->fptr[m][ft->nfibs[m]]);
     }
 
     /* vals/inds */
-    printf("[%lu] ", ft->nfibs[ct->nmodes-1]);
+    printf("[%"SPLATT_PF_IDX"] ", ft->nfibs[ct->nmodes-1]);
     for(idx_t f=0; f < ft->nfibs[ct->nmodes-1]; ++f) {
-      printf(" %3lu", ft->fids[ct->nmodes-1][f]);
+      printf(" %3"SPLATT_PF_IDX"", ft->fids[ct->nmodes-1][f]);
     }
     printf("\n");
     for(idx_t n=0; n < ft->nfibs[ct->nmodes-1]; ++n) {

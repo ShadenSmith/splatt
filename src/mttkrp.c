@@ -389,7 +389,7 @@ static void __csf_mttkrp_root(
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-    memset(buf[m], 0, nfactors * sizeof(idx_t));
+    memset(buf[m], 0, nfactors * sizeof(val_t));
   }
 
   val_t * const ovals = mats[MAX_NMODES]->vals;
@@ -727,7 +727,7 @@ static void __csf_mttkrp_internal_tiled(
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-    memset(buf[m], 0, nfactors * sizeof(idx_t));
+    memset(buf[m], 0, nfactors * sizeof(val_t));
   }
   val_t * const ovals = mats[MAX_NMODES]->vals;
 
@@ -812,7 +812,7 @@ static void __csf_mttkrp_internal(
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
-    memset(buf[m], 0, nfactors * sizeof(idx_t));
+    memset(buf[m], 0, nfactors * sizeof(val_t));
   }
   val_t * const ovals = mats[MAX_NMODES]->vals;
 
