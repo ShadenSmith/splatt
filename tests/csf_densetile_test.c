@@ -1,4 +1,4 @@
-
+#if 0
 #include "../src/csf.h"
 #include "../src/tile.h"
 #include "../src/sptensor.h"
@@ -105,3 +105,4 @@ CTEST2(csf_densetile, fill1)
   csf_free(&cs);
   free(opts);
 }
+#endif

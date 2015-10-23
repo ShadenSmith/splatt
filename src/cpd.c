@@ -22,10 +22,11 @@
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
-int splatt_cpd(
-    splatt_idx_t const nfactors,
+
+int splatt_cpd_als(
+    splatt_csf const * const tensors,
     splatt_idx_t const nmodes,
-    splatt_csf_t const * const tensors,
+    splatt_idx_t const nfactors,
     double const * const options,
     splatt_kruskal_t * factored)
 {
@@ -34,6 +35,7 @@ int splatt_cpd(
   rank_info rinfo;
   rinfo.rank = 0;
 
+  /* allocate factor matrices */
   idx_t maxdim = 0;
   for(idx_t m=0; m < nmodes; ++m) {
     globmats[m] = (matrix_t *) mat_rand(tensors[0].dims[m], nfactors);
@@ -44,8 +46,8 @@ int splatt_cpd(
   val_t * lambda = (val_t *) malloc(nfactors * sizeof(val_t));
 
   /* do the factorization! */
-  factored->fit = cpd_als(tensors, globmats, globmats, lambda, nfactors,
-      &rinfo, options);
+  factored->fit = cpd_als_iterate(tensors, globmats, globmats, lambda,
+      nfactors, &rinfo, options);
 
   /* store output */
   factored->rank = nfactors;
@@ -55,12 +57,14 @@ int splatt_cpd(
     factored->factors[m] = globmats[m]->vals;
   }
 
+  /* clean up */
   mat_free(globmats[MAX_NMODES]);
   for(idx_t m=0; m < nmodes; ++m) {
     free(globmats[m]); /* just the matrix_t ptr, data is safely in factored */
   }
   return SPLATT_SUCCESS;
 }
+
 
 void splatt_free_kruskal(
     splatt_kruskal_t * factored)
@@ -296,8 +300,8 @@ static void __calc_M2(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-double cpd_als(
-  ftensor_t const * const ft,
+double cpd_als_iterate(
+  splatt_csf const * const tensors,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,
@@ -305,7 +309,7 @@ double cpd_als(
   rank_info * const rinfo,
   double const * const opts)
 {
-  idx_t const nmodes = ft[0].nmodes;
+  idx_t const nmodes = tensors[0].nmodes;
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
@@ -357,11 +361,7 @@ double cpd_als(
   /* Compute input tensor norm */
   double oldfit = 0;
   double fit = 0;
-  val_t mynorm = 0;
-  #pragma omp parallel for reduction(+:mynorm)
-  for(idx_t n=0; n < ft[0].nnz; ++n) {
-    mynorm += ft[0].vals[n] * ft[0].vals[n];
-  }
+  val_t mynorm = csf_frobsq(tensors);
 
   val_t ttnormsq = 0;
 #ifdef SPLATT_USE_MPI
@@ -381,13 +381,13 @@ double cpd_als(
     timer_fstart(&itertime);
     for(idx_t m=0; m < nmodes; ++m) {
       timer_fstart(&modetime[m]);
-      mats[MAX_NMODES]->I = ft[0].dims[m];
+      mats[MAX_NMODES]->I = tensors[0].dims[m];
       m1->I = globmats[m]->I;
       m1ptr->I = globmats[m]->I;
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
-      mttkrp_splatt(&(ft[m]), mats, m, thds, nthreads);
+      mttkrp_csf(tensors, mats, m, thds, opts);
       timer_stop(&timers[TIMER_MTTKRP]);
 #ifdef SPLATT_USE_MPI
       if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
@@ -499,6 +499,8 @@ double * splatt_default_opts(void)
   for(int i=0; i < SPLATT_OPTION_NOPTIONS; ++i) {
     opts[i] = SPLATT_VAL_OFF;
   }
+
+  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
   opts[SPLATT_OPTION_TOLERANCE] = DEFAULT_TOL;
   opts[SPLATT_OPTION_NITER]     = DEFAULT_ITS;
   opts[SPLATT_OPTION_NTHREADS]  = omp_get_num_procs();

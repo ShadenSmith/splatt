@@ -178,7 +178,7 @@ static inline void __propagate_up(
 
 
 static void __csf_mttkrp_root3(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -238,7 +238,7 @@ static void __csf_mttkrp_root3(
 
 
 static void __csf_mttkrp_internal3(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -301,7 +301,7 @@ static void __csf_mttkrp_internal3(
 
 
 static void __csf_mttkrp_leaf3(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -355,7 +355,7 @@ static void __csf_mttkrp_leaf3(
 }
 
 static void __csf_mttkrp_root(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -416,7 +416,7 @@ static void __csf_mttkrp_root(
 
 
 static void __csf_mttkrp_leaf_tiled3(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -470,7 +470,7 @@ static void __csf_mttkrp_leaf_tiled3(
 
 
 static void __csf_mttkrp_leaf_tiled(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -552,7 +552,7 @@ static void __csf_mttkrp_leaf_tiled(
 
 
 static void __csf_mttkrp_leaf(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -630,7 +630,7 @@ static void __csf_mttkrp_leaf(
 
 
 static void __csf_mttkrp_internal_tiled3(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   thd_info * const thds)
@@ -690,7 +690,7 @@ static void __csf_mttkrp_internal_tiled3(
 
 
 static void __csf_mttkrp_internal_tiled(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   idx_t const mode,
@@ -779,7 +779,7 @@ static void __csf_mttkrp_internal_tiled(
 
 
 static void __csf_mttkrp_internal(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
   idx_t const mode,
@@ -919,11 +919,11 @@ int splatt_mttkrp(
  *****************************************************************************/
 
 void mttkrp_csf(
-  csf_t const * const ct,
+  splatt_csf const * const ct,
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds,
-  idx_t const nthreads)
+  double const * const opts)
 {
   /* clear output matrix */
   matrix_t * const M = mats[MAX_NMODES];
@@ -933,7 +933,7 @@ void mttkrp_csf(
   /* find out which level in the tree this is */
   idx_t outdepth = csf_mode_depth(mode, ct->dim_perm, ct->nmodes);
 
-  omp_set_num_threads(nthreads);
+  omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
   #pragma omp parallel default(shared)
   {
     timer_start(&thds[omp_get_thread_num()].ttime);

@@ -77,6 +77,22 @@
 #define MAX_NMODES ((splatt_idx_t) 8)
 
 /**
+* @brief Enum for defining SPLATT options. Use the splatt_default_opts() and
+*        splatt_free_opts() functions to initialize and free an options array.
+*/
+typedef enum
+{
+  SPLATT_OPTION_TOLERANCE,  /** Threshold for convergence. */
+  SPLATT_OPTION_NITER,      /** Maximum number of iterations to perform. */
+  SPLATT_OPTION_CSF_ALLOC,  /** How many (and which) tensors to allocate. */
+  SPLATT_OPTION_TILE,       /** Use cache tiling during MTTKRP. */
+  SPLATT_OPTION_NTHREADS,   /** Number of OpenMP threads to use. */
+  SPLATT_OPTION_RANDSEED,   /** Random number seed */
+  SPLATT_OPTION_VERBOSITY,  /** Verbosity level */
+  SPLATT_OPTION_NOPTIONS    /** Gives the size of the options array. */
+} splatt_option_t;
+
+/**
 * @brief Return codes used by SPLATT.
 */
 typedef enum
@@ -115,19 +131,15 @@ typedef enum
 
 
 /**
-* @brief Enum for defining SPLATT options. Use the splatt_default_opts() and
-*        splatt_free_opts() functions to initialize and free an options array.
+* @brief Types of CSF allocation available.
 */
 typedef enum
 {
-  SPLATT_OPTION_TOLERANCE,  /** Threshold for convergence. */
-  SPLATT_OPTION_NITER,      /** Maximum number of iterations to perform. */
-  SPLATT_OPTION_TILE,       /** Use cache tiling during MTTKRP. */
-  SPLATT_OPTION_NTHREADS,   /** Number of OpenMP threads to use. */
-  SPLATT_OPTION_RANDSEED,   /** Random number seed */
-  SPLATT_OPTION_VERBOSITY,  /** Verbosity level */
-  SPLATT_OPTION_NOPTIONS    /** Gives the size of the options array. */
-} splatt_option_t;
+  SPLATT_CSF_ONEMODE, /** Only allocate one CSF for factorization. */
+  SPLATT_CSF_TWOMODE, /** Allocate one for the smallest and largest modes. */
+  SPLATT_CSF_ALLMODE, /** Allocate one CSF for every mode. */
+} splatt_csf_type;
+
 
 static double const SPLATT_VAL_OFF = -DBL_MAX;
 
@@ -149,6 +161,36 @@ typedef struct splatt_kruskal_t
   splatt_val_t * lambda;                /** Scaling factors for each column */
   splatt_val_t * factors[MAX_NMODES];   /** Row-major matrix for each mode */
 } splatt_kruskal_t;
+
+
+/*********
+ */
+typedef struct
+{
+  splatt_idx_t nfibs[MAX_NMODES];
+  splatt_idx_t * fptr[MAX_NMODES];
+  splatt_idx_t * fids[MAX_NMODES];
+  splatt_val_t * vals;
+} csf_sparsity;
+
+
+typedef struct splatt_csf
+{
+  splatt_idx_t nnz;
+  splatt_idx_t nmodes;
+  splatt_idx_t dims[MAX_NMODES];
+  splatt_idx_t dim_perm[MAX_NMODES];
+
+  splatt_tile_t which_tile;
+  splatt_idx_t ntiles;
+  splatt_idx_t tile_dims[MAX_NMODES];
+
+  csf_sparsity * pt; /** sparsity structure -- one for each tile */
+} splatt_csf;
+
+
+/*********
+ */
 
 
 /**
@@ -196,14 +238,14 @@ extern 'C' {
 *               only present for nmodes=3.
 * @param tensors An array of splatt_csf_t created by SPLATT.
 * @param options Options array for SPLATT.
-* @param factored The factored tensor in Kruskal format.
+* @param factored [OUT] The factored tensor in Kruskal format.
 *
 * @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
 int splatt_cpd(
     splatt_idx_t const nfactors,
     splatt_idx_t const nmodes,
-    splatt_csf_t const * const tensors,
+    splatt_csf const * const tensors,
     double const * const options,
     splatt_kruskal_t * factored);
 

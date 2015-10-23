@@ -159,11 +159,11 @@ void bench_csf(
     TILE_SIZES[0] * nfactors * sizeof(val_t) + 64,
     (tt->nmodes * nfactors * sizeof(val_t)) + 64);
 
-  csf_t cs;
-  csf_alloc(&cs, tt, cpd_opts);
+  splatt_csf * cs = splatt_csf_alloc(tt, cpd_opts);
 
+#if 0
   printf("** CSF **\n");
-  unsigned long cs_bytes = csf_storage(&cs);
+  unsigned long cs_bytes = csf_storage(cs);
   char * bstr = bytes_str(cs_bytes);
   printf("CSF-STORAGE: %s\n\n", bstr);
   free(bstr);
@@ -211,12 +211,13 @@ void bench_csf(
   timer_stop(&timers[TIMER_MISC]);
 
   /* clean up */
-  csf_free(&cs);
+  csf_free(&cs, cpd_opts);
   thd_free(thds, threads[nruns-1]);
   free(cpd_opts);
 
   /* fix any matrices that we shuffled */
   __shuffle_mats(mats, opts->perm->iperms, tt->nmodes);
+#endif
 }
 
 void bench_giga(

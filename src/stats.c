@@ -213,7 +213,7 @@ void stats_tt(
 
 
 void stats_csf(
-  csf_t const * const ct)
+  splatt_csf const * const ct)
 {
   printf("nmodes: %"SPLATT_PF_IDX" nnz: %"SPLATT_PF_IDX"\n", ct->nmodes,
       ct->nnz);

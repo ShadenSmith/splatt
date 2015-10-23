@@ -7,6 +7,7 @@
  * STRUCTURES
  *****************************************************************************/
 
+#if 0
 typedef struct
 {
   idx_t nfibs[MAX_NMODES];
@@ -28,14 +29,16 @@ typedef struct
   idx_t tile_dims[MAX_NMODES];
 
   csf_sparsity_t * pt; /** sparsity structure -- one for each tile */
-} csf_t;
+} splatt_csf;
 
+#endif
 
 /* The types of mode ordering available. */
 typedef enum
 {
   CSF_SORTED_SMALLFIRST, /** sort the modes in non-decreasing order */
   CSF_SORTED_BIGFIRST,   /** sort the modes in non-increasing order */
+  CSF_SORTED_MINUSONE    /** one mode is placed first, rest sorted  */
 } csf_mode_type;
 
 
@@ -56,26 +59,37 @@ static idx_t const MIN_TILE_DEPTH = 1;
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-#define csf_alloc splatt_csf_alloc
-void csf_alloc(
-  csf_t * const ct,
+#define make_csf splatt_make_csf
+void csf_make(
+  splatt_csf * const ct,
+  sptensor_t * const tt,
+  double const * const opts);
+
+splatt_csf * splatt_csf_alloc(
   sptensor_t * const tt,
   double const * const opts);
 
 #define csf_free splatt_csf_free
 void csf_free(
-  csf_t * const ct);
+  splatt_csf * const ct,
+  double const * const opts);
 
 #define csf_storage splatt_csf_storage
 idx_t csf_storage(
-  csf_t const * const ct);
+  splatt_csf const * const ct);
 
 #define csf_find_mode_order splatt_csf_find_mode_order
 void csf_find_mode_order(
   idx_t const * const dims,
   idx_t const nmodes,
   csf_mode_type which,
+  idx_t const mode,
   idx_t * const perm_dims);
+
+
+#define csf_frobsq splatt_csf_frobsq
+val_t csf_frobsq(
+  splatt_csf const * const tensor);
 
 
 /**

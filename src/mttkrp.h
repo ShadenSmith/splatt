@@ -17,11 +17,11 @@
  *****************************************************************************/
 
 void mttkrp_csf(
-  csf_t const * const ft,
+  splatt_csf const * const ft,
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds,
-  idx_t const nthreads);
+  double const * const opts);
 
 void mttkrp_splatt(
   ftensor_t const * const ft,

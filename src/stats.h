@@ -57,7 +57,7 @@ void stats_tt(
 * @param ct The CSF tensor to analyze.
 */
 void stats_csf(
-  csf_t const * const ct);
+  splatt_csf const * const ct);
 
 
 /******************************************************************************

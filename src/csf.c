@@ -39,6 +39,25 @@ static void __order_dims_small(
 }
 
 
+static void __order_dims_minusone(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t const custom_mode,
+  idx_t * const perm_dims)
+{
+  __order_dims_small(dims, nmodes, perm_dims);
+
+  /* find where custom_mode was placed and adjust from there */
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(perm_dims[m] == custom_mode) {
+      memmove(perm_dims + 1, perm_dims, (m) * sizeof(m));
+      perm_dims[0] = custom_mode;
+      break;
+    }
+  }
+}
+
+
 static void __order_dims_large(
   idx_t const * const dims,
   idx_t const nmodes,
@@ -76,7 +95,7 @@ static void __order_dims_large(
 
 
 static void __print_csf(
-  csf_t const * const ct)
+  splatt_csf const * const ct)
 {
   printf("-----------\n");
   printf("nmodes: %"SPLATT_PF_IDX" nnz: %"SPLATT_PF_IDX" ntiles: "
@@ -97,7 +116,7 @@ static void __print_csf(
   printf("\n");
 
   for(idx_t t=0; t < ct->ntiles; ++t) {
-    csf_sparsity_t const * const ft = ct->pt + t;
+    csf_sparsity const * const ft = ct->pt + t;
     /* skip empty tiles */
     if(ft->vals == NULL) {
       continue;
@@ -143,7 +162,7 @@ static void __print_csf(
 
 
 static void __mk_outerptr(
-  csf_t * const ct,
+  splatt_csf * const ct,
   sptensor_t const * const tt,
   idx_t const tile_id,
   idx_t const * const nnztile_ptr)
@@ -169,7 +188,7 @@ static void __mk_outerptr(
   assert(nfibs <= ct->dims[ct->dim_perm[0]]);
 
   /* grab sparsity pattern */
-  csf_sparsity_t * const pt = ct->pt + tile_id;
+  csf_sparsity * const pt = ct->pt + tile_id;
 
   pt->fptr[0] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
   if(ct->ntiles > 1) {
@@ -201,7 +220,7 @@ static void __mk_outerptr(
 
 
 static void __mk_fptr(
-  csf_t * const ct,
+  splatt_csf * const ct,
   sptensor_t const * const tt,
   idx_t const tile_id,
   idx_t const * const nnztile_ptr,
@@ -221,7 +240,7 @@ static void __mk_fptr(
   /* the mode after accounting for dim_perm */
   idx_t const * const restrict ttind = tt->ind[ct->dim_perm[mode]] + nnzstart;
 
-  csf_sparsity_t * const pt = ct->pt + tile_id;
+  csf_sparsity * const pt = ct->pt + tile_id;
 
   /* we will edit this to point to the new fiber idxs instead of nnz */
   idx_t * const restrict fprev = pt->fptr[mode-1];
@@ -281,7 +300,7 @@ static void __mk_fptr(
 * @param tt The sparse tensor to start from.
 */
 static void __csf_alloc_untiled(
-  csf_t * const ct,
+  splatt_csf * const ct,
   sptensor_t * const tt)
 {
   idx_t const nmodes = tt->nmodes;
@@ -291,9 +310,9 @@ static void __csf_alloc_untiled(
   for(idx_t m=0; m < nmodes; ++m) {
     ct->tile_dims[m] = 1;
   }
-  ct->pt = (csf_sparsity_t *) malloc(sizeof(csf_sparsity_t));
+  ct->pt = (csf_sparsity *) malloc(sizeof(csf_sparsity));
 
-  csf_sparsity_t * const pt = ct->pt;
+  csf_sparsity * const pt = ct->pt;
 
   /* last row of fptr is just nonzero inds */
   pt->nfibs[nmodes-1] = ct->nnz;
@@ -325,7 +344,7 @@ static void __csf_alloc_untiled(
 * @param splatt_opts Options array for SPLATT - used for tile dimensions.
 */
 static void __csf_alloc_densetile(
-  csf_t * const ct,
+  splatt_csf * const ct,
   sptensor_t * const tt,
   double const * const splatt_opts)
 {
@@ -347,14 +366,14 @@ static void __csf_alloc_densetile(
   idx_t * nnz_ptr = tt_densetile(tt, ct->tile_dims);
 
   ct->ntiles = ntiles;
-  ct->pt = (csf_sparsity_t *) malloc(ntiles * sizeof(csf_sparsity_t));
+  ct->pt = (csf_sparsity *) malloc(ntiles * sizeof(csf_sparsity));
 
   for(idx_t t=0; t < ntiles; ++t) {
     idx_t const startnnz = nnz_ptr[t];
     idx_t const endnnz   = nnz_ptr[t+1];
     idx_t const ptnnz = endnnz - startnnz;
 
-    csf_sparsity_t * const pt = ct->pt + t;
+    csf_sparsity * const pt = ct->pt + t;
 
     /* empty tile */
     if(ptnnz == 0) {
@@ -395,9 +414,11 @@ static void __csf_alloc_densetile(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void csf_alloc(
-  csf_t * const ct,
+void mk_csf(
+  splatt_csf * const ct,
   sptensor_t * const tt,
+  splatt_csf_type alloc_type,
+  idx_t const mode,
   double const * const splatt_opts)
 {
   ct->nnz = tt->nnz;
@@ -408,8 +429,7 @@ void csf_alloc(
   }
 
   /* get the indices in order */
-  csf_find_mode_order(tt->dims, tt->nmodes, CSF_SORTED_SMALLFIRST,
-      ct->dim_perm);
+  csf_find_mode_order(tt->dims, tt->nmodes, alloc_type, mode, ct->dim_perm);
 
   splatt_tile_t which_tile = (splatt_tile_t) splatt_opts[SPLATT_OPTION_TILE];
   switch(which_tile) {
@@ -424,29 +444,41 @@ void csf_alloc(
         which_tile);
     break;
   }
-
-#if 0
-  tt_write(tt, NULL);
-  __print_csf(ct);
-#endif
 }
 
 
-
 void csf_free(
-  csf_t * const ct)
+  splatt_csf * const ct,
+  double const * const opts)
 {
-  /* free each tile of sparsity pattern */
-  for(idx_t t=0; t < ct->ntiles; ++t) {
-    free(ct->pt[t].vals);
-    free(ct->pt[t].fids[ct->nmodes-1]);
-    for(idx_t m=0; m < ct->nmodes-1; ++m) {
-      free(ct->pt[t].fptr[m]);
-      free(ct->pt[t].fids[m]);
-    }
+  idx_t ntensors = 0;
+  splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which) {
+  case SPLATT_CSF_ONEMODE:
+    ntensors = 1;
+    break;
+  case SPLATT_CSF_TWOMODE:
+    ntensors = 2;
+    break;
+  case SPLATT_CSF_ALLMODE:
+    ntensors = ct[0].nmodes;
+    break;
   }
 
-  free(ct->pt);
+  for(idx_t i=0; i < ntensors; ++i) {
+    /* free each tile of sparsity pattern */
+    for(idx_t t=0; t < ct[i].ntiles; ++t) {
+      free(ct[i].pt[t].vals);
+      free(ct[i].pt[t].fids[ct[i].nmodes-1]);
+      for(idx_t m=0; m < ct[i].nmodes-1; ++m) {
+        free(ct[i].pt[t].fptr[m]);
+        free(ct[i].pt[t].fids[m]);
+      }
+    }
+    free(ct[i].pt);
+  }
+
+  free(ct);
 }
 
 
@@ -455,17 +487,22 @@ void csf_find_mode_order(
   idx_t const * const dims,
   idx_t const nmodes,
   csf_mode_type which,
+  idx_t const mode,
   idx_t * const perm_dims)
 {
   switch(which) {
   case CSF_SORTED_SMALLFIRST:
     __order_dims_small(dims, nmodes, perm_dims);
     break;
+
   case CSF_SORTED_BIGFIRST:
-    fprintf(stderr, "SPLATT: using 'CSF_SORTED_BIGFIRST' for csf_alloc. "
-                    "Not recommended.\n");
     __order_dims_large(dims, nmodes, perm_dims);
     break;
+
+  case CSF_SORTED_MINUSONE:
+    __order_dims_minusone(dims, nmodes, mode, perm_dims);
+    break;
+
   default:
     fprintf(stderr, "SPLATT: csf_mode_type '%d' not recognized.\n", which);
     break;
@@ -474,16 +511,16 @@ void csf_find_mode_order(
 
 
 idx_t csf_storage(
-  csf_t const * const ct)
+  splatt_csf const * const ct)
 {
   idx_t bytes = 0;
-  bytes += sizeof(csf_t);
+  bytes += sizeof(splatt_csf);
   bytes += ct->nnz * sizeof(val_t); /* vals */
   bytes += ct->nnz * sizeof(idx_t); /* fids[nmodes] */
-  bytes += ct->ntiles * sizeof(csf_sparsity_t); /* pt */
+  bytes += ct->ntiles * sizeof(csf_sparsity); /* pt */
 
   for(idx_t t=0; t < ct->ntiles; ++t) {
-    csf_sparsity_t const * const pt = ct->pt + t;
+    csf_sparsity const * const pt = ct->pt + t;
 
     for(idx_t m=0; m < ct->nmodes-1; ++m) {
       bytes += (pt->nfibs[m]+1) * sizeof(idx_t); /* fptr */
@@ -495,4 +532,64 @@ idx_t csf_storage(
   return bytes;
 }
 
+
+splatt_csf * splatt_csf_alloc(
+  sptensor_t * const tt,
+  double const * const opts)
+{
+  splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
+
+  splatt_csf * ret = NULL;
+
+  printf("\n----\n");
+
+  switch(which) {
+  case SPLATT_CSF_ONEMODE:
+    printf("one\n");
+    ret = malloc(sizeof(*ret));
+    mk_csf(ret, tt, which, 0, opts);
+    break;
+
+  case SPLATT_CSF_TWOMODE:
+    printf("two\n");
+    ret = malloc(2 * sizeof(*ret));
+    mk_csf(ret + 0, tt, CSF_SORTED_SMALLFIRST, 0, opts);
+    mk_csf(ret + 1, tt, CSF_SORTED_BIGFIRST, 0, opts);
+    break;
+
+  case SPLATT_CSF_ALLMODE:
+    printf("all\n");
+    ret = malloc(tt->nmodes * sizeof(*ret));
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      mk_csf(ret + m, tt, which, m, opts);
+    }
+    break;
+  }
+
+  printf("\n----\n\n");
+
+  return ret;
+}
+
+
+val_t csf_frobsq(
+    splatt_csf const * const tensor)
+{
+  idx_t const nmodes = tensor->nmodes;
+  val_t norm = 0;
+  #pragma omp parallel reduction(+:norm)
+  {
+    for(idx_t t=0; t < tensor->ntiles; ++t) {
+      val_t const * const vals = tensor->pt[t].vals;
+      idx_t const nnz = tensor->pt[t].nfibs[nmodes-1];
+
+      #pragma omp for
+      for(idx_t n=0; n < nnz; ++n) {
+        norm += vals[n] * vals[n];
+      }
+    }
+  }
+
+  return norm;
+}
 

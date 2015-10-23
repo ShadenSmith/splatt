@@ -107,6 +107,7 @@ CTEST2(mttkrp, splatt)
   thd_free(thds, nthreads);
 }
 
+#if 0
 CTEST2(mttkrp, csf)
 {
   idx_t const nthreads = 7;
@@ -195,3 +196,4 @@ CTEST2(mttkrp, csf_densetile)
     csf_free(&cs);
   }
 }
+#endif

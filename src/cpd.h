@@ -15,16 +15,15 @@
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-#define cpd_als splatt_cpd_als
-double cpd_als(
-  ftensor_t const * const ft,
+#define cpd_als_iterate splatt_cpd_als_iterate
+double cpd_als_iterate(
+  splatt_csf const * const tensors,
   matrix_t ** mats,
   matrix_t ** globmats,
   val_t * const lambda,
   idx_t const nfactors,
   rank_info * const rinfo,
   double const * const opts);
-
 
 
 #endif
