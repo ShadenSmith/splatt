@@ -357,7 +357,6 @@ void splatt_cpd_cmd(
   }
 
   splatt_csf * csf = splatt_csf_alloc(tt, args.opts);
-  splatt_csf_free(csf, args.opts);
 
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
@@ -406,8 +405,10 @@ void splatt_cpd_cmd(
 
   /* do the factorization! */
   //cpd_als(ft, mats, mats, lambda, args.nfactors, &rinfo, args.opts);
+  cpd_als_iterate(csf, mats, mats, lambda, args.nfactors, &rinfo, args.opts);
 
   /* free up the ftensor allocations */
+  splatt_csf_free(csf, args.opts);
   for(idx_t m=0; m < nmodes; ++m) {
     ften_free(&ft[m]);
   }

@@ -362,6 +362,7 @@ double cpd_als_iterate(
   double oldfit = 0;
   double fit = 0;
   val_t mynorm = csf_frobsq(tensors);
+  printf("norm: %"SPLATT_PF_VAL"\n", mynorm);
 
   val_t ttnormsq = 0;
 #ifdef SPLATT_USE_MPI
@@ -500,12 +501,13 @@ double * splatt_default_opts(void)
     opts[i] = SPLATT_VAL_OFF;
   }
 
-  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
   opts[SPLATT_OPTION_TOLERANCE] = DEFAULT_TOL;
   opts[SPLATT_OPTION_NITER]     = DEFAULT_ITS;
-  opts[SPLATT_OPTION_NTHREADS]  = omp_get_num_procs();
-  opts[SPLATT_OPTION_TILE]      = SPLATT_NOTILE;
   opts[SPLATT_OPTION_VERBOSITY] = SPLATT_VERBOSITY_LOW;
+
+  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
+  opts[SPLATT_OPTION_TILE]      = SPLATT_DENSETILE;
+  opts[SPLATT_OPTION_NTHREADS]  = omp_get_num_procs();
 
   return opts;
 }

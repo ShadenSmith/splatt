@@ -65,6 +65,7 @@ void csf_make(
   sptensor_t * const tt,
   double const * const opts);
 
+#define csf_alloc splatt_csf_alloc
 splatt_csf * splatt_csf_alloc(
   sptensor_t * const tt,
   double const * const opts);

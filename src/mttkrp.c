@@ -919,12 +919,13 @@ int splatt_mttkrp(
  *****************************************************************************/
 
 void mttkrp_csf(
-  splatt_csf const * const ct,
+  splatt_csf const * const tensors,
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds,
   double const * const opts)
 {
+  splatt_csf const * const ct = tensors + 0;
   /* clear output matrix */
   matrix_t * const M = mats[MAX_NMODES];
   M->I = ct->dims[mode];
