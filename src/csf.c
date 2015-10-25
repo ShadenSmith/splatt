@@ -410,11 +410,7 @@ static void __csf_alloc_densetile(
 }
 
 
-/******************************************************************************
- * PUBLIC FUNCTIONS
- *****************************************************************************/
-
-void mk_csf(
+static void __mk_csf(
   splatt_csf * const ct,
   sptensor_t * const tt,
   splatt_csf_type alloc_type,
@@ -445,6 +441,10 @@ void mk_csf(
     break;
   }
 }
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
 
 
 void csf_free(
@@ -547,21 +547,21 @@ splatt_csf * splatt_csf_alloc(
   case SPLATT_CSF_ONEMODE:
     printf("one\n");
     ret = malloc(sizeof(*ret));
-    mk_csf(ret, tt, which, 0, opts);
+    __mk_csf(ret, tt, which, 0, opts);
     break;
 
   case SPLATT_CSF_TWOMODE:
     printf("two\n");
     ret = malloc(2 * sizeof(*ret));
-    mk_csf(ret + 0, tt, CSF_SORTED_SMALLFIRST, 0, opts);
-    mk_csf(ret + 1, tt, CSF_SORTED_BIGFIRST, 0, opts);
+    __mk_csf(ret + 0, tt, CSF_SORTED_SMALLFIRST, 0, opts);
+    __mk_csf(ret + 1, tt, CSF_SORTED_BIGFIRST, 0, opts);
     break;
 
   case SPLATT_CSF_ALLMODE:
     printf("all\n");
     ret = malloc(tt->nmodes * sizeof(*ret));
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      mk_csf(ret + m, tt, which, m, opts);
+      __mk_csf(ret + m, tt, which, m, opts);
     }
     break;
   }

@@ -4,34 +4,9 @@
 #include "base.h"
 
 /******************************************************************************
- * STRUCTURES
+ * ENUMS and CONSTANTS
  *****************************************************************************/
 
-#if 0
-typedef struct
-{
-  idx_t nfibs[MAX_NMODES];
-  idx_t * fptr[MAX_NMODES];
-  idx_t * fids[MAX_NMODES];
-  val_t * vals;
-} csf_sparsity_t;
-
-
-typedef struct
-{
-  idx_t nnz;
-  idx_t nmodes;
-  idx_t dims[MAX_NMODES];
-  idx_t dim_perm[MAX_NMODES];
-
-  splatt_tile_t which_tile;
-  idx_t ntiles;
-  idx_t tile_dims[MAX_NMODES];
-
-  csf_sparsity_t * pt; /** sparsity structure -- one for each tile */
-} splatt_csf;
-
-#endif
 
 /* The types of mode ordering available. */
 typedef enum
@@ -59,12 +34,6 @@ static idx_t const MIN_TILE_DEPTH = 1;
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-#define make_csf splatt_make_csf
-void csf_make(
-  splatt_csf * const ct,
-  sptensor_t * const tt,
-  double const * const opts);
-
 #define csf_alloc splatt_csf_alloc
 splatt_csf * splatt_csf_alloc(
   sptensor_t * const tt,
