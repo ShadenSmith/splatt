@@ -510,25 +510,43 @@ void csf_find_mode_order(
 }
 
 
-idx_t csf_storage(
-  splatt_csf const * const ct)
+size_t csf_storage(
+  splatt_csf const * const tensors,
+  double const * const opts)
 {
-  idx_t bytes = 0;
-  bytes += sizeof(splatt_csf);
-  bytes += ct->nnz * sizeof(val_t); /* vals */
-  bytes += ct->nnz * sizeof(idx_t); /* fids[nmodes] */
-  bytes += ct->ntiles * sizeof(csf_sparsity); /* pt */
+  idx_t ntensors = 0;
+  splatt_csf_type which_alloc = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which_alloc) {
+  case SPLATT_CSF_ONEMODE:
+    ntensors = 1;
+    break;
+  case SPLATT_CSF_TWOMODE:
+    ntensors = 2;
+    break;
+  case SPLATT_CSF_ALLMODE:
+    ntensors = tensors[0].nmodes;
+    break;
+  }
 
-  for(idx_t t=0; t < ct->ntiles; ++t) {
-    csf_sparsity const * const pt = ct->pt + t;
+  size_t bytes = 0;
+  for(idx_t m=0; m < ntensors; ++m) {
+    splatt_csf const * const ct = tensors + m;
+    bytes += ct->nnz * sizeof(val_t); /* vals */
+    bytes += ct->nnz * sizeof(idx_t); /* fids[nmodes] */
+    bytes += ct->ntiles * sizeof(csf_sparsity); /* pt */
 
-    for(idx_t m=0; m < ct->nmodes-1; ++m) {
-      bytes += (pt->nfibs[m]+1) * sizeof(idx_t); /* fptr */
-      if(pt->fids[m] != NULL) {
-        bytes += pt->nfibs[m] * sizeof(idx_t); /* fids */
+    for(idx_t t=0; t < ct->ntiles; ++t) {
+      csf_sparsity const * const pt = ct->pt + t;
+
+      for(idx_t m=0; m < ct->nmodes-1; ++m) {
+        bytes += (pt->nfibs[m]+1) * sizeof(idx_t); /* fptr */
+        if(pt->fids[m] != NULL) {
+          bytes += pt->nfibs[m] * sizeof(idx_t); /* fids */
+        }
       }
     }
   }
+
   return bytes;
 }
 

@@ -45,8 +45,9 @@ void csf_free(
   double const * const opts);
 
 #define csf_storage splatt_csf_storage
-idx_t csf_storage(
-  splatt_csf const * const ct);
+size_t csf_storage(
+  splatt_csf const * const tensors,
+  double const * const opts);
 
 #define csf_find_mode_order splatt_csf_find_mode_order
 void csf_find_mode_order(

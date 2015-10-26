@@ -39,7 +39,7 @@ void fill_rand(
 
 
 char * bytes_str(
-  idx_t const bytes)
+  size_t const bytes)
 {
   double size = (double)bytes;
   int suff = 0;

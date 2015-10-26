@@ -882,15 +882,11 @@ static void __root_decide(
     switch(tensor->which_tile) {
     case SPLATT_NOTILE:
     case SPLATT_DENSETILE:
-      for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
-        tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, tensor->nmodes,
-            mode, t);
-        while(tid != TILE_END) {
-          __csf_mttkrp_root(tensor, tid, mats, thds);
-          tid = get_next_tileid(tid, tensor->tile_dims, tensor->nmodes, mode,
-              t);
-          #pragma omp barrier
-        }
+      /* TODO: support tiling over root mode and distribute trees in parallel
+       *       to remove barrier */
+      for(idx_t t=0; t < tensor->ntiles; ++t) {
+        __csf_mttkrp_root(tensor, t, mats, thds);
+        #pragma omp barrier
       }
       break;
 
@@ -904,6 +900,7 @@ static void __root_decide(
   } /* end omp parallel */
 }
 
+
 static void __leaf_decide(
     splatt_csf const * const tensor,
     matrix_t ** mats,
@@ -912,6 +909,7 @@ static void __leaf_decide(
     double const * const opts)
 {
   idx_t const nmodes = tensor->nmodes;
+  idx_t const depth = nmodes - 1;
 
   #pragma omp parallel
   {
@@ -924,13 +922,20 @@ static void __leaf_decide(
       __csf_mttkrp_leaf(tensor, 0, mats, thds);
       break;
     case SPLATT_DENSETILE:
-      #pragma omp for schedule(dynamic, 1) nowait
-      for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
-        tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes,
-            mode, t);
-        while(tid != TILE_END) {
-          __csf_mttkrp_leaf_tiled(tensor, tid, mats, thds);
-          tid = get_next_tileid(tid, tensor->tile_dims, nmodes, mode, t);
+      /* this mode may not be tiled due to minimum tiling depth */
+      if(opts[SPLATT_OPTION_TILEDEPTH] > depth) {
+        for(idx_t t=0; t < tensor->ntiles; ++t) {
+          __csf_mttkrp_leaf(tensor, 0, mats, thds);
+        }
+      } else {
+        #pragma omp for schedule(dynamic, 1) nowait
+        for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
+          tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes,
+              mode, t);
+          while(tid != TILE_END) {
+            __csf_mttkrp_leaf_tiled(tensor, tid, mats, thds);
+            tid = get_next_tileid(tid, tensor->tile_dims, nmodes, mode, t);
+          }
         }
       }
       break;
@@ -954,6 +959,7 @@ static void __intl_decide(
     double const * const opts)
 {
   idx_t const nmodes = tensor->nmodes;
+  idx_t const depth = csf_mode_depth(mode, tensor->dim_perm, nmodes);
   #pragma omp parallel
   {
     timer_start(&thds[omp_get_thread_num()].ttime);
@@ -964,13 +970,20 @@ static void __intl_decide(
       __csf_mttkrp_internal(tensor, 0, mats, mode, thds);
       break;
     case SPLATT_DENSETILE:
-      #pragma omp for schedule(dynamic, 1) nowait
-      for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
-        tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes,
-            mode, t);
-        while(tid != TILE_END) {
-          __csf_mttkrp_internal_tiled(tensor, tid, mats, mode, thds);
-          tid = get_next_tileid(tid, tensor->tile_dims, nmodes, mode, t);
+      /* this mode may not be tiled due to minimum tiling depth */
+      if(opts[SPLATT_OPTION_TILEDEPTH] > depth) {
+        for(idx_t t=0; t < tensor->ntiles; ++t) {
+          __csf_mttkrp_internal(tensor, t, mats, mode, thds);
+        }
+      } else {
+        #pragma omp for schedule(dynamic, 1) nowait
+        for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
+          tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes,
+              mode, t);
+          while(tid != TILE_END) {
+            __csf_mttkrp_internal_tiled(tensor, tid, mats, mode, thds);
+            tid = get_next_tileid(tid, tensor->tile_dims, nmodes, mode, t);
+          }
         }
       }
       break;
@@ -1072,14 +1085,24 @@ void mttkrp_csf(
       __intl_decide(tensors, mats, mode, thds, opts);
     }
     break;
+
   case SPLATT_CSF_TWOMODE:
     longest = argmax_elem(tensors[0].dims, nmodes);
+    /* longest mode handled via second tensor's root */
     if(longest == mode) {
-      outdepth = 0;
+      __root_decide(tensors+1, mats, mode, thds, opts);
+
+    /* root and internal modes are handled via first tensor */
     } else {
-      outdepth = 0;
+      outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
+      if(outdepth == 0) {
+        __root_decide(tensors, mats, mode, thds, opts);
+      } else {
+        __intl_decide(tensors, mats, mode, thds, opts);
+      }
     }
     break;
+
   case SPLATT_CSF_ALLMODE:
     __root_decide(tensors+mode, mats, mode, thds, opts);
     break;

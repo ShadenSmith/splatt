@@ -508,6 +508,7 @@ double * splatt_default_opts(void)
 
   opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
   opts[SPLATT_OPTION_TILE]      = SPLATT_DENSETILE;
+  opts[SPLATT_OPTION_TILEDEPTH] = 1;
   opts[SPLATT_OPTION_NTHREADS]  = omp_get_num_procs();
 
   return opts;

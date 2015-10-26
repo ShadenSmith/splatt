@@ -94,6 +94,7 @@ typedef enum
   SPLATT_OPTION_RANDSEED,   /** Random number seed */
   SPLATT_OPTION_CSF_ALLOC,  /** How many (and which) tensors to allocate. */
   SPLATT_OPTION_TILE,       /** Use cache tiling during MTTKRP. */
+  SPLATT_OPTION_TILEDEPTH,  /** Minimium depth in CSF to tile. */
 
   SPLATT_OPTION_NOPTIONS    /** Gives the size of the options array. */
 } splatt_option_t;

@@ -52,7 +52,7 @@ void fill_rand(
 * @return The human-readable string. NOTE: this string needs to be freed!
 */
 char * bytes_str(
-  idx_t const bytes);
+  size_t const bytes);
 
 
 #define argmax_elem splatt_argmax_elem

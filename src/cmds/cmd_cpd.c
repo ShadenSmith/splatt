@@ -349,13 +349,6 @@ void splatt_cpd_cmd(
   tt_remove_empty(tt);
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
-  ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
-
-  /* fill each ftensor */
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ften_alloc(ft + m, tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
-  }
-
   splatt_csf * csf = splatt_csf_alloc(tt, args.opts);
 
   idx_t const nmodes = tt->nmodes;
@@ -366,21 +359,18 @@ void splatt_cpd_cmd(
   /* M, the result matrix is stored at mats[MAX_NMODES] */
   matrix_t * mats[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
-    /* ft[:] have different dimensionalities for 1/2D but ft[m+1] is guaranteed
-     * to have the full dimensionality */
-    mats[m] = mat_rand(ft[(m+1) % nmodes].dims[m], args.nfactors);
-    max_dim = SS_MAX(max_dim, ft[(m+1) % nmodes].dims[m]);
+    mats[m] = mat_rand(csf[0].dims[m], args.nfactors);
+    max_dim = SS_MAX(max_dim, mats[m]->I);
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.nfactors);
 
   val_t * lambda = (val_t *) malloc(args.nfactors * sizeof(val_t));
 
   /* find total storage */
-  unsigned long fbytes = 0;
-  unsigned long mbytes = 0;
+  size_t fbytes = csf_storage(csf, args.opts);
+  size_t mbytes = 0;
   for(idx_t m=0; m < nmodes; ++m) {
-    fbytes += ften_storage(&(ft[m]));
-    mbytes += ft[m].dims[m] * args.nfactors * sizeof(val_t);
+    mbytes += csf[0].dims[m] * args.nfactors * sizeof(val_t);
   }
 
   printf("Factoring "
@@ -404,15 +394,10 @@ void splatt_cpd_cmd(
   printf("\n\n");
 
   /* do the factorization! */
-  //cpd_als(ft, mats, mats, lambda, args.nfactors, &rinfo, args.opts);
   cpd_als_iterate(csf, mats, mats, lambda, args.nfactors, &rinfo, args.opts);
 
-  /* free up the ftensor allocations */
+  /* cleanup */
   splatt_csf_free(csf, args.opts);
-  for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(&ft[m]);
-  }
-  free(ft);
   free(args.opts);
 
   /* write output */
