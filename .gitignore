@@ -20,3 +20,6 @@ tags
 src/tags
 
 a.out
+
+doxygen/html
+doxygen/latex
