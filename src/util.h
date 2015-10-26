@@ -54,4 +54,32 @@ void fill_rand(
 char * bytes_str(
   idx_t const bytes);
 
+
+#define argmax_elem splatt_argmax_elem
+/**
+* @brief Scan a list and return index of the maximum valued element.
+*
+* @param arr The list to scan.
+* @param N The length of the list.
+*
+* @return The index of the largest element in the list.
+*/
+idx_t argmax_elem(
+  idx_t const * const arr,
+  idx_t const N);
+
+
+#define argmin_elem splatt_argmin_elem
+/**
+* @brief Scan a list and return index of the minimum valued element.
+*
+* @param arr The list to scan.
+* @param N The length of the list.
+*
+* @return The index of the smallest element in the list.
+*/
+idx_t argmin_elem(
+  idx_t const * const arr,
+  idx_t const N);
+
 #endif

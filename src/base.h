@@ -18,6 +18,8 @@
 /******************************************************************************
  * DEFINES
  *****************************************************************************/
+#define MAX_NMODES SPLATT_MAX_NMODES
+
 /* alias splatt types */
 #define val_t splatt_val_t
 #define idx_t splatt_idx_t

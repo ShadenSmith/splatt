@@ -64,7 +64,7 @@ val_t csf_frobsq(
 
 /**
 * @brief Map a mode (in the input system) to the tree level that it is found.
-*        This is equivalent to a linear-time lookup in the inverse dim_perm.
+*        This is equivalent to the inverse dim_perm.
 *
 * @param mode The mode (relative to the input) to lookup.
 * @param perm The dimenison permutation.
@@ -84,6 +84,7 @@ static inline idx_t csf_mode_depth(
   }
 
   /* XXX: ERROR */
+  assert(1 == 2);
   return MAX_NMODES;
 }
 

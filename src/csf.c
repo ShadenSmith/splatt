@@ -427,8 +427,8 @@ static void __mk_csf(
   /* get the indices in order */
   csf_find_mode_order(tt->dims, tt->nmodes, alloc_type, mode, ct->dim_perm);
 
-  splatt_tile_t which_tile = (splatt_tile_t) splatt_opts[SPLATT_OPTION_TILE];
-  switch(which_tile) {
+  ct->which_tile = splatt_opts[SPLATT_OPTION_TILE];
+  switch(ct->which_tile) {
   case SPLATT_NOTILE:
     __csf_alloc_untiled(ct, tt);
     break;
@@ -437,7 +437,7 @@ static void __mk_csf(
     break;
   default:
     fprintf(stderr, "SPLATT: tiling '%d' unsupported for CSF tensors.\n",
-        which_tile);
+        ct->which_tile);
     break;
   }
 }

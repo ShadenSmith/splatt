@@ -314,9 +314,10 @@ double cpd_als_iterate(
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
   omp_set_num_threads(nthreads);
-  thd_info * thds =  thd_init(nthreads, 2,
+  thd_info * thds =  thd_init(nthreads, 3,
     (nfactors * nfactors * sizeof(val_t)) + 64,
-    (TILE_SIZES[0] * nfactors * sizeof(val_t)) + 64);
+    (TILE_SIZES[0] * nfactors * sizeof(val_t)) + 64,
+    (nmodes * nfactors * sizeof(val_t)) + 64);
 
   matrix_t * m1 = mats[MAX_NMODES];
 

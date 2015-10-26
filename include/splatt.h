@@ -76,7 +76,7 @@
  * ENUMS / CONSTANTS
  *****************************************************************************/
 
-#define MAX_NMODES ((splatt_idx_t) 8)
+#define SPLATT_MAX_NMODES ((splatt_idx_t) 8)
 
 /**
 * @brief Enum for defining SPLATT options. Use the splatt_default_opts() and
@@ -165,7 +165,7 @@ typedef struct splatt_kruskal_t
   splatt_idx_t rank;                    /** Number of columns in each factor */
   double fit;                           /** The quality [0,1] of the CPD */
   splatt_val_t * lambda;                /** Scaling factors for each column */
-  splatt_val_t * factors[MAX_NMODES];   /** Row-major matrix for each mode */
+  splatt_val_t * factors[SPLATT_MAX_NMODES];   /** Row-major matrix for each mode */
 } splatt_kruskal_t;
 
 
@@ -173,9 +173,9 @@ typedef struct splatt_kruskal_t
  */
 typedef struct
 {
-  splatt_idx_t nfibs[MAX_NMODES];
-  splatt_idx_t * fptr[MAX_NMODES];
-  splatt_idx_t * fids[MAX_NMODES];
+  splatt_idx_t nfibs[SPLATT_MAX_NMODES];
+  splatt_idx_t * fptr[SPLATT_MAX_NMODES];
+  splatt_idx_t * fids[SPLATT_MAX_NMODES];
   splatt_val_t * vals;
 } csf_sparsity;
 
@@ -184,12 +184,12 @@ typedef struct splatt_csf
 {
   splatt_idx_t nnz;
   splatt_idx_t nmodes;
-  splatt_idx_t dims[MAX_NMODES];
-  splatt_idx_t dim_perm[MAX_NMODES];
+  splatt_idx_t dims[SPLATT_MAX_NMODES];
+  splatt_idx_t dim_perm[SPLATT_MAX_NMODES];
 
   splatt_tile_t which_tile;
   splatt_idx_t ntiles;
-  splatt_idx_t tile_dims[MAX_NMODES];
+  splatt_idx_t tile_dims[SPLATT_MAX_NMODES];
 
   csf_sparsity * pt; /** sparsity structure -- one for each tile */
 } splatt_csf;
@@ -207,8 +207,8 @@ typedef struct splatt_csf_t
 {
   splatt_idx_t nnz;                     /** Number of nonzeros */
   splatt_idx_t nmodes;                  /** Number of modes */
-  splatt_idx_t dims[MAX_NMODES];        /** Dimension of each mode */
-  splatt_idx_t dim_perm[MAX_NMODES];    /** Permutation of modes */
+  splatt_idx_t dims[SPLATT_MAX_NMODES];        /** Dimension of each mode */
+  splatt_idx_t dim_perm[SPLATT_MAX_NMODES];    /** Permutation of modes */
 
   splatt_idx_t  nslcs;    /** Number of slices (length of sptr) */
   splatt_idx_t  nfibs;    /** Number of fibers (length of fptr) */
@@ -221,7 +221,7 @@ typedef struct splatt_csf_t
   splatt_idx_t * indmap;  /** Maps local to global indices if empty slices */
 
   /* TILED STRUCTURES */
-  int tiled;                /** splatt_tile_t type */
+  splatt_tile_t tiled;                /** splatt_tile_t type */
   splatt_idx_t    nslabs;   /** Number of slabs (length of slabptr) */
   splatt_idx_t * slabptr;   /** Indexes into fptr the start/end of each slab */
   splatt_idx_t * sids;      /** ID of each fiber (for dim_perm[0]) */

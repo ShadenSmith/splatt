@@ -56,3 +56,32 @@ char * bytes_str(
   return ret;
 }
 
+
+
+idx_t argmax_elem(
+  idx_t const * const arr,
+  idx_t const N)
+{
+  idx_t mkr = 0;
+  for(idx_t i=1; i < N; ++i) {
+    if(arr[i] > arr[mkr]) {
+      mkr = i;
+    }
+  }
+  return mkr;
+}
+
+
+idx_t argmin_elem(
+  idx_t const * const arr,
+  idx_t const N)
+{
+  idx_t mkr = 0;
+  for(idx_t i=1; i < N; ++i) {
+    if(arr[i] < arr[mkr]) {
+      mkr = i;
+    }
+  }
+  return mkr;
+}
+
