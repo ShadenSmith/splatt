@@ -1,0 +1,17 @@
+/*!
+\page setup Setting up \splatt
+
+\tableofcontents
+
+<!-- ============================================================================= -->
+\section requirements System requirements
+
+
+<!-- ============================================================================= -->
+\section compilelib Compiling SPLATT
+
+
+<!-- ============================================================================= -->
+\section compilemat Compiling GNU Octave/Matlab routines
+
+*/
