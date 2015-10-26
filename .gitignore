@@ -23,3 +23,4 @@ a.out
 
 doxygen/html
 doxygen/latex
+doxygen/*.log
