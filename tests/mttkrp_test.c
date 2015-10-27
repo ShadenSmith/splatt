@@ -29,6 +29,48 @@ static void __compare_mats(
 }
 
 
+static void p_csf_mttkrp(
+    double const * const opts,
+    sptensor_t ** tensors,
+    idx_t ntensors,
+    matrix_t * mats[][SPLATT_MAX_NMODES+1],
+    matrix_t ** gold,
+    idx_t nfactors)
+{
+  idx_t const nthreads = opts[SPLATT_OPTION_NTHREADS];
+  for(idx_t i=0; i < ntensors; ++i) {
+    sptensor_t * const tt = tensors[i];
+    splatt_csf * cs = splatt_csf_alloc(tt, opts);
+
+    /* add 64 bytes to avoid false sharing */
+    thd_info * thds = thd_init(nthreads, 3,
+      (nfactors * nfactors * sizeof(val_t)) + 64,
+      0,
+      (tt->nmodes * nfactors * sizeof(val_t)) + 64);
+
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      mats[i][MAX_NMODES]->I = tt->dims[m];
+      gold[i]->I = tt->dims[m];
+
+      /* compute gold */
+      mttkrp_stream(tt, mats[i], m);
+
+      /* swap to gold */
+      matrix_t * tmp = mats[i][MAX_NMODES];
+      mats[i][MAX_NMODES] = gold[i];
+      gold[i] = tmp;
+
+      /* compute splatt */
+      mttkrp_csf(cs, mats[i], m, thds, opts);
+
+      __compare_mats(mats[i][MAX_NMODES], gold[i]);
+    }
+    thd_free(thds, nthreads);
+    csf_free(cs, opts);
+  }
+}
+
+
 CTEST_DATA(mttkrp)
 {
   idx_t ntensors;
@@ -107,93 +149,152 @@ CTEST2(mttkrp, splatt)
   thd_free(thds, nthreads);
 }
 
-#if 0
-CTEST2(mttkrp, csf)
+
+/*
+ * SPLATT_CSF_ALLMODE
+ */
+CTEST2(mttkrp, csf_all_notile)
 {
   idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS] = nthreads;
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
 
-  for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * const tt = data->tensors[i];
-    csf_t cs;
-    csf_alloc(&cs, tt, opts);
-
-    /* add 64 bytes to avoid false sharing */
-    thd_info * thds = thd_init(nthreads, 3,
-      (data->nfactors * data->nfactors * sizeof(val_t)) + 64,
-      0,
-      (tt->nmodes * data->nfactors * sizeof(val_t)) + 64);
-
-    for(idx_t m=0; m < tt->nmodes; ++m) {
-      data->mats[i][MAX_NMODES]->I = tt->dims[m];
-      data->gold[i]->I = tt->dims[m];
-
-      /* compute gold */
-      mttkrp_stream(tt, data->mats[i], m);
-
-      /* swap to gold */
-      matrix_t * tmp = data->mats[i][MAX_NMODES];
-      data->mats[i][MAX_NMODES] = data->gold[i];
-      data->gold[i] = tmp;
-
-      /* compute splatt */
-      mttkrp_csf(&cs, data->mats[i], m, thds, nthreads);
-
-      __compare_mats(data->mats[i][MAX_NMODES], data->gold[i]);
-    }
-    thd_free(thds, nthreads);
-    csf_free(&cs);
-  }
+  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+      data->nfactors);
 }
 
-CTEST2(mttkrp, csf_densetile)
+
+CTEST2(mttkrp, csf_all_densetile)
 {
   idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS] = nthreads;
-  opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
+  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
 
-  for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * const tt = data->tensors[i];
-    csf_t cs;
-    csf_alloc(&cs, tt, opts);
+  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+      data->nfactors);
+}
 
-    /* add 64 bytes to avoid false sharing */
-    thd_info * thds = thd_init(nthreads, 3,
-      (data->nfactors * data->nfactors * sizeof(val_t)) + 64,
-      0,
-      (tt->nmodes * data->nfactors * sizeof(val_t)) + 64);
 
-    for(idx_t m=0; m < tt->nmodes; ++m) {
-      data->mats[i][MAX_NMODES]->I = tt->dims[m];
-      data->gold[i]->I = tt->dims[m];
+CTEST2(mttkrp, csf_all_densetile_alldepth)
+{
+  idx_t const nthreads = 7;
 
-      /* compute gold */
-      mttkrp_stream(tt, data->mats[i], m);
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
 
-      /* swap to gold */
-      matrix_t * tmp = data->mats[i][MAX_NMODES];
-      data->mats[i][MAX_NMODES] = data->gold[i];
-      data->gold[i] = tmp;
-
-      /* compute splatt */
-      mttkrp_csf(&cs, data->mats[i], m, thds, nthreads);
-
-#if 0
-      printf("m: %lu d: %lu\n", m, csf_mode_depth(m, cs.dim_perm, cs.nmodes));
-      printf("\n");
-      mat_write(data->mats[i][MAX_NMODES], NULL);
-      printf("\n");
-      mat_write(data->gold[i], NULL);
-#endif
-
-      __compare_mats(data->mats[i][MAX_NMODES], data->gold[i]);
-    }
-    thd_free(thds, nthreads);
-    csf_free(&cs);
+  for(int i=1; i < 5; ++i) {
+    opts[SPLATT_OPTION_TILEDEPTH]  = i;
+    p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+        data->nfactors);
   }
 }
-#endif
+
+
+/*
+ * SPLATT_CSF_ONEMODE
+ */
+CTEST2(mttkrp, csf_one_notile)
+{
+  idx_t const nthreads = 7;
+
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
+
+  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+      data->nfactors);
+}
+
+
+CTEST2(mttkrp, csf_one_densetile)
+{
+  idx_t const nthreads = 7;
+
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
+  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
+
+  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+      data->nfactors);
+}
+
+
+CTEST2_SKIP(mttkrp, csf_one_densetile_alldepth)
+{
+  idx_t const nthreads = 7;
+
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
+
+  for(int i=1; i < 5; ++i) {
+    opts[SPLATT_OPTION_TILEDEPTH]  = i;
+    p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+        data->nfactors);
+  }
+}
+
+/*
+ * SPLATT_CSF_TWOMODE
+ */
+CTEST2_SKIP(mttkrp, csf_two_notile)
+{
+  idx_t const nthreads = 7;
+
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
+
+  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+      data->nfactors);
+}
+
+
+CTEST2_SKIP(mttkrp, csf_two_densetile)
+{
+  idx_t const nthreads = 7;
+
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
+  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
+
+  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+      data->nfactors);
+}
+
+
+CTEST2_SKIP(mttkrp, csf_two_densetile_alldepth)
+{
+  idx_t const nthreads = 7;
+
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
+
+  for(int i=1; i < 5; ++i) {
+    opts[SPLATT_OPTION_TILEDEPTH]  = i;
+    p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
+        data->nfactors);
+  }
+}
+
