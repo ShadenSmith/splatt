@@ -17,13 +17,6 @@ typedef enum
 } csf_mode_type;
 
 
-/**
-* @brief Only tile modes at least this depth in the tree.
-*        NOTE: 0-indexed! So, depth=1 will tile all but the top level modes.
-*/
-static idx_t const MIN_TILE_DEPTH = 1;
-
-
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
@@ -34,33 +27,81 @@ static idx_t const MIN_TILE_DEPTH = 1;
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Convert a coordinate tensor to CSF form. Options will determine how
+*        many tensors to allocate and which tiling scheme to use.
+*
+* @param tt The coordinate tensor to convert from.
+* @param opts 'SPLATT_OPTION_CSF_ALLOC' and 'SPLATT_OPTION_TILE' determine
+*             the allocation scheme.
+*
+* @return The allocated tensor(s).
+*/
 #define csf_alloc splatt_csf_alloc
 splatt_csf * splatt_csf_alloc(
   sptensor_t * const tt,
   double const * const opts);
 
+
 #define csf_free splatt_csf_free
+/**
+* @brief Free all memory allocated for a tensor in CSF form.
+*
+* @param csf The tensor to free.
+* @param opts opts[SPLATT_OPTION_CSF_ALLOC] tells us how many tensors are
+*             allocated.
+*/
 void csf_free(
-  splatt_csf * const ct,
+  splatt_csf * const csf,
   double const * const opts);
 
+
 #define csf_storage splatt_csf_storage
+/**
+* @brief Compute the number of bytes requiredto store a tensor.
+*
+* @param tensors The tensor(s) to compute storage information of.
+* @param opts opts[SPLATT_OPTION_CSF_ALLOC] tells us how many tensors are
+*             allocated.
+*
+* @return The size, in bytes, of the tensor(s) in CSF form.
+*/
 size_t csf_storage(
   splatt_csf const * const tensors,
   double const * const opts);
 
+
+#define csf_frobsq splatt_csf_frobsq
+/**
+* @brief Compute the squared Frobenius norm of a tensor. This is the
+*        sum-of-squares of all nonzeros.
+*
+* @param tensor The tensor to operate on.
+*
+* @return The norm.
+*/
+val_t csf_frobsq(
+  splatt_csf const * const tensor);
+
+
 #define csf_find_mode_order splatt_csf_find_mode_order
+/**
+* @brief Find an ordering of tensor modes based on dimensions.
+*
+* @param dims The dimensions of the tensor.
+* @param nmodes The number of modes.
+* @param which Which ordering to use.
+* @param mode Which mode to focus on (if applicable e.g., CSF_SORTED_MINUSONE).
+* @param perm_dims [OUT] is filled with the mode permutation. perm_dims[m]
+*                  specifies which mode will be the m-th mode operated on.
+*/
 void csf_find_mode_order(
   idx_t const * const dims,
   idx_t const nmodes,
   csf_mode_type which,
   idx_t const mode,
   idx_t * const perm_dims);
-
-
-#define csf_frobsq splatt_csf_frobsq
-val_t csf_frobsq(
-  splatt_csf const * const tensor);
 
 
 /**

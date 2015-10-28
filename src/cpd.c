@@ -363,7 +363,6 @@ double cpd_als_iterate(
   double oldfit = 0;
   double fit = 0;
   val_t mynorm = csf_frobsq(tensors);
-  printf("norm: %"SPLATT_PF_VAL"\n", mynorm);
 
   val_t ttnormsq = 0;
 #ifdef SPLATT_USE_MPI

@@ -133,6 +133,8 @@ static inline void __propagate_up(
     idxstack[m] = fp[m-1][idxstack[m-1]];
   }
 
+  assert(init_depth < nmodes-1);
+
   /* clear out accumulation buffer */
   for(idx_t f=0; f < nfactors; ++f) {
     buf[init_depth+1][f] = 0;
@@ -559,7 +561,12 @@ static void __csf_mttkrp_leaf(
   thd_info * const thds)
 {
   /* extract tensor structures */
+  val_t const * const vals = ct->pt[tile_id].vals;
   idx_t const nmodes = ct->nmodes;
+
+  if(vals == NULL) {
+    return;
+  }
   if(nmodes == 3) {
     __csf_mttkrp_leaf3(ct, tile_id, mats, thds);
     return;
@@ -569,7 +576,6 @@ static void __csf_mttkrp_leaf(
       = (idx_t const * const *) ct->pt[tile_id].fptr;
   idx_t const * const * const restrict fids
       = (idx_t const * const *) ct->pt[tile_id].fids;
-  val_t const * const vals = ct->pt[tile_id].vals;
 
   idx_t const nfactors = mats[0]->J;
 
@@ -585,10 +591,11 @@ static void __csf_mttkrp_leaf(
   }
 
   /* foreach outer slice */
+  idx_t const nslices = ct->pt[tile_id].nfibs[0];
   #pragma omp for schedule(dynamic, 16) nowait
-  for(idx_t s=0; s < ct->pt[tile_id].nfibs[0]; ++s) {
+  for(idx_t s=0; s < nslices; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
-    idxstack[0] = fid;
+    idxstack[0] = s;
 
     /* clear out stale data */
     for(idx_t m=1; m < nmodes-1; ++m) {
@@ -697,13 +704,13 @@ static void __csf_mttkrp_internal_tiled(
   idx_t const mode,
   thd_info * const thds)
 {
+  /* extract tensor structures */
+  idx_t const nmodes = ct->nmodes;
   val_t const * const vals = ct->pt[tile_id].vals;
   /* pass empty tiles */
   if(vals == NULL) {
     return;
   }
-  /* extract tensor structures */
-  idx_t const nmodes = ct->nmodes;
   if(nmodes == 3) {
     __csf_mttkrp_internal_tiled3(ct, tile_id, mats, thds);
     return;
@@ -733,8 +740,8 @@ static void __csf_mttkrp_internal_tiled(
   val_t * const ovals = mats[MAX_NMODES]->vals;
 
   /* foreach outer slice */
-  idx_t const nouter = ct->pt[tile_id].nfibs[0];
-  for(idx_t s=0; s < nouter; ++s) {
+  idx_t const nslices = ct->pt[tile_id].nfibs[0];
+  for(idx_t s=0; s < nslices; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
 
     /* push outer slice and fill stack */
@@ -788,6 +795,11 @@ static void __csf_mttkrp_internal(
 {
   /* extract tensor structures */
   idx_t const nmodes = ct->nmodes;
+  val_t const * const vals = ct->pt[tile_id].vals;
+  /* pass empty tiles */
+  if(vals == NULL) {
+    return;
+  }
   if(nmodes == 3) {
     __csf_mttkrp_internal3(ct, tile_id, mats, thds);
     return;
@@ -797,8 +809,6 @@ static void __csf_mttkrp_internal(
       = (idx_t const * const *) ct->pt[tile_id].fptr;
   idx_t const * const * const restrict fids
       = (idx_t const * const *) ct->pt[tile_id].fids;
-  val_t const * const vals = ct->pt[tile_id].vals;
-
   idx_t const nfactors = mats[0]->J;
 
   /* find out which level in the tree this is */
@@ -818,12 +828,13 @@ static void __csf_mttkrp_internal(
   val_t * const ovals = mats[MAX_NMODES]->vals;
 
   /* foreach outer slice */
+  idx_t const nslices = ct->pt[tile_id].nfibs[0];
   #pragma omp for schedule(dynamic, 16) nowait
-  for(idx_t s=0; s < ct->dims[ct->dim_perm[0]]; ++s) {
+  for(idx_t s=0; s < nslices; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
 
     /* push outer slice and fill stack */
-    idxstack[0] = fid;
+    idxstack[0] = s;
     for(idx_t m=1; m <= outdepth; ++m) {
       idxstack[m] = fp[m-1][idxstack[m-1]];
     }
@@ -960,6 +971,7 @@ static void __intl_decide(
 {
   idx_t const nmodes = tensor->nmodes;
   idx_t const depth = csf_mode_depth(mode, tensor->dim_perm, nmodes);
+
   #pragma omp parallel
   {
     timer_start(&thds[omp_get_thread_num()].ttime);
@@ -1070,7 +1082,6 @@ void mttkrp_csf(
   idx_t nmodes = tensors[0].nmodes;
   /* find out which level in the tree this is */
   idx_t outdepth = MAX_NMODES;
-  idx_t longest = 0;
 
   /* choose which MTTKRP function to use */
   splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
@@ -1078,27 +1089,25 @@ void mttkrp_csf(
   case SPLATT_CSF_ONEMODE:
     outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
     if(outdepth == 0) {
-      __root_decide(tensors, mats, mode, thds, opts);
+      __root_decide(tensors+0, mats, mode, thds, opts);
     } else if(outdepth == nmodes - 1) {
-      __leaf_decide(tensors, mats, mode, thds, opts);
+      __leaf_decide(tensors+0, mats, mode, thds, opts);
     } else {
-      __intl_decide(tensors, mats, mode, thds, opts);
+      __intl_decide(tensors+0, mats, mode, thds, opts);
     }
     break;
 
   case SPLATT_CSF_TWOMODE:
-    longest = argmax_elem(tensors[0].dims, nmodes);
     /* longest mode handled via second tensor's root */
-    if(longest == mode) {
+    if(mode == tensors[0].dim_perm[nmodes-1]) {
       __root_decide(tensors+1, mats, mode, thds, opts);
-
     /* root and internal modes are handled via first tensor */
     } else {
       outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
       if(outdepth == 0) {
-        __root_decide(tensors, mats, mode, thds, opts);
+        __root_decide(tensors+0, mats, mode, thds, opts);
       } else {
-        __intl_decide(tensors, mats, mode, thds, opts);
+        __intl_decide(tensors+0, mats, mode, thds, opts);
       }
     }
     break;
@@ -1107,49 +1116,6 @@ void mttkrp_csf(
     __root_decide(tensors+mode, mats, mode, thds, opts);
     break;
   }
-
-#if 0
-  #pragma omp parallel default(shared)
-  {
-    timer_start(&thds[omp_get_thread_num()].ttime);
-    /* set of untiled functions, use mutexes where required */
-    if(ct->ntiles == 1) {
-      if(outdepth == 0) {
-        __csf_mttkrp_root(ct, 0, mats, thds);
-      } else if(outdepth == ct->nmodes - 1) {
-        __csf_mttkrp_leaf(ct, 0, mats, thds);
-      } else {
-        __csf_mttkrp_internal(ct, 0, mats, mode, thds);
-      }
-    } else {
-      /* tiled functions, no locking required */
-      if(outdepth == 0) {
-        for(idx_t t=0; t < ct->tile_dims[mode]; ++t) {
-          idx_t id = get_next_tileid(TILE_BEGIN, ct->tile_dims, ct->nmodes,
-              mode, t);
-          while(id != TILE_END) {
-            __csf_mttkrp_root(ct, id, mats, thds);
-            id = get_next_tileid(id, ct->tile_dims, ct->nmodes, mode, t);
-            #pragma omp barrier
-          }
-        }
-      } else if(outdepth == ct->nmodes - 1) {
-      } else {
-
-        #pragma omp for schedule(dynamic, 1) nowait
-        for(idx_t t=0; t < ct->tile_dims[mode]; ++t) {
-          idx_t id = get_next_tileid(TILE_BEGIN, ct->tile_dims, ct->nmodes,
-              mode, t);
-          while(id != TILE_END) {
-            __csf_mttkrp_internal_tiled(ct, id, mats, mode, thds);
-            id = get_next_tileid(id, ct->tile_dims, ct->nmodes, mode, t);
-          }
-        }
-      }
-    }
-    timer_stop(&thds[omp_get_thread_num()].ttime);
-  } /* end omp parallel */
-#endif
 }
 
 

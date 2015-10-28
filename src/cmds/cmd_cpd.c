@@ -347,7 +347,12 @@ void splatt_cpd_cmd(
     return;
   }
   tt_remove_empty(tt);
-  stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+
+  splatt_verbosity_t which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
+
+  if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+  }
 
   splatt_csf * csf = splatt_csf_alloc(tt, args.opts);
 
@@ -366,32 +371,9 @@ void splatt_cpd_cmd(
 
   val_t * lambda = (val_t *) malloc(args.nfactors * sizeof(val_t));
 
-  /* find total storage */
-  size_t fbytes = csf_storage(csf, args.opts);
-  size_t mbytes = 0;
-  for(idx_t m=0; m < nmodes; ++m) {
-    mbytes += csf[0].dims[m] * args.nfactors * sizeof(val_t);
+  if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    cpd_stats(csf, args.nfactors, args.opts);
   }
-
-  printf("Factoring "
-         "------------------------------------------------------\n");
-  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
-      args.nfactors,
-      (idx_t) args.opts[SPLATT_OPTION_NITER],
-      args.opts[SPLATT_OPTION_TOLERANCE]);
-  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
-  if((int) args.opts[SPLATT_OPTION_TILE] != SPLATT_NOTILE) {
-    printf("TILE=%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"x%"SPLATT_PF_IDX"\n",
-      TILE_SIZES[0], TILE_SIZES[1], TILE_SIZES[2]);
-  } else {
-    printf("TILE=NO\n");
-  }
-  char * fstorage = bytes_str(fbytes);
-  char * mstorage = bytes_str(mbytes);
-  printf("CSF-STORAGE=%s FACTOR-STORAGE=%s", fstorage, mstorage);
-  free(fstorage);
-  free(mstorage);
-  printf("\n\n");
 
   /* do the factorization! */
   cpd_als_iterate(csf, mats, mats, lambda, args.nfactors, &rinfo, args.opts);

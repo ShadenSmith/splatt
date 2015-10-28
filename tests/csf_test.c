@@ -75,13 +75,11 @@ CTEST2(csf_one_init, mode_order_small)
   csf_free(cs, data->opts);
 }
 
-#if 0
 
-/* TODO: use this for csf_all */
 CTEST2(csf_one_init, mode_order_big)
 {
   idx_t perm[MAX_NMODES];
-  csf_find_mode_order(data->tt->dims, data->tt->nmodes, CSF_SORTED_BIGFIRST,
+  csf_find_mode_order(data->tt->dims, data->tt->nmodes, CSF_SORTED_BIGFIRST, 0,
       perm);
 
   for(idx_t m=0; m < data->tt->nmodes-1; ++m) {
@@ -91,4 +89,25 @@ CTEST2(csf_one_init, mode_order_big)
   }
 }
 
-#endif
+
+CTEST2(csf_one_init, mode_minusone)
+{
+  idx_t dims[] = {10, 9, 8, 7, 0};
+  idx_t perm[] = {0, 0, 0, 0, 0};
+  splatt_idx_t ndims = sizeof(dims) / sizeof(dims[0]);
+
+  for(splatt_idx_t m=0; m < ndims; ++m) {
+    csf_find_mode_order(dims, ndims, CSF_SORTED_MINUSONE, m, perm);
+
+    if(perm[0] != m) {
+      ASSERT_FAIL();
+    }
+    for(splatt_idx_t m2=2; m2 < ndims-1; ++m2) {
+      if(dims[perm[m2]] > dims[perm[m2+1]]) {
+        ASSERT_FAIL();
+      }
+    }
+  }
+
+}
+

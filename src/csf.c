@@ -353,7 +353,7 @@ static void __csf_alloc_densetile(
   idx_t ntiles = 1;
   for(idx_t m=0; m < ct->nmodes; ++m) {
     idx_t const depth = csf_mode_depth(m, ct->dim_perm, ct->nmodes);
-    if(depth >= MIN_TILE_DEPTH) {
+    if(depth >= splatt_opts[SPLATT_OPTION_TILEDEPTH]) {
       ct->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
     } else {
       ct->tile_dims[m] = 1;
@@ -400,7 +400,7 @@ static void __csf_alloc_densetile(
     pt->vals = (val_t *) malloc(ptnnz * sizeof(val_t));
     memcpy(pt->vals, tt->vals + startnnz, ptnnz * sizeof(val_t));
 
-    /* create fptr entries for the rest of the modes*/
+    /* create fptr entries for the rest of the modes */
     for(idx_t m=0; m < tt->nmodes-1; ++m) {
       __mk_fptr(ct, tt, t, nnz_ptr, m);
     }
@@ -413,7 +413,7 @@ static void __csf_alloc_densetile(
 static void __mk_csf(
   splatt_csf * const ct,
   sptensor_t * const tt,
-  splatt_csf_type alloc_type,
+  csf_mode_type mode_type,
   idx_t const mode,
   double const * const splatt_opts)
 {
@@ -425,7 +425,7 @@ static void __mk_csf(
   }
 
   /* get the indices in order */
-  csf_find_mode_order(tt->dims, tt->nmodes, alloc_type, mode, ct->dim_perm);
+  csf_find_mode_order(tt->dims, tt->nmodes, mode_type, mode, ct->dim_perm);
 
   ct->which_tile = splatt_opts[SPLATT_OPTION_TILE];
   switch(ct->which_tile) {
@@ -557,34 +557,33 @@ splatt_csf * splatt_csf_alloc(
 {
   splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
 
-  splatt_csf * ret = NULL;
+  idx_t last_mode = 0;
 
-  printf("\n----\n");
+  splatt_csf * ret = NULL;
 
   switch(which) {
   case SPLATT_CSF_ONEMODE:
-    printf("one\n");
     ret = malloc(sizeof(*ret));
-    __mk_csf(ret, tt, which, 0, opts);
+    __mk_csf(ret, tt, CSF_SORTED_SMALLFIRST, 0, opts);
     break;
 
   case SPLATT_CSF_TWOMODE:
-    printf("two\n");
     ret = malloc(2 * sizeof(*ret));
+    /* regular CSF allocation */
     __mk_csf(ret + 0, tt, CSF_SORTED_SMALLFIRST, 0, opts);
-    __mk_csf(ret + 1, tt, CSF_SORTED_BIGFIRST, 0, opts);
+
+    /* worst mode allocated specially */
+    last_mode = ret[0].dim_perm[tt->nmodes-1];
+    __mk_csf(ret + 1, tt, CSF_SORTED_MINUSONE, last_mode, opts);
     break;
 
   case SPLATT_CSF_ALLMODE:
-    printf("all\n");
     ret = malloc(tt->nmodes * sizeof(*ret));
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      __mk_csf(ret + m, tt, which, m, opts);
+      __mk_csf(ret + m, tt, CSF_SORTED_MINUSONE, m, opts);
     }
     break;
   }
-
-  printf("\n----\n\n");
 
   return ret;
 }

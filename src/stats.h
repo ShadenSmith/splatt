@@ -60,6 +60,13 @@ void stats_csf(
   splatt_csf const * const ct);
 
 
+#define cpd_stats splatt_cpd_stats
+void cpd_stats(
+  splatt_csf const * const csf,
+  idx_t const nfactors,
+  double const * const opts);
+
+
 /******************************************************************************
  * MPI FUNCTIONS
  *****************************************************************************/
