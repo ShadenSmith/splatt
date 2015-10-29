@@ -555,13 +555,14 @@ splatt_csf * splatt_csf_alloc(
   sptensor_t * const tt,
   double const * const opts)
 {
-  splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
-
-  idx_t last_mode = 0;
-
   splatt_csf * ret = NULL;
 
-  switch(which) {
+  double * tmp_opts = NULL;
+  idx_t last_mode = 0;
+
+  int tmp = 0;
+
+  switch((splatt_csf_type) opts[SPLATT_OPTION_CSF_ALLOC]) {
   case SPLATT_CSF_ONEMODE:
     ret = malloc(sizeof(*ret));
     __mk_csf(ret, tt, CSF_SORTED_SMALLFIRST, 0, opts);
@@ -572,9 +573,17 @@ splatt_csf * splatt_csf_alloc(
     /* regular CSF allocation */
     __mk_csf(ret + 0, tt, CSF_SORTED_SMALLFIRST, 0, opts);
 
-    /* worst mode allocated specially */
+    /* make a copy of opts and don't tile the last mode
+     * TODO make this configurable? */
+    tmp_opts = splatt_default_opts();
+    memcpy(tmp_opts, opts, SPLATT_OPTION_NOPTIONS * sizeof(*opts));
+    tmp_opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+
+    /* allocate with no tiling for the last mode */
     last_mode = ret[0].dim_perm[tt->nmodes-1];
-    __mk_csf(ret + 1, tt, CSF_SORTED_MINUSONE, last_mode, opts);
+    __mk_csf(ret + 1, tt, CSF_SORTED_MINUSONE, last_mode, tmp_opts);
+
+    free(tmp_opts);
     break;
 
   case SPLATT_CSF_ALLMODE:
