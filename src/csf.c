@@ -12,6 +12,13 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+/**
+* @brief Find a permutation of modes that results in non-increasing mode size.
+*
+* @param dims The tensor dimensions.
+* @param nmodes The number of modes.
+* @param perm_dims The resulting permutation.
+*/
 static void __order_dims_small(
   idx_t const * const dims,
   idx_t const nmodes,
@@ -39,6 +46,15 @@ static void __order_dims_small(
 }
 
 
+/**
+* @brief Find a permutation of modes such that the first mode is 'custom-mode'
+*        and the remaining are sorted in non-increasing order.
+*
+* @param dims The tensor dimensions.
+* @param nmodes The number of modes.
+* @param custom_mode The mode to place first.
+* @param perm_dims The resulting permutation.
+*/
 static void __order_dims_minusone(
   idx_t const * const dims,
   idx_t const nmodes,
@@ -58,6 +74,13 @@ static void __order_dims_minusone(
 }
 
 
+/**
+* @brief Find a permutation of modes that results in non-decreasing mode size.
+*
+* @param dims The tensor dimensions.
+* @param nmodes The number of modes.
+* @param perm_dims The resulting permutation.
+*/
 static void __order_dims_large(
   idx_t const * const dims,
   idx_t const nmodes,
@@ -94,6 +117,11 @@ static void __order_dims_large(
 }
 
 
+/**
+* @brief Print a CSF tensor in human-readable format.
+*
+* @param ct The tensor to print.
+*/
 static void __print_csf(
   splatt_csf const * const ct)
 {
@@ -161,6 +189,15 @@ static void __print_csf(
 }
 
 
+/**
+* @brief Construct the sparsity structure of the outer-mode of a CSF tensor.
+*
+* @param ct The CSF tensor to construct.
+* @param tt The coordinate tensor to construct from. Assumed to be already
+*            sorted.
+* @param tile_id The ID of the tile to construct.
+* @param nnztile_ptr A pointer into 'tt' that marks the start of each tile.
+*/
 static void __mk_outerptr(
   splatt_csf * const ct,
   sptensor_t const * const tt,
@@ -190,9 +227,9 @@ static void __mk_outerptr(
   /* grab sparsity pattern */
   csf_sparsity * const pt = ct->pt + tile_id;
 
-  pt->fptr[0] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
+  pt->fptr[0] = malloc((nfibs+1) * sizeof(**(pt->fptr)));
   if(ct->ntiles > 1) {
-    pt->fids[0] = (idx_t *) malloc(nfibs * sizeof(idx_t));
+    pt->fids[0] = malloc(nfibs * sizeof(**(pt->fids)));
   } else {
     pt->fids[0] = NULL;
   }
@@ -219,6 +256,18 @@ static void __mk_outerptr(
 }
 
 
+/**
+* @brief Construct the sparsity structure of any mode but the last. The first
+*        (root) mode is handled by p_mk_outerptr and the first is simply a copy
+*        of the nonzeros.
+*
+* @param ct The CSF tensor to construct.
+* @param tt The coordinate tensor to construct from. Assumed to be already
+*            sorted.
+* @param tile_id The ID of the tile to construct.
+* @param nnztile_ptr A pointer into 'tt' that marks the start of each tile.
+* @param mode Which mode we are constructing.
+*/
 static void __mk_fptr(
   splatt_csf * const ct,
   sptensor_t const * const tt,
@@ -260,8 +309,8 @@ static void __mk_fptr(
   pt->nfibs[mode] = nfibs;
 
 
-  pt->fptr[mode] = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
-  pt->fids[mode] = (idx_t *) malloc(nfibs * sizeof(idx_t));
+  pt->fptr[mode] = malloc((nfibs+1) * sizeof(**(pt->fptr)));
+  pt->fids[mode] = malloc(nfibs * sizeof(**(pt->fids)));
   idx_t * const restrict fp = pt->fptr[mode];
   idx_t * const restrict fi = pt->fids[mode];
   fp[0] = 0;
@@ -296,7 +345,7 @@ static void __mk_fptr(
 * @brief Allocate and fill a CSF tensor from a coordinate tensor without
 *        tiling.
 *
-* @param ft The CSF tensor to fill out.
+* @param ct The CSF tensor to fill out.
 * @param tt The sparse tensor to start from.
 */
 static void __csf_alloc_untiled(
@@ -310,17 +359,17 @@ static void __csf_alloc_untiled(
   for(idx_t m=0; m < nmodes; ++m) {
     ct->tile_dims[m] = 1;
   }
-  ct->pt = (csf_sparsity *) malloc(sizeof(csf_sparsity));
+  ct->pt = malloc(sizeof(*(ct->pt)));
 
   csf_sparsity * const pt = ct->pt;
 
   /* last row of fptr is just nonzero inds */
   pt->nfibs[nmodes-1] = ct->nnz;
-  pt->fids[nmodes-1] = (idx_t *) malloc(ct->nnz * sizeof(idx_t));
-  pt->vals           = (val_t *) malloc(ct->nnz * sizeof(val_t));
+  pt->fids[nmodes-1] = malloc(ct->nnz * sizeof(**(pt->fids)));
+  pt->vals           = malloc(ct->nnz * sizeof(*(pt->vals)));
   memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]],
-      ct->nnz * sizeof(idx_t));
-  memcpy(pt->vals, tt->vals, ct->nnz * sizeof(val_t));
+      ct->nnz * sizeof(**(pt->fids)));
+  memcpy(pt->vals, tt->vals, ct->nnz * sizeof(*(pt->vals)));
 
   /* setup a basic tile ptr for one tile */
   idx_t nnz_ptr[2];
@@ -339,7 +388,7 @@ static void __csf_alloc_untiled(
 * @brief Reorder the nonzeros in a sparse tensor using dense tiling and fill
 *        a CSF tensor with the data.
 *
-* @param ft The CSF tensor to fill.
+* @param ct The CSF tensor to fill.
 * @param tt The sparse tensor to start from.
 * @param splatt_opts Options array for SPLATT - used for tile dimensions.
 */
@@ -366,7 +415,7 @@ static void __csf_alloc_densetile(
   idx_t * nnz_ptr = tt_densetile(tt, ct->tile_dims);
 
   ct->ntiles = ntiles;
-  ct->pt = (csf_sparsity *) malloc(ntiles * sizeof(csf_sparsity));
+  ct->pt = malloc(ntiles * sizeof(*(ct->pt)));
 
   for(idx_t t=0; t < ntiles; ++t) {
     idx_t const startnnz = nnz_ptr[t];
@@ -383,7 +432,7 @@ static void __csf_alloc_densetile(
         pt->nfibs[m] = 0;
       }
       /* first fptr may be accessed anyway */
-      pt->fptr[0] = (idx_t *) malloc(2 * sizeof(idx_t));
+      pt->fptr[0] = (idx_t *) malloc(2 * sizeof(**(pt->fptr)));
       pt->fptr[0][0] = 0;
       pt->fptr[0][1] = 0;
       pt->vals = NULL;
@@ -393,12 +442,12 @@ static void __csf_alloc_densetile(
     /* last row of fptr is just nonzero inds */
     pt->nfibs[nmodes-1] = ptnnz;
 
-    pt->fids[nmodes-1] = (idx_t *) malloc(ptnnz * sizeof(idx_t));
+    pt->fids[nmodes-1] = malloc(ptnnz * sizeof(**(pt->fids)));
     memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]] + startnnz,
-        ptnnz * sizeof(idx_t));
+        ptnnz * sizeof(**(pt->fids)));
 
-    pt->vals = (val_t *) malloc(ptnnz * sizeof(val_t));
-    memcpy(pt->vals, tt->vals + startnnz, ptnnz * sizeof(val_t));
+    pt->vals = malloc(ptnnz * sizeof(*(pt->vals)));
+    memcpy(pt->vals, tt->vals + startnnz, ptnnz * sizeof(*(pt->vals)));
 
     /* create fptr entries for the rest of the modes */
     for(idx_t m=0; m < tt->nmodes-1; ++m) {
@@ -410,6 +459,15 @@ static void __csf_alloc_densetile(
 }
 
 
+/**
+* @brief Allocate and fill a CSF tensor.
+*
+* @param ct The CSF tensor to fill.
+* @param tt The coordinate tensor to work from.
+* @param mode_type The allocation scheme for the CSF tensor.
+* @param mode Which mode we are converting for (if applicable).
+* @param splatt_opts Used to determine tiling scheme.
+*/
 static void __mk_csf(
   splatt_csf * const ct,
   sptensor_t * const tt,
@@ -531,17 +589,17 @@ size_t csf_storage(
   size_t bytes = 0;
   for(idx_t m=0; m < ntensors; ++m) {
     splatt_csf const * const ct = tensors + m;
-    bytes += ct->nnz * sizeof(val_t); /* vals */
-    bytes += ct->nnz * sizeof(idx_t); /* fids[nmodes] */
-    bytes += ct->ntiles * sizeof(csf_sparsity); /* pt */
+    bytes += ct->nnz * sizeof(*(ct->pt->vals)); /* vals */
+    bytes += ct->nnz * sizeof(**(ct->pt->fids)); /* fids[nmodes] */
+    bytes += ct->ntiles * sizeof(*(ct->pt)); /* pt */
 
     for(idx_t t=0; t < ct->ntiles; ++t) {
       csf_sparsity const * const pt = ct->pt + t;
 
       for(idx_t m=0; m < ct->nmodes-1; ++m) {
-        bytes += (pt->nfibs[m]+1) * sizeof(idx_t); /* fptr */
+        bytes += (pt->nfibs[m]+1) * sizeof(**(pt->fptr)); /* fptr */
         if(pt->fids[m] != NULL) {
-          bytes += pt->nfibs[m] * sizeof(idx_t); /* fids */
+          bytes += pt->nfibs[m] * sizeof(**(pt->fids)); /* fids */
         }
       }
     }

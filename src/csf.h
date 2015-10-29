@@ -28,6 +28,7 @@ typedef enum
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#define csf_alloc splatt_csf_alloc
 /**
 * @brief Convert a coordinate tensor to CSF form. Options will determine how
 *        many tensors to allocate and which tiling scheme to use.
@@ -38,7 +39,6 @@ typedef enum
 *
 * @return The allocated tensor(s).
 */
-#define csf_alloc splatt_csf_alloc
 splatt_csf * splatt_csf_alloc(
   sptensor_t * const tt,
   double const * const opts);
@@ -104,6 +104,7 @@ void csf_find_mode_order(
   idx_t * const perm_dims);
 
 
+#define csf_mode_depth splatt_csf_mode_depth
 /**
 * @brief Map a mode (in the input system) to the tree level that it is found.
 *        This is equivalent to the inverse dim_perm.
