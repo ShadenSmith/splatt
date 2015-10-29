@@ -249,10 +249,9 @@ extern 'C' {
 *
 * @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
-int splatt_cpd(
-    splatt_idx_t const nfactors,
-    splatt_idx_t const nmodes,
+int splatt_cpd_als(
     splatt_csf const * const tensors,
+    splatt_idx_t const nfactors,
     double const * const options,
     splatt_kruskal_t * factored);
 

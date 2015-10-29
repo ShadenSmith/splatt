@@ -108,6 +108,45 @@ CTEST2(csf_one_init, mode_minusone)
       }
     }
   }
-
 }
 
+
+CTEST2(csf_one_init, normsq)
+{
+  val_t gold_norm = 0;
+  idx_t nnz = data->tt->nnz;
+  val_t const * const vals = data->tt->vals;
+  for(idx_t n=0; n < nnz; ++n) {
+    gold_norm += vals[n] * vals[n];
+  }
+
+  splatt_csf * csf = csf_alloc(data->tt, data->opts);
+  val_t mynorm = csf_frobsq(csf);
+  csf_free(csf, data->opts);
+
+  ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1e-10);
+}
+
+
+CTEST2(csf_one_init, dense_tiled_normsq)
+{
+  val_t gold_norm = 0;
+  idx_t nnz = data->tt->nnz;
+  val_t const * const vals = data->tt->vals;
+  for(idx_t n=0; n < nnz; ++n) {
+    gold_norm += vals[n] * vals[n];
+  }
+
+  data->opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
+  data->opts[SPLATT_OPTION_NTHREADS] = 7;
+
+  for(idx_t m=0; m < data->tt->nmodes; ++m) {
+    data->opts[SPLATT_OPTION_TILEDEPTH] = m;
+    splatt_csf * csf = csf_alloc(data->tt, data->opts);
+    val_t mynorm = csf_frobsq(csf);
+    csf_free(csf, data->opts);
+
+    ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1.5e-9);
+  }
+
+}

@@ -65,7 +65,7 @@ CTEST2(tile_dense, no_missing_nnz)
   for(idx_t x=0; x < data->tt->nnz; ++x) {
     valsum -= data->tt->vals[x];
   }
-  ASSERT_DBL_NEAR_TOL(0, valsum, 1e-10);
+  ASSERT_DBL_NEAR_TOL(0, valsum, 1.5e-9);
 }
 
 

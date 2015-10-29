@@ -398,6 +398,183 @@ static void __update_rows_all2all(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+double mpi_cpd_als_iterate(
+  ftensor_t const * const ft,
+  matrix_t ** mats,
+  matrix_t ** globmats,
+  val_t * const lambda,
+  idx_t const nfactors,
+  rank_info * const rinfo,
+  double const * const opts)
+{
+  idx_t const nmodes = tensors[0].nmodes;
+  idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
+
+  /* Setup thread structures. + 64 bytes is to avoid false sharing. */
+  omp_set_num_threads(nthreads);
+  thd_info * thds =  thd_init(nthreads, 3,
+    (nfactors * nfactors * sizeof(val_t)) + 64,
+    (TILE_SIZES[0] * nfactors * sizeof(val_t)) + 64,
+    (nmodes * nfactors * sizeof(val_t)) + 64);
+
+  matrix_t * m1 = mats[MAX_NMODES];
+
+  /* Extract MPI communication structures */
+  idx_t maxdim = 0;
+  idx_t maxlocal2nbr = 0;
+  idx_t maxnbr2globs = 0;
+  for(idx_t m=0; m < nmodes; ++m) {
+    maxlocal2nbr = SS_MAX(maxlocal2nbr, rinfo->nlocal2nbr[m]);
+    maxnbr2globs = SS_MAX(maxnbr2globs, rinfo->nnbr2globs[m]);
+    maxdim = SS_MAX(globmats[m]->I, maxdim);
+  }
+  maxlocal2nbr *= nfactors;
+  maxnbr2globs *= nfactors;
+
+  val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
+  val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
+  if(rinfo->distribution == 3) {
+    m1 = mat_alloc(maxdim, nfactors);
+  }
+
+  /* Exchange initial matrices */
+  for(idx_t m=1; m < nmodes; ++m) {
+    mpi_update_rows(ft[m].indmap, nbr2globs_buf, local2nbr_buf, mats[m],
+        globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
+  }
+
+  matrix_t * m1ptr = m1; /* for restoring m1 */
+
+  /* Initialize first A^T * A mats. We redundantly do the first because it
+   * makes communication easier. */
+  matrix_t * aTa[MAX_NMODES+1];
+  for(idx_t m=0; m < nmodes; ++m) {
+    aTa[m] = mat_alloc(nfactors, nfactors);
+    mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
+  }
+  /* used as buffer space */
+  aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
+
+  /* Compute input tensor norm */
+  double oldfit = 0;
+  double fit = 0;
+  val_t mynorm = csf_frobsq(tensors);
+
+  val_t ttnormsq = 0;
+  MPI_Allreduce(&mynorm, &ttnormsq, 1, SPLATT_MPI_VAL, MPI_SUM, rinfo->comm_3d);
+
+  /* setup timers */
+  __reset_cpd_timers(rinfo);
+  sp_timer_t itertime;
+  sp_timer_t modetime[MAX_NMODES];
+  timer_start(&timers[TIMER_CPD]);
+
+  idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
+  for(idx_t it=0; it < niters; ++it) {
+    timer_fstart(&itertime);
+    for(idx_t m=0; m < nmodes; ++m) {
+      timer_fstart(&modetime[m]);
+      mats[MAX_NMODES]->I = tensors[0].dims[m];
+      m1->I = globmats[m]->I;
+      m1ptr->I = globmats[m]->I;
+
+      /* M1 = X * (C o B) */
+      timer_start(&timers[TIMER_MTTKRP]);
+      mttkrp_csf(tensors, mats, m, thds, opts);
+      timer_stop(&timers[TIMER_MTTKRP]);
+
+      if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
+        m1 = m1ptr;
+        /* add my partial multiplications to globmats[m] */
+        mpi_add_my_partials(ft[m].indmap, mats[MAX_NMODES], m1, rinfo,
+            nfactors, m);
+        /* incorporate neighbors' partials */
+        mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
+            rinfo, nfactors, m, DEFAULT_COMM);
+      } else {
+        /* skip the whole process */
+        m1 = mats[MAX_NMODES];
+      }
+
+      /* M2 = (CtC .* BtB .* ...)^-1 */
+      __calc_M2(m, nmodes, aTa);
+
+      /* A = M1 * M2 */
+      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
+      mat_matmul(m1, aTa[MAX_NMODES], globmats[m]);
+
+      /* normalize columns and extract lambda */
+      if(it == 0) {
+        mat_normalize(globmats[m], lambda, MAT_NORM_2, rinfo, thds, nthreads);
+      } else {
+        mat_normalize(globmats[m], lambda, MAT_NORM_MAX, rinfo, thds,nthreads);
+      }
+
+      /* send updated rows to neighbors */
+      mpi_update_rows(ft[m].indmap, nbr2globs_buf, local2nbr_buf, mats[m],
+          globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
+
+      /* update A^T*A */
+      mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
+      timer_stop(&modetime[m]);
+    } /* foreach mode */
+
+    fit = __calc_fit(nmodes, rinfo, thds, ttnormsq, lambda, globmats, m1, aTa);
+    timer_stop(&itertime);
+
+    if(rinfo->rank == 0 &&
+        opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
+      printf("  its = %3"SPLATT_PF_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.4e\n",
+          it+1, itertime.seconds, fit, fit - oldfit);
+      if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_LOW) {
+        for(idx_t m=0; m < nmodes; ++m) {
+          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs)\n", m+1,
+              modetime[m].seconds);
+        }
+      }
+    }
+    if(it > 0 && fabs(fit - oldfit) < opts[SPLATT_OPTION_TOLERANCE]) {
+      break;
+    }
+    oldfit = fit;
+  }
+  timer_stop(&timers[TIMER_CPD]);
+
+  if(rinfo->rank == 0 &&
+      opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
+    printf("Final fit: %0.5f\n", fit);
+  }
+
+  /* POST PROCESSING */
+  /* normalize each mat and adjust lambda */
+  val_t * tmp = (val_t *) malloc(nfactors * sizeof(val_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds, nthreads);
+    for(idx_t f=0; f < nfactors; ++f) {
+      lambda[f] *= tmp[f];
+    }
+  }
+  free(tmp);
+
+  /* CLEAN UP */
+  for(idx_t m=0; m < nmodes; ++m) {
+    mat_free(aTa[m]);
+  }
+  mat_free(aTa[MAX_NMODES]);
+
+  thd_free(thds, nthreads);
+  if(rinfo->distribution == 3) {
+    mat_free(m1ptr);
+  }
+  free(local2nbr_buf);
+  free(nbr2globs_buf);
+
+  mpi_time_stats(rinfo);
+
+  return fit;
+}
+
+
 void mpi_update_rows(
   idx_t const * const indmap,
   val_t * const nbr2globs_buf,

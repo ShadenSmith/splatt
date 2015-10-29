@@ -598,9 +598,13 @@ val_t csf_frobsq(
   {
     for(idx_t t=0; t < tensor->ntiles; ++t) {
       val_t const * const vals = tensor->pt[t].vals;
+      if(vals == NULL) {
+        continue;
+      }
+
       idx_t const nnz = tensor->pt[t].nfibs[nmodes-1];
 
-      #pragma omp for
+      #pragma omp for nowait
       for(idx_t n=0; n < nnz; ++n) {
         norm += vals[n] * vals[n];
       }

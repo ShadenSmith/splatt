@@ -25,21 +25,21 @@
 
 int splatt_cpd_als(
     splatt_csf const * const tensors,
-    splatt_idx_t const nmodes,
     splatt_idx_t const nfactors,
     double const * const options,
     splatt_kruskal_t * factored)
 {
   matrix_t * globmats[MAX_NMODES+1];
 
+  idx_t nmodes = tensors->nmodes;
+
   rank_info rinfo;
   rinfo.rank = 0;
 
   /* allocate factor matrices */
-  idx_t maxdim = 0;
+  idx_t maxdim = tensors->dims[argmax_elem(tensors->dims, nmodes)];
   for(idx_t m=0; m < nmodes; ++m) {
     globmats[m] = (matrix_t *) mat_rand(tensors[0].dims[m], nfactors);
-    maxdim = SS_MAX(globmats[m]->I, maxdim);
   }
   globmats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
 
