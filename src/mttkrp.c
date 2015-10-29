@@ -180,6 +180,65 @@ static inline void __propagate_up(
 }
 
 
+static void __csf_mttkrp_root_tiled3(
+  splatt_csf const * const ct,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  thd_info * const thds)
+{
+  assert(ct->nmodes == 3);
+  val_t const * const vals = ct->pt[tile_id].vals;
+
+  idx_t const * const restrict sptr = ct->pt[tile_id].fptr[0];
+  idx_t const * const restrict fptr = ct->pt[tile_id].fptr[1];
+
+  idx_t const * const restrict sids = ct->pt[tile_id].fids[0];
+  idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
+  idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
+
+  val_t const * const avals = mats[ct->dim_perm[1]]->vals;
+  val_t const * const bvals = mats[ct->dim_perm[2]]->vals;
+  val_t * const ovals = mats[MAX_NMODES]->vals;
+  idx_t const nfactors = mats[MAX_NMODES]->J;
+
+  val_t * const restrict accumF
+      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+
+  idx_t const nslices = ct->pt[tile_id].nfibs[0];
+  for(idx_t s=0; s < nslices; ++s) {
+    idx_t const fid = (sids == NULL) ? s : sids[s];
+
+    val_t * const restrict mv = ovals + (fid * nfactors);
+
+    /* foreach fiber in slice */
+    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+      /* first entry of the fiber is used to initialize accumF */
+      idx_t const jjfirst  = fptr[f];
+      val_t const vfirst   = vals[jjfirst];
+      val_t const * const restrict bv = bvals + (inds[jjfirst] * nfactors);
+      for(idx_t r=0; r < nfactors; ++r) {
+        accumF[r] = vfirst * bv[r];
+      }
+
+      /* foreach nnz in fiber */
+      for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
+        val_t const v = vals[jj];
+        val_t const * const restrict bv = bvals + (inds[jj] * nfactors);
+        for(idx_t r=0; r < nfactors; ++r) {
+          accumF[r] += v * bv[r];
+        }
+      }
+
+      /* scale inner products by row of A and update to M */
+      val_t const * const restrict av = avals  + (fids[f] * nfactors);
+      for(idx_t r=0; r < nfactors; ++r) {
+        mv[r] += accumF[r] * av[r];
+      }
+    }
+  }
+}
+
+
 static void __csf_mttkrp_root3(
   splatt_csf const * const ct,
   idx_t const tile_id,
@@ -356,6 +415,68 @@ static void __csf_mttkrp_leaf3(
     }
   }
 }
+
+
+static void __csf_mttkrp_root_tiled(
+  splatt_csf const * const ct,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  thd_info * const thds)
+{
+  /* extract tensor structures */
+  idx_t const nmodes = ct->nmodes;
+  val_t const * const vals = ct->pt[tile_id].vals;
+
+  /* empty tile, just return */
+  if(vals == NULL) {
+    return;
+  }
+
+  if(nmodes == 3) {
+    __csf_mttkrp_root_tiled3(ct, tile_id, mats, thds);
+    return;
+  }
+
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) ct->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) ct->pt[tile_id].fids;
+  idx_t const nfactors = mats[0]->J;
+
+  val_t * mvals[MAX_NMODES];
+  val_t * buf[MAX_NMODES];
+  idx_t idxstack[MAX_NMODES];
+
+  int const tid = omp_get_thread_num();
+  for(idx_t m=0; m < nmodes; ++m) {
+    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    /* grab the next row of buf from thds */
+    buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
+    memset(buf[m], 0, nfactors * sizeof(val_t));
+  }
+
+  val_t * const ovals = mats[MAX_NMODES]->vals;
+
+  idx_t const nfibs = ct->pt[tile_id].nfibs[0];
+  assert(nfibs <= mats[MAX_NMODES]->I);
+
+  for(idx_t s=0; s < nfibs; ++s) {
+    idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
+
+    assert(fid < mats[MAX_NMODES]->I);
+
+    __propagate_up(buf[0], buf, idxstack, 0, s, fp, fids,
+        vals, mvals, nmodes, nfactors);
+
+    val_t * const restrict orow = ovals + (fid * nfactors);
+    val_t const * const restrict obuf = buf[0];
+    for(idx_t f=0; f < nfactors; ++f) {
+      orow[f] += obuf[f];
+    }
+  } /* end foreach outer slice */
+}
+
+
 
 static void __csf_mttkrp_root(
   splatt_csf const * const ct,
@@ -885,6 +1006,7 @@ static void __root_decide(
     thd_info * const thds,
     double const * const opts)
 {
+  idx_t const nmodes = tensor->nmodes;
   #pragma omp parallel
   {
     timer_start(&thds[omp_get_thread_num()].ttime);
@@ -892,12 +1014,26 @@ static void __root_decide(
     idx_t tid = 0;
     switch(tensor->which_tile) {
     case SPLATT_NOTILE:
+      __csf_mttkrp_root(tensor, 0, mats, thds);
+      break;
     case SPLATT_DENSETILE:
-      /* TODO: support tiling over root mode and distribute trees in parallel
-       *       to remove barrier */
-      for(idx_t t=0; t < tensor->ntiles; ++t) {
-        __csf_mttkrp_root(tensor, t, mats, thds);
-        #pragma omp barrier
+      /* this mode may not be tiled due to minimum tiling depth */
+      if(opts[SPLATT_OPTION_TILEDEPTH] > 0) {
+        for(idx_t t=0; t < tensor->ntiles; ++t) {
+          __csf_mttkrp_root(tensor, t, mats, thds);
+          #pragma omp barrier
+        }
+      } else {
+        /* distribute tiles to threads */
+        #pragma omp for schedule(dynamic, 1) nowait
+        for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
+          tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes,
+              mode, t);
+          while(tid != TILE_END) {
+            __csf_mttkrp_root_tiled(tensor, tid, mats, thds);
+            tid = get_next_tileid(tid, tensor->tile_dims, nmodes, mode, t);
+          }
+        }
       }
       break;
 
