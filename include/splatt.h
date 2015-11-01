@@ -8,6 +8,9 @@
 #include <inttypes.h>
 #include <float.h>
 
+#ifdef SPLATT_USE_MPI
+#include <mpi.h>
+#endif
 
 /******************************************************************************
  * TYPES
@@ -66,9 +69,9 @@
 /******************************************************************************
  * VERSION
  *****************************************************************************/
-#define SPLATT_VER_MAJOR     0
+#define SPLATT_VER_MAJOR     1
 #define SPLATT_VER_MINOR     0
-#define SPLATT_VER_SUBMINOR  1
+#define SPLATT_VER_SUBMINOR  0
 
 
 
@@ -359,6 +362,7 @@ void  splatt_free_opts(
 */
 void splatt_free_kruskal(
     splatt_kruskal_t * factored);
+
 
 #ifdef __cplusplus
 }

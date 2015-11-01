@@ -348,7 +348,7 @@ void mpi_cpd_stats(
       nfactors,
       (idx_t) opts[SPLATT_OPTION_NITER],
       opts[SPLATT_OPTION_TOLERANCE]);
-  printf("RANXS=%d THREADS=%"SPLATT_PF_IDX" ", rinfo->npes,
+  printf("RANKS=%d THREADS=%"SPLATT_PF_IDX" ", rinfo->npes,
       (idx_t) opts[SPLATT_OPTION_NTHREADS]);
 
   printf("\n");

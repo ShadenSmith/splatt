@@ -4,15 +4,21 @@
  *****************************************************************************/
 #include "splatt_cmds.h"
 #include "../timer.h"
+#include "../util.h"
 
 #ifdef SPLATT_USE_MPI
 #include <mpi.h>
 #endif
 
+
 /******************************************************************************
  * SPLATT GLOBAL INFO
  *****************************************************************************/
-char const *argp_program_version = "splatt v0.0";
+char const *argp_program_version = "splatt " \
+  "v"SPLATT_STRFY(SPLATT_VER_MAJOR) \
+  "."SPLATT_STRFY(SPLATT_VER_MINOR) \
+  "."SPLATT_STRFY(SPLATT_VER_SUBMINOR);
+
 char const *argp_program_bug_address = "Shaden Smith <shaden@cs.umn.edu>";
 
 
