@@ -260,43 +260,6 @@ static val_t __calc_fit(
 }
 
 
-/**
-* @brief Calculate (BtB * CtC * ...)^-1, where * is the Hadamard product. This
-*        is the Gram Matrix of the CPD.
-*
-* @param mode Which mode we are operating on (it is not used in the product).
-* @param nmodes The number of modes in the tensor.
-* @param aTa An array of matrices (length MAX_NMODES)containing BtB, CtC, etc.
-*            [OUT] The result is stored in ata[MAX_NMODES].
-*/
-static void __calc_M2(
-  idx_t const mode,
-  idx_t const nmodes,
-  matrix_t ** aTa)
-{
-  timer_start(&timers[TIMER_INV]);
-
-  idx_t const rank = aTa[0]->J;
-  val_t * const restrict av = aTa[MAX_NMODES]->vals;
-
-  /* ata[MAX_NMODES] = hada(aTa[0], aTa[1], ...) */
-  for(idx_t x=0; x < rank*rank; ++x) {
-    av[x] = 1.;
-  }
-  for(idx_t m=1; m < nmodes; ++m) {
-    idx_t const madjust = (mode + m) % nmodes;
-    val_t const * const vals = aTa[madjust]->vals;
-    for(idx_t x=0; x < rank*rank; ++x) {
-      av[x] *= vals[x];
-    }
-  }
-
-  /* M2 = M2^-1 */
-  mat_syminv(aTa[MAX_NMODES]);
-  timer_stop(&timers[TIMER_INV]);
-}
-
-
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -342,7 +305,7 @@ double cpd_als_iterate(
 
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
-    mpi_update_rows(ft[m].indmap, nbr2globs_buf, local2nbr_buf, mats[m],
+    mpi_update_rows(rinfo->indmap[m], nbr2globs_buf, local2nbr_buf, mats[m],
         globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
   }
 #endif
@@ -394,7 +357,7 @@ double cpd_als_iterate(
       if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
-        mpi_add_my_partials(ft[m].indmap, mats[MAX_NMODES], m1, rinfo,
+        mpi_add_my_partials(rinfo->indmap[m], mats[MAX_NMODES], m1, rinfo,
             nfactors, m);
         /* incorporate neighbors' partials */
         mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
@@ -406,7 +369,7 @@ double cpd_als_iterate(
 #endif
 
       /* M2 = (CtC .* BtB .* ...)^-1 */
-      __calc_M2(m, nmodes, aTa);
+      calc_gram_inv(m, nmodes, aTa);
 
       /* A = M1 * M2 */
       memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
@@ -421,7 +384,7 @@ double cpd_als_iterate(
 
 #ifdef SPLATT_USE_MPI
       /* send updated rows to neighbors */
-      mpi_update_rows(ft[m].indmap, nbr2globs_buf, local2nbr_buf, mats[m],
+      mpi_update_rows(rinfo->indmap[m], nbr2globs_buf, local2nbr_buf, mats[m],
           globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
 #endif
 

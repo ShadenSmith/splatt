@@ -31,11 +31,10 @@
 /******************************************************************************
  * DEFAULTS
  *****************************************************************************/
-static double const DEFAULT_TOL = 1e-4;
+static double const DEFAULT_TOL = 1e-5;
 
 static idx_t const DEFAULT_NFACTORS = 10;
 static idx_t const DEFAULT_ITS = 50;
-static idx_t const DEFAULT_THREADS = 1;
 static idx_t const DEFAULT_MPI_DISTRIBUTION = 0;
 
 static int const DEFAULT_WRITE = 1;

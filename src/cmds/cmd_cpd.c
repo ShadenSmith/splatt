@@ -45,7 +45,7 @@ typedef struct
 *
 * @param args The cpd_opts struct to fill.
 */
-void default_cpd_opts(
+static void default_cpd_opts(
   cpd_cmd_args * args)
 {
   args->opts = splatt_default_opts();

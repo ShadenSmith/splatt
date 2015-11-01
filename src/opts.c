@@ -37,3 +37,4 @@ void splatt_free_opts(
 {
   free(opts);
 }
+
