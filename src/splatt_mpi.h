@@ -124,7 +124,6 @@ typedef enum
  *****************************************************************************/
 #include "sptensor.h"
 #include "reorder.h"
-#include "cpd.h"
 
 
 

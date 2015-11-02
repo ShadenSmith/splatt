@@ -39,8 +39,26 @@ typedef enum
 *
 * @return The allocated tensor(s).
 */
-splatt_csf * splatt_csf_alloc(
+splatt_csf * csf_alloc(
   sptensor_t * const tt,
+  double const * const opts);
+
+
+#define csf_alloc_mode splatt_csf_alloc_mode
+/**
+* @brief Convert a coordinate tensor to CSF form, optimized for a certain
+*        mode. The tensor is written to 'csf', whose pointer is assumed to be
+*        non-NULL. Exactly one tensor will be filled, unlike csf_alloc().
+*
+* @param tt The coordinate tensor to convert from.
+* @param mode_special Which mode to make the root mode.
+* @param csf The tensor to fill.
+* @param opts 'SPLATT_OPTION_TILE' determines the allocation scheme.
+*/
+void splatt_csf_alloc_mode(
+  sptensor_t * const tt,
+  idx_t const mode_special,
+  splatt_csf * const csf,
   double const * const opts);
 
 

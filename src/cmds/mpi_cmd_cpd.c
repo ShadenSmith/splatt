@@ -184,7 +184,7 @@ void splatt_mpi_cpd_cmd(
    * don't belong in each ftensor */
   if(rinfo.distribution == 1) {
     /* XXX  TODO */
-#if 0
+    csf = malloc(tt->nmodes * sizeof(*csf));
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
     mpi_cpy_indmap(tt, &rinfo);
@@ -201,10 +201,11 @@ void splatt_mpi_cpd_cmd(
       mpi_find_owned(tt, m, &rinfo);
       mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 1);
 
-      ften_alloc(ft + m, tt_filtered, m, (int) args.opts[SPLATT_OPTION_TILE]);
+      /* fill csf[m] */
+      csf_alloc_mode(tt, m, csf+m, args.opts);
       /* sanity check on nnz */
       idx_t totnnz;
-      MPI_Reduce(&ft[m].nnz, &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
+      MPI_Reduce(&(csf[m].nnz), &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
           MPI_COMM_WORLD);
       if(rinfo.rank == 0) {
         assert(totnnz == rinfo.global_nnz);
@@ -212,7 +213,6 @@ void splatt_mpi_cpd_cmd(
     } /* foreach mode */
 
     tt_free(tt_filtered);
-#endif
 
   /* 3D distribution is simpler */
   } else {

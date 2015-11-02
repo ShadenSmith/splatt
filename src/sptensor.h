@@ -117,6 +117,16 @@ void tt_free(
   sptensor_t * tt);
 
 
+/**
+* @brief Compute the density of a sparse tensor, defined by nnz/(I*J*K).
+*
+* @param tt The sparse tensor.
+*
+* @return The density of tt.
+*/
+double tt_density(
+  sptensor_t const * const tt);
+
 #define tt_remove_dups splatt_tt_remove_dups
 /**
 * @brief Remove the duplicate entries of a tensor. Duplicate values are

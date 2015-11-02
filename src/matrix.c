@@ -470,14 +470,8 @@ void mat_normalize(
   idx_t const nthreads)
 {
   timer_start(&timers[TIMER_MATNORM]);
-  idx_t const I = A->I;
-  idx_t const J = A->J;
-  val_t * const restrict vals = A->vals;
 
   omp_set_num_threads(nthreads);
-
-  assert(vals != NULL);
-  assert(lambda != NULL);
 
   switch(which) {
   case MAT_NORM_2:

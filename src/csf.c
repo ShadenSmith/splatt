@@ -609,7 +609,7 @@ size_t csf_storage(
 }
 
 
-splatt_csf * splatt_csf_alloc(
+splatt_csf * csf_alloc(
   sptensor_t * const tt,
   double const * const opts)
 {
@@ -653,6 +653,16 @@ splatt_csf * splatt_csf_alloc(
   }
 
   return ret;
+}
+
+
+void csf_alloc_mode(
+  sptensor_t * const tt,
+  idx_t const mode_special,
+  splatt_csf * const csf,
+  double const * const opts)
+{
+  __mk_csf(csf, tt, CSF_SORTED_MINUSONE, mode_special, opts);
 }
 
 

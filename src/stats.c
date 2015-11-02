@@ -11,31 +11,10 @@
 #include "reorder.h"
 #include "util.h"
 
-#include <math.h>
-
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-
-/**
-* @brief Compute the density of a sparse tensor, defined by nnz/(I*J*K).
-*
-* @param tt The sparse tensor.
-*
-* @return The density of tt.
-*/
-static double __tt_density(
-  sptensor_t const * const tt)
-{
-  double root = pow((double)tt->nnz, 1./(double)tt->nmodes);
-  double density = 1.0;
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    density *= root / (double)tt->dims[m];
-  }
-
-  return density;
-}
 
 
 /**
@@ -55,7 +34,7 @@ static void __stats_basic(
     printf("x%"SPLATT_PF_IDX, tt->dims[m]);
   }
   printf(" NNZ=%"SPLATT_PF_IDX, tt->nnz);
-  printf(" DENSITY=%e\n" , __tt_density(tt));
+  printf(" DENSITY=%e\n" , tt_density(tt));
 
   char * bytestr = bytes_str(tt->nnz * ((sizeof(idx_t) * tt->nmodes) + sizeof(val_t)));
   printf("COORD-STORAGE=%s\n", bytestr);
@@ -328,12 +307,12 @@ void mpi_cpd_stats(
   /* get storage across all nodes */
   if(rinfo->rank == 0) {
     MPI_Reduce(MPI_IN_PLACE, &fbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
-        MPI_COMM_WORLD);
+        rinfo->comm_3d);
     MPI_Reduce(MPI_IN_PLACE, &mbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
-        MPI_COMM_WORLD);
+        rinfo->comm_3d);
   } else {
-    MPI_Reduce(&fbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Reduce(&mbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&fbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, rinfo->comm_3d);
+    MPI_Reduce(&mbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, rinfo->comm_3d);
   }
 
   /* only master rank prints from here */
@@ -434,10 +413,10 @@ void mpi_rank_stats(
       volume += rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m];
     }
   }
-  MPI_Reduce(&volume, &totvolume, 1, SPLATT_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&volume, &maxvolume, 1, SPLATT_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&tt->nnz, &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&tt->nnz, &maxnnz, 1, SPLATT_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&volume, &totvolume, 1, SPLATT_MPI_IDX, MPI_SUM, 0, rinfo->comm_3d);
+  MPI_Reduce(&volume, &maxvolume, 1, SPLATT_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
+  MPI_Reduce(&tt->nnz, &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM, 0, rinfo->comm_3d);
+  MPI_Reduce(&tt->nnz, &maxnnz, 1, SPLATT_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
 
   if(rinfo->rank == 0) {
     printf("MPI information ------------------------------------------------\n");
