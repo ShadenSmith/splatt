@@ -6,7 +6,7 @@
 <!-- ***************************************************************************** -->
 <!-- ***************************************************************************** -->
 
-\splatt is a C toolkit for operating on sparse tensors.
+\splatt is a toolkit for factoring sparse tensors.
 
 
 */

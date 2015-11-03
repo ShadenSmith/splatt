@@ -6,12 +6,86 @@
 <!-- ============================================================================= -->
 \section requirements System requirements
 
+\splatt is developed and tested on GNU/Linux systems. While it will probably
+work on other systems, it has not been extensively tested.  \splatt has a few
+software prerequisites:
+
+1. C99 compiler with OpenMP support ([http://gnu.gcc.org](http://gnu.gcc.org)).
+2. CMake, version 2.6 or higher ([http://www.cmake.org](http://www.cmake.org)).
+
+We have successfully used GCC and LLVM (clang), but most of our testing is
+conducted with GCC. Note that OpenMP support is required and many default LLVM
+installations do not include the needed OpenMP <a href="http://openmp.llvm.org/">runtime</a>.
+
+\splatt also has optional support for <a href="http://mpi-forum.org/">MPI</a>.
+Most testing is conducted with <a href="http://www.open-mpi.org/">OpenMPI</a>
+and <a href="http://www.mpich.org/">MPICH</a>.
 
 <!-- ============================================================================= -->
-\section compilelib Compiling SPLATT
+\section configurelib Configuring SPLATT
+
+\splatt requires minor configuration before compilation. We provide a
+`configure` script which sets up the CMake build environment.  Most users can
+simply use
+\verbatim
+    $ ./configure
+\endverbatim
+for this step, or
+\verbatim
+    $ ./configure --mpi
+\endverbatim
+if MPI support is wanted. There are a number of other options that can be
+configured:
+
+\verbatim
+    $ ./configure --help
+    USAGE: configure [options]
+
+    OPTIONS:
+      --prefix=<prefix>
+        Set the install prefix.
+      --cc=<cc>
+        Set the C compiler to use.
+      --mpi
+        Build with MPI support
+      --patoh
+        Build with PaToH hypergraph partitioning (must be previously installed).
+      --debug
+        Build with debugging symbols, assertions, and turn optimizations off.
+      --dev
+        Build in development mode. Warnings and extra logging enabled.
+\endverbatim
+
+<!-- ============================================================================= -->
+\section compilelib Building SPLATT
+
+After configuration, the \splatt library (`libsplatt.a`) and executable
+(`splatt`) are built via:
+\verbatim
+    $ make
+\endverbatim
+
+All compiled files are found in the resulting `build/<arch>/` directory. To
+install them to the installation prefix, use:
+\verbatim
+    $ make install
+\endverbatim
+or alternatively to reverse this process:
+\verbatim
+    $ make uninstall
+\endverbatim
 
 
 <!-- ============================================================================= -->
-\section compilemat Compiling GNU Octave/Matlab routines
+\section compilemat Building GNU Octave/Matlab routines
+\splatt also provides an API callable from Octave and Matlab.
+To compile the interface just enter the `matlab/` directory from either
+Octave or Matlab and call `make`.
+\verbatim
+    >> cd matlab
+    >> make
+\endverbatim
+After compilation the MEX files will be found in the current directory.
+You now call those functions directly.
 
 */

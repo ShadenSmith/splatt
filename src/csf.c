@@ -26,7 +26,7 @@ int splatt_csf_load(
 
   tt_remove_empty(tt);
 
-  *tensors = csf_alloc(&tt, options);
+  *tensors = csf_alloc(tt, options);
   *nmodes = tt->nmodes;
 
   tt_free(tt);
