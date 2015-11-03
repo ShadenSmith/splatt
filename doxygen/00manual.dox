@@ -9,11 +9,12 @@
  - \subpage setup
  - \subpage running
  - \subpage api
+ - \subpage mpi
 
  - \subpage contact
  - \subpage license
- - \subpage cite
 <!--
+ - \subpage cite
  - \subpage troubleshooting
  - \subpage guidelines
 -->
