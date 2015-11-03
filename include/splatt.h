@@ -79,7 +79,9 @@
  * ENUMS / CONSTANTS
  *****************************************************************************/
 
+#ifndef SPLATT_MAX_NMODES
 #define SPLATT_MAX_NMODES ((splatt_idx_t) 8)
+#endif
 
 /**
 * @brief Enum for defining SPLATT options. Use the splatt_default_opts() and
