@@ -8,6 +8,60 @@
 
 #include "io.h"
 
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+
+int splatt_csf_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    splatt_csf ** tensors,
+    double const * const options)
+{
+  sptensor_t * tt = tt_read(fname);
+  if(tt == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
+
+  tt_remove_empty(tt);
+
+  *tensors = csf_alloc(&tt, options);
+  *nmodes = tt->nmodes;
+
+  tt_free(tt);
+
+  return SPLATT_SUCCESS;
+}
+
+int splatt_csf_convert(
+    splatt_idx_t const nmodes,
+    splatt_idx_t const nnz,
+    splatt_idx_t ** const inds,
+    splatt_val_t * const vals,
+    splatt_csf ** tensors,
+    double const * const options)
+{
+  sptensor_t tt;
+  tt_fill(&tt, nnz, nmodes, inds, vals);
+  tt_remove_empty(&tt);
+
+  *tensors = csf_alloc(&tt, options);
+
+  return SPLATT_SUCCESS;
+}
+
+
+void splatt_free_csf(
+    splatt_csf * tensors,
+    double const * const options)
+{
+  csf_free(tensors, options);
+}
+
+
+
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/

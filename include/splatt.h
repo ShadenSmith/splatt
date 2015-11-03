@@ -134,9 +134,10 @@ typedef enum
 typedef enum
 {
   SPLATT_NOTILE,
+  SPLATT_DENSETILE,
+  /* DEPRECATED - pending CSF implementations */
   SPLATT_SYNCTILE,
   SPLATT_COOPTILE,
-  SPLATT_DENSETILE
 } splatt_tile_t;
 
 
@@ -199,38 +200,6 @@ typedef struct splatt_csf
 } splatt_csf;
 
 
-/*********
- */
-
-
-/**
-* @brief Struct describing SPLATT's compressed sparse fiber (CSF) format. Use
-*        the splatt_csf_* functions to allocate, fill, and free this structure.
-*/
-typedef struct splatt_csf_t
-{
-  splatt_idx_t nnz;                     /** Number of nonzeros */
-  splatt_idx_t nmodes;                  /** Number of modes */
-  splatt_idx_t dims[SPLATT_MAX_NMODES];        /** Dimension of each mode */
-  splatt_idx_t dim_perm[SPLATT_MAX_NMODES];    /** Permutation of modes */
-
-  splatt_idx_t  nslcs;    /** Number of slices (length of sptr) */
-  splatt_idx_t  nfibs;    /** Number of fibers (length of fptr) */
-  splatt_idx_t * sptr;    /** Indexes into fptr the start/end of each slice */
-  splatt_idx_t * fptr;    /** Indexes into vals the start/end of each fiber */
-  splatt_idx_t * fids;    /** ID of each fiber (for mode dim_perm[nmodes-2])*/
-  splatt_idx_t * inds;    /** ID of each nnz (for dim_perm[nmodes-1]) */
-  splatt_val_t * vals;    /** Floating point value of each nonzero */
-
-  splatt_idx_t * indmap;  /** Maps local to global indices if empty slices */
-
-  /* TILED STRUCTURES */
-  splatt_tile_t tiled;                /** splatt_tile_t type */
-  splatt_idx_t    nslabs;   /** Number of slabs (length of slabptr) */
-  splatt_idx_t * slabptr;   /** Indexes into fptr the start/end of each slab */
-  splatt_idx_t * sids;      /** ID of each fiber (for dim_perm[0]) */
-} splatt_csf_t;
-
 
 /******************************************************************************
  * API FUNCTIONS
@@ -246,7 +215,7 @@ extern 'C' {
 * @param nfactors The rank of the decomposition to perform.
 * @param nmodes The number of modes in the tensor. Optimizations are currently
 *               only present for nmodes=3.
-* @param tensors An array of splatt_csf_t created by SPLATT.
+* @param tensors An array of splatt_csf created by SPLATT.
 * @param options Options array for SPLATT.
 * @param factored [OUT] The factored tensor in Kruskal format.
 *
@@ -276,7 +245,7 @@ int splatt_cpd_als(
 int splatt_mttkrp(
     splatt_idx_t const mode,
     splatt_idx_t const ncolumns,
-    splatt_csf_t const * const tensor,
+    splatt_csf const * const tensors,
     splatt_val_t ** matrices,
     splatt_val_t * const matout,
     double const * const options);
@@ -287,18 +256,16 @@ int splatt_mttkrp(
 *
 * @param fname The filename to read from.
 * @param nmodes [OUT] SPLATT will fill in the number of modes found.
-* @param tensors [OUT] An array of splatt_csf_t structures, one for each mode.
-*                The 'nmodes' param will be filled with the length of the
-*                array.
-* @param options An options array allocated by splatt_default_opts(). Option
-*        SPLATT_OPTION_TILE is used here.
+* @param tensors [OUT] An array of splatt_csf structure(s). Allocation scheme
+*                follows opts[SPLATT_OPTION_CSF_ALLOC].
+* @param options An options array allocated by splatt_default_opts().
 *
 * @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
 int splatt_csf_load(
     char const * const fname,
     splatt_idx_t * nmodes,
-    splatt_csf_t ** tensors,
+    splatt_csf ** tensors,
     double const * const options);
 
 
@@ -311,9 +278,8 @@ int splatt_csf_load(
 *             inds[0][n-1], inds[1][n-1], ..., inds[nmodes-1][n-1].
 * @param vals The actual values of the nonzeros. Nonzero 'n' is found at
 *             vals[n-1].
-* @param tensors [OUT] An array of splatt_csf_t structures, one for each mode.
-*                The 'nmodes' param will be filled with the length of the
-*                array.
+* @param tensors [OUT] An array of splatt_csf structure(s). Allocation scheme
+*                follows opts[SPLATT_OPTION_CSF_ALLOC].
 * @param options Options array allocated by splatt_default_opts(). Use the
 *                splatt_option_t enum to change these values.
 *                SPLATT_OPTION_TILE is used here.
@@ -325,7 +291,7 @@ int splatt_csf_convert(
     splatt_idx_t const nnz,
     splatt_idx_t ** const inds,
     splatt_val_t * const vals,
-    splatt_csf_t ** tensors,
+    splatt_csf ** tensors,
     double const * const options);
 
 
@@ -338,14 +304,15 @@ double * splatt_default_opts(void);
 
 
 /**
-* @brief Free the memory allocated by an array of CSF tensors.
+* @brief Free all memory allocated for a tensor in CSF form.
 *
-* @param nmodes The number of modes to free.
-* @param tensors The array of CSF tensors. The pointer will also be freed!
+* @param csf The tensor(s) to free.
+* @param opts opts[SPLATT_OPTION_CSF_ALLOC] tells us how many tensors are
+*             allocated.
 */
 void splatt_free_csf(
-    splatt_idx_t const nmodes,
-    splatt_csf_t * tensors);
+    splatt_csf * tensors,
+    double const * const options);
 
 
 /**
