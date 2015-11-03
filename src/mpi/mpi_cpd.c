@@ -653,13 +653,14 @@ double mpi_cpd_als_iterate(
     for(idx_t m=0; m < nmodes; ++m) {
       timer_fstart(&modetime[m]);
       mats[MAX_NMODES]->I = tensors[0].dims[m];
-      m1->I = globmats[m]->I;
-      m1ptr->I = globmats[m]->I;
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
       mttkrp_csf(tensors, mats, m, thds, opts);
       timer_stop(&timers[TIMER_MTTKRP]);
+
+      m1->I = globmats[m]->I;
+      m1ptr->I = globmats[m]->I;
 
       if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;

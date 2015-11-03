@@ -288,18 +288,19 @@ void rank_free(
 
 void mpi_cpy_indmap(
   sptensor_t const * const tt,
-  rank_info * const rinfo)
+  rank_info * const rinfo,
+  idx_t const mode)
 {
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    /* copy if not NULL */
-    if(tt->indmap[m] != NULL) {
-      idx_t const dim = tt->dims[m];
-      rinfo->indmap[m] = malloc(dim * sizeof(**(rinfo->indmap)));
-      memcpy(rinfo->indmap[m], tt->indmap[m], dim * sizeof(**(rinfo->indmap)));
+  /* copy if not NULL */
+  if(tt->indmap[mode] != NULL) {
+    idx_t const dim = tt->dims[mode];
+    rinfo->indmap[mode] = malloc(dim * sizeof(**(rinfo->indmap)));
+    memcpy(rinfo->indmap[mode], tt->indmap[mode],
+        dim * sizeof(**(rinfo->indmap)));
 
-    } else {
-      rinfo->indmap[m] = NULL;
-    }
+  } else {
+    rinfo->indmap[mode] = NULL;
   }
 }
+
 

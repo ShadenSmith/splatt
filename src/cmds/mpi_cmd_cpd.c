@@ -187,7 +187,9 @@ void splatt_mpi_cpd_cmd(
     csf = malloc(tt->nmodes * sizeof(*csf));
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
-    mpi_cpy_indmap(tt, &rinfo);
+
+    /* coarse-grained forces us to use ALLMODE. override default opts. */
+    args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
 
     sptensor_t * tt_filtered = tt_alloc(tt->nnz, tt->nmodes);
     for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -198,11 +200,14 @@ void splatt_mpi_cpd_cmd(
           rinfo.mat_end[m]);
       assert(tt_filtered->dims[m] == rinfo.mat_end[m] - rinfo.mat_start[m]);
 
+      mpi_cpy_indmap(tt_filtered, &rinfo, m);
+
       mpi_find_owned(tt, m, &rinfo);
       mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 1);
 
       /* fill csf[m] */
-      csf_alloc_mode(tt, m, csf+m, args.opts);
+      csf_alloc_mode(tt_filtered, m, csf+m, args.opts);
+
       /* sanity check on nnz */
       idx_t totnnz;
       MPI_Reduce(&(csf[m].nnz), &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
@@ -218,7 +223,9 @@ void splatt_mpi_cpd_cmd(
   } else {
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
-    mpi_cpy_indmap(tt, &rinfo);
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      mpi_cpy_indmap(tt, &rinfo, m);
+    }
 
     /* create CSF tensor */
     csf = splatt_csf_alloc(tt, args.opts);
@@ -237,18 +244,22 @@ void splatt_mpi_cpd_cmd(
   tt_free(tt);
 
   /* allocate / initialize matrices */
-  idx_t max_dim = csf->dims[argmax_elem(csf->dims, nmodes)];
+  idx_t max_dim = 0;
 
   /* M, the result matrix is stored at mats[MAX_NMODES] */
   matrix_t * mats[MAX_NMODES+1];
   matrix_t * globmats[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    /* XXX TODO  coarse-grained?
-     * ft[:] have different dimensionalities for 1/2D but ft[m+1] is guaranteed
+    /* ft[:] have different dimensionalities for 1D but ft[m+1] is guaranteed
      * to have the full dimensionality
      * */
+    idx_t dim = csf->dims[m];
+    if(rinfo.distribution == 1) {
+      dim = csf[(m+1)%nmodes].dims[m];
+    }
+    max_dim = SS_MAX(max_dim, dim);
 
-    mats[m] = mat_rand(csf->dims[m], args.nfactors);
+    mats[m] = mat_rand(dim, args.nfactors);
 
     /* for actual factor matrix */
     globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m],

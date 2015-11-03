@@ -334,14 +334,17 @@ void mpi_find_owned(
 #define mpi_cpy_indmap splatt_mpi_cpy_indmap
 /**
 * @brief Copy the indmap information from a sparse tensor into rank_info. If
-*        tt->indmap[*] is NULL, this sets rinfo->indmap[*] to NULL.
+*        tt->indmap[mode] is NULL, this sets rinfo->indmap[mode] to NULL.
 *
 * @param tt The sparse tensor to copy from.
 * @param rinfo The rank_info structure to copy to.
+* @param mode Which mode to copy.
 */
 void mpi_cpy_indmap(
   sptensor_t const * const tt,
-  rank_info * const rinfo);
+  rank_info * const rinfo,
+  idx_t const mode);
+
 
 #define mpi_setup_comms splatt_mpi_setup_comms
 /**
