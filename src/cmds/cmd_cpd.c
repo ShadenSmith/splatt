@@ -81,6 +81,7 @@ static error_t parse_cpd_opt(
     args->opts[SPLATT_OPTION_NTHREADS] = (double) atoi(arg);
     break;
   case 'v':
+    timer_lvl = TIMER_LVL2;
     args->opts[SPLATT_OPTION_VERBOSITY] += 1;
     break;
   case TT_TILE:
