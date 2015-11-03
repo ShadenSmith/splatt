@@ -15,7 +15,20 @@
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
 #define cpd_als_iterate splatt_cpd_als_iterate
+/**
+* @brief The primary computation in CPD-ALS. API functions call this one.
+*
+* @param tensors The CSF tensor(s) to factor.
+* @param mats [OUT] The output factors.
+* @param lambda [OUT] The output vector for scaling.
+* @param nfactors The rank of the factorization.
+* @param rinfo MPI rank information (not used, TODO remove).
+* @param opts SPLATT options array.
+*
+* @return The final fitness of the factorization.
+*/
 double cpd_als_iterate(
   splatt_csf const * const tensors,
   matrix_t ** mats,
@@ -24,7 +37,22 @@ double cpd_als_iterate(
   rank_info * const rinfo,
   double const * const opts);
 
+
 #define cpd_post_process splatt_cpd_post_process
+/**
+* @brief Perform a final normalization of the factor matrices and gather into
+*        lambda.
+*
+*        TODO: Sort factor columns and lambda.
+*
+* @param nfactors The rank of the decomposition.
+* @param nmodes The number of modes of the tensor.
+* @param mats [OUT] The output factors.
+* @param lambda [OUT] The output vector for scaling.
+* @param thds Thread buffers.
+* @param nthreads The number of threads to use.
+* @param rinfo MPI rank information (not used, TODO remove).
+*/
 void cpd_post_process(
   idx_t const nfactors,
   idx_t const nmodes,

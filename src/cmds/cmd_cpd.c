@@ -168,6 +168,7 @@ void splatt_cpd_cmd(
       asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
 
       matrix_t tmpmat;
+      tmpmat.rowmajor = 1;
       tmpmat.I = csf->dims[m];
       tmpmat.J = args.nfactors;
       tmpmat.vals = factored.factors[m];

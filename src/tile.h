@@ -7,10 +7,6 @@
 #include "base.h"
 #include "sptensor.h"
 
-/** Dimensions to use while tiling
- *  TODO: make this configurable? */
-static idx_t const TILE_SIZES[] = { 32, 1024, 1024 };
-
 /*
  * Constants used during tile traversal.
  */
@@ -18,6 +14,13 @@ static idx_t const TILE_ERR   = SPLATT_IDX_MAX - 2;
 static idx_t const TILE_BEGIN = SPLATT_IDX_MAX - 1;
 static idx_t const TILE_END   = SPLATT_IDX_MAX;
 
+
+/** DEPRECATED
+ *
+ * Dimensions to use while tiling
+ *  TODO: make this configurable?
+ */
+static idx_t const TILE_SIZES[] = { 32, 1024, 1024 };
 
 /******************************************************************************
  * PUBLIC FUNCTIONS

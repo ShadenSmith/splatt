@@ -274,11 +274,12 @@ double cpd_als_iterate(
   idx_t const nmodes = tensors[0].nmodes;
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
 
-  /* Setup thread structures. + 64 bytes is to avoid false sharing. */
+  /* Setup thread structures. + 64 bytes is to avoid false sharing.
+   * TODO make this better */
   omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 3,
     (nfactors * nfactors * sizeof(val_t)) + 64,
-    (TILE_SIZES[0] * nfactors * sizeof(val_t)) + 64,
+    0,
     (nmodes * nfactors * sizeof(val_t)) + 64);
 
   matrix_t * m1 = mats[MAX_NMODES];
@@ -397,3 +398,5 @@ void cpd_post_process(
 
   free(tmp);
 }
+
+
