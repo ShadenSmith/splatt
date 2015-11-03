@@ -39,7 +39,7 @@ void fill_rand(
 
 
 char * bytes_str(
-  idx_t const bytes)
+  size_t const bytes)
 {
   double size = (double)bytes;
   int suff = 0;
@@ -54,5 +54,34 @@ char * bytes_str(
     ret = NULL;
   }
   return ret;
+}
+
+
+
+idx_t argmax_elem(
+  idx_t const * const arr,
+  idx_t const N)
+{
+  idx_t mkr = 0;
+  for(idx_t i=1; i < N; ++i) {
+    if(arr[i] > arr[mkr]) {
+      mkr = i;
+    }
+  }
+  return mkr;
+}
+
+
+idx_t argmin_elem(
+  idx_t const * const arr,
+  idx_t const N)
+{
+  idx_t mkr = 0;
+  for(idx_t i=1; i < N; ++i) {
+    if(arr[i] < arr[mkr]) {
+      mkr = i;
+    }
+  }
+  return mkr;
 }
 

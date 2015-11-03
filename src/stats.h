@@ -57,13 +57,46 @@ void stats_tt(
 * @param ct The CSF tensor to analyze.
 */
 void stats_csf(
-  csf_t const * const ct);
+  splatt_csf const * const ct);
+
+
+#define cpd_stats splatt_cpd_stats
+/**
+* @brief Output work-related statistics before a CPD factorization. This
+*        includes rank, #threads, tolerance, etc.
+*
+* @param csf The CSF tensor we are factoring.
+* @param nfactors The number of factors.
+* @param opts Other CPD options.
+*/
+void cpd_stats(
+  splatt_csf const * const csf,
+  idx_t const nfactors,
+  double const * const opts);
 
 
 /******************************************************************************
  * MPI FUNCTIONS
  *****************************************************************************/
 #ifdef SPLATT_USE_MPI
+
+#define mpi_cpd_stats splatt_mpi_cpd_stats
+/**
+* @brief Output work-related statistics before a CPD factorization. This
+*        includes rank, #threads, tolerance, etc.
+*
+* @param csf The CSF tensor we are factoring.
+* @param nfactors The number of factors.
+* @param opts Other CPD options.
+* @param rinfo MPI rank information.
+*/
+void mpi_cpd_stats(
+  splatt_csf const * const csf,
+  idx_t const nfactors,
+  double const * const opts,
+  rank_info * const rinfo);
+
+
 #define mpi_global_stats splatt_mpi_global_stats
 /**
 * @brief Copy global information into local tt, print statistics, and

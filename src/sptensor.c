@@ -9,6 +9,8 @@
 #include "io.h"
 #include "timer.h"
 
+#include <math.h>
+
 
 /******************************************************************************
  * PRIVATE FUNCTONS
@@ -48,6 +50,19 @@ val_t tt_normsq(sptensor_t const * const tt)
     norm += tv[n] * tv[n];
   }
   return norm;
+}
+
+
+double tt_density(
+  sptensor_t const * const tt)
+{
+  double root = pow((double)tt->nnz, 1./(double)tt->nmodes);
+  double density = 1.0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    density *= root / (double)tt->dims[m];
+  }
+
+  return density;
 }
 
 
