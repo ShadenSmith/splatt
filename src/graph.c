@@ -274,6 +274,8 @@ splatt_graph * graph_alloc(
   ret->eptr = malloc((nvtxs+1) * sizeof(*(ret->eptr)));
   ret->eind = malloc(nedges * sizeof(*(ret->eind)));
 
+  ret->eptr[nvtxs] = nedges;
+
   if(use_vtx_wgts) {
     ret->vwgts = malloc(nvtxs * sizeof(*(ret->vwgts)));
   } else {

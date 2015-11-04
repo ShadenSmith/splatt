@@ -13,7 +13,8 @@ typedef enum
 {
   CSF_SORTED_SMALLFIRST, /** sort the modes in non-decreasing order */
   CSF_SORTED_BIGFIRST,   /** sort the modes in non-increasing order */
-  CSF_SORTED_MINUSONE    /** one mode is placed first, rest sorted  */
+  CSF_INORDER_MINUSONE,  /** one mode is placed first, rest naturally ordered*/
+  CSF_SORTED_MINUSONE    /** one mode is placed first, rest sorted by size */
 } csf_mode_type;
 
 
@@ -51,12 +52,14 @@ splatt_csf * csf_alloc(
 *        non-NULL. Exactly one tensor will be filled, unlike csf_alloc().
 *
 * @param tt The coordinate tensor to convert from.
+* @param which_ordering Which ordering scheme to use.
 * @param mode_special Which mode to make the root mode.
 * @param csf The tensor to fill.
 * @param opts 'SPLATT_OPTION_TILE' determines the allocation scheme.
 */
 void csf_alloc_mode(
   sptensor_t * const tt,
+  csf_mode_type which_ordering,
   idx_t const mode_special,
   splatt_csf * const csf,
   double const * const opts);

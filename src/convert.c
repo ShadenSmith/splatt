@@ -13,6 +13,7 @@
 #include "stats.h"
 #include "timer.h"
 
+#include "util.h"
 #include "csf.h"
 
 
@@ -31,6 +32,63 @@ typedef struct
 
 static idx_t nreallocs;
 static idx_t const ADJ_START_ALLOC = 8;
+
+
+typedef struct
+{
+  wgt_t * counts;
+  vtx_t * seen;
+  vtx_t nseen;
+} adj_set;
+
+
+static void p_set_init(
+    adj_set * set,
+    vtx_t max_size)
+{
+  set->counts = calloc(max_size, sizeof(*(set->counts)));
+  set->seen = calloc(max_size, sizeof(*(set->seen)));
+  set->nseen = 0;
+}
+
+
+static void p_set_free(
+    adj_set * set)
+{
+  set->nseen = 0;
+  free(set->counts);
+  free(set->seen);
+}
+
+
+static void p_set_clear(
+    adj_set * set)
+{
+  wgt_t * const counts = set->counts;
+  vtx_t * const seen = set->seen;
+  for(vtx_t i=0; i < set->nseen; ++i) {
+    counts[seen[i]] = 0;
+    seen[i] = 0;
+  }
+
+  set->nseen = 0;
+}
+
+
+static void p_set_update(
+    adj_set * set,
+    vtx_t vid,
+    wgt_t upd)
+{
+  /* add to set if necessary */
+  if(set->counts[vid] == 0) {
+    set->seen[set->nseen] = vid;
+    set->nseen += 1;
+  }
+
+  /* update count */
+  set->counts[vid] += upd;
+}
 
 
 /******************************************************************************
@@ -248,6 +306,9 @@ static adj_t p_count_adj_size(
   /* type better be big enough */
   assert((idx_t) nvtxs == (vtx_t) nvtxs);
 
+  adj_set set;
+  p_set_init(&set, csf->dims[argmax_elem(csf->dims, csf->nmodes)]);
+
   idx_t parent_start = 0;
   idx_t parent_end = 0;
   for(vtx_t v=0; v < nvtxs; ++v) {
@@ -258,36 +319,22 @@ static adj_t p_count_adj_size(
       idx_t const start = pt->fptr[d-1][parent_start];
       idx_t const end = pt->fptr[d-1][parent_end];
 
-      printf("d: %lu start: %lu end: %lu\n", d, start, end);
-
-      /* sort ids and count uniques */
-      quicksort(pt->fids[d]+start, end - start);
-      for(idx_t e=start; e < end; ++e) {
-        printf("%lu ", pt->fids[d][e] + 1);
-      }
-      printf("\n");
-
       idx_t const * const fids = pt->fids[d];
-      ++ncon;
-      for(adj_t e=start+1; e < end; ++e) {
-        if(fids[e] != fids[e-1]) {
-          ++ncon;
-        }
+      for(idx_t f=start; f < end; ++f) {
+        p_set_update(&set, fids[f], 1);
       }
-#if 0
-      for(idx_t a=start; a < end; ++a) {
-        printf("%lu ", pt->fids[d][a]);
-      }
-      printf("\n");
-#endif
+
+      ncon += set.nseen;
 
       /* prepare for next level in the tree */
       parent_start = start;
       parent_end = end;
-    }
 
-    printf("--\n");
+      p_set_clear(&set);
+    }
   }
+
+  p_set_free(&set);
 
   return ncon;
 }
@@ -304,24 +351,46 @@ static idx_t p_calc_offset(
   return offset;
 }
 
+static wgt_t p_count_nnz(
+    idx_t * * fptr,
+    idx_t const nmodes,
+    idx_t depth,
+    idx_t const fiber)
+{
+  if(depth == nmodes-1) {
+    return 1;
+  }
+
+  idx_t left = fptr[depth][fiber];
+  idx_t right = fptr[depth][fiber+1];
+  ++depth;
+
+  for(; depth < nmodes-1; ++depth) {
+    left = fptr[depth][left];
+    right = fptr[depth][right];
+  }
+
+  return right - left;
+}
+
 
 static void p_fill_mpart_graph(
-    splatt_csf const * csf,
+    splatt_csf const * const csf,
     splatt_graph * graph)
 {
   csf_sparsity * pt = csf->pt;
   vtx_t const nvtxs = graph->nvtxs;
 
-  /* we will increment, so start from 0 */
-  if(graph->ewgts != NULL) {
-    memset(graph->ewgts, 0, graph->nedges * sizeof(*(graph->ewgts)));
-  }
+  adj_set set;
+  p_set_init(&set, csf->dims[argmax_elem(csf->dims, csf->nmodes)]);
 
   /* pointing into eind */
   adj_t ncon = 0;
 
-  idx_t parent_start = 0;
-  idx_t parent_end = 0;
+  /* start/end of my subtree */
+  idx_t parent_start;
+  idx_t parent_end;
+
   for(vtx_t v=0; v < nvtxs; ++v) {
     parent_start = v;
     parent_end = v+1;
@@ -332,32 +401,78 @@ static void p_fill_mpart_graph(
       idx_t const start = pt->fptr[d-1][parent_start];
       idx_t const end = pt->fptr[d-1][parent_end];
 
-      idx_t const id_offset = p_calc_offset(csf, d);
+      /* compute adjacency info */
+      idx_t const * const fids = pt->fids[d];
+      for(idx_t f=start; f < end; ++f) {
+        p_set_update(&set, fids[f], p_count_nnz(pt->fptr, csf->nmodes, d, f));
+      }
+
+      /* things break if vtx size isn't our sorting size... */
+      if(sizeof(*(set.seen)) == sizeof(splatt_idx_t)) {
+        quicksort(set.seen, set.nseen);
+      }
 
       /* fill in graph->eind */
-      idx_t const * const fids = pt->fids[d];
-
-      graph->eind[ncon++] = fids[start] + id_offset;
-      if(graph->ewgts != NULL) {
-        graph->ewgts[ncon-1] += 1;
-      }
-      for(adj_t e=start+1; e < end; ++e) {
-        if(fids[e] != fids[e-1]) {
-          graph->eind[ncon++] = fids[e] + id_offset;
-        }
+      idx_t const id_offset = p_calc_offset(csf, d);
+      for(vtx_t e=0; e < set.nseen; ++e) {
+        graph->eind[ncon] = set.seen[e] + id_offset;
         if(graph->ewgts != NULL) {
-          graph->ewgts[ncon-1] += 1;
+          graph->ewgts[ncon] = set.counts[set.seen[e]];
         }
+        ++ncon;
       }
 
       /* prepare for next level in the tree */
       parent_start = start;
       parent_end = end;
+
+      p_set_clear(&set);
     }
   }
 
+  p_set_free(&set);
+
   graph->eptr[nvtxs] = graph->nedges;
 }
+
+
+static splatt_graph * p_merge_graphs(
+    splatt_graph * * graphs,
+    idx_t const ngraphs)
+{
+  /* count total size */
+  vtx_t nvtxs = 0;
+  adj_t ncon = 0;
+  for(idx_t m=0; m < ngraphs; ++m) {
+    nvtxs += graphs[m]->nvtxs;
+    ncon += graphs[m]->nedges;
+  }
+
+  splatt_graph * ret = graph_alloc(nvtxs, ncon, 0, 1);
+
+  /* fill in ret */
+  vtx_t voffset = 0;
+  adj_t eoffset = 0;
+  for(idx_t m=0; m < ngraphs; ++m) {
+    for(vtx_t v=0; v < graphs[m]->nvtxs; ++v) {
+
+      vtx_t const * const eptr = graphs[m]->eptr;
+      adj_t const * const eind = graphs[m]->eind;
+      wgt_t const * const ewgts = graphs[m]->ewgts;
+
+      ret->eptr[v + voffset] = eptr[v] + eoffset;
+      for(adj_t e=eptr[v]; e < eptr[v+1]; ++e) {
+        ret->eind[e + eoffset] = eind[e];
+        ret->ewgts[e + eoffset] = ewgts[e];
+      }
+    }
+    voffset += graphs[m]->nvtxs;
+    eoffset += graphs[m]->nedges;
+  }
+
+  return ret;
+}
+
 
 static void __convert_mpart_graph(
   sptensor_t * const tt,
@@ -370,25 +485,27 @@ static void __convert_mpart_graph(
 
   splatt_csf csf;
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    csf_alloc_mode(tt, m, &csf, opts);
+    csf_alloc_mode(tt, CSF_INORDER_MINUSONE, m, &csf, opts);
 
     /* count size of adjacency list */
-    adj_t ncon = p_count_adj_size(&csf);
-    printf("ncon: %lu\n", ncon);
+    adj_t const ncon = p_count_adj_size(&csf);
 
     graphs[m] = graph_alloc(tt->dims[m], ncon, 0, 1);
-
     p_fill_mpart_graph(&csf, graphs[m]);
 
     csf_free_mode(&csf);
   }
 
-  /* merge graphs */
+  /* merge graphs and write */
+  splatt_graph * full_graph = p_merge_graphs(graphs, tt->nmodes);
+  FILE * fout = open_f(ofname, "w");
+  graph_write_file(full_graph, fout);
+  fclose(fout);
 
   /* clean up */
+  graph_free(full_graph);
   splatt_free_opts(opts);
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    graph_write_file(graphs[m], stdout);
     graph_free(graphs[m]);
   }
 }

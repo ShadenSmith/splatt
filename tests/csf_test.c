@@ -111,6 +111,27 @@ CTEST2(csf_one_init, mode_minusone)
 }
 
 
+CTEST2(csf_one_init, mode_order_inorder)
+{
+  idx_t dims[] = {10, 9, 8, 7, 0};
+  idx_t perm[] = {0, 0, 0, 0, 0};
+  splatt_idx_t ndims = sizeof(dims) / sizeof(dims[0]);
+
+  for(splatt_idx_t m=0; m < ndims; ++m) {
+    csf_find_mode_order(dims, ndims, CSF_INORDER_MINUSONE, m, perm);
+
+    if(perm[0] != m) {
+      ASSERT_FAIL();
+    }
+    for(splatt_idx_t m2=2; m2 < ndims-1; ++m2) {
+      if(perm[m2] > perm[m2+1]) {
+        ASSERT_FAIL();
+      }
+    }
+  }
+}
+
+
 CTEST2(csf_one_init, normsq)
 {
   val_t gold_norm = 0;

@@ -99,6 +99,36 @@ static void __order_dims_small(
   }
 }
 
+/**
+* @brief Find a permutation of modes such that the first mode is 'custom-mode'
+*        and the remaining are naturally ordered (0, 1, ...).
+*
+* @param dims The tensor dimensions.
+* @param nmodes The number of modes.
+* @param custom_mode The mode to place first.
+* @param perm_dims The resulting permutation.
+*/
+static void __order_dims_inorder(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t const custom_mode,
+  idx_t * const perm_dims)
+{
+  /* initialize to natural ordering */
+  for(idx_t m=0; m < nmodes; ++m) {
+    perm_dims[m] = m;
+  }
+
+  /* find where custom_mode was placed and adjust from there */
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(perm_dims[m] == custom_mode) {
+      memmove(perm_dims + 1, perm_dims, (m) * sizeof(m));
+      perm_dims[0] = custom_mode;
+      break;
+    }
+  }
+}
+
 
 /**
 * @brief Find a permutation of modes such that the first mode is 'custom-mode'
@@ -618,6 +648,10 @@ void csf_find_mode_order(
     __order_dims_large(dims, nmodes, perm_dims);
     break;
 
+  case CSF_INORDER_MINUSONE:
+    __order_dims_inorder(dims, nmodes, mode, perm_dims);
+    break;
+
   case CSF_SORTED_MINUSONE:
     __order_dims_minusone(dims, nmodes, mode, perm_dims);
     break;
@@ -719,11 +753,12 @@ splatt_csf * csf_alloc(
 
 void csf_alloc_mode(
   sptensor_t * const tt,
+  csf_mode_type which_ordering,
   idx_t const mode_special,
   splatt_csf * const csf,
   double const * const opts)
 {
-  __mk_csf(csf, tt, CSF_SORTED_MINUSONE, mode_special, opts);
+  __mk_csf(csf, tt, which_ordering, mode_special, opts);
 }
 
 
