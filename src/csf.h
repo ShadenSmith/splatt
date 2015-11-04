@@ -55,7 +55,7 @@ splatt_csf * csf_alloc(
 * @param csf The tensor to fill.
 * @param opts 'SPLATT_OPTION_TILE' determines the allocation scheme.
 */
-void splatt_csf_alloc_mode(
+void csf_alloc_mode(
   sptensor_t * const tt,
   idx_t const mode_special,
   splatt_csf * const csf,
@@ -64,7 +64,8 @@ void splatt_csf_alloc_mode(
 
 #define csf_free splatt_csf_free
 /**
-* @brief Free all memory allocated for a tensor in CSF form.
+* @brief Free all memory allocated for a tensor in CSF form. This should be
+*        paired with csf_alloc().
 *
 * @param csf The tensor to free.
 * @param opts opts[SPLATT_OPTION_CSF_ALLOC] tells us how many tensors are
@@ -74,6 +75,15 @@ void csf_free(
   splatt_csf * const csf,
   double const * const opts);
 
+
+/**
+* @brief Free the memory allocated for one CSF representation. This should be
+*        paired with csf_alloc_mode().
+*
+* @param csf The tensor to free.
+*/
+void csf_free_mode(
+    splatt_csf * const csf);
 
 #define csf_storage splatt_csf_storage
 /**

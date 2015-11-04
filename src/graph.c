@@ -260,6 +260,48 @@ void hgraph_free(
   free(hg);
 }
 
+
+splatt_graph * graph_alloc(
+    vtx_t nvtxs,
+    adj_t nedges,
+    int use_vtx_wgts,
+    int use_edge_wgts)
+{
+  splatt_graph * ret = malloc(sizeof(*ret));
+
+  ret->nvtxs = nvtxs;
+  ret->nedges = nedges;
+  ret->eptr = malloc((nvtxs+1) * sizeof(*(ret->eptr)));
+  ret->eind = malloc(nedges * sizeof(*(ret->eind)));
+
+  if(use_vtx_wgts) {
+    ret->vwgts = malloc(nvtxs * sizeof(*(ret->vwgts)));
+  } else {
+    ret->vwgts = NULL;
+  }
+
+  if(use_edge_wgts) {
+    ret->ewgts = malloc(nedges * sizeof(*(ret->ewgts)));
+  } else {
+    ret->ewgts = NULL;
+  }
+
+  return ret;
+}
+
+
+void graph_free(
+    splatt_graph * graph)
+{
+  free(graph->eptr);
+  free(graph->eind);
+  free(graph->vwgts);
+  free(graph->ewgts);
+  free(graph);
+}
+
+
+
 #ifdef SPLATT_USE_PATOH
 idx_t * patoh_part(
     hgraph_t const * const hg,

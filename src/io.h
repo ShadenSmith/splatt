@@ -65,6 +65,17 @@ void hgraph_write(
   char const * const fname);
 
 
+#define graph_write_file splatt_graph_write_file
+/**
+* @brief Write a graph to a file.
+*
+* @param graph The graph to write.
+* @param fout The FILE object to write to.
+*/
+void graph_write_file(
+  splatt_graph const * const graph,
+  FILE * fout);
+
 
 /******************************************************************************
  * DENSE MATRIX FUNCTIONS

@@ -560,7 +560,7 @@ static void __mk_csf(
 
 
 void csf_free(
-  splatt_csf * const ct,
+  splatt_csf * const csf,
   double const * const opts)
 {
   idx_t ntensors = 0;
@@ -573,24 +573,31 @@ void csf_free(
     ntensors = 2;
     break;
   case SPLATT_CSF_ALLMODE:
-    ntensors = ct[0].nmodes;
+    ntensors = csf[0].nmodes;
     break;
   }
 
   for(idx_t i=0; i < ntensors; ++i) {
-    /* free each tile of sparsity pattern */
-    for(idx_t t=0; t < ct[i].ntiles; ++t) {
-      free(ct[i].pt[t].vals);
-      free(ct[i].pt[t].fids[ct[i].nmodes-1]);
-      for(idx_t m=0; m < ct[i].nmodes-1; ++m) {
-        free(ct[i].pt[t].fptr[m]);
-        free(ct[i].pt[t].fids[m]);
-      }
-    }
-    free(ct[i].pt);
+    csf_free_mode(csf + i);
   }
 
-  free(ct);
+  free(csf);
+}
+
+
+void csf_free_mode(
+    splatt_csf * const csf)
+{
+  /* free each tile of sparsity pattern */
+  for(idx_t t=0; t < csf->ntiles; ++t) {
+    free(csf->pt[t].vals);
+    free(csf->pt[t].fids[csf->nmodes-1]);
+    for(idx_t m=0; m < csf->nmodes-1; ++m) {
+      free(csf->pt[t].fptr[m]);
+      free(csf->pt[t].fids[m]);
+    }
+  }
+  free(csf->pt);
 }
 
 

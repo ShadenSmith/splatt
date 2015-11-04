@@ -43,6 +43,13 @@ else()
   set(MPI_SOURCES "")
 endif()
 
+# check for MT-Metis support
+if (DEFINED USE_MTMETIS)
+  message("Building with MT-Metis support.")
+  add_definitions(-DSPLATT_USE_MTMETIS=${USE_MTMETIS})
+  set(MTMETIS_LIB "mtmetis")
+endif()
+
 # check for PatoH support
 if (DEFINED USE_PATOH)
   message("Building with PaToH support.")

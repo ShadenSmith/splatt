@@ -35,6 +35,8 @@ show_help() {
   echo "    Set the C compiler to use."
   echo "  --mpi"
   echo "    Build with MPI support"
+  echo "  --mtmetis"
+  echo "    Build with MT-Metis graph partitioning (must be previously installed)."
   echo "  --patoh"
   echo "    Build with PaToH hypergraph partitioning (must be previously installed)."
   echo "  --ashado"
@@ -72,6 +74,9 @@ for i in "${@}"; do
     # MPI support
     --mpi)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    ;;
+    --mtmetis)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
     ;;
     --patoh)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"

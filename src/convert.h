@@ -17,6 +17,7 @@
 typedef enum
 {
   CNV_IJK_GRAPH,  /** Convert to a tri-partite graph. */
+  CNV_NPART_GRAPH,  /** Convert to a tri-partite graph. */
   CNV_FIB_SPMAT,  /** Convert to a CSR matrix whose rows are <mode> fibers. */
   CNV_FIB_HGRAPH, /** Convert to a hypergraph whose nodes are <mode> fibers. */
   CNV_NNZ_HGRAPH, /** Convert to a hypergraph whose nodes are nonzeros. */

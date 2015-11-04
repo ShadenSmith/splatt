@@ -13,6 +13,8 @@
 #include "stats.h"
 #include "timer.h"
 
+#include "csf.h"
+
 
 /******************************************************************************
  * TYPES
@@ -234,6 +236,164 @@ static void __convert_fib_mat(
 }
 
 
+static adj_t p_count_adj_size(
+    splatt_csf * const csf)
+{
+  adj_t ncon = 0;
+
+  assert(csf->ntiles == 1);
+  csf_sparsity * pt = csf->pt;
+  vtx_t const nvtxs = pt->nfibs[0];
+
+  /* type better be big enough */
+  assert((idx_t) nvtxs == (vtx_t) nvtxs);
+
+  idx_t parent_start = 0;
+  idx_t parent_end = 0;
+  for(vtx_t v=0; v < nvtxs; ++v) {
+    parent_start = v;
+    parent_end = v+1;
+
+    for(idx_t d=1; d < csf->nmodes; ++d) {
+      idx_t const start = pt->fptr[d-1][parent_start];
+      idx_t const end = pt->fptr[d-1][parent_end];
+
+      printf("d: %lu start: %lu end: %lu\n", d, start, end);
+
+      /* sort ids and count uniques */
+      quicksort(pt->fids[d]+start, end - start);
+      for(idx_t e=start; e < end; ++e) {
+        printf("%lu ", pt->fids[d][e] + 1);
+      }
+      printf("\n");
+
+      idx_t const * const fids = pt->fids[d];
+      ++ncon;
+      for(adj_t e=start+1; e < end; ++e) {
+        if(fids[e] != fids[e-1]) {
+          ++ncon;
+        }
+      }
+#if 0
+      for(idx_t a=start; a < end; ++a) {
+        printf("%lu ", pt->fids[d][a]);
+      }
+      printf("\n");
+#endif
+
+      /* prepare for next level in the tree */
+      parent_start = start;
+      parent_end = end;
+    }
+
+    printf("--\n");
+  }
+
+  return ncon;
+}
+
+static idx_t p_calc_offset(
+    splatt_csf const * const csf,
+    idx_t const depth)
+{
+  idx_t const mode = csf->dim_perm[depth];
+  idx_t offset = 0;
+  for(idx_t m=0; m < mode; ++m) {
+    offset += csf->dims[m];
+  }
+  return offset;
+}
+
+
+static void p_fill_mpart_graph(
+    splatt_csf const * csf,
+    splatt_graph * graph)
+{
+  csf_sparsity * pt = csf->pt;
+  vtx_t const nvtxs = graph->nvtxs;
+
+  /* we will increment, so start from 0 */
+  if(graph->ewgts != NULL) {
+    memset(graph->ewgts, 0, graph->nedges * sizeof(*(graph->ewgts)));
+  }
+
+  /* pointing into eind */
+  adj_t ncon = 0;
+
+  idx_t parent_start = 0;
+  idx_t parent_end = 0;
+  for(vtx_t v=0; v < nvtxs; ++v) {
+    parent_start = v;
+    parent_end = v+1;
+
+    graph->eptr[v] = ncon;
+
+    for(idx_t d=1; d < csf->nmodes; ++d) {
+      idx_t const start = pt->fptr[d-1][parent_start];
+      idx_t const end = pt->fptr[d-1][parent_end];
+
+      idx_t const id_offset = p_calc_offset(csf, d);
+
+      /* fill in graph->eind */
+      idx_t const * const fids = pt->fids[d];
+
+      graph->eind[ncon++] = fids[start] + id_offset;
+      if(graph->ewgts != NULL) {
+        graph->ewgts[ncon-1] += 1;
+      }
+      for(adj_t e=start+1; e < end; ++e) {
+        if(fids[e] != fids[e-1]) {
+          graph->eind[ncon++] = fids[e] + id_offset;
+        }
+        if(graph->ewgts != NULL) {
+          graph->ewgts[ncon-1] += 1;
+        }
+      }
+
+      /* prepare for next level in the tree */
+      parent_start = start;
+      parent_end = end;
+    }
+  }
+
+  graph->eptr[nvtxs] = graph->nedges;
+}
+
+static void __convert_mpart_graph(
+  sptensor_t * const tt,
+  char const * const ofname)
+{
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+
+  splatt_graph * graphs[MAX_NMODES];
+
+  splatt_csf csf;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    csf_alloc_mode(tt, m, &csf, opts);
+
+    /* count size of adjacency list */
+    adj_t ncon = p_count_adj_size(&csf);
+    printf("ncon: %lu\n", ncon);
+
+    graphs[m] = graph_alloc(tt->dims[m], ncon, 0, 1);
+
+    p_fill_mpart_graph(&csf, graphs[m]);
+
+    csf_free_mode(&csf);
+  }
+
+  /* merge graphs */
+
+  /* clean up */
+  splatt_free_opts(opts);
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    graph_write_file(graphs[m], stdout);
+    graph_free(graphs[m]);
+  }
+}
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -251,6 +411,9 @@ void tt_convert(
   switch(type) {
   case CNV_IJK_GRAPH:
     __convert_ijk_graph(tt, ofname);
+    break;
+  case CNV_NPART_GRAPH:
+    __convert_mpart_graph(tt, ofname);
     break;
   case CNV_FIB_HGRAPH:
     __convert_fib_hgraph(tt, mode, ofname);
