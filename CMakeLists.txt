@@ -14,6 +14,11 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
 endif()
 
 
+find_package(OpenMP REQUIRED)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+
 # check for debug mode
 if (DEFINED DEBUG)
   message("Building in DEBUG mode. Assertions enabled.")
@@ -24,7 +29,7 @@ if (DEFINED DEBUG)
 else()
   message("Building in RELEASE mode.")
   set(CMAKE_BUILD_TYPE Release)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 endif()
 
 # check for MPI mode
@@ -36,6 +41,13 @@ if (DEFINED USE_MPI)
   file(GLOB MPI_SOURCES src/mpi/*.c)
 else()
   set(MPI_SOURCES "")
+endif()
+
+# check for MT-Metis support
+if (DEFINED USE_MTMETIS)
+  message("Building with MT-Metis support.")
+  add_definitions(-DSPLATT_USE_MTMETIS=${USE_MTMETIS})
+  set(MTMETIS_LIB "mtmetis")
 endif()
 
 # check for PatoH support
@@ -56,7 +68,6 @@ add_definitions(-D_GNU_SOURCE)
 
 set(C_DEFINES "${C_DEFINES}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -funroll-loops")
@@ -99,4 +110,14 @@ add_subdirectory(src)
 
 # UNIT TESTS
 add_subdirectory(tests)
+
+
+# uninstall
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/cmake_uninstall.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    IMMEDIATE @ONLY)
+
+add_custom_target(uninstall
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
 

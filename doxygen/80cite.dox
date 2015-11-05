@@ -1,0 +1,12 @@
+/*!
+\page cite Citing \splatt
+\tableofcontents
+
+<!-- ----------------------------------------------------------------------------- -->
+If you have used \splatt in any of your
+
+\cite smith2015splatt
+\cite smith2015csf
+\cite smith2015dms
+
+*/

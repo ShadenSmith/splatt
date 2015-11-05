@@ -12,15 +12,16 @@
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
+
 int splatt_ttm(
     splatt_idx_t const mode,
     splatt_idx_t const * const ncolumns,
-    splatt_csf_t const * const tensor,
+    splatt_csf const * const tensors,
     splatt_val_t ** matrices,
     splatt_val_t * const tenout,
     double const * const options)
 {
-  idx_t const nmodes = tensor->nmodes;
+  idx_t const nmodes = tensors->nmodes;
 
   idx_t maxcols = 0;
 
@@ -28,7 +29,7 @@ int splatt_ttm(
   matrix_t * mats[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
     mats[m] = (matrix_t *) malloc(sizeof(matrix_t));
-    mats[m]->I = tensor->dims[m];
+    mats[m]->I = tensors->dims[m];
     mats[m]->J = ncolumns[m],
     mats[m]->rowmajor = 1;
     mats[m]->vals = matrices[m];
@@ -46,7 +47,7 @@ int splatt_ttm(
 
   printf("thread\n");
 
-  ttm_splatt(tensor, mats, tenout, mode, thds, nthreads);
+  ttm_csf(tensors, mats, tenout, mode, thds, options);
 
   printf("cleanup\n");
 
@@ -75,7 +76,7 @@ int splatt_ttm(
 * @param nB The number of elements in rowB.
 * @param out The output matrix which is (nA x nB).
 */
-static inline void __outer_prod(
+static inline void p_outer_prod(
     val_t const * const restrict rowA,
     idx_t const nA,
     val_t const * const restrict rowB,
@@ -92,11 +93,58 @@ static inline void __outer_prod(
 }
 
 
+
+/**
+* @brief Calculate the size of the output tensor and zero it.
+*
+* @param tenout The output tensor.
+* @param mats The input matrices (they determine the size of the output).
+* @param nmodes The number of modes.
+* @param mode The mode we are computing.
+* @param dims The dimensions of the input tensor.
+*/
+static inline void p_clear_tenout(
+    val_t * const restrict tenout,
+    matrix_t ** mats,
+    idx_t const nmodes,
+    idx_t const mode,
+    idx_t const * const dims)
+{
+  /* clear tenout */
+  idx_t outsize = dims[mode];
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(m != mode) {
+      outsize *= mats[m]->J;
+    }
+  }
+  memset(tenout, 0, outsize * sizeof(*tenout));
+}
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+
+void ttm_csf(
+    splatt_csf const * const tensors,
+    matrix_t ** mats,
+    val_t * const tenout,
+    idx_t const mode,
+    thd_info * const thds,
+    double const * const opts)
+{
+  /* clear out stale results */
+  p_clear_tenout(tenout, mats, tensors->nmodes, mode, tensors->dims);
+
+}
+
+
+
+#if 0
 void ttm_splatt(
-  splatt_csf_t const * const ft,
+  splatt_csf const * const csf,
   matrix_t ** mats,
   val_t * const restrict tenout,
   idx_t const mode,
@@ -113,11 +161,11 @@ void ttm_splatt(
 
   memset(tenout, 0, nslices * rankA * rankB * sizeof(val_t));
 
-  idx_t const * const restrict sptr = ft->sptr;
-  idx_t const * const restrict fptr = ft->fptr;
-  idx_t const * const restrict fids = ft->fids;
-  idx_t const * const restrict inds = ft->inds;
-  val_t const * const restrict vals = ft->vals;
+  idx_t const * const restrict sptr = ft->pt[0].sptr;
+  idx_t const * const restrict fptr = ft->pt[0].fptr;
+  idx_t const * const restrict fids = ft->pt[0].fids;
+  idx_t const * const restrict inds = ft->pt[0].inds;
+  val_t const * const restrict vals = ft->pt[0].vals;
 
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
@@ -154,11 +202,12 @@ void ttm_splatt(
 
         /* accumulate outer product into tenout */
         val_t const * const restrict av = avals  + (fids[f] * rankA);
-        //__outer_prod(av, rankA, accumF, rankB, outv);
-        __outer_prod(accumF, rankB, av, rankA, outv);
+        //p_outer_prod(av, rankA, accumF, rankB, outv);
+        p_outer_prod(accumF, rankB, av, rankA, outv);
       }
     }
     timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
+#endif
 

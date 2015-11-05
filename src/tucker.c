@@ -56,7 +56,7 @@ static idx_t __max_tensize(
 int splatt_tucker_als(
     splatt_idx_t const * const nfactors,
     splatt_idx_t const nmodes,
-    splatt_csf_t const * const tensors,
+    splatt_csf const * const tensors,
     double const * const options,
     splatt_tucker_t * factored)
 {
@@ -102,7 +102,7 @@ int splatt_tucker_als(
       timer_fstart(&modetime[m]);
 
       timer_start(&timers[TIMER_TTM]);
-      ttm_splatt(tensors + m, mats, gten, m, thds, nthreads);
+      ttm_csf(tensors, mats, gten, m, thds, options);
       timer_stop(&timers[TIMER_TTM]);
 
       timer_stop(&modetime[m]);
@@ -140,6 +140,7 @@ void splatt_free_tucker(
     free(factored->factors[m]);
   }
 }
+
 
 /******************************************************************************
  * PRIVATE FUNCTIONS

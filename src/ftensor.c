@@ -59,6 +59,7 @@ static void __create_fptr(
   ft->fptr = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
   ft->fids = (idx_t *) malloc(nfibs * sizeof(idx_t));
   if(ft->tiled != SPLATT_NOTILE) {
+    /* temporary and will be replaced later */
     ft->sids = (idx_t *) malloc(nfibs * sizeof(idx_t));
   }
 
@@ -92,6 +93,35 @@ static void __create_fptr(
 }
 
 
+static void __create_syncptr(
+  ftensor_t * const ft,
+  sptensor_t const * const tt,
+  idx_t const mode)
+{
+  idx_t const nnz = tt->nnz;
+  idx_t const nmodes = tt->nmodes;
+  idx_t const tsize = TILE_SIZES[0];
+  idx_t const nslabs = tt->dims[mode] / tsize + (tt->dims[mode] % tsize != 0);
+  idx_t const nfibs = ft->nfibs;
+
+  ft->sptr = NULL; /* not needed */
+  ft->slabptr = (idx_t *) malloc((nslabs+1) * sizeof(idx_t));
+
+  ft->slabptr[0] = 0;
+  idx_t slab = 1;
+  for(idx_t f=1; f < nfibs; ++f) {
+    /* update slabptr if we've moved to the next slab */
+    if(ft->sids[f] / tsize != slab-1) {
+      ft->slabptr[slab++] = f;
+    }
+  }
+
+  ft->nslabs = slab;
+  ft->slabptr[slab] = nfibs;
+}
+
+
+
 static void __create_slabptr(
   ftensor_t * const ft,
   sptensor_t const * const tt,
@@ -102,20 +132,18 @@ static void __create_slabptr(
   idx_t const tsize = TILE_SIZES[0];
   idx_t const nslabs = tt->dims[mode] / tsize + (tt->dims[mode] % tsize != 0);
 
-  ft->nslabs = nslabs;
   ft->slabptr = (idx_t *) malloc((nslabs+1) * sizeof(idx_t));
 
   idx_t const nfibs = ft->nfibs;
   /* count slices */
   idx_t slices = 1;
   for(idx_t f=1; f < nfibs; ++f) {
-    idx_t const slice = ft->sids[f];
     if(ft->sids[f] != ft->sids[f-1]) {
       ++slices;
     }
   }
-  idx_t * sptr = (idx_t *) malloc((slices+1) * sizeof(idx_t));
-  idx_t * sids = (idx_t *) malloc(slices * sizeof(idx_t));
+  idx_t * sptr = (idx_t *) malloc((slices+1) * sizeof(idx_t)); /* sliceptr */
+  idx_t * sids = (idx_t *) malloc(slices * sizeof(idx_t)); /* to replace old */
 
   sptr[0] = 0;
   sids[0] = ft->sids[0];
@@ -134,7 +162,6 @@ static void __create_slabptr(
     }
   }
 
-  /* TODO: Why free this for coop, but not indv? - nope, does not work... */
   /* update ft with new data structures */
   free(ft->sids);
   ft->sids = sids;
@@ -201,71 +228,6 @@ static void __create_sliceptr(
 
 
 /******************************************************************************
- * API FUNCTIONS
- *****************************************************************************/
-
-int splatt_csf_load(
-    char const * const fname,
-    splatt_idx_t * nmodes,
-    splatt_csf_t ** tensors,
-    double const * const options)
-{
-  sptensor_t * tt = tt_read(fname);
-  if(tt == NULL) {
-    return SPLATT_ERROR_BADINPUT;
-  }
-
-  tt_remove_empty(tt);
-
-  splatt_csf_t * fts = (splatt_csf_t *) malloc(tt->nmodes*sizeof(splatt_csf_t));
-
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ften_alloc(fts + m, tt, m, (int) options[SPLATT_OPTION_TILE]);
-  }
-
-  *tensors = fts;
-  *nmodes = tt->nmodes;
-
-  tt_free(tt);
-
-  return SPLATT_SUCCESS;
-}
-
-int splatt_csf_convert(
-    splatt_idx_t const nmodes,
-    splatt_idx_t const nnz,
-    splatt_idx_t ** const inds,
-    splatt_val_t * const vals,
-    splatt_csf_t ** tensors,
-    double const * const options)
-{
-  splatt_csf_t * fts = (splatt_csf_t *) malloc(nmodes * sizeof(splatt_csf_t));
-
-  sptensor_t tt;
-  tt_fill(&tt, nnz, nmodes, inds, vals);
-  tt_remove_empty(&tt);
-
-  for(idx_t m=0; m < nmodes; ++m) {
-    ften_alloc(fts + m, &tt, m, (int) options[SPLATT_OPTION_TILE]);
-  }
-
-  *tensors = fts;
-
-  return SPLATT_SUCCESS;
-}
-
-void splatt_free_csf(
-  splatt_idx_t const nmodes,
-  splatt_csf_t * tensors)
-{
-  for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(tensors + m);
-  }
-}
-
-
-
-/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void ften_alloc(
@@ -301,9 +263,17 @@ void ften_alloc(
   case SPLATT_NOTILE:
     __create_sliceptr(ft, tt, mode);
     break;
+  case SPLATT_SYNCTILE:
+    __create_syncptr(ft, tt, mode);
+    break;
   case SPLATT_COOPTILE:
     __create_slabptr(ft, tt, mode);
     break;
+  default:
+    fprintf(stderr, "SPLATT: tile type '%d' not recognized.\n", ft->tiled);
+    /* just default to no tiling */
+    __create_sliceptr(ft, tt, mode);
+    ft->tiled = SPLATT_NOTILE;
   }
 
   /* copy indmap if necessary */
@@ -340,9 +310,19 @@ void ften_free(
   free(ft->vals);
   free(ft->sptr);
   free(ft->indmap);
-  if(ft->tiled != SPLATT_NOTILE) {
+
+  switch(ft->tiled) {
+  case SPLATT_SYNCTILE:
     free(ft->slabptr);
     free(ft->sids);
+    break;
+
+  case SPLATT_COOPTILE:
+    free(ft->slabptr);
+    free(ft->sids);
+    break;
+  default:
+    break;
   }
 }
 

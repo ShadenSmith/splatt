@@ -12,6 +12,7 @@ target_link_libraries(splatt_bin splatt)
 target_link_libraries(splatt_bin m)
 target_link_libraries(splatt_bin rt)
 target_link_libraries(splatt_bin ${MPI_C_LIBRARIES})
+target_link_libraries(splatt_bin ${MTMETIS_LIB})
 target_link_libraries(splatt_bin ${PATOH_LIB})
 target_link_libraries(splatt_bin ${ASHADO_LIB})
 

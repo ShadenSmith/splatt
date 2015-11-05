@@ -35,6 +35,11 @@ void bench_splatt(
   matrix_t ** mats,
   bench_opts const * const opts);
 
+void bench_csf(
+  sptensor_t * const tt,
+  matrix_t ** mats,
+  bench_opts const * const opts);
+
 void bench_giga(
   sptensor_t * const tt,
   matrix_t ** mats,
@@ -45,5 +50,9 @@ void bench_ttbox(
   matrix_t ** mats,
   bench_opts const * const opts);
 
+void bench_coord(
+  sptensor_t * const tt,
+  matrix_t ** mats,
+  bench_opts const * const opts);
 
 #endif

@@ -5,6 +5,7 @@
 #include "splatt_cmds.h"
 #include "../io.h"
 #include "../sptensor.h"
+#include "../csf.h"
 #include "../stats.h"
 
 /******************************************************************************
@@ -124,40 +125,40 @@ void splatt_tucker_cmd(
   if(tt == NULL) {
     return;
   }
-  tt_remove_empty(tt);
-  stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+
+  /* print basic tensor stats? */
+  splatt_verbosity_t which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
+  if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+  }
 
   idx_t nfactors[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     nfactors[m] = args.nfactors;
   }
 
-  ftensor_t * ft = (ftensor_t *) malloc(tt->nmodes * sizeof(ftensor_t));
-  /* fill each ftensor */
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ften_alloc(ft + m, tt, m, (int) args.opts[SPLATT_OPTION_TILE]);
-  }
+  splatt_csf * csf = csf_alloc(tt, args.opts);
+
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
 
-
-  printf("Factoring "
-         "------------------------------------------------------\n");
-  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
-      args.nfactors,
-      (idx_t) args.opts[SPLATT_OPTION_NITER],
-      args.opts[SPLATT_OPTION_TOLERANCE]);
-  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
-  printf("TILE=NO\n");
+  /* print Tucker stats? */
+  if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    printf("Factoring "
+           "------------------------------------------------------\n");
+    printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
+        args.nfactors,
+        (idx_t) args.opts[SPLATT_OPTION_NITER],
+        args.opts[SPLATT_OPTION_TOLERANCE]);
+    printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
+    printf("TILE=NO\n");
+  }
 
   splatt_tucker_t out;
-  splatt_tucker_als(nfactors, nmodes, ft, args.opts, &out);
+  splatt_tucker_als(nfactors, nmodes, csf, args.opts, &out);
 
   /* free up the ftensor allocations */
-  for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(&ft[m]);
-  }
-  free(ft);
+  csf_free(csf, args.opts);
 
   /* output + cleanup */
   splatt_free_tucker(&out);

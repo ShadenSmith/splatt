@@ -280,8 +280,27 @@ void rank_free(
       free(rinfo.nbr2globs_ptr[m]);
       free(rinfo.local2nbr_disp[m]);
       free(rinfo.nbr2globs_disp[m]);
+      free(rinfo.indmap[m]);
     }
     break;
   }
 }
+
+void mpi_cpy_indmap(
+  sptensor_t const * const tt,
+  rank_info * const rinfo,
+  idx_t const mode)
+{
+  /* copy if not NULL */
+  if(tt->indmap[mode] != NULL) {
+    idx_t const dim = tt->dims[mode];
+    rinfo->indmap[mode] = malloc(dim * sizeof(**(rinfo->indmap)));
+    memcpy(rinfo->indmap[mode], tt->indmap[mode],
+        dim * sizeof(**(rinfo->indmap)));
+
+  } else {
+    rinfo->indmap[mode] = NULL;
+  }
+}
+
 

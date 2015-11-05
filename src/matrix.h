@@ -116,6 +116,20 @@ void mat_aTa(
   thd_info * const thds,
   idx_t const nthreads);
 
+#define calc_gram_inv splatt_calc_gram_inv
+/**
+* @brief Calculate (BtB * CtC * ...)^-1, where * is the Hadamard product. This
+*        is the Gram Matrix of the CPD.
+*
+* @param mode Which mode we are operating on (it is not used in the product).
+* @param nmodes The number of modes in the tensor.
+* @param aTa An array of matrices (length MAX_NMODES)containing BtB, CtC, etc.
+*            [OUT] The result is stored in ata[MAX_NMODES].
+*/
+void calc_gram_inv(
+  idx_t const mode,
+  idx_t const nmodes,
+  matrix_t ** aTa);
 
 #define mat_normalize splatt_mat_normalize
 /**

@@ -257,3 +257,175 @@ void tt_tile(
 }
 
 
+idx_t * tt_densetile(
+  sptensor_t * const tt,
+  idx_t const * const tile_dims)
+{
+  idx_t const nmodes = tt->nmodes;
+  idx_t ntiles = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    ntiles *= tile_dims[m];
+  }
+
+  /* the actual number of indices to place in each tile */
+  idx_t tsizes[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    tsizes[m] = SS_MAX(tt->dims[m] / tile_dims[m], 1);
+  }
+
+  idx_t * tcounts = (idx_t *) calloc(ntiles+2, sizeof(idx_t));
+
+  /* count tile sizes (in nnz) */
+  idx_t coord[MAX_NMODES];
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      /* capping at dims-1 fixes overflow when dims don't divide evenly */
+      coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
+    }
+    /* offset by 1 to make prefix sum easy */
+    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+    assert(id < ntiles);
+    ++tcounts[2+id];
+  }
+
+  /* prefix sum */
+  for(idx_t t=3; t <= ntiles+1; ++t) {
+    tcounts[t] += tcounts[t-1];
+  }
+
+  sptensor_t * newtt = tt_alloc(tt->nnz, tt->nmodes);
+
+  /* copy old tensor into new tiled one */
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
+    }
+    /* offset by 1 to make prefix sum easy */
+    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+    assert(id < ntiles);
+
+    idx_t newidx = tcounts[id+1]++;
+    newtt->vals[newidx] = tt->vals[x];
+    for(idx_t m=0; m < nmodes; ++m) {
+      newtt->ind[m][newidx] = tt->ind[m][x];
+    }
+  }
+
+  /* copy data into old struct */
+  memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
+  }
+  tt_free(newtt);
+
+  return tcounts;
+}
+
+
+
+idx_t get_tile_id(
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const * const tile_coord)
+{
+  idx_t id = 0;
+  idx_t mult = 1;
+  for(idx_t m=nmodes; m-- != 0;) {
+    id += tile_coord[m] * mult;
+    mult *= tile_dims[m];
+  }
+  /* bounds check */
+  if(id >= mult) {
+    id = TILE_ERR;
+  }
+  return id;
+}
+
+
+void fill_tile_coords(
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const tile_id,
+  idx_t * const tile_coord)
+{
+  /* Check for invalid id first */
+  idx_t maxid = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    maxid *= tile_dims[m];
+  }
+  if(tile_id >= maxid) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      tile_coord[m] = tile_dims[m];
+    }
+    return;
+  }
+
+  /* test passed, convert! */
+  idx_t id = tile_id;
+  for(idx_t m = nmodes; m-- != 0; ) {
+    tile_coord[m] = id % tile_dims[m];
+    id /= tile_dims[m];
+  }
+}
+
+
+idx_t get_next_tileid(
+  idx_t const previd,
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const iter_mode,
+  idx_t const mode_idx)
+{
+  idx_t maxid = 1;
+  idx_t coords[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    coords[m] = 0;
+    maxid *= tile_dims[m];
+  }
+
+  if(previd == TILE_BEGIN) {
+    coords[iter_mode] = mode_idx;
+    return get_tile_id(tile_dims, nmodes, coords);
+  }
+
+  /* check for out of bounds */
+  if(previd >= maxid) {
+    return TILE_ERR;
+  }
+
+  /* convert previd to coords */
+  fill_tile_coords(tile_dims, nmodes, previd, coords);
+
+  /* overflowing this mode means TILE_END */
+  idx_t const overmode = (iter_mode == 0) ? 1 : 0;
+
+  /* increment least significant mode (unless we're iterating over it) and
+   * propagate overflows */
+  idx_t pmode = (iter_mode == nmodes-1) ? nmodes-2 : nmodes-1;
+  ++coords[pmode];
+  while(coords[pmode] == tile_dims[pmode]) {
+    if(pmode == overmode) {
+      return TILE_END;
+    }
+
+    /* overflow this one too and move on */
+    coords[pmode] = 0;
+    --pmode;
+
+    /* we don't alter the mode we are iterating over */
+    if(pmode == iter_mode) {
+      /* XXX: checking for overmode should catch this */
+      assert(pmode > 0);
+      /* if we aren't at the end just skip over it */
+      --pmode;
+    }
+
+    /* we're now at a valid mode, carry over previous overflow */
+    ++coords[pmode];
+  }
+
+  return get_tile_id(tile_dims, nmodes, coords);
+}
+
+
+

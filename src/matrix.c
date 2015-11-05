@@ -470,14 +470,8 @@ void mat_normalize(
   idx_t const nthreads)
 {
   timer_start(&timers[TIMER_MATNORM]);
-  idx_t const I = A->I;
-  idx_t const J = A->J;
-  val_t * const restrict vals = A->vals;
 
   omp_set_num_threads(nthreads);
-
-  assert(vals != NULL);
-  assert(lambda != NULL);
 
   switch(which) {
   case MAT_NORM_2:
@@ -492,6 +486,35 @@ void mat_normalize(
   }
   timer_stop(&timers[TIMER_MATNORM]);
 }
+
+
+void calc_gram_inv(
+  idx_t const mode,
+  idx_t const nmodes,
+  matrix_t ** aTa)
+{
+  timer_start(&timers[TIMER_INV]);
+
+  idx_t const rank = aTa[0]->J;
+  val_t * const restrict av = aTa[MAX_NMODES]->vals;
+
+  /* ata[MAX_NMODES] = hada(aTa[0], aTa[1], ...) */
+  for(idx_t x=0; x < rank*rank; ++x) {
+    av[x] = 1.;
+  }
+  for(idx_t m=1; m < nmodes; ++m) {
+    idx_t const madjust = (mode + m) % nmodes;
+    val_t const * const vals = aTa[madjust]->vals;
+    for(idx_t x=0; x < rank*rank; ++x) {
+      av[x] *= vals[x];
+    }
+  }
+
+  /* M2 = M2^-1 */
+  mat_syminv(aTa[MAX_NMODES]);
+  timer_stop(&timers[TIMER_INV]);
+}
+
 
 
 matrix_t * mat_alloc(
