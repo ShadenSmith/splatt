@@ -16,40 +16,6 @@
 
 #include <omp.h>
 
-
-/**
-* @brief Return the maximum required tensor size (in #val_t) needed for TTM.
-*
-* @param nmodes The number of modes to consider.
-* @param nfactors The number of factors (e.g., columns) per mode.
-* @param tdims The dimensions of each tensor mode.
-*
-* @return The maximum number of val_t's required for any mode of TTM.
-*/
-static idx_t __max_tensize(
-    idx_t const nmodes,
-    idx_t const * const nfactors,
-    idx_t const * const tdims)
-{
-  idx_t maxdim = 0;
-
-  for(idx_t m=0; m < nmodes; ++m) {
-    idx_t nrows = tdims[m];
-    idx_t ncols = 1;
-    for(idx_t m2=0; m2 < nmodes; ++m2) {
-      if(m == m2) {
-        continue;
-      }
-      ncols *= nfactors[m2];
-    }
-
-    maxdim = SS_MAX(maxdim, nrows * ncols);
-  }
-
-  return maxdim;
-}
-
-
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
@@ -78,8 +44,8 @@ int splatt_tucker_als(
   }
   factored->core = (val_t *) calloc(csize, sizeof(val_t));
 
-  idx_t maxsize = __max_tensize(nmodes, nfactors, tensors[0].dims);
-  val_t * gten = (val_t *) malloc(maxsize * sizeof(val_t));
+  idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
+  val_t * gten = malloc(tenout_size * sizeof(*gten));
 
   /* thread structures */
   omp_set_num_threads(nthreads);

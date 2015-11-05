@@ -137,6 +137,9 @@ void splatt_tucker_cmd(
     nfactors[m] = args.nfactors;
   }
 
+  /* XXX update when TTM is ready */
+  args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+
   splatt_csf * csf = csf_alloc(tt, args.opts);
 
   idx_t const nmodes = tt->nmodes;

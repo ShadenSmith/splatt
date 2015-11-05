@@ -121,6 +121,115 @@ static inline void p_clear_tenout(
 }
 
 
+/**
+* @brief Perform TTM on the root mode of a CSF tensor. No locks are used.
+*
+* @param csf The input tensor.
+* @param tile_id Which tile.
+* @param mats Input matrices.
+* @param tenout Output tensor.
+* @param thds Thread structures.
+*/
+static void p_csf_ttm_root(
+  splatt_csf const * const csf,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  val_t * const tenout,
+  thd_info * const thds)
+{
+  if(csf->nmodes != 3) {
+    fprintf(stderr, "SPLATT: TTM only supports 3 modes right now.\n");
+    exit(1);
+  }
+
+  matrix_t const * const A = mats[csf->dim_perm[1]];
+  matrix_t const * const B = mats[csf->dim_perm[2]];
+
+  idx_t const rankA = A->J;
+  idx_t const rankB = B->J;
+
+  val_t const * const restrict vals = csf->pt[tile_id].vals;
+
+  idx_t const * const restrict sptr = csf->pt[tile_id].fptr[0];
+  idx_t const * const restrict fptr = csf->pt[tile_id].fptr[1];
+
+  idx_t const * const restrict sids = csf->pt[tile_id].fids[0];
+  idx_t const * const restrict fids = csf->pt[tile_id].fids[1];
+  idx_t const * const restrict inds = csf->pt[tile_id].fids[2];
+
+  val_t const * const avals = A->vals;
+  val_t const * const bvals = B->vals;
+
+  int const tid = omp_get_thread_num();
+  val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
+
+  /* foreach slice */
+  idx_t const nslices = csf->pt[tile_id].nfibs[0];
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < nslices; ++s) {
+    idx_t const fid = (sids == NULL) ? s : sids[s];
+
+    val_t * const restrict outv = tenout + (fid * rankA * rankB);
+
+    /* foreach fiber in slice */
+    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+      /* first entry of the fiber is used to initialize accumF */
+      idx_t const jjfirst  = fptr[f];
+      val_t const vfirst   = vals[jjfirst];
+      val_t const * const restrict bv = bvals + (inds[jjfirst] * rankB);
+      for(idx_t r=0; r < rankB; ++r) {
+        accumF[r] = vfirst * bv[r];
+      }
+
+      /* foreach nnz in fiber */
+      for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
+        val_t const v = vals[jj];
+        val_t const * const restrict bv = bvals + (inds[jj] * rankB);
+        for(idx_t r=0; r < rankB; ++r) {
+          accumF[r] += v * bv[r];
+        }
+      }
+
+      /* accumulate outer product into tenout */
+      val_t const * const restrict av = avals  + (fids[f] * rankA);
+      //p_outer_prod(av, rankA, accumF, rankB, outv);
+      p_outer_prod(accumF, rankB, av, rankA, outv);
+    }
+  }
+}
+
+
+static inline void p_root_decide(
+    splatt_csf const * const tensor,
+    matrix_t ** mats,
+    val_t * const tenout,
+    idx_t const mode,
+    thd_info * const thds,
+    double const * const opts)
+{
+  idx_t const nmodes = tensor->nmodes;
+  #pragma omp parallel
+  {
+    timer_start(&thds[omp_get_thread_num()].ttime);
+    /* tile id */
+    idx_t tid = 0;
+    switch(tensor->which_tile) {
+    case SPLATT_NOTILE:
+      p_csf_ttm_root(tensor, 0, mats, tenout, thds);
+      break;
+
+    /* XXX */
+    default:
+      fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
+      exit(1);
+      break;
+    }
+    timer_stop(&thds[omp_get_thread_num()].ttime);
+  } /* end omp parallel */
+
+}
+
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
@@ -138,76 +247,96 @@ void ttm_csf(
   /* clear out stale results */
   p_clear_tenout(tenout, mats, tensors->nmodes, mode, tensors->dims);
 
+  omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
+
+  /* choose which TTM function to use */
+  splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which) {
+  case SPLATT_CSF_ALLMODE:
+    p_root_decide(tensors+mode, mats, tenout, mode, thds, opts);
+    break;
+
+  default:
+    fprintf(stderr, "SPLATT: only SPLATT_CSF_ALLMODE supported for TTM.\n");
+    exit(1);
+  }
 }
 
 
 
-#if 0
-void ttm_splatt(
-  splatt_csf const * const csf,
-  matrix_t ** mats,
-  val_t * const restrict tenout,
-  idx_t const mode,
-  thd_info * const thds,
-  idx_t const nthreads)
+void ttm_stream(
+    sptensor_t const * const tt,
+    matrix_t ** mats,
+    val_t * const tenout,
+    idx_t const mode,
+    double const * const opts)
 {
-  matrix_t       * const M = mats[MAX_NMODES];
-  matrix_t const * const A = mats[ft->dim_perm[1]];
-  matrix_t const * const B = mats[ft->dim_perm[2]];
-  idx_t const nslices = ft->dims[mode];
+  /* clear out stale results */
+  p_clear_tenout(tenout, mats, tt->nmodes, mode, tt->dims);
 
-  idx_t const rankA = A->J;
-  idx_t const rankB = B->J;
+  omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
 
-  memset(tenout, 0, nslices * rankA * rankB * sizeof(val_t));
 
-  idx_t const * const restrict sptr = ft->pt[0].sptr;
-  idx_t const * const restrict fptr = ft->pt[0].fptr;
-  idx_t const * const restrict fids = ft->pt[0].fids;
-  idx_t const * const restrict inds = ft->pt[0].inds;
-  val_t const * const restrict vals = ft->pt[0].vals;
+  val_t * mvals[MAX_NMODES];
+  idx_t nfactors[MAX_NMODES];
 
-  val_t const * const avals = A->vals;
-  val_t const * const bvals = B->vals;
+  idx_t ncols = 1;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    nfactors[m] = mats[m]->J;
+    mvals[m] = mats[m]->vals;
 
-  #pragma omp parallel
-  {
-    int const tid = omp_get_thread_num();
-    val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
-    timer_start(&thds[tid].ttime);
-
-    /* foreach slice */
-    #pragma omp for schedule(dynamic, 16) nowait
-    for(idx_t s=0; s < nslices; ++s) {
-      val_t * const restrict outv = tenout + (s * rankA * rankB);
-
-      /* foreach fiber in slice */
-      for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
-        /* first entry of the fiber is used to initialize accumF */
-        idx_t const jjfirst  = fptr[f];
-        val_t const vfirst   = vals[jjfirst];
-        val_t const * const restrict bv = bvals + (inds[jjfirst] * rankB);
-        for(idx_t r=0; r < rankB; ++r) {
-          accumF[r] = vfirst * bv[r];
-        }
-
-        /* foreach nnz in fiber */
-        for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
-          val_t const v = vals[jj];
-          val_t const * const restrict bv = bvals + (inds[jj] * rankB);
-          for(idx_t r=0; r < rankB; ++r) {
-            accumF[r] += v * bv[r];
-          }
-        }
-
-        /* accumulate outer product into tenout */
-        val_t const * const restrict av = avals  + (fids[f] * rankA);
-        //p_outer_prod(av, rankA, accumF, rankB, outv);
-        p_outer_prod(accumF, rankB, av, rankA, outv);
-      }
+    if(m != mode) {
+      ncols *= nfactors[m];
     }
-    timer_stop(&thds[tid].ttime);
-  } /* end omp parallel */
+  }
+
+  /* buffer to accumulate nonzero into */
+  val_t * accum = malloc(ncols * sizeof(*accum));
+
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    memset(accum, 0, ncols * sizeof(*accum));
+
+    /* write val to accum */
+
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      if(m == mode) {
+        continue;
+      }
+
+      val_t const * const restrict inrow = mvals[m] +
+          (tt->ind[m][n] * nfactors[m]);
+    }
+
+    val_t * const restrict outrow = tenout + (tt->ind[mode][n] * ncols);
+    for(idx_t f=0; f < ncols; ++f) {
+      outrow[f] += accum[f];
+    }
+  }
 }
-#endif
+
+
+
+idx_t tenout_dim(
+    idx_t const nmodes,
+    idx_t const * const nfactors,
+    idx_t const * const dims)
+{
+  idx_t maxdim = 0;
+
+  /* compute the size for each mode and maintain max */
+  for(idx_t m=0; m < nmodes; ++m) {
+    idx_t nrows = dims[m];
+    idx_t ncols = 1;
+    for(idx_t m2=0; m2 < nmodes; ++m2) {
+      if(m == m2) {
+        continue;
+      }
+      ncols *= nfactors[m2];
+    }
+    maxdim = SS_MAX(maxdim, nrows * ncols);
+  }
+
+  return maxdim;
+}
+
 
