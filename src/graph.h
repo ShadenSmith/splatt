@@ -117,6 +117,19 @@ void hgraph_free(
   hgraph_t * hg);
 
 
+#define graph_convert splatt_graph_convert
+/**
+* @brief Convert an m-way sparse tensor to an m-partite graph. Edges are
+*        weighted based on the nnz that connect two indices.
+*
+* @param tt The tensor to convert.
+*
+* @return  The m-partite graph.
+*/
+splatt_graph * graph_convert(
+    sptensor_t * const tt);
+
+
 #define graph_alloc splatt_graph_alloc
 /**
 * @brief Allocate space for a graph.
