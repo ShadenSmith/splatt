@@ -52,7 +52,7 @@ static error_t parse_convert_opt(
     } else if(strcmp(arg, "nnz") == 0) {
       args->type = CNV_NNZ_HGRAPH;
     } else if(strcmp(arg, "graph") == 0) {
-      args->type = CNV_NPART_GRAPH;
+      args->type = CNV_IJK_GRAPH;
     } else if(strcmp(arg, "fibmat") == 0) {
       args->type = CNV_FIB_SPMAT;
     }
