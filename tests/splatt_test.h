@@ -5,6 +5,9 @@
 #define DATASET_(x) SPLATT_TEST_DATASETS #x
 #define DATASET(x) DATASET_(x)
 
+#define GRAPH_(x) SPLATT_TEST_GRAPHS #x
+#define GRAPH(x) GRAPH_(x)
+
 static char const * const datasets[] = {
   DATASET(small.tns),
   DATASET(med.tns),
@@ -12,5 +15,14 @@ static char const * const datasets[] = {
   DATASET(med4.tns)
 };
 #define MAX_DSETS 16
+
+
+static char const * const graphs[] = {
+  GRAPH(small.graph),
+  GRAPH(med.graph),
+  GRAPH(small4.graph),
+  GRAPH(med4.graph)
+};
+#define MAX_GRAPHS 16
 
 #endif
