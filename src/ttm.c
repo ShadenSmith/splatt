@@ -76,7 +76,7 @@ int splatt_ttm(
 * @param nB The number of elements in rowB.
 * @param out The output matrix which is (nA x nB).
 */
-static inline void p_outer_prod(
+static inline void p_twovec_outer_prod(
     val_t const * const restrict rowA,
     idx_t const nA,
     val_t const * const restrict rowB,
@@ -91,7 +91,6 @@ static inline void p_outer_prod(
     }
   }
 }
-
 
 
 /**
@@ -163,6 +162,8 @@ static void p_csf_ttm_root(
   int const tid = omp_get_thread_num();
   val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
 
+  int const swap_vecs = (csf->dim_perm[2] < csf->dim_perm[1]);
+
   /* foreach slice */
   idx_t const nslices = csf->pt[tile_id].nfibs[0];
   #pragma omp for schedule(dynamic, 16) nowait
@@ -192,8 +193,12 @@ static void p_csf_ttm_root(
 
       /* accumulate outer product into tenout */
       val_t const * const restrict av = avals  + (fids[f] * rankA);
-      //p_outer_prod(av, rankA, accumF, rankB, outv);
-      p_outer_prod(accumF, rankB, av, rankA, outv);
+
+      if(!swap_vecs) {
+        p_twovec_outer_prod(av, rankA, accumF, rankB, outv);
+      } else {
+        p_twovec_outer_prod(accumF, rankB, av, rankA, outv);
+      }
     }
   }
 }
@@ -276,7 +281,7 @@ void ttm_stream(
 
   omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
 
-
+  val_t const * const restrict vals = tt->vals;
   val_t * mvals[MAX_NMODES];
   idx_t nfactors[MAX_NMODES];
 
@@ -290,26 +295,40 @@ void ttm_stream(
     }
   }
 
-  /* buffer to accumulate nonzero into */
-  val_t * accum = malloc(ncols * sizeof(*accum));
+  idx_t const nmodes = tt->nmodes;
 
   for(idx_t n=0; n < tt->nnz; ++n) {
-    memset(accum, 0, ncols * sizeof(*accum));
+    val_t * const restrict outrow = tenout + (tt->ind[mode][n] * ncols);
 
-    /* write val to accum */
+    /* foreach entry in the output 'slice' */
+    for(idx_t f=0; f < ncols; ++f) {
 
-    for(idx_t m=0; m < tt->nmodes; ++m) {
-      if(m == mode) {
-        continue;
+      val_t accum = vals[n];
+
+      /* we will modify this */
+      idx_t colnum = f;
+
+      /* we will map f to its (m-1)-dimensional coordinate which gives us its
+       * column ids for each mat[m].
+       *
+       * start from the last mode and work backwards */
+      idx_t col_id = f;
+      for(idx_t m=nmodes; m-- != 0; ) {
+        if(m == mode) {
+          continue;
+        }
+
+        /* compute column id for mats[m] and update colnum */
+        col_id = colnum % nfactors[m];
+        colnum /= nfactors[m];
+
+        val_t const * const restrict inrow = mvals[m] +
+            (tt->ind[m][n] * nfactors[m]);
+        accum *= inrow[col_id];
       }
 
-      val_t const * const restrict inrow = mvals[m] +
-          (tt->ind[m][n] * nfactors[m]);
-    }
-
-    val_t * const restrict outrow = tenout + (tt->ind[mode][n] * ncols);
-    for(idx_t f=0; f < ncols; ++f) {
-      outrow[f] += accum[f];
+      /* now write accum to output */
+      outrow[f] += accum;
     }
   }
 }

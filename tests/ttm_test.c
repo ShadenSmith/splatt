@@ -53,7 +53,7 @@ static void p_csf_ttm(
     ttm_stream(tt, mats, gold, m, opts);
 
     /* compute CSF test */
-    ttm_csf(csf+m, mats, test, m, thds, opts);
+    ttm_csf(csf, mats, test, m, thds, opts);
 
     /* compare */
     p_compare_vecs(test, gold, outdim, outdim);
@@ -78,7 +78,7 @@ CTEST_DATA(ttm)
 CTEST_SETUP(ttm)
 {
   for(idx_t m=0; m < MAX_NMODES; ++m) {
-    data->nfactors[m] = 3 + m;
+    data->nfactors[m] = 3+m;
   }
 
   data->ntensors = sizeof(datasets) / sizeof(datasets[0]);
