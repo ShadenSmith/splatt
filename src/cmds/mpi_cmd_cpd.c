@@ -206,7 +206,7 @@ void splatt_mpi_cpd_cmd(
       mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 1);
 
       /* fill csf[m] */
-      csf_alloc_mode(tt_filtered, m, csf+m, args.opts);
+      csf_alloc_mode(tt_filtered, CSF_SORTED_MINUSONE, m, csf+m, args.opts);
 
       /* sanity check on nnz */
       idx_t totnnz;
