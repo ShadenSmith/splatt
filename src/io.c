@@ -16,7 +16,7 @@
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-static sptensor_t * __tt_read_file(
+static sptensor_t * p_tt_read_file(
   FILE * fin)
 {
   char * ptr = NULL;
@@ -128,7 +128,7 @@ sptensor_t * tt_read_file(
   }
 
   timer_start(&timers[TIMER_IO]);
-  sptensor_t * tt = __tt_read_file(fin);
+  sptensor_t * tt = p_tt_read_file(fin);
   timer_stop(&timers[TIMER_IO]);
   fclose(fin);
   return tt;

@@ -15,7 +15,7 @@
 /******************************************************************************
  * PRIVATE FUNCTONS
  *****************************************************************************/
-static inline int __same_coord(
+static inline int p_same_coord(
   sptensor_t const * const tt,
   idx_t const i,
   idx_t const j)
@@ -124,7 +124,7 @@ idx_t tt_remove_dups(
   idx_t newnnz = 0;
   for(idx_t nnz = 1; nnz < tt->nnz; ++nnz) {
     /* if the two nnz are the same, average them */
-    if(__same_coord(tt, newnnz, nnz)) {
+    if(p_same_coord(tt, newnnz, nnz)) {
       tt->vals[newnnz] += tt->vals[nnz];
       tt->vals[newnnz] /= 2;
     } else {

@@ -86,7 +86,7 @@ void splatt_free_kruskal(
 *
 * @param rinfo MPI rank information.
 */
-static void __reset_cpd_timers(
+static void p_reset_cpd_timers(
   rank_info const * const rinfo)
 {
   timer_reset(&timers[TIMER_ATA]);
@@ -116,7 +116,7 @@ static void __reset_cpd_timers(
 *
 * @return The Frobenius norm of X, squared.
 */
-static val_t __kruskal_norm(
+static val_t p_kruskal_norm(
   idx_t const nmodes,
   val_t const * const restrict lambda,
   matrix_t ** aTa)
@@ -166,7 +166,7 @@ static val_t __kruskal_norm(
 * @return The inner product of the two tensors, computed via:
 *         1^T hadamard(mats[nmodes-1], m1) \lambda.
 */
-static val_t __tt_kruskal_inner(
+static val_t p_tt_kruskal_inner(
   idx_t const nmodes,
   rank_info * const rinfo,
   thd_info * const thds,
@@ -236,7 +236,7 @@ static val_t __tt_kruskal_inner(
 * @return The inner product of the two tensors, computed via:
 *         \lambda^T hadamard(mats[nmodes-1], m1) \lambda.
 */
-static val_t __calc_fit(
+static val_t p_calc_fit(
   idx_t const nmodes,
   rank_info * const rinfo,
   thd_info * const thds,
@@ -249,10 +249,10 @@ static val_t __calc_fit(
   timer_start(&timers[TIMER_FIT]);
 
   /* First get norm of new model: lambda^T * (hada aTa) * lambda. */
-  val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
+  val_t const norm_mats = p_kruskal_norm(nmodes, lambda, aTa);
 
   /* Compute inner product of tensor with new model */
-  val_t const inner = __tt_kruskal_inner(nmodes, rinfo, thds, lambda, mats,m1);
+  val_t const inner = p_tt_kruskal_inner(nmodes, rinfo, thds, lambda, mats,m1);
 
   val_t const residual = sqrt(ttnormsq + norm_mats - (2 * inner));
   timer_stop(&timers[TIMER_FIT]);
@@ -300,7 +300,7 @@ double cpd_als_iterate(
   val_t ttnormsq = csf_frobsq(tensors);
 
   /* setup timers */
-  __reset_cpd_timers(rinfo);
+  p_reset_cpd_timers(rinfo);
   sp_timer_t itertime;
   sp_timer_t modetime[MAX_NMODES];
   timer_start(&timers[TIMER_CPD]);
@@ -337,7 +337,7 @@ double cpd_als_iterate(
       timer_stop(&modetime[m]);
     } /* foreach mode */
 
-    fit = __calc_fit(nmodes, rinfo, thds, ttnormsq, lambda, mats, m1, aTa);
+    fit = p_calc_fit(nmodes, rinfo, thds, ttnormsq, lambda, mats, m1, aTa);
     timer_stop(&itertime);
 
     if(rinfo->rank == 0 &&

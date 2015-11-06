@@ -23,7 +23,7 @@
 * @param tt The tensor to inspect.
 * @param ifname The filename of tt. Can be NULL.
 */
-static void __stats_basic(
+static void p_stats_basic(
   sptensor_t const * const tt,
   char const * const ifname)
 {
@@ -50,7 +50,7 @@ static void __stats_basic(
 * @param mode The mode to operate on.
 * @param pfname The file containing the partitioning.
 */
-static void __stats_hparts(
+static void p_stats_hparts(
   sptensor_t * const tt,
   idx_t const mode,
   char const * const pfname)
@@ -179,10 +179,10 @@ void stats_tt(
 {
   switch(type) {
   case STATS_BASIC:
-    __stats_basic(tt, ifname);
+    p_stats_basic(tt, ifname);
     break;
   case STATS_HPARTS:
-    __stats_hparts(tt, mode, pfile);
+    p_stats_hparts(tt, mode, pfile);
     break;
   default:
     fprintf(stderr, "SPLATT ERROR: analysis type not implemented\n");

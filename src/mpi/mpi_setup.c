@@ -9,7 +9,7 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-static void __fill_ineed_ptrs(
+static void p_fill_ineed_ptrs(
   sptensor_t const * const tt,
   idx_t const mode,
   rank_info * const rinfo,
@@ -61,7 +61,7 @@ static void __fill_ineed_ptrs(
 }
 
 
-static void __fill_ineed_inds(
+static void p_fill_ineed_inds(
   sptensor_t const * const tt,
   idx_t const mode,
   idx_t const nfactors,
@@ -159,7 +159,7 @@ static void __fill_ineed_inds(
 *
 * @param rinfo MPI rank information to fill in.
 */
-static void __setup_1d(
+static void p_setup_1d(
   rank_info * const rinfo)
 {
   rinfo->comm_3d = MPI_COMM_WORLD;
@@ -177,7 +177,7 @@ static void __setup_1d(
 *
 * @param rinfo MPI rank information to fill in.
 */
-static void __setup_3d(
+static void p_setup_3d(
   rank_info * const rinfo)
 {
   int * const dims_3d = rinfo->dims_3d;
@@ -234,10 +234,10 @@ void mpi_compute_ineed(
   idx_t const distribution)
 {
   /* fill local2nbr and nbr2globs ptrs */
-  __fill_ineed_ptrs(tt, mode, rinfo, rinfo->layer_comm[mode]);
+  p_fill_ineed_ptrs(tt, mode, rinfo, rinfo->layer_comm[mode]);
 
   /* fill indices */
-  __fill_ineed_inds(tt, mode, nfactors, rinfo, rinfo->layer_comm[mode]);
+  p_fill_ineed_inds(tt, mode, nfactors, rinfo, rinfo->layer_comm[mode]);
 }
 
 
@@ -246,10 +246,10 @@ void mpi_setup_comms(
 {
   switch(rinfo->distribution) {
   case 1:
-    __setup_1d(rinfo);
+    p_setup_1d(rinfo);
     break;
   case 3:
-    __setup_3d(rinfo);
+    p_setup_3d(rinfo);
     break;
   default:
     fprintf(stderr, "SPLATT: distribution %"SPLATT_PF_IDX" not supported. "

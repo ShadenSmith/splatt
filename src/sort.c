@@ -31,7 +31,7 @@
 *
 * @return Returns -1 if ind[i] < j, 1 if ind[i] > j, and 0 if they are equal.
 */
-static inline int __ttqcmp3(
+static inline int p_ttqcmp3(
   idx_t const * const ind0,
   idx_t const * const ind1,
   idx_t const * const ind2,
@@ -70,7 +70,7 @@ static inline int __ttqcmp3(
 * @return Returns -1 if ind[i] < ind[j], 1 if ind[i] > ind[j], and 0 if they
 *         are equal.
 */
-static inline int __ttcmp3(
+static inline int p_ttcmp3(
   idx_t const * const ind0,
   idx_t const * const ind1,
   idx_t const * const ind2,
@@ -107,7 +107,7 @@ static inline int __ttcmp3(
 * @return Returns -1 if ind[i] < ind[j], 1 if ind[i] > ind[j], and 0 if they
 *         are equal.
 */
-static inline int __ttcmp(
+static inline int p_ttcmp(
   sptensor_t const * const tt,
   idx_t const * const cmplt,
   idx_t const i,
@@ -134,7 +134,7 @@ static inline int __ttcmp(
 *
 * @return Returns -1 if ind[i] < j, 1 if ind[i] > j, and 0 if they are equal.
 */
-static inline int __ttqcmp(
+static inline int p_ttqcmp(
   sptensor_t const * const tt,
   idx_t const * const cmplt,
   idx_t const i,
@@ -158,7 +158,7 @@ static inline int __ttqcmp(
 * @param i The first nonzero to swap.
 * @param j The second nonzero to swap with.
 */
-static inline void __ttswap(
+static inline void p_ttswap(
   sptensor_t * const tt,
   idx_t const i,
   idx_t const j)
@@ -184,7 +184,7 @@ static inline void __ttswap(
 * @param start The first nonzero to sort.
 * @param end The last nonzero to sort.
 */
-static void __tt_insertionsort3(
+static void p_tt_insertionsort3(
   sptensor_t * const tt,
   idx_t const * const cmplt,
   idx_t const start,
@@ -200,7 +200,7 @@ static void __tt_insertionsort3(
 
   for(size_t i=start+1; i < end; ++i) {
     size_t j = i;
-    while (j > 0 && __ttcmp3(ind0, ind1, ind2, i, j-1) < 0) {
+    while (j > 0 && p_ttcmp3(ind0, ind1, ind2, i, j-1) < 0) {
       --j;
     }
 
@@ -230,7 +230,7 @@ static void __tt_insertionsort3(
 * @param start The first nonzero to sort.
 * @param end The last nonzero to sort.
 */
-static void __tt_insertionsort(
+static void p_tt_insertionsort(
   sptensor_t * const tt,
   idx_t const * const cmplt,
   idx_t const start,
@@ -245,7 +245,7 @@ static void __tt_insertionsort(
 
   for(size_t i=start+1; i < end; ++i) {
     size_t j = i;
-    while (j > 0 && __ttcmp(tt, cmplt, i, j-1) < 0) {
+    while (j > 0 && p_ttcmp(tt, cmplt, i, j-1) < 0) {
       --j;
     }
 
@@ -272,7 +272,7 @@ static void __tt_insertionsort(
 * @param start The first nonzero to sort.
 * @param end The last nonzero to sort.
 */
-static void __tt_quicksort3(
+static void p_tt_quicksort3(
   sptensor_t * const tt,
   idx_t const * const cmplt,
   idx_t const start,
@@ -287,7 +287,7 @@ static void __tt_quicksort3(
   val_t * const vals = tt->vals;
 
   if((end-start) <= MIN_QUICKSORT_SIZE) {
-    __tt_insertionsort3(tt, cmplt, start, end);
+    p_tt_insertionsort3(tt, cmplt, start, end);
   } else {
     size_t i = start+1;
     size_t j = end-1;
@@ -305,9 +305,9 @@ static void __tt_quicksort3(
 
     while(i < j) {
       /* if tt[i] > mid  -> tt[i] is on wrong side */
-      if(__ttqcmp3(ind0,ind1,ind2,i,imid) == 1) {
+      if(p_ttqcmp3(ind0,ind1,ind2,i,imid) == 1) {
         /* if tt[j] <= mid  -> swap tt[i] and tt[j] */
-        if(__ttqcmp3(ind0,ind1,ind2,j,imid) < 1) {
+        if(p_ttqcmp3(ind0,ind1,ind2,j,imid) < 1) {
           val_t vtmp = vals[i];
           vals[i] = vals[j];
           vals[j] = vtmp;
@@ -325,7 +325,7 @@ static void __tt_quicksort3(
         --j;
       } else {
         /* if tt[j] > mid  -> tt[j] is on right side */
-        if(__ttqcmp3(ind0,ind1,ind2,j,imid) == 1) {
+        if(p_ttqcmp3(ind0,ind1,ind2,j,imid) == 1) {
           --j;
         }
         ++i;
@@ -333,7 +333,7 @@ static void __tt_quicksort3(
     }
 
     /* if tt[i] > mid */
-    if(__ttqcmp3(ind0,ind1,ind2,i,imid) == 1) {
+    if(p_ttqcmp3(ind0,ind1,ind2,i,imid) == 1) {
       --i;
     }
     vals[start] = vals[i];
@@ -346,11 +346,11 @@ static void __tt_quicksort3(
     ind2[i] = imid[2];
 
     if(i > start + 1) {
-      __tt_quicksort3(tt, cmplt, start, i);
+      p_tt_quicksort3(tt, cmplt, start, i);
     }
     ++i; /* skip the pivot element */
     if(end - i > 1) {
-      __tt_quicksort3(tt, cmplt, i, end);
+      p_tt_quicksort3(tt, cmplt, i, end);
     }
   }
 }
@@ -364,7 +364,7 @@ static void __tt_quicksort3(
 * @param start The first nonzero to sort.
 * @param end The last nonzero to sort.
 */
-static void __tt_quicksort(
+static void p_tt_quicksort(
   sptensor_t * const tt,
   idx_t const * const cmplt,
   idx_t const start,
@@ -378,7 +378,7 @@ static void __tt_quicksort(
   idx_t const nmodes = tt->nmodes;
 
   if((end-start) <= MIN_QUICKSORT_SIZE) {
-    __tt_insertionsort(tt, cmplt, start, end);
+    p_tt_insertionsort(tt, cmplt, start, end);
   } else {
     size_t i = start+1;
     size_t j = end-1;
@@ -395,16 +395,16 @@ static void __tt_quicksort(
 
     while(i < j) {
       /* if tt[i] > mid  -> tt[i] is on wrong side */
-      if(__ttqcmp(tt,cmplt,i,imid) == 1) {
+      if(p_ttqcmp(tt,cmplt,i,imid) == 1) {
         /* if tt[j] <= mid  -> swap tt[i] and tt[j] */
-        if(__ttqcmp(tt,cmplt,j,imid) < 1) {
-          __ttswap(tt,i,j);
+        if(p_ttqcmp(tt,cmplt,j,imid) < 1) {
+          p_ttswap(tt,i,j);
           ++i;
         }
         --j;
       } else {
         /* if tt[j] > mid  -> tt[j] is on right side */
-        if(__ttqcmp(tt,cmplt,j,imid) == 1) {
+        if(p_ttqcmp(tt,cmplt,j,imid) == 1) {
           --j;
         }
         ++i;
@@ -412,7 +412,7 @@ static void __tt_quicksort(
     }
 
     /* if tt[i] > mid */
-    if(__ttqcmp(tt,cmplt,i,imid) == 1) {
+    if(p_ttqcmp(tt,cmplt,i,imid) == 1) {
       --i;
     }
     vals[start] = vals[i];
@@ -424,11 +424,11 @@ static void __tt_quicksort(
     }
 
     if(i > start + 1) {
-      __tt_quicksort(tt, cmplt, start, i);
+      p_tt_quicksort(tt, cmplt, start, i);
     }
     ++i; /* skip the pivot element */
     if(end - i > 1) {
-      __tt_quicksort(tt, cmplt, i, end);
+      p_tt_quicksort(tt, cmplt, i, end);
     }
   }
 }
@@ -468,10 +468,10 @@ void tt_sort_range(
   timer_start(&timers[TIMER_SORT]);
   switch(tt->type) {
   case SPLATT_NMODE:
-    __tt_quicksort(tt, cmplt, start, end);
+    p_tt_quicksort(tt, cmplt, start, end);
     break;
   case SPLATT_3MODE:
-    __tt_quicksort3(tt, cmplt, start, end);
+    p_tt_quicksort3(tt, cmplt, start, end);
     break;
   }
 

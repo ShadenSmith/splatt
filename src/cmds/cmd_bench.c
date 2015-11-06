@@ -166,7 +166,7 @@ static error_t parse_bench_opt(
 static struct argp bench_argp =
   {bench_options, parse_bench_opt, bench_args_doc, bench_doc};
 
-static idx_t * __mkthreads(
+static idx_t * p_mkthreads(
   idx_t const nthreads,
   int const scale,
   idx_t * nruns)
@@ -260,7 +260,7 @@ void splatt_bench(
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
-  opts.threads = __mkthreads(args.nthreads, args.scale, &opts.nruns);
+  opts.threads = p_mkthreads(args.nthreads, args.scale, &opts.nruns);
 
   printf("Benchmarking ---------------------------------------------------\n");
   printf("RANK=%"SPLATT_PF_IDX" ITS=%"SPLATT_PF_IDX"\n", args.rank, args.niters);

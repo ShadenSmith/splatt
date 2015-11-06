@@ -73,7 +73,7 @@ void splatt_free_csf(
 * @param nmodes The number of modes.
 * @param perm_dims The resulting permutation.
 */
-static void __order_dims_small(
+static void p_order_dims_small(
   idx_t const * const dims,
   idx_t const nmodes,
   idx_t * const perm_dims)
@@ -108,7 +108,7 @@ static void __order_dims_small(
 * @param custom_mode The mode to place first.
 * @param perm_dims The resulting permutation.
 */
-static void __order_dims_inorder(
+static void p_order_dims_inorder(
   idx_t const * const dims,
   idx_t const nmodes,
   idx_t const custom_mode,
@@ -139,13 +139,13 @@ static void __order_dims_inorder(
 * @param custom_mode The mode to place first.
 * @param perm_dims The resulting permutation.
 */
-static void __order_dims_minusone(
+static void p_order_dims_minusone(
   idx_t const * const dims,
   idx_t const nmodes,
   idx_t const custom_mode,
   idx_t * const perm_dims)
 {
-  __order_dims_small(dims, nmodes, perm_dims);
+  p_order_dims_small(dims, nmodes, perm_dims);
 
   /* find where custom_mode was placed and adjust from there */
   for(idx_t m=0; m < nmodes; ++m) {
@@ -165,7 +165,7 @@ static void __order_dims_minusone(
 * @param nmodes The number of modes.
 * @param perm_dims The resulting permutation.
 */
-static void __order_dims_large(
+static void p_order_dims_large(
   idx_t const * const dims,
   idx_t const nmodes,
   idx_t * const perm_dims)
@@ -206,7 +206,7 @@ static void __order_dims_large(
 *
 * @param ct The tensor to print.
 */
-static void __print_csf(
+static void p_print_csf(
   splatt_csf const * const ct)
 {
   printf("-----------\n");
@@ -282,7 +282,7 @@ static void __print_csf(
 * @param tile_id The ID of the tile to construct.
 * @param nnztile_ptr A pointer into 'tt' that marks the start of each tile.
 */
-static void __mk_outerptr(
+static void p_mk_outerptr(
   splatt_csf * const ct,
   sptensor_t const * const tt,
   idx_t const tile_id,
@@ -352,7 +352,7 @@ static void __mk_outerptr(
 * @param nnztile_ptr A pointer into 'tt' that marks the start of each tile.
 * @param mode Which mode we are constructing.
 */
-static void __mk_fptr(
+static void p_mk_fptr(
   splatt_csf * const ct,
   sptensor_t const * const tt,
   idx_t const tile_id,
@@ -367,7 +367,7 @@ static void __mk_fptr(
 
   /* outer mode is easy; just look at outer indices */
   if(mode == 0) {
-    __mk_outerptr(ct, tt, tile_id, nnztile_ptr);
+    p_mk_outerptr(ct, tt, tile_id, nnztile_ptr);
     return;
   }
   /* the mode after accounting for dim_perm */
@@ -432,7 +432,7 @@ static void __mk_fptr(
 * @param ct The CSF tensor to fill out.
 * @param tt The sparse tensor to start from.
 */
-static void __csf_alloc_untiled(
+static void p_csf_alloc_untiled(
   splatt_csf * const ct,
   sptensor_t * const tt)
 {
@@ -463,7 +463,7 @@ static void __csf_alloc_untiled(
   /* create fptr entries for the rest of the modes, working down from roots.
    * Skip the bottom level (nnz) */
   for(idx_t m=0; m < tt->nmodes-1; ++m) {
-    __mk_fptr(ct, tt, 0, nnz_ptr, m);
+    p_mk_fptr(ct, tt, 0, nnz_ptr, m);
   }
 }
 
@@ -476,7 +476,7 @@ static void __csf_alloc_untiled(
 * @param tt The sparse tensor to start from.
 * @param splatt_opts Options array for SPLATT - used for tile dimensions.
 */
-static void __csf_alloc_densetile(
+static void p_csf_alloc_densetile(
   splatt_csf * const ct,
   sptensor_t * const tt,
   double const * const splatt_opts)
@@ -535,7 +535,7 @@ static void __csf_alloc_densetile(
 
     /* create fptr entries for the rest of the modes */
     for(idx_t m=0; m < tt->nmodes-1; ++m) {
-      __mk_fptr(ct, tt, t, nnz_ptr, m);
+      p_mk_fptr(ct, tt, t, nnz_ptr, m);
     }
   }
 
@@ -552,7 +552,7 @@ static void __csf_alloc_densetile(
 * @param mode Which mode we are converting for (if applicable).
 * @param splatt_opts Used to determine tiling scheme.
 */
-static void __mk_csf(
+static void p_mk_csf(
   splatt_csf * const ct,
   sptensor_t * const tt,
   csf_mode_type mode_type,
@@ -572,10 +572,10 @@ static void __mk_csf(
   ct->which_tile = splatt_opts[SPLATT_OPTION_TILE];
   switch(ct->which_tile) {
   case SPLATT_NOTILE:
-    __csf_alloc_untiled(ct, tt);
+    p_csf_alloc_untiled(ct, tt);
     break;
   case SPLATT_DENSETILE:
-    __csf_alloc_densetile(ct, tt, splatt_opts);
+    p_csf_alloc_densetile(ct, tt, splatt_opts);
     break;
   default:
     fprintf(stderr, "SPLATT: tiling '%d' unsupported for CSF tensors.\n",
@@ -641,19 +641,19 @@ void csf_find_mode_order(
 {
   switch(which) {
   case CSF_SORTED_SMALLFIRST:
-    __order_dims_small(dims, nmodes, perm_dims);
+    p_order_dims_small(dims, nmodes, perm_dims);
     break;
 
   case CSF_SORTED_BIGFIRST:
-    __order_dims_large(dims, nmodes, perm_dims);
+    p_order_dims_large(dims, nmodes, perm_dims);
     break;
 
   case CSF_INORDER_MINUSONE:
-    __order_dims_inorder(dims, nmodes, mode, perm_dims);
+    p_order_dims_inorder(dims, nmodes, mode, perm_dims);
     break;
 
   case CSF_SORTED_MINUSONE:
-    __order_dims_minusone(dims, nmodes, mode, perm_dims);
+    p_order_dims_minusone(dims, nmodes, mode, perm_dims);
     break;
 
   default:
@@ -718,13 +718,13 @@ splatt_csf * csf_alloc(
   switch((splatt_csf_type) opts[SPLATT_OPTION_CSF_ALLOC]) {
   case SPLATT_CSF_ONEMODE:
     ret = malloc(sizeof(*ret));
-    __mk_csf(ret, tt, CSF_SORTED_SMALLFIRST, 0, opts);
+    p_mk_csf(ret, tt, CSF_SORTED_SMALLFIRST, 0, opts);
     break;
 
   case SPLATT_CSF_TWOMODE:
     ret = malloc(2 * sizeof(*ret));
     /* regular CSF allocation */
-    __mk_csf(ret + 0, tt, CSF_SORTED_SMALLFIRST, 0, opts);
+    p_mk_csf(ret + 0, tt, CSF_SORTED_SMALLFIRST, 0, opts);
 
     /* make a copy of opts and don't tile the last mode
      * TODO make this configurable? */
@@ -734,7 +734,7 @@ splatt_csf * csf_alloc(
 
     /* allocate with no tiling for the last mode */
     last_mode = ret[0].dim_perm[tt->nmodes-1];
-    __mk_csf(ret + 1, tt, CSF_SORTED_MINUSONE, last_mode, tmp_opts);
+    p_mk_csf(ret + 1, tt, CSF_SORTED_MINUSONE, last_mode, tmp_opts);
 
     free(tmp_opts);
     break;
@@ -742,7 +742,7 @@ splatt_csf * csf_alloc(
   case SPLATT_CSF_ALLMODE:
     ret = malloc(tt->nmodes * sizeof(*ret));
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      __mk_csf(ret + m, tt, CSF_SORTED_MINUSONE, m, opts);
+      p_mk_csf(ret + m, tt, CSF_SORTED_MINUSONE, m, opts);
     }
     break;
   }
@@ -758,7 +758,7 @@ void csf_alloc_mode(
   splatt_csf * const csf,
   double const * const opts)
 {
-  __mk_csf(csf, tt, which_ordering, mode_special, opts);
+  p_mk_csf(csf, tt, which_ordering, mode_special, opts);
 }
 
 

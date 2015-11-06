@@ -17,7 +17,7 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-static void __mat_2norm(
+static void p_mat_2norm(
   matrix_t * const A,
   val_t * const restrict lambda,
   rank_info * const rinfo,
@@ -81,7 +81,7 @@ static void __mat_2norm(
 }
 
 
-static void __mat_maxnorm(
+static void p_mat_maxnorm(
   matrix_t * const A,
   val_t * const restrict lambda,
   rank_info * const rinfo,
@@ -152,7 +152,7 @@ static void __mat_maxnorm(
 * @param L The lower triangular matrix of coefficients.
 * @param B The right-hand side which is overwritten with X.
 */
-static void __mat_forwardsolve(
+static void p_mat_forwardsolve(
   matrix_t const * const L,
   matrix_t * const B)
 {
@@ -187,7 +187,7 @@ static void __mat_forwardsolve(
 * @param U The upper triangular matrix of coefficients.
 * @param B The right-hand side which is overwritten with X.
 */
-static void __mat_backwardsolve(
+static void p_mat_backwardsolve(
   matrix_t const * const U,
   matrix_t * const B)
 {
@@ -244,7 +244,7 @@ void mat_syminv(
   }
 
   /* Solve L*Y = I */
-  __mat_forwardsolve(L, A);
+  p_mat_forwardsolve(L, A);
 
   /* transpose L */
   for(idx_t i=0; i < N; ++i) {
@@ -255,7 +255,7 @@ void mat_syminv(
   }
 
   /* Solve U*A = Y */
-  __mat_backwardsolve(L, A);
+  p_mat_backwardsolve(L, A);
 
   mat_free(L);
 }
@@ -475,10 +475,10 @@ void mat_normalize(
 
   switch(which) {
   case MAT_NORM_2:
-    __mat_2norm(A, lambda, rinfo, thds);
+    p_mat_2norm(A, lambda, rinfo, thds);
     break;
   case MAT_NORM_MAX:
-    __mat_maxnorm(A, lambda, rinfo, thds);
+    p_mat_maxnorm(A, lambda, rinfo, thds);
     break;
   default:
     fprintf(stderr, "SPLATT: mat_normalize supports 2 and MAX only.\n");
