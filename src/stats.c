@@ -264,7 +264,7 @@ void cpd_stats(
 
   /* tiling info */
   printf("TILE=");
-  splatt_tile_t which_tile = opts[SPLATT_OPTION_TILE];
+  splatt_tile_type which_tile = opts[SPLATT_OPTION_TILE];
   switch(which_tile) {
   case SPLATT_NOTILE:
     printf("NO");
@@ -350,7 +350,7 @@ void mpi_cpd_stats(
 
   /* tiling info */
   printf("TILE=");
-  splatt_tile_t which_tile = opts[SPLATT_OPTION_TILE];
+  splatt_tile_type which_tile = opts[SPLATT_OPTION_TILE];
   switch(which_tile) {
   case SPLATT_NOTILE:
     printf("NO");

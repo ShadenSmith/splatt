@@ -136,7 +136,7 @@ void splatt_cpd_cmd(
   }
 
   /* print basic tensor stats? */
-  splatt_verbosity_t which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
+  splatt_verbosity_type which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
   if(which_verb >= SPLATT_VERBOSITY_LOW) {
     stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
   }
@@ -151,7 +151,7 @@ void splatt_cpd_cmd(
     cpd_stats(csf, args.nfactors, args.opts);
   }
 
-  splatt_kruskal_t factored;
+  splatt_kruskal factored;
 
   /* do the factorization! */
   int ret = splatt_cpd_als(csf, args.nfactors, args.opts, &factored);

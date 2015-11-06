@@ -7,7 +7,6 @@
 #include "matrix.h"
 #include "util.h"
 #include "timer.h"
-#include "io.h"
 
 #include <math.h>
 #include <omp.h>

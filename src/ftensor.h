@@ -46,7 +46,7 @@ typedef struct ftensor_t
   splatt_idx_t * indmap;  /** Maps local to global indices if empty slices */
 
   /* TILED STRUCTURES */
-  splatt_tile_t tiled;                /** splatt_tile_t type */
+  splatt_tile_type tiled;
   splatt_idx_t    nslabs;   /** Number of slabs (length of slabptr) */
   splatt_idx_t * slabptr;   /** Indexes into fptr the start/end of each slab */
   splatt_idx_t * sids;      /** ID of each fiber (for dim_perm[0]) */

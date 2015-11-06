@@ -2,6 +2,8 @@
 #define SPLATT_SPLATT_H
 
 
+
+
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
@@ -11,6 +13,10 @@
 #ifdef SPLATT_USE_MPI
 #include <mpi.h>
 #endif
+
+
+
+
 
 /******************************************************************************
  * TYPES
@@ -90,32 +96,33 @@
 typedef enum
 {
   /* high level options */
-  SPLATT_OPTION_NTHREADS,   /** Number of OpenMP threads to use. */
-  SPLATT_OPTION_TOLERANCE,  /** Threshold for convergence. */
-  SPLATT_OPTION_NITER,      /** Maximum number of iterations to perform. */
-  SPLATT_OPTION_VERBOSITY,  /** Verbosity level */
+  SPLATT_OPTION_NTHREADS,   /* Number of OpenMP threads to use. */
+  SPLATT_OPTION_TOLERANCE,  /* Threshold for convergence. */
+  SPLATT_OPTION_NITER,      /* Maximum number of iterations to perform. */
+  SPLATT_OPTION_VERBOSITY,  /* Verbosity level */
 
   /* low level options */
-  SPLATT_OPTION_RANDSEED,   /** Random number seed */
-  SPLATT_OPTION_CSF_ALLOC,  /** How many (and which) tensors to allocate. */
-  SPLATT_OPTION_TILE,       /** Use cache tiling during MTTKRP. */
-  SPLATT_OPTION_TILEDEPTH,  /** Minimium depth in CSF to tile, 0-indexed. */
+  SPLATT_OPTION_RANDSEED,   /* Random number seed */
+  SPLATT_OPTION_CSF_ALLOC,  /* How many (and which) tensors to allocate. */
+  SPLATT_OPTION_TILE,       /* Use cache tiling during MTTKRP. */
+  SPLATT_OPTION_TILEDEPTH,  /* Minimium depth in CSF to tile, 0-indexed. */
 
-  SPLATT_OPTION_NOPTIONS    /** Gives the size of the options array. */
-} splatt_option_t;
+  SPLATT_OPTION_NOPTIONS    /* Gives the size of the options array. */
+} splatt_option_type;
+
 
 /**
 * @brief Return codes used by SPLATT.
 */
 typedef enum
 {
-  SPLATT_SUCCESS = 1,     /** Successful SPLATT API call. */
-  SPLATT_ERROR_BADINPUT,  /** SPLATT found an issue with the input.
-                              Try splatt-check to debug. */
-  SPLATT_ERROR_NOMEMORY   /** SPLATT did not have enough memory to complete.
-                              Try using fewer factors, a smaller tensor, or
-                              recompile with less precision. */
-} splatt_error_t;
+  SPLATT_SUCCESS = 1,     /* Successful SPLATT API call. */
+  SPLATT_ERROR_BADINPUT,  /* SPLATT found an issue with the input.
+                             Try splatt-check to debug. */
+  SPLATT_ERROR_NOMEMORY   /* SPLATT did not have enough memory to complete.
+                             Try using fewer factors, a smaller tensor, or
+                             recompile with less precision. */
+} splatt_error_type;
 
 
 /**
@@ -123,11 +130,11 @@ typedef enum
 */
 typedef enum
 {
-  SPLATT_VERBOSITY_NONE, /** Nothing written to STDOUT. */
-  SPLATT_VERBOSITY_LOW,  /** Only headers/footers and high-level timing. */
-  SPLATT_VERBOSITY_HIGH, /** Timers for all modes. */
-  SPLATT_VERBOSITY_MAX   /** All output, including detailed timers. */
-} splatt_verbosity_t;
+  SPLATT_VERBOSITY_NONE, /* Nothing written to STDOUT. */
+  SPLATT_VERBOSITY_LOW,  /* Only headers/footers and high-level timing. */
+  SPLATT_VERBOSITY_HIGH, /* Timers for all modes. */
+  SPLATT_VERBOSITY_MAX   /* All output, including detailed timers. */
+} splatt_verbosity_type;
 
 
 /**
@@ -140,7 +147,7 @@ typedef enum
   /* DEPRECATED - pending CSF implementations */
   SPLATT_SYNCTILE,
   SPLATT_COOPTILE,
-} splatt_tile_t;
+} splatt_tile_type;
 
 
 /**
@@ -158,48 +165,98 @@ static double const SPLATT_VAL_OFF = -DBL_MAX;
 
 
 
+
+
+
 /******************************************************************************
- * STRUCTURES
+ * DATA STRUCTURES
  *****************************************************************************/
 
 /**
-* @brief Struct describing a Kruskal tensor, allocated and returned by
-*        splatt_cpd.
+* @brief Kruskal tensors are the output of the CPD. Each mode of the tensor is
+*        represented as a matrix with unit columns. Lambda is a vector whose
+*        entries scale the columns of the matrix factors.
 */
-typedef struct splatt_kruskal_t
+typedef struct splatt_kruskal
 {
-  splatt_idx_t nmodes;                  /** Number of modes (i.e., factors[])*/
-  splatt_idx_t rank;                    /** Number of columns in each factor */
-  double fit;                           /** The quality [0,1] of the CPD */
-  splatt_val_t * lambda;                /** Scaling factors for each column */
-  splatt_val_t * factors[SPLATT_MAX_NMODES];   /** Row-major matrix for each mode */
-} splatt_kruskal_t;
+  /** @brief The rank of the decomposition. */
+  splatt_idx_t rank;
+
+  /** @brief The row-major matrix factors for each mode. */
+  splatt_val_t * factors[SPLATT_MAX_NMODES];
+
+  /** @brief Length-for each column. */
+  splatt_val_t * lambda;
+
+  /** @brief The number of modes in the tensor. */
+  splatt_idx_t nmodes;
+
+  /** @brief The number of rows in each factor. */
+  splatt_idx_t dims[SPLATT_MAX_NMODES];
+
+  /** @brief The quality [0,1] of the CPD */
+  double fit;
+} splatt_kruskal;
 
 
-/*********
- */
+
+/**
+* @brief The sparsity pattern of a CSF (sub-)tensor.
+*/
 typedef struct
 {
+  /** @brief The size of each fptr and fids array. */
   splatt_idx_t nfibs[SPLATT_MAX_NMODES];
+
+  /** @brief The pointer structure for each sub-tree. fptr[f] marks the start
+   *         of the children of node 'f'. This structure is a generalization of
+   *         the 'rowptr' array used for CSR matrices. */
   splatt_idx_t * fptr[SPLATT_MAX_NMODES];
+
+  /** @brief The index of each node. These map nodes back to the original
+   *         tensor nonzeros. */
   splatt_idx_t * fids[SPLATT_MAX_NMODES];
+
+  /** @brief The actual nonzero values. This array is of length
+   *         nfibs[nmodes-1]. */
   splatt_val_t * vals;
 } csf_sparsity;
 
 
+
+/**
+* @brief CSF tensors are the compressed storage format for performing fast
+*        tensor computations in the SPLATT library.
+*/
 typedef struct splatt_csf
 {
+  /** @brief The number of nonzeros. */
   splatt_idx_t nnz;
+
+  /** @brief The number of modes. */
   splatt_idx_t nmodes;
+
+  /** @brief The dimension of each mode. */
   splatt_idx_t dims[SPLATT_MAX_NMODES];
+
+  /** @brief The permutation of the tensor modes.
+   *         dim_perm[0] is the mode stored at the root level and so on. */
   splatt_idx_t dim_perm[SPLATT_MAX_NMODES];
 
-  splatt_tile_t which_tile;
+  /** @brief Which tiling scheme this tensor is stored as. */
+  splatt_tile_type which_tile;
+
+  /** @brief How many tiles there are. */
   splatt_idx_t ntiles;
+
+  /** @brief For a dense tiling, how many tiles along each mode. */
   splatt_idx_t tile_dims[SPLATT_MAX_NMODES];
 
-  csf_sparsity * pt; /** sparsity structure -- one for each tile */
+  /** @brief Sparsity structures -- one for each tile. */
+  csf_sparsity * pt;
 } splatt_csf;
+
+
 
 
 
@@ -211,46 +268,30 @@ typedef struct splatt_csf
 extern 'C' {
 #endif
 
-/**
-* @brief Compute the CPD using alternating least squares.
-*
-* @param nfactors The rank of the decomposition to perform.
-* @param nmodes The number of modes in the tensor. Optimizations are currently
-*               only present for nmodes=3.
-* @param tensors An array of splatt_csf created by SPLATT.
-* @param options Options array for SPLATT.
-* @param factored [OUT] The factored tensor in Kruskal format.
-*
-* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
-*/
-int splatt_cpd_als(
-    splatt_csf const * const tensors,
-    splatt_idx_t const nfactors,
-    double const * const options,
-    splatt_kruskal_t * factored);
+/*
+ * OPTIONS API
+ */
 
+/**
+* @brief Allocate and fill an options array with default options.
+*
+* @return The options array.
+*/
+double * splatt_default_opts(void);
 
 
 /**
-* @brief Matricized Tensor times Khatri-Rao Product (MTTKRP) with a sparse
-*        tensor in CSF format.
-*
-* @param mode Which mode we are operating on.
-* @param ncolumns How many columns each matrix has ('nfactors').
-* @param tensor The CSF tensor to multipy with.
-* @param matrices The row-major dense matrices to multiply with.
-* @param matout The output matrix.
-* @param options SPLATT options array.
-*
-* @return SPLATT error code. SPLATT_SUCCESS on success.
+* @brief Free an options array allocated with splatt_default_opts().
 */
-int splatt_mttkrp(
-    splatt_idx_t const mode,
-    splatt_idx_t const ncolumns,
-    splatt_csf const * const tensors,
-    splatt_val_t ** matrices,
-    splatt_val_t * const matout,
-    double const * const options);
+void  splatt_free_opts(
+    double * opts);
+
+
+
+
+/*
+ * DATA STRUCTURE API
+ */
 
 
 /**
@@ -298,14 +339,6 @@ int splatt_csf_convert(
 
 
 /**
-* @brief Allocate and fill an options array with default options.
-*
-* @return The options array.
-*/
-double * splatt_default_opts(void);
-
-
-/**
 * @brief Free all memory allocated for a tensor in CSF form.
 *
 * @param csf The tensor(s) to free.
@@ -318,19 +351,59 @@ void splatt_free_csf(
 
 
 /**
-* @brief Free an options array allocated with splatt_default_opts().
-*/
-void  splatt_free_opts(
-    double * opts);
-
-
-/**
-* @brief Free a splatt_kruskal_t allocated by splatt_cpd().
+* @brief Free a splatt_kruskal allocated by splatt_cpd().
 *
 * @param factored The factored tensor to free.
 */
 void splatt_free_kruskal(
-    splatt_kruskal_t * factored);
+    splatt_kruskal * factored);
+
+
+
+/*
+ * FACTORIZATION API
+ */
+
+/**
+* @brief Compute the CPD using alternating least squares.
+*
+* @param nfactors The rank of the decomposition to perform.
+* @param nmodes The number of modes in the tensor. Optimizations are currently
+*               only present for nmodes=3.
+* @param tensors An array of splatt_csf created by SPLATT.
+* @param options Options array for SPLATT.
+* @param factored [OUT] The factored tensor in Kruskal format.
+*
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
+*/
+int splatt_cpd_als(
+    splatt_csf const * const tensors,
+    splatt_idx_t const nfactors,
+    double const * const options,
+    splatt_kruskal * factored);
+
+
+
+/**
+* @brief Matricized Tensor times Khatri-Rao Product (MTTKRP) with a sparse
+*        tensor in CSF format.
+*
+* @param mode Which mode we are operating on.
+* @param ncolumns How many columns each matrix has ('nfactors').
+* @param tensor The CSF tensor to multipy with.
+* @param matrices The row-major dense matrices to multiply with.
+* @param matout The output matrix.
+* @param options SPLATT options array.
+*
+* @return SPLATT error code. SPLATT_SUCCESS on success.
+*/
+int splatt_mttkrp(
+    splatt_idx_t const mode,
+    splatt_idx_t const ncolumns,
+    splatt_csf const * const tensors,
+    splatt_val_t ** matrices,
+    splatt_val_t * const matout,
+    double const * const options);
 
 
 #ifdef __cplusplus
