@@ -18,7 +18,7 @@
 * @param scratchid Which scratch array to reduce.
 * @param nelems How many elements in the scratch array.
 */
-static inline void __reduce_sum(
+static inline void p_reduce_sum(
   thd_info * const thds,
   idx_t const scratchid,
   idx_t const nelems)
@@ -73,7 +73,7 @@ static inline void __reduce_sum(
 * @param scratchid Which scratch array to reduce.
 * @param nelems How many elements in the scratch array.
 */
-static inline void __reduce_max(
+static inline void p_reduce_max(
   thd_info * const thds,
   idx_t const scratchid,
   idx_t const nelems)
@@ -140,10 +140,10 @@ void thd_reduce(
 
   switch(which) {
   case REDUCE_SUM:
-    __reduce_sum(thds, scratchid, nelems);
+    p_reduce_sum(thds, scratchid, nelems);
     break;
   case REDUCE_MAX:
-    __reduce_max(thds, scratchid, nelems);
+    p_reduce_max(thds, scratchid, nelems);
     break;
   default:
     fprintf(stderr, "SPLATT: thd_reduce supports SUM and MAX only.\n");

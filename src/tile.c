@@ -22,7 +22,7 @@
 * @return An array of length (nslabs+1) that points into inds and marks the
 *         start/end of each slab.
 */
-static idx_t * __mkslabptr(
+static idx_t * p_mkslabptr(
   idx_t const * const inds,
   idx_t const nnz,
   idx_t const nslabs)
@@ -55,7 +55,7 @@ static idx_t * __mkslabptr(
 *
 * @return The number of unique indices found in ind[start:end].
 */
-static idx_t __fill_uniques(
+static idx_t p_fill_uniques(
   idx_t const * const inds,
   idx_t const start,
   idx_t const end,
@@ -95,7 +95,7 @@ static idx_t __fill_uniques(
 * @param nuniques The number of unique indices in the mode (between start/end).
 * @param tsize The dimension of the tiles to construct.
 */
-static void __tile_uniques(
+static void p_tile_uniques(
   idx_t const start,
   idx_t const end,
   sptensor_t * const src,
@@ -146,7 +146,7 @@ static void __tile_uniques(
 * @param uniques The index of each unique value. Used to index into seen.
 * @param nuniques The number of uniques to clear.
 */
-static void __clear_uniques(
+static void p_clear_uniques(
   idx_t * const seen,
   idx_t * const uniques,
   idx_t const nuniques)
@@ -173,7 +173,7 @@ static void __clear_uniques(
 * @param nuniques An idx_t for each mode to count the unique indices in the
 *                 slab.
 */
-static void __pack_slab(
+static void p_pack_slab(
   idx_t const start,
   idx_t const end,
   sptensor_t * const tt,
@@ -188,21 +188,21 @@ static void __pack_slab(
   idx_t const idxmode = dim_perm[2];
 
   /* get unique fibers */
-  nuniques[fibmode] = __fill_uniques(tt->ind[fibmode], start, end,
+  nuniques[fibmode] = p_fill_uniques(tt->ind[fibmode], start, end,
     seen[fibmode], uniques[fibmode]);
-  __tile_uniques(start, end, tt, tt_buf, fibmode, seen[fibmode],
+  p_tile_uniques(start, end, tt, tt_buf, fibmode, seen[fibmode],
     uniques[fibmode], nuniques[fibmode], TILE_SIZES[1]);
 
   /* get unique idxs */
-  nuniques[idxmode] = __fill_uniques(tt_buf->ind[idxmode], start, end,
+  nuniques[idxmode] = p_fill_uniques(tt_buf->ind[idxmode], start, end,
     seen[idxmode], uniques[idxmode]);
-  __tile_uniques(start, end, tt_buf, tt, idxmode, seen[idxmode],
+  p_tile_uniques(start, end, tt_buf, tt, idxmode, seen[idxmode],
     uniques[idxmode], nuniques[idxmode], TILE_SIZES[2]);
 
   /* Clear out uniques for next slab. Complexity is #uniques, not dimension
    * of tensor... */
-  __clear_uniques(seen[fibmode], uniques[fibmode], nuniques[fibmode]);
-  __clear_uniques(seen[idxmode], uniques[idxmode], nuniques[idxmode]);
+  p_clear_uniques(seen[fibmode], uniques[fibmode], nuniques[fibmode]);
+  p_clear_uniques(seen[idxmode], uniques[idxmode], nuniques[idxmode]);
 }
 
 
@@ -227,7 +227,7 @@ void tt_tile(
   }
 
   /* fill in slabs */
-  idx_t * slabptr = __mkslabptr(tt->ind[dim_perm[0]], tt->nnz, nslabs);
+  idx_t * slabptr = p_mkslabptr(tt->ind[dim_perm[0]], tt->nnz, nslabs);
 
   /* seen and uniques are used to mark unique idxs in each slab */
   idx_t * seen[MAX_NMODES];
@@ -243,7 +243,7 @@ void tt_tile(
     idx_t const start = slabptr[s];
     idx_t const end = slabptr[s+1];
 
-    __pack_slab(start, end, tt, tt_buf, dim_perm, seen, uniques, nuniques);
+    p_pack_slab(start, end, tt, tt_buf, dim_perm, seen, uniques, nuniques);
   }
 
   for(idx_t m=1; m < tt->nmodes; ++m) {

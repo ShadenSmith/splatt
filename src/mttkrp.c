@@ -69,7 +69,7 @@ int splatt_mttkrp(
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-static inline void __add_hada(
+static inline void p_add_hada(
   val_t * const restrict out,
   val_t const * const restrict a,
   val_t const * const restrict b,
@@ -81,7 +81,7 @@ static inline void __add_hada(
 }
 
 
-static inline void __add_hada_clear(
+static inline void p_add_hada_clear(
   val_t * const restrict out,
   val_t * const restrict a,
   val_t const * const restrict b,
@@ -94,7 +94,7 @@ static inline void __add_hada_clear(
 }
 
 
-static inline void __assign_hada(
+static inline void p_assign_hada(
   val_t * const restrict out,
   val_t const * const restrict a,
   val_t const * const restrict b,
@@ -106,7 +106,7 @@ static inline void __assign_hada(
 }
 
 
-static inline void __csf_process_fiber_lock(
+static inline void p_csf_process_fiber_lock(
   val_t * const leafmat,
   val_t const * const restrict accumbuf,
   idx_t const nfactors,
@@ -126,7 +126,7 @@ static inline void __csf_process_fiber_lock(
   }
 }
 
-static inline void __csf_process_fiber_nolock(
+static inline void p_csf_process_fiber_nolock(
   val_t * const leafmat,
   val_t const * const restrict accumbuf,
   idx_t const nfactors,
@@ -145,7 +145,7 @@ static inline void __csf_process_fiber_nolock(
 }
 
 
-static inline void __csf_process_fiber(
+static inline void p_csf_process_fiber(
   val_t * const restrict accumbuf,
   idx_t const nfactors,
   val_t const * const leafmat,
@@ -165,7 +165,7 @@ static inline void __csf_process_fiber(
 }
 
 
-static inline void __propagate_up(
+static inline void p_propagate_up(
   val_t * const out,
   val_t * const * const buf,
   idx_t * const restrict idxstack,
@@ -198,7 +198,7 @@ static inline void __propagate_up(
     /* process all nonzeros [start, end) into buf[depth]*/
     idx_t const start = fp[depth][idxstack[depth]];
     idx_t const end   = fp[depth][idxstack[depth]+1];
-    __csf_process_fiber(buf[depth+1], nfactors, mvals[depth+1],
+    p_csf_process_fiber(buf[depth+1], nfactors, mvals[depth+1],
         start, end, fids[depth+1], vals);
 
     idxstack[depth+1] = end;
@@ -216,7 +216,7 @@ static inline void __propagate_up(
       /* propagate result up and clear buffer for next sibling */
       val_t const * const restrict fibrow
           = mvals[depth] + (fids[depth][idxstack[depth]] * nfactors);
-      __add_hada_clear(buf[depth], buf[depth+1], fibrow, nfactors);
+      p_add_hada_clear(buf[depth], buf[depth+1], fibrow, nfactors);
 
       ++idxstack[depth];
       --depth;
@@ -231,7 +231,7 @@ static inline void __propagate_up(
 }
 
 
-static void __csf_mttkrp_root_tiled3(
+static void p_csf_mttkrp_root_tiled3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -290,7 +290,7 @@ static void __csf_mttkrp_root_tiled3(
 }
 
 
-static void __csf_mttkrp_root3(
+static void p_csf_mttkrp_root3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -350,7 +350,7 @@ static void __csf_mttkrp_root3(
 }
 
 
-static void __csf_mttkrp_internal3(
+static void p_csf_mttkrp_internal3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -413,7 +413,7 @@ static void __csf_mttkrp_internal3(
 }
 
 
-static void __csf_mttkrp_leaf3(
+static void p_csf_mttkrp_leaf3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -468,7 +468,7 @@ static void __csf_mttkrp_leaf3(
 }
 
 
-static void __csf_mttkrp_root_tiled(
+static void p_csf_mttkrp_root_tiled(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -484,7 +484,7 @@ static void __csf_mttkrp_root_tiled(
   }
 
   if(nmodes == 3) {
-    __csf_mttkrp_root_tiled3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_root_tiled3(ct, tile_id, mats, thds);
     return;
   }
 
@@ -516,7 +516,7 @@ static void __csf_mttkrp_root_tiled(
 
     assert(fid < mats[MAX_NMODES]->I);
 
-    __propagate_up(buf[0], buf, idxstack, 0, s, fp, fids,
+    p_propagate_up(buf[0], buf, idxstack, 0, s, fp, fids,
         vals, mvals, nmodes, nfactors);
 
     val_t * const restrict orow = ovals + (fid * nfactors);
@@ -529,7 +529,7 @@ static void __csf_mttkrp_root_tiled(
 
 
 
-static void __csf_mttkrp_root(
+static void p_csf_mttkrp_root(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -545,7 +545,7 @@ static void __csf_mttkrp_root(
   }
 
   if(nmodes == 3) {
-    __csf_mttkrp_root3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_root3(ct, tile_id, mats, thds);
     return;
   }
 
@@ -578,7 +578,7 @@ static void __csf_mttkrp_root(
 
     assert(fid < mats[MAX_NMODES]->I);
 
-    __propagate_up(buf[0], buf, idxstack, 0, s, fp, fids,
+    p_propagate_up(buf[0], buf, idxstack, 0, s, fp, fids,
         vals, mvals, nmodes, nfactors);
 
     val_t * const restrict orow = ovals + (fid * nfactors);
@@ -590,7 +590,7 @@ static void __csf_mttkrp_root(
 }
 
 
-static void __csf_mttkrp_leaf_tiled3(
+static void p_csf_mttkrp_leaf_tiled3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -644,7 +644,7 @@ static void __csf_mttkrp_leaf_tiled3(
 
 
 
-static void __csf_mttkrp_leaf_tiled(
+static void p_csf_mttkrp_leaf_tiled(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -657,7 +657,7 @@ static void __csf_mttkrp_leaf_tiled(
     return;
   }
   if(nmodes == 3) {
-    __csf_mttkrp_leaf_tiled3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_leaf_tiled3(ct, tile_id, mats, thds);
     return;
   }
 
@@ -707,13 +707,13 @@ static void __csf_mttkrp_leaf_tiled(
         /* propogate buf down */
         val_t const * const restrict drow
             = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-        __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
+        p_assign_hada(buf[depth+1], buf[depth], drow, nfactors);
       }
 
       /* process all nonzeros [start, end) */
       idx_t const start = fp[depth][idxstack[depth]];
       idx_t const end   = fp[depth][idxstack[depth]+1];
-      __csf_process_fiber_nolock(mats[MAX_NMODES]->vals, buf[depth],
+      p_csf_process_fiber_nolock(mats[MAX_NMODES]->vals, buf[depth],
           nfactors, start, end, fids[depth+1], vals);
 
       /* now move back up to the next unprocessed child */
@@ -726,7 +726,7 @@ static void __csf_mttkrp_leaf_tiled(
 }
 
 
-static void __csf_mttkrp_leaf(
+static void p_csf_mttkrp_leaf(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -740,7 +740,7 @@ static void __csf_mttkrp_leaf(
     return;
   }
   if(nmodes == 3) {
-    __csf_mttkrp_leaf3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_leaf3(ct, tile_id, mats, thds);
     return;
   }
 
@@ -790,13 +790,13 @@ static void __csf_mttkrp_leaf(
         /* propogate buf down */
         val_t const * const restrict drow
             = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-        __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
+        p_assign_hada(buf[depth+1], buf[depth], drow, nfactors);
       }
 
       /* process all nonzeros [start, end) */
       idx_t const start = fp[depth][idxstack[depth]];
       idx_t const end   = fp[depth][idxstack[depth]+1];
-      __csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
+      p_csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
           nfactors, start, end, fids[depth+1], vals);
 
       /* now move back up to the next unprocessed child */
@@ -809,7 +809,7 @@ static void __csf_mttkrp_leaf(
 }
 
 
-static void __csf_mttkrp_internal_tiled3(
+static void p_csf_mttkrp_internal_tiled3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -869,7 +869,7 @@ static void __csf_mttkrp_internal_tiled3(
 }
 
 
-static void __csf_mttkrp_internal_tiled(
+static void p_csf_mttkrp_internal_tiled(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -884,7 +884,7 @@ static void __csf_mttkrp_internal_tiled(
     return;
   }
   if(nmodes == 3) {
-    __csf_mttkrp_internal_tiled3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_internal_tiled3(ct, tile_id, mats, thds);
     return;
   }
 
@@ -935,18 +935,18 @@ static void __csf_mttkrp_internal_tiled(
       for(; depth < outdepth; ++depth) {
         val_t const * const restrict drow
             = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-        __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
+        p_assign_hada(buf[depth+1], buf[depth], drow, nfactors);
       }
 
       /* write to output and clear buf[outdepth] for next subtree */
       idx_t const noderow = fids[outdepth][idxstack[outdepth]];
 
       /* propagate value up to buf[outdepth] */
-      __propagate_up(buf[outdepth], buf, idxstack, outdepth,idxstack[outdepth],
+      p_propagate_up(buf[outdepth], buf, idxstack, outdepth,idxstack[outdepth],
           fp, fids, vals, mvals, nmodes, nfactors);
 
       val_t * const restrict outbuf = ovals + (noderow * nfactors);
-      __add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
+      p_add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
 
       /* backtrack to next unfinished node */
       do {
@@ -958,7 +958,7 @@ static void __csf_mttkrp_internal_tiled(
 }
 
 
-static void __csf_mttkrp_internal(
+static void p_csf_mttkrp_internal(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -973,7 +973,7 @@ static void __csf_mttkrp_internal(
     return;
   }
   if(nmodes == 3) {
-    __csf_mttkrp_internal3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_internal3(ct, tile_id, mats, thds);
     return;
   }
 
@@ -1024,19 +1024,19 @@ static void __csf_mttkrp_internal(
       for(; depth < outdepth; ++depth) {
         val_t const * const restrict drow
             = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-        __assign_hada(buf[depth+1], buf[depth], drow, nfactors);
+        p_assign_hada(buf[depth+1], buf[depth], drow, nfactors);
       }
 
       /* write to output and clear buf[outdepth] for next subtree */
       idx_t const noderow = fids[outdepth][idxstack[outdepth]];
 
       /* propagate value up to buf[outdepth] */
-      __propagate_up(buf[outdepth], buf, idxstack, outdepth,idxstack[outdepth],
+      p_propagate_up(buf[outdepth], buf, idxstack, outdepth,idxstack[outdepth],
           fp, fids, vals, mvals, nmodes, nfactors);
 
       val_t * const restrict outbuf = ovals + (noderow * nfactors);
       omp_set_lock(locks + (noderow % NLOCKS));
-      __add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
+      p_add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
       omp_unset_lock(locks + (noderow % NLOCKS));
 
       /* backtrack to next unfinished node */
@@ -1050,7 +1050,7 @@ static void __csf_mttkrp_internal(
 
 
 /* determine which function to call */
-static void __root_decide(
+static void p_root_decide(
     splatt_csf const * const tensor,
     matrix_t ** mats,
     idx_t const mode,
@@ -1065,13 +1065,13 @@ static void __root_decide(
     idx_t tid = 0;
     switch(tensor->which_tile) {
     case SPLATT_NOTILE:
-      __csf_mttkrp_root(tensor, 0, mats, thds);
+      p_csf_mttkrp_root(tensor, 0, mats, thds);
       break;
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
       if(opts[SPLATT_OPTION_TILEDEPTH] > 0) {
         for(idx_t t=0; t < tensor->ntiles; ++t) {
-          __csf_mttkrp_root(tensor, t, mats, thds);
+          p_csf_mttkrp_root(tensor, t, mats, thds);
           #pragma omp barrier
         }
       } else {
@@ -1081,7 +1081,7 @@ static void __root_decide(
           tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes,
               mode, t);
           while(tid != TILE_END) {
-            __csf_mttkrp_root_tiled(tensor, tid, mats, thds);
+            p_csf_mttkrp_root_tiled(tensor, tid, mats, thds);
             tid = get_next_tileid(tid, tensor->tile_dims, nmodes, mode, t);
           }
         }
@@ -1099,7 +1099,7 @@ static void __root_decide(
 }
 
 
-static void __leaf_decide(
+static void p_leaf_decide(
     splatt_csf const * const tensor,
     matrix_t ** mats,
     idx_t const mode,
@@ -1117,13 +1117,13 @@ static void __leaf_decide(
     idx_t tid = 0;
     switch(tensor->which_tile) {
     case SPLATT_NOTILE:
-      __csf_mttkrp_leaf(tensor, 0, mats, thds);
+      p_csf_mttkrp_leaf(tensor, 0, mats, thds);
       break;
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
       if(opts[SPLATT_OPTION_TILEDEPTH] > depth) {
         for(idx_t t=0; t < tensor->ntiles; ++t) {
-          __csf_mttkrp_leaf(tensor, 0, mats, thds);
+          p_csf_mttkrp_leaf(tensor, 0, mats, thds);
         }
       } else {
         #pragma omp for schedule(dynamic, 1) nowait
@@ -1131,7 +1131,7 @@ static void __leaf_decide(
           tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes,
               mode, t);
           while(tid != TILE_END) {
-            __csf_mttkrp_leaf_tiled(tensor, tid, mats, thds);
+            p_csf_mttkrp_leaf_tiled(tensor, tid, mats, thds);
             tid = get_next_tileid(tid, tensor->tile_dims, nmodes, mode, t);
           }
         }
@@ -1149,7 +1149,7 @@ static void __leaf_decide(
 }
 
 
-static void __intl_decide(
+static void p_intl_decide(
     splatt_csf const * const tensor,
     matrix_t ** mats,
     idx_t const mode,
@@ -1166,13 +1166,13 @@ static void __intl_decide(
     idx_t tid = 0;
     switch(tensor->which_tile) {
     case SPLATT_NOTILE:
-      __csf_mttkrp_internal(tensor, 0, mats, mode, thds);
+      p_csf_mttkrp_internal(tensor, 0, mats, mode, thds);
       break;
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
       if(opts[SPLATT_OPTION_TILEDEPTH] > depth) {
         for(idx_t t=0; t < tensor->ntiles; ++t) {
-          __csf_mttkrp_internal(tensor, t, mats, mode, thds);
+          p_csf_mttkrp_internal(tensor, t, mats, mode, thds);
         }
       } else {
         #pragma omp for schedule(dynamic, 1) nowait
@@ -1180,7 +1180,7 @@ static void __intl_decide(
           tid = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes,
               mode, t);
           while(tid != TILE_END) {
-            __csf_mttkrp_internal_tiled(tensor, tid, mats, mode, thds);
+            p_csf_mttkrp_internal_tiled(tensor, tid, mats, mode, thds);
             tid = get_next_tileid(tid, tensor->tile_dims, nmodes, mode, t);
           }
         }
@@ -1227,31 +1227,31 @@ void mttkrp_csf(
   case SPLATT_CSF_ONEMODE:
     outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
     if(outdepth == 0) {
-      __root_decide(tensors+0, mats, mode, thds, opts);
+      p_root_decide(tensors+0, mats, mode, thds, opts);
     } else if(outdepth == nmodes - 1) {
-      __leaf_decide(tensors+0, mats, mode, thds, opts);
+      p_leaf_decide(tensors+0, mats, mode, thds, opts);
     } else {
-      __intl_decide(tensors+0, mats, mode, thds, opts);
+      p_intl_decide(tensors+0, mats, mode, thds, opts);
     }
     break;
 
   case SPLATT_CSF_TWOMODE:
     /* longest mode handled via second tensor's root */
     if(mode == tensors[0].dim_perm[nmodes-1]) {
-      __root_decide(tensors+1, mats, mode, thds, opts);
+      p_root_decide(tensors+1, mats, mode, thds, opts);
     /* root and internal modes are handled via first tensor */
     } else {
       outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
       if(outdepth == 0) {
-        __root_decide(tensors+0, mats, mode, thds, opts);
+        p_root_decide(tensors+0, mats, mode, thds, opts);
       } else {
-        __intl_decide(tensors+0, mats, mode, thds, opts);
+        p_intl_decide(tensors+0, mats, mode, thds, opts);
       }
     }
     break;
 
   case SPLATT_CSF_ALLMODE:
-    __root_decide(tensors+mode, mats, mode, thds, opts);
+    p_root_decide(tensors+mode, mats, mode, thds, opts);
     break;
   }
 }

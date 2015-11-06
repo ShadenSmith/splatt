@@ -352,7 +352,7 @@ static splatt_graph * p_merge_graphs(
 * @param hg The hypegraph structure to modify.
 * @param which Vertex weight model to follow, see graph.h.
 */
-static void __fill_vwts(
+static void p_fill_vwts(
   ftensor_t const * const ft,
   hgraph_t * const hg,
   hgraph_vwt_type const which)
@@ -385,7 +385,7 @@ static void __fill_vwts(
 *
 * @return 'id', converted to global vertex indices. EXAMPLE: k -> (I+J+k).
 */
-static idx_t __map_idx(
+static idx_t p_map_idx(
   idx_t id,
   idx_t const mode,
   ftensor_t const * const ft)
@@ -407,7 +407,7 @@ hgraph_t * hgraph_nnz_alloc(
 {
   hgraph_t * hg = (hgraph_t *) malloc(sizeof(hgraph_t));
   hg->nvtxs = tt->nnz;
-  __fill_vwts(NULL, hg, VTX_WT_NONE);
+  p_fill_vwts(NULL, hg, VTX_WT_NONE);
 
   /* # hyper-edges = I + J + K + ... */
   hg->hewts = NULL;
@@ -464,7 +464,7 @@ hgraph_t * hgraph_fib_alloc(
 
   /* vertex weights are nnz per fiber */
   hg->nvtxs = ft->nfibs;
-  __fill_vwts(ft, hg, VTX_WT_FIB_NNZ);
+  p_fill_vwts(ft, hg, VTX_WT_FIB_NNZ);
 
   /* # hyper-edges = I + J + K + ... */
   hg->hewts = NULL;
@@ -481,15 +481,15 @@ hgraph_t * hgraph_fib_alloc(
   idx_t * const restrict eptr = hg->eptr;
   for(idx_t s=0; s < ft->nslcs; ++s) {
     /* the slice hyperedge has nfibers more connections */
-    eptr[1+__map_idx(s, 0, ft)] += ft->sptr[s+1] - ft->sptr[s];
+    eptr[1+p_map_idx(s, 0, ft)] += ft->sptr[s+1] - ft->sptr[s];
 
     for(idx_t f=ft->sptr[s]; f < ft->sptr[s+1]; ++f) {
       /* fiber makes another connection with fid */
-      eptr[1+__map_idx(ft->fids[f], 1, ft)] += 1;
+      eptr[1+p_map_idx(ft->fids[f], 1, ft)] += 1;
 
       /* each nnz now has a contribution too */
       for(idx_t jj=ft->fptr[f]; jj < ft->fptr[f+1]; ++jj) {
-        eptr[1+__map_idx(ft->inds[jj], 2, ft)] += 1;
+        eptr[1+p_map_idx(ft->inds[jj], 2, ft)] += 1;
       }
     }
   }
@@ -510,13 +510,13 @@ hgraph_t * hgraph_fib_alloc(
 
   /* now fill in eind while using eptr as a marker */
   for(idx_t s=0; s < ft->nslcs; ++s) {
-    idx_t const sid = __map_idx(s, 0, ft);
+    idx_t const sid = p_map_idx(s, 0, ft);
     for(idx_t f = ft->sptr[s]; f < ft->sptr[s+1]; ++f) {
-      idx_t const fid = __map_idx(ft->fids[f], 1, ft);
+      idx_t const fid = p_map_idx(ft->fids[f], 1, ft);
       eind[eptr[1+sid]++] = f;
       eind[eptr[1+fid]++] = f;
       for(idx_t jj=ft->fptr[f]; jj < ft->fptr[f+1]; ++jj) {
-        idx_t const nid = __map_idx(ft->inds[jj], 2, ft);
+        idx_t const nid = p_map_idx(ft->inds[jj], 2, ft);
         eind[eptr[1+nid]++] = f;
       }
     }

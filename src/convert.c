@@ -27,7 +27,7 @@
 * @param mode The mode to operate on.
 * @param ofname The filename to write to.
 */
-static void __convert_fib_hgraph(
+static void p_convert_fib_hgraph(
   sptensor_t * tt,
   idx_t const mode,
   char const * const ofname)
@@ -51,7 +51,7 @@ static void __convert_fib_hgraph(
 * @param tt The tensor to convert.
 * @param ofname The filename to write to.
 */
-static void __convert_nnz_hgraph(
+static void p_convert_nnz_hgraph(
   sptensor_t const * const tt,
   char const * const ofname)
 {
@@ -70,7 +70,7 @@ static void __convert_nnz_hgraph(
 * @param mode The mode to operate on.
 * @param ofname The filename to write the matrix to.
 */
-static void __convert_fib_mat(
+static void p_convert_fib_mat(
   sptensor_t * tt,
   idx_t const mode,
   char const * const ofname)
@@ -88,7 +88,7 @@ static void __convert_fib_mat(
 
 
 
-static void __convert_ijk_graph(
+static void p_convert_ijk_graph(
   sptensor_t * const tt,
   char const * const ofname)
 {
@@ -120,16 +120,16 @@ void tt_convert(
 
   switch(type) {
   case CNV_IJK_GRAPH:
-    __convert_ijk_graph(tt, ofname);
+    p_convert_ijk_graph(tt, ofname);
     break;
   case CNV_FIB_HGRAPH:
-    __convert_fib_hgraph(tt, mode, ofname);
+    p_convert_fib_hgraph(tt, mode, ofname);
     break;
   case CNV_NNZ_HGRAPH:
-    __convert_nnz_hgraph(tt, ofname);
+    p_convert_nnz_hgraph(tt, ofname);
     break;
   case CNV_FIB_SPMAT:
-    __convert_fib_mat(tt, mode, ofname);
+    p_convert_fib_mat(tt, mode, ofname);
     break;
   default:
     fprintf(stderr, "SPLATT ERROR: convert type not implemented.\n");
