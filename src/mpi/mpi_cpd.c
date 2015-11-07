@@ -777,9 +777,6 @@ void mpi_update_rows(
     p_update_rows_all2all(nbr2globs_buf, nbr2local_buf, localmat, globalmat,
         rinfo, nfactors, mode);
     break;
-
-  case SPLATT_SPARSEREDUCE:
-    break;
   }
 
   /* ensure the local matrix is up to date too */
@@ -809,9 +806,6 @@ void mpi_reduce_rows(
   case SPLATT_ALL2ALL:
     p_reduce_rows_all2all(local2nbr_buf, nbr2globs_buf, localmat, globalmat,
         rinfo, nfactors, mode);
-    break;
-
-  case SPLATT_SPARSEREDUCE:
     break;
   }
   timer_stop(&timers[TIMER_MPI_REDUCE]);

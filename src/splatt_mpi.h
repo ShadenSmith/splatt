@@ -106,14 +106,13 @@ typedef struct
 
 
 /**
-* @brief Communication pattern type. We support point-to-point, all-to-all
-*        (vectorized), and our own sparse reduction pattern (soon).
+* @brief Communication pattern type. We support point-to-point, and all-to-all
+*        (vectorized).
 */
 typedef enum
 {
   SPLATT_POINT2POINT,
-  SPLATT_ALL2ALL,
-  SPLATT_SPARSEREDUCE
+  SPLATT_ALL2ALL
 } splatt_comm_type;
 
 #define DEFAULT_COMM SPLATT_ALL2ALL
@@ -140,6 +139,7 @@ double mpi_cpd_als_iterate(
   idx_t const nfactors,
   rank_info * const rinfo,
   double const * const opts);
+
 
 #define mpi_update_rows splatt_mpi_update_rows
 /**
@@ -297,6 +297,7 @@ sptensor_t * mpi_tt_read(
 sptensor_t * mpi_simple_distribute(
   char const * const ifname,
   rank_info * const rinfo);
+
 
 #define mpi_filter_tt_1d splatt_mpi_filter_tt_1d
 /**
