@@ -19,6 +19,21 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
+# ALL LIBRARIES -- will concatenate to this
+set(SPLATT_LIBS splatt m rt)
+
+# check for MPI mode
+if (DEFINED USE_MPI)
+  message("Building with MPI support.")
+  add_definitions(-DSPLATT_USE_MPI=${USE_MPI})
+  find_package(MPI REQUIRED)
+  include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+  file(GLOB MPI_SOURCES src/mpi/*.c)
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${MPI_C_LIBRARIES})
+else()
+  set(MPI_SOURCES "")
+endif()
+
 # check for debug mode
 if (DEFINED DEBUG)
   message("Building in DEBUG mode. Assertions enabled.")
@@ -32,36 +47,25 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 endif()
 
-# check for MPI mode
-if (DEFINED USE_MPI)
-  message("Building with MPI support.")
-  add_definitions(-DSPLATT_USE_MPI=${USE_MPI})
-  find_package(MPI)
-  include_directories(SYSTEM ${MPI_INCLUDE_PATH})
-  file(GLOB MPI_SOURCES src/mpi/*.c)
-else()
-  set(MPI_SOURCES "")
-endif()
-
 # check for MT-Metis support
 if (DEFINED USE_MTMETIS)
   message("Building with MT-Metis support.")
   add_definitions(-DSPLATT_USE_MTMETIS=${USE_MTMETIS})
-  set(MTMETIS_LIB "mtmetis")
+  set(SPLATT_LIBS ${SPLATT_LIBS} mtmetis)
 endif()
 
 # check for PatoH support
 if (DEFINED USE_PATOH)
   message("Building with PaToH support.")
   add_definitions(-DSPLATT_USE_PATOH=${USE_PATOH})
-  set(PATOH_LIB "patoh")
+  set(SPLATT_LIBS ${SPLATT_LIBS} patoh)
 endif()
 
 # check for Ashado support
 if (DEFINED USE_ASHADO)
   message("Building with Ashado support.")
   add_definitions(-DSPLATT_USE_ASHADO=${USE_ASHADO})
-  set(ASHADO_LIB "ashado")
+  set(SPLATT_LIBS ${SPLATT_LIBS} ashado)
 endif()
 
 add_definitions(-D_GNU_SOURCE)
