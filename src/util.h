@@ -10,6 +10,15 @@
 
 
 /******************************************************************************
+ * DEFINES
+ *****************************************************************************/
+
+/* Standard stringification macro. Use SPLATT_STRFY to expand and stringify. */
+#define SPLATT_STRFY(s) SPLATT_STRFY_HELP(s)
+#define SPLATT_STRFY_HELP(s) #s
+
+
+/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
@@ -52,6 +61,34 @@ void fill_rand(
 * @return The human-readable string. NOTE: this string needs to be freed!
 */
 char * bytes_str(
-  idx_t const bytes);
+  size_t const bytes);
+
+
+#define argmax_elem splatt_argmax_elem
+/**
+* @brief Scan a list and return index of the maximum valued element.
+*
+* @param arr The list to scan.
+* @param N The length of the list.
+*
+* @return The index of the largest element in the list.
+*/
+idx_t argmax_elem(
+  idx_t const * const arr,
+  idx_t const N);
+
+
+#define argmin_elem splatt_argmin_elem
+/**
+* @brief Scan a list and return index of the minimum valued element.
+*
+* @param arr The list to scan.
+* @param N The length of the list.
+*
+* @return The index of the smallest element in the list.
+*/
+idx_t argmin_elem(
+  idx_t const * const arr,
+  idx_t const N);
 
 #endif

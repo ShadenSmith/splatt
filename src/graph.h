@@ -8,6 +8,25 @@
 #include "ftensor.h"
 
 
+/* GRAPH TYPES */
+
+#ifdef SPLATT_USE_MTMETIS
+
+#include <mtmetis.h>
+typedef mtmetis_vtx_t vtx_t;
+typedef mtmetis_adj_t adj_t;
+typedef mtmetis_wgt_t wgt_t;
+typedef mtmetis_pid_t part_t;
+
+#else
+
+typedef splatt_idx_t vtx_t;
+typedef splatt_idx_t adj_t;
+typedef splatt_idx_t wgt_t;
+typedef splatt_idx_t part_t;
+
+#endif
+
 /******************************************************************************
  * STRUCTURES
  *****************************************************************************/
@@ -36,6 +55,22 @@ typedef struct
                       Indexes into 'eind'. */
   idx_t * eind;   /** Array containing all vertices that appear in hedges. */
 } hgraph_t;
+
+
+/**
+* @brief A structure representing a traditional graph.
+*/
+typedef struct
+{
+  vtx_t nvtxs;  /* Number of vertices in the graph. */
+  adj_t nedges; /* Number of edges in the graph. */
+
+  adj_t * eptr; /** Adjacency list pointer. */
+  adj_t * eind; /** Adjacency list. */
+
+  wgt_t * vwgts; /** Vertex weights. */
+  wgt_t * ewgts; /** Edge weights. */
+} splatt_graph;
 
 
 /******************************************************************************
@@ -81,6 +116,47 @@ hgraph_t * hgraph_nnz_alloc(
 void hgraph_free(
   hgraph_t * hg);
 
+
+#define graph_convert splatt_graph_convert
+/**
+* @brief Convert an m-way sparse tensor to an m-partite graph. Edges are
+*        weighted based on the nnz that connect two indices.
+*
+* @param tt The tensor to convert.
+*
+* @return  The m-partite graph.
+*/
+splatt_graph * graph_convert(
+    sptensor_t * const tt);
+
+
+#define graph_alloc splatt_graph_alloc
+/**
+* @brief Allocate space for a graph.
+*
+* @param nvtxs The number of vertices in the graph.
+* @param nedges The number of edges. This will be the size of 'eind', so double
+*               the number if you want unweighted.
+* @param use_vtx_wgts If vertices are weighted, supply non-zero value here.
+* @param use_edge_wgts If edges are weighted, supply non-zero value here.
+*
+* @return An allocated graph structure.
+*/
+splatt_graph * graph_alloc(
+    vtx_t nvtxs,
+    adj_t nedges,
+    int use_vtx_wgts,
+    int use_edge_wgts);
+
+
+#define graph_free splatt_graph_free
+/**
+* @brief Free the memory allocated from graph_alloc().
+*
+* @param graph The graph to free.
+*/
+void graph_free(
+    splatt_graph * graph);
 
 #define hgraph_uncut splatt_hgraph_uncut
 /**

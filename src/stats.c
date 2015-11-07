@@ -6,35 +6,15 @@
 #include "stats.h"
 #include "sptensor.h"
 #include "ftensor.h"
+#include "csf.h"
 #include "io.h"
 #include "reorder.h"
 #include "util.h"
-
-#include <math.h>
 
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-
-/**
-* @brief Compute the density of a sparse tensor, defined by nnz/(I*J*K).
-*
-* @param tt The sparse tensor.
-*
-* @return The density of tt.
-*/
-static double __tt_density(
-  sptensor_t const * const tt)
-{
-  double root = pow((double)tt->nnz, 1./(double)tt->nmodes);
-  double density = 1.0;
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    density *= root / (double)tt->dims[m];
-  }
-
-  return density;
-}
 
 
 /**
@@ -43,7 +23,7 @@ static double __tt_density(
 * @param tt The tensor to inspect.
 * @param ifname The filename of tt. Can be NULL.
 */
-static void __stats_basic(
+static void p_stats_basic(
   sptensor_t const * const tt,
   char const * const ifname)
 {
@@ -54,9 +34,9 @@ static void __stats_basic(
     printf("x%"SPLATT_PF_IDX, tt->dims[m]);
   }
   printf(" NNZ=%"SPLATT_PF_IDX, tt->nnz);
-  printf(" DENSITY=%e\n" , __tt_density(tt));
+  printf(" DENSITY=%e\n" , tt_density(tt));
 
-  char * bytestr = bytes_str(tt->nnz * ((sizeof(idx_t) * 3) + sizeof(val_t)));
+  char * bytestr = bytes_str(tt->nnz * ((sizeof(idx_t) * tt->nmodes) + sizeof(val_t)));
   printf("COORD-STORAGE=%s\n", bytestr);
   printf("\n");
   free(bytestr);
@@ -70,7 +50,7 @@ static void __stats_basic(
 * @param mode The mode to operate on.
 * @param pfname The file containing the partitioning.
 */
-static void __stats_hparts(
+static void p_stats_hparts(
   sptensor_t * const tt,
   idx_t const mode,
   char const * const pfname)
@@ -115,7 +95,8 @@ static void __stats_hparts(
   printf("Partition information ------------------------------------------\n");
   printf("FILE=%s\n", pfname);
   printf("NVTXS=%"SPLATT_PF_IDX" NHEDGES=%"SPLATT_PF_IDX"\n", nvtxs, nhedges);
-  printf("NPARTS=%"SPLATT_PF_IDX" LIGHTEST=%"SPLATT_PF_IDX" HEAVIEST=%"SPLATT_PF_IDX" AVG=%0.1f\n",
+  printf("NPARTS=%"SPLATT_PF_IDX" LIGHTEST=%"SPLATT_PF_IDX" HEAVIEST="
+         "%"SPLATT_PF_IDX" AVG=%0.1f\n",
     nparts, minp, maxp, (val_t)(ft.nnz) / (val_t) nparts);
   printf("\n");
 
@@ -198,10 +179,10 @@ void stats_tt(
 {
   switch(type) {
   case STATS_BASIC:
-    __stats_basic(tt, ifname);
+    p_stats_basic(tt, ifname);
     break;
   case STATS_HPARTS:
-    __stats_hparts(tt, mode, pfile);
+    p_stats_hparts(tt, mode, pfile);
     break;
   default:
     fprintf(stderr, "SPLATT ERROR: analysis type not implemented\n");
@@ -210,7 +191,193 @@ void stats_tt(
 }
 
 
+void stats_csf(
+  splatt_csf const * const ct)
+{
+  printf("nmodes: %"SPLATT_PF_IDX" nnz: %"SPLATT_PF_IDX"\n", ct->nmodes,
+      ct->nnz);
+  printf("dims: %"SPLATT_PF_IDX"", ct->dims[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("x%"SPLATT_PF_IDX"", ct->dims[m]);
+  }
+  printf(" (%"SPLATT_PF_IDX"", ct->dim_perm[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("->%"SPLATT_PF_IDX"", ct->dim_perm[m]);
+  }
+  printf(")\n");
+  printf("ntiles: %"SPLATT_PF_IDX" tile dims: %"SPLATT_PF_IDX"", ct->ntiles,
+      ct->tile_dims[0]);
+  for(idx_t m=1; m < ct->nmodes; ++m) {
+    printf("x%"SPLATT_PF_IDX"", ct->tile_dims[m]);
+  }
+
+  idx_t empty = 0;
+  for(idx_t t=0; t < ct->ntiles; ++t) {
+    if(ct->pt[t].vals == NULL) {
+      ++empty;
+    }
+  }
+
+  printf("  empty: %"SPLATT_PF_IDX" (%0.1f%%)\n", empty,
+      100. * (double)empty/ (double)ct->ntiles);
+}
+
+
+void cpd_stats(
+  splatt_csf const * const csf,
+  idx_t const nfactors,
+  double const * const opts)
+{
+  /* find total storage */
+  size_t fbytes = csf_storage(csf, opts);
+  size_t mbytes = 0;
+  for(idx_t m=0; m < csf[0].nmodes; ++m) {
+    mbytes += csf[0].dims[m] * nfactors * sizeof(val_t);
+  }
+
+  /* header */
+  printf("Factoring "
+         "------------------------------------------------------\n");
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
+      nfactors,
+      (idx_t) opts[SPLATT_OPTION_NITER],
+      opts[SPLATT_OPTION_TOLERANCE]);
+  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) opts[SPLATT_OPTION_NTHREADS]);
+
+  printf("\n");
+
+  /* CSF allocation */
+  printf("CSF-ALLOC=");
+  splatt_csf_type which_csf = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which_csf) {
+  case SPLATT_CSF_ONEMODE:
+    printf("ONEMODE");
+    break;
+  case SPLATT_CSF_TWOMODE:
+    printf("TWOMODE");
+    break;
+  case SPLATT_CSF_ALLMODE:
+    printf("ALLMODE");
+    break;
+  }
+  printf(" ");
+
+  /* tiling info */
+  printf("TILE=");
+  splatt_tile_type which_tile = opts[SPLATT_OPTION_TILE];
+  switch(which_tile) {
+  case SPLATT_NOTILE:
+    printf("NO");
+    break;
+  case SPLATT_DENSETILE:
+    printf("DENSE TILE-DEPTH=%"SPLATT_PF_IDX,
+        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+    break;
+  case SPLATT_SYNCTILE:
+    printf("SYNC");
+    break;
+  case SPLATT_COOPTILE:
+    printf("COOP");
+    break;
+  }
+  printf("\n");
+
+  char * fstorage = bytes_str(fbytes);
+  char * mstorage = bytes_str(mbytes);
+  printf("CSF-STORAGE=%s FACTOR-STORAGE=%s", fstorage, mstorage);
+  free(fstorage);
+  free(mstorage);
+  printf("\n\n");
+}
+
+
 #ifdef SPLATT_USE_MPI
+void mpi_cpd_stats(
+  splatt_csf const * const csf,
+  idx_t const nfactors,
+  double const * const opts,
+  rank_info * const rinfo)
+{
+  /* find total storage */
+  unsigned long fbytes = csf_storage(csf, opts);
+  unsigned long mbytes = 0;
+  for(idx_t m=0; m < csf[0].nmodes; ++m) {
+    mbytes += csf[0].dims[m] * nfactors * sizeof(val_t);
+  }
+  /* get storage across all nodes */
+  if(rinfo->rank == 0) {
+    MPI_Reduce(MPI_IN_PLACE, &fbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+        rinfo->comm_3d);
+    MPI_Reduce(MPI_IN_PLACE, &mbytes, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+        rinfo->comm_3d);
+  } else {
+    MPI_Reduce(&fbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, rinfo->comm_3d);
+    MPI_Reduce(&mbytes, NULL, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, rinfo->comm_3d);
+  }
+
+  /* only master rank prints from here */
+  if(rinfo->rank != 0) {
+    return;
+  }
+
+  /* header */
+  printf("Factoring "
+         "------------------------------------------------------\n");
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
+      nfactors,
+      (idx_t) opts[SPLATT_OPTION_NITER],
+      opts[SPLATT_OPTION_TOLERANCE]);
+  printf("RANKS=%d THREADS=%"SPLATT_PF_IDX" ", rinfo->npes,
+      (idx_t) opts[SPLATT_OPTION_NTHREADS]);
+
+  printf("\n");
+
+  /* CSF allocation */
+  printf("CSF-ALLOC=");
+  splatt_csf_type which_csf = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which_csf) {
+  case SPLATT_CSF_ONEMODE:
+    printf("ONEMODE");
+    break;
+  case SPLATT_CSF_TWOMODE:
+    printf("TWOMODE");
+    break;
+  case SPLATT_CSF_ALLMODE:
+    printf("ALLMODE");
+    break;
+  }
+  printf(" ");
+
+  /* tiling info */
+  printf("TILE=");
+  splatt_tile_type which_tile = opts[SPLATT_OPTION_TILE];
+  switch(which_tile) {
+  case SPLATT_NOTILE:
+    printf("NO");
+    break;
+  case SPLATT_DENSETILE:
+    printf("DENSE TILE-DEPTH=%"SPLATT_PF_IDX,
+        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+    break;
+  case SPLATT_SYNCTILE:
+    printf("SYNC");
+    break;
+  case SPLATT_COOPTILE:
+    printf("COOP");
+    break;
+  }
+  printf("\n");
+
+  char * fstorage = bytes_str(fbytes);
+  char * mstorage = bytes_str(mbytes);
+  printf("CSF-STORAGE=%s FACTOR-STORAGE=%s", fstorage, mstorage);
+  free(fstorage);
+  free(mstorage);
+  printf("\n\n");
+}
+
+
+
 void mpi_global_stats(
   sptensor_t * const tt,
   rank_info * const rinfo,
@@ -246,10 +413,10 @@ void mpi_rank_stats(
       volume += rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m];
     }
   }
-  MPI_Reduce(&volume, &totvolume, 1, SPLATT_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&volume, &maxvolume, 1, SPLATT_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&tt->nnz, &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&tt->nnz, &maxnnz, 1, SPLATT_MPI_IDX, MPI_MAX, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&volume, &totvolume, 1, SPLATT_MPI_IDX, MPI_SUM, 0, rinfo->comm_3d);
+  MPI_Reduce(&volume, &maxvolume, 1, SPLATT_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
+  MPI_Reduce(&tt->nnz, &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM, 0, rinfo->comm_3d);
+  MPI_Reduce(&tt->nnz, &maxnnz, 1, SPLATT_MPI_IDX, MPI_MAX, 0, rinfo->comm_3d);
 
   if(rinfo->rank == 0) {
     printf("MPI information ------------------------------------------------\n");

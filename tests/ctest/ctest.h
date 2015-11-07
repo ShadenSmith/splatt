@@ -16,6 +16,10 @@
 #ifndef CTEST_H
 #define CTEST_H
 
+#ifdef SPLATT_USE_MPI
+#include <mpi.h>
+#endif
+
 typedef void (*SetupFunc)(void*);
 typedef void (*TearDownFunc)(void*);
 
@@ -338,6 +342,14 @@ static uint64_t getCurrentTime() {
 }
 
 static void color_print(const char* color, const char* text) {
+#ifdef SPLATT_USE_MPI
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if(rank > 0) {
+    return;
+  }
+#endif
+
     if (color_output)
         printf("%s%s"ANSI_NORMAL"\n", color, text);
     else
@@ -389,6 +401,11 @@ int ctest_main(int argc, const char *argv[])
     static int index = 1;
     static filter_func filter = suite_all;
 
+    int rank = 0;
+#ifdef SPLATT_USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+#endif
+
 #ifdef CTEST_SEGFAULT
     signal(SIGSEGV, sighandler);
 #endif
@@ -428,8 +445,10 @@ int ctest_main(int argc, const char *argv[])
             ctest_errorbuffer[0] = 0;
             ctest_errorsize = MSG_SIZE-1;
             ctest_errormsg = ctest_errorbuffer;
-            printf("TEST %d/%d %s:%s ", index, total, test->ssname, test->ttname);
-            fflush(stdout);
+            if(rank == 0) {
+              printf("TEST %d/%d %s:%s ", index, total, test->ssname, test->ttname);
+              fflush(stdout);
+            }
             if (test->skip) {
                 color_print(ANSI_BYELLOW, "[SKIPPED]");
                 num_skip++;
@@ -455,7 +474,9 @@ int ctest_main(int argc, const char *argv[])
 #ifdef COLOR_OK
                     color_print(ANSI_BGREEN, "[OK]");
 #else
-                    printf("[OK]\n");
+                    if(rank == 0) {
+                      printf("[OK]\n");
+                    }
 #endif
                     num_ok++;
                 } else {

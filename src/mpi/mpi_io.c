@@ -18,7 +18,7 @@
 * @param buf The sptensor buffer to fill.
 * @param nnz_to_read The number of nonzeros to read.
 */
-static void __fill_tt_nnz(
+static void p_fill_tt_nnz(
   FILE * fin,
   sptensor_t * const buf,
   idx_t const nnz_to_read)
@@ -46,7 +46,7 @@ static void __fill_tt_nnz(
 }
 
 
-static int * __distribute_parts(
+static int * p_distribute_parts(
   sptensor_t * const ttbuf,
   char const * const pfname,
   rank_info * const rinfo)
@@ -90,14 +90,14 @@ static int * __distribute_parts(
 }
 
 
-static sptensor_t * __rearrange_fine(
+static sptensor_t * p_rearrange_fine(
   sptensor_t * const ttbuf,
   char const * const pfname,
   idx_t * * ssizes,
   rank_info * const rinfo)
 {
   /* first distribute partitioning information */
-  int * parts = __distribute_parts(ttbuf, pfname, rinfo);
+  int * parts = p_distribute_parts(ttbuf, pfname, rinfo);
 
   /* count how many to send to each process */
   int * nsend = (int *) calloc(rinfo->npes, sizeof(int));
@@ -188,7 +188,7 @@ static sptensor_t * __rearrange_fine(
 * @param nnz The number of nonzeros in total.
 * @param rinfo MPI information.
 */
-static void __find_my_slices(
+static void p_find_my_slices(
   idx_t ** const ssizes,
   idx_t const nmodes,
   idx_t const nnz,
@@ -257,7 +257,7 @@ static void __find_my_slices(
 }
 
 
-static void __find_my_slices_1d(
+static void p_find_my_slices_1d(
   idx_t ** const ssizes,
   idx_t const nmodes,
   idx_t const nnz,
@@ -333,7 +333,7 @@ static void __find_my_slices_1d(
 *
 * @return The number of nonzeros in the intersection of all sstarts and sends.
 */
-static idx_t __count_my_nnz(
+static idx_t p_count_my_nnz(
   char const * const fname,
   idx_t const nmodes,
   idx_t const * const sstarts,
@@ -382,7 +382,7 @@ static idx_t __count_my_nnz(
 *
 * @return The number of nonzeros in the intersection of all sstarts and sends.
 */
-static idx_t __count_my_nnz_1d(
+static idx_t p_count_my_nnz_1d(
   char const * const fname,
   idx_t const nmodes,
   idx_t const * const sstarts,
@@ -432,7 +432,7 @@ static idx_t __count_my_nnz_1d(
 * @param sstarts Array of starting slices, inclusive (one for each mode).
 * @param sends Array of ending slices, exclusive (one for each mode).
 */
-static void __read_tt_part(
+static void p_read_tt_part(
   char const * const fname,
   sptensor_t * const tt,
   idx_t const * const sstarts,
@@ -480,7 +480,7 @@ static void __read_tt_part(
 * @param sstarts Array of starting slices, inclusive (one for each mode).
 * @param sends Array of ending slices, exclusive (one for each mode).
 */
-static void __read_tt_part_1d(
+static void p_read_tt_part_1d(
   char const * const fname,
   sptensor_t * const tt,
   idx_t const * const sstarts,
@@ -529,7 +529,7 @@ static void __read_tt_part_1d(
 *
 * @return My portion of the sparse tensor read from fname.
 */
-static sptensor_t * __read_tt_1d(
+static sptensor_t * p_read_tt_1d(
   char const * const fname,
   idx_t ** const ssizes,
   idx_t const nmodes,
@@ -540,15 +540,15 @@ static sptensor_t * __read_tt_1d(
   idx_t const * const dims = rinfo->global_dims;
 
   /* find start/end slices for my partition */
-  __find_my_slices_1d(ssizes, nmodes, nnz, rinfo);
+  p_find_my_slices_1d(ssizes, nmodes, nnz, rinfo);
 
   /* count nnz in my partition and allocate */
-  idx_t const mynnz = __count_my_nnz_1d(fname, nmodes, rinfo->mat_start,
+  idx_t const mynnz = p_count_my_nnz_1d(fname, nmodes, rinfo->mat_start,
       rinfo->mat_end);
   sptensor_t * tt = tt_alloc(mynnz, nmodes);
 
   /* now actually load values */
-  __read_tt_part_1d(fname, tt, rinfo->mat_start, rinfo->mat_end);
+  p_read_tt_part_1d(fname, tt, rinfo->mat_start, rinfo->mat_end);
 
   return tt;
 }
@@ -564,7 +564,7 @@ static sptensor_t * __read_tt_1d(
 *
 * @return My portion of the sparse tensor read from fname.
 */
-static sptensor_t * __read_tt_3d(
+static sptensor_t * p_read_tt_3d(
   char const * const fname,
   idx_t ** const ssizes,
   idx_t const nmodes,
@@ -575,15 +575,15 @@ static sptensor_t * __read_tt_3d(
   idx_t const * const dims = rinfo->global_dims;
 
   /* find start/end slices for my partition */
-  __find_my_slices(ssizes, nmodes, nnz, rinfo);
+  p_find_my_slices(ssizes, nmodes, nnz, rinfo);
 
   /* count nnz in my partition and allocate */
-  idx_t const mynnz = __count_my_nnz(fname, nmodes, rinfo->layer_starts,
+  idx_t const mynnz = p_count_my_nnz(fname, nmodes, rinfo->layer_starts,
       rinfo->layer_ends);
   sptensor_t * tt = tt_alloc(mynnz, nmodes);
 
   /* now actually load values */
-  __read_tt_part(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
+  p_read_tt_part(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
 
   return tt;
 }
@@ -596,7 +596,7 @@ static sptensor_t * __read_tt_3d(
 * @param ssizes A 2D array for counting slice 'sizes'.
 * @param rinfo MPI information (containing global dims, nnz, etc.).
 */
-static void __fill_ssizes(
+static void p_fill_ssizes(
   sptensor_t const * const tt,
   idx_t ** const ssizes,
   rank_info const * const rinfo)
@@ -622,7 +622,7 @@ static void __fill_ssizes(
 * @param outnmodes Number of modes found in X.
 * @param outdims The dimensions found in X.
 */
-static void __get_dims(
+static void p_get_dims(
   char const * const fname,
   idx_t * const outnnz,
   idx_t * const outnmodes,
@@ -688,7 +688,7 @@ static void __get_dims(
 *
 * @return The list of primes. This must be deallocated with free().
 */
-static int * __get_primes(
+static int * p_get_primes(
   int N,
   int * nprimes)
 {
@@ -727,11 +727,11 @@ static int * __get_primes(
 *
 * @param rinfo MPI rank information.
 */
-static void __get_best_mpi_dim(
+static void p_get_best_mpi_dim(
   rank_info * const rinfo)
 {
   int nprimes = 0;
-  int * primes = __get_primes(rinfo->npes, &nprimes);
+  int * primes = p_get_primes(rinfo->npes, &nprimes);
 
   idx_t total_size = 0;
   for(idx_t m=0; m < rinfo->distribution; ++m) {
@@ -778,7 +778,7 @@ sptensor_t * mpi_tt_read(
 
   if(rinfo->rank == 0) {
     /* get tensor stats */
-    __get_dims(ifname, &(rinfo->global_nnz), &nmodes, rinfo->global_dims);
+    p_get_dims(ifname, &(rinfo->global_nnz), &nmodes, rinfo->global_dims);
   }
   MPI_Bcast(&(rinfo->global_nnz), 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
   MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
@@ -788,7 +788,7 @@ sptensor_t * mpi_tt_read(
   /* first compute MPI dimension if not specified by the user */
   if(rinfo->distribution == DEFAULT_MPI_DISTRIBUTION) {
     rinfo->distribution = nmodes;
-    __get_best_mpi_dim(rinfo);
+    p_get_best_mpi_dim(rinfo);
   }
 
   mpi_setup_comms(rinfo);
@@ -800,13 +800,13 @@ sptensor_t * mpi_tt_read(
 
   /* first naively distribute tensor nonzeros for analysis */
   sptensor_t * ttbuf = mpi_simple_distribute(ifname, rinfo);
-  __fill_ssizes(ttbuf, ssizes, rinfo);
+  p_fill_ssizes(ttbuf, ssizes, rinfo);
 
   /* actually parse tensor */
   sptensor_t * tt = NULL;
   switch(rinfo->distribution) {
   case 1:
-    tt = __read_tt_1d(ifname, ssizes, nmodes, rinfo);
+    tt = p_read_tt_1d(ifname, ssizes, nmodes, rinfo);
     /* now fix tt->dims */
     for(idx_t m=0; m < tt->nmodes; ++m) {
       tt->dims[m] = 0;
@@ -817,7 +817,7 @@ sptensor_t * mpi_tt_read(
     break;
 
   case 3:
-    tt = __read_tt_3d(ifname, ssizes, nmodes, rinfo);
+    tt = p_read_tt_3d(ifname, ssizes, nmodes, rinfo);
     /* now map tensor indices to local (layer) coordinates and fill in dims */
     for(idx_t m=0; m < nmodes; ++m) {
       free(ssizes[m]);
@@ -830,7 +830,7 @@ sptensor_t * mpi_tt_read(
     }
     break;
   case SPLATT_MPI_FINE:
-    tt = __rearrange_fine(ttbuf, pfname, ssizes, rinfo);
+    tt = p_rearrange_fine(ttbuf, pfname, ssizes, rinfo);
     /* now fix tt->dims */
     for(idx_t m=0; m < tt->nmodes; ++m) {
       tt->dims[m] = rinfo->global_dims[m];
@@ -1071,7 +1071,7 @@ sptensor_t * mpi_simple_distribute(
 
     /* root gets leftovers at end, so start from p=1 */
     for(int p=1; p < rinfo->npes; ++p) {
-      __fill_tt_nnz(fin, tt_buf, target_nnz);
+      p_fill_tt_nnz(fin, tt_buf, target_nnz);
       for(idx_t m=0; m < tt_buf->nmodes;  ++m) {
         MPI_Send(tt_buf->ind[m], target_nnz, SPLATT_MPI_IDX, p, 0, rinfo->comm_3d);
       }
@@ -1081,7 +1081,7 @@ sptensor_t * mpi_simple_distribute(
 
     /* now load my own */
     tt = tt_alloc(my_nnz, rinfo->nmodes);
-    __fill_tt_nnz(fin, tt, my_nnz);
+    p_fill_tt_nnz(fin, tt, my_nnz);
     fclose(fin);
 
   } else {

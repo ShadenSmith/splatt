@@ -46,6 +46,7 @@ typedef struct
   idx_t ownstart[MAX_NMODES];
   idx_t ownend[MAX_NMODES];
 
+  idx_t * indmap[MAX_NMODES]; /** Maps local to global indices */
 
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
@@ -123,13 +124,22 @@ typedef enum
  *****************************************************************************/
 #include "sptensor.h"
 #include "reorder.h"
-#include "cpd.h"
 
 
 
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
+
+#define mpi_cpd_als_iterate splatt_mpi_cpd_als_iterate
+double mpi_cpd_als_iterate(
+  splatt_csf const * const tensors,
+  matrix_t ** mats,
+  matrix_t ** globmats,
+  val_t * const lambda,
+  idx_t const nfactors,
+  rank_info * const rinfo,
+  double const * const opts);
 
 #define mpi_update_rows splatt_mpi_update_rows
 /**
@@ -263,7 +273,7 @@ void mpi_compute_ineed(
 * @param ifname The file containing the tensor.
 * @param pfname The file containing partition information, if applicable.
 * @param rinfo Rank information.
-* 
+*
 * @return The rank's subtensor.
 */
 sptensor_t * mpi_tt_read(
@@ -337,6 +347,21 @@ void mpi_find_owned(
   sptensor_t const * const tt,
   idx_t const mode,
   rank_info * const rinfo);
+
+
+#define mpi_cpy_indmap splatt_mpi_cpy_indmap
+/**
+* @brief Copy the indmap information from a sparse tensor into rank_info. If
+*        tt->indmap[mode] is NULL, this sets rinfo->indmap[mode] to NULL.
+*
+* @param tt The sparse tensor to copy from.
+* @param rinfo The rank_info structure to copy to.
+* @param mode Which mode to copy.
+*/
+void mpi_cpy_indmap(
+  sptensor_t const * const tt,
+  rank_info * const rinfo,
+  idx_t const mode);
 
 
 #define mpi_setup_comms splatt_mpi_setup_comms

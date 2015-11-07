@@ -9,11 +9,13 @@
 #include "io.h"
 #include "timer.h"
 
+#include <math.h>
+
 
 /******************************************************************************
  * PRIVATE FUNCTONS
  *****************************************************************************/
-static inline int __same_coord(
+static inline int p_same_coord(
   sptensor_t const * const tt,
   idx_t const i,
   idx_t const j)
@@ -48,6 +50,19 @@ val_t tt_normsq(sptensor_t const * const tt)
     norm += tv[n] * tv[n];
   }
   return norm;
+}
+
+
+double tt_density(
+  sptensor_t const * const tt)
+{
+  double root = pow((double)tt->nnz, 1./(double)tt->nmodes);
+  double density = 1.0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    density *= root / (double)tt->dims[m];
+  }
+
+  return density;
 }
 
 
@@ -109,7 +124,7 @@ idx_t tt_remove_dups(
   idx_t newnnz = 0;
   for(idx_t nnz = 1; nnz < tt->nnz; ++nnz) {
     /* if the two nnz are the same, average them */
-    if(__same_coord(tt, newnnz, nnz)) {
+    if(p_same_coord(tt, newnnz, nnz)) {
       tt->vals[newnnz] += tt->vals[nnz];
       tt->vals[newnnz] /= 2;
     } else {

@@ -24,6 +24,7 @@ typedef enum
  * INCLUDES
  *****************************************************************************/
 #include "sptensor.h"
+#include "csf.h"
 #include "cpd.h"
 #include "splatt_mpi.h"
 
@@ -49,11 +50,53 @@ void stats_tt(
   char const * const pfile);
 
 
+#define stats_csf splatt_stats_csf
+/**
+* @brief Output statistics about a CSF tensor.
+*
+* @param ct The CSF tensor to analyze.
+*/
+void stats_csf(
+  splatt_csf const * const ct);
+
+
+#define cpd_stats splatt_cpd_stats
+/**
+* @brief Output work-related statistics before a CPD factorization. This
+*        includes rank, #threads, tolerance, etc.
+*
+* @param csf The CSF tensor we are factoring.
+* @param nfactors The number of factors.
+* @param opts Other CPD options.
+*/
+void cpd_stats(
+  splatt_csf const * const csf,
+  idx_t const nfactors,
+  double const * const opts);
+
 
 /******************************************************************************
  * MPI FUNCTIONS
  *****************************************************************************/
 #ifdef SPLATT_USE_MPI
+
+#define mpi_cpd_stats splatt_mpi_cpd_stats
+/**
+* @brief Output work-related statistics before a CPD factorization. This
+*        includes rank, #threads, tolerance, etc.
+*
+* @param csf The CSF tensor we are factoring.
+* @param nfactors The number of factors.
+* @param opts Other CPD options.
+* @param rinfo MPI rank information.
+*/
+void mpi_cpd_stats(
+  splatt_csf const * const csf,
+  idx_t const nfactors,
+  double const * const opts,
+  rank_info * const rinfo);
+
+
 #define mpi_global_stats splatt_mpi_global_stats
 /**
 * @brief Copy global information into local tt, print statistics, and

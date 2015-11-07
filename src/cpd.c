@@ -1,4 +1,5 @@
 
+
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
@@ -6,12 +7,8 @@
 #include "cpd.h"
 #include "matrix.h"
 #include "mttkrp.h"
-#include "sptensor.h"
-#include "stats.h"
 #include "timer.h"
 #include "thd_info.h"
-#include "tile.h"
-#include "io.h"
 #include "util.h"
 
 #include <math.h>
@@ -22,48 +19,53 @@
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
-int splatt_cpd(
+
+int splatt_cpd_als(
+    splatt_csf const * const tensors,
     splatt_idx_t const nfactors,
-    splatt_idx_t const nmodes,
-    splatt_csf_t const * const tensors,
     double const * const options,
-    splatt_kruskal_t * factored)
+    splatt_kruskal * factored)
 {
-  matrix_t * globmats[MAX_NMODES+1];
+  matrix_t * mats[MAX_NMODES+1];
+
+  idx_t nmodes = tensors->nmodes;
 
   rank_info rinfo;
   rinfo.rank = 0;
 
-  idx_t maxdim = 0;
+  /* allocate factor matrices */
+  idx_t maxdim = tensors->dims[argmax_elem(tensors->dims, nmodes)];
   for(idx_t m=0; m < nmodes; ++m) {
-    globmats[m] = (matrix_t *) mat_rand(tensors[0].dims[m], nfactors);
-    maxdim = SS_MAX(globmats[m]->I, maxdim);
+    mats[m] = (matrix_t *) mat_rand(tensors[0].dims[m], nfactors);
   }
-  globmats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
+  mats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
 
   val_t * lambda = (val_t *) malloc(nfactors * sizeof(val_t));
 
   /* do the factorization! */
-  factored->fit = cpd_als(tensors, globmats, globmats, lambda, nfactors,
-      &rinfo, options);
+  factored->fit = cpd_als_iterate(tensors, mats, lambda, nfactors, &rinfo,
+      options);
 
   /* store output */
   factored->rank = nfactors;
   factored->nmodes = nmodes;
   factored->lambda = lambda;
   for(idx_t m=0; m < nmodes; ++m) {
-    factored->factors[m] = globmats[m]->vals;
+    factored->dims[m] = tensors->dims[m];
+    factored->factors[m] = mats[m]->vals;
   }
 
-  mat_free(globmats[MAX_NMODES]);
+  /* clean up */
+  mat_free(mats[MAX_NMODES]);
   for(idx_t m=0; m < nmodes; ++m) {
-    free(globmats[m]); /* just the matrix_t ptr, data is safely in factored */
+    free(mats[m]); /* just the matrix_t ptr, data is safely in factored */
   }
   return SPLATT_SUCCESS;
 }
 
+
 void splatt_free_kruskal(
-    splatt_kruskal_t * factored)
+    splatt_kruskal * factored)
 {
   free(factored->lambda);
   for(idx_t m=0; m < factored->nmodes; ++m) {
@@ -82,7 +84,7 @@ void splatt_free_kruskal(
 *
 * @param rinfo MPI rank information.
 */
-static void __reset_cpd_timers(
+static void p_reset_cpd_timers(
   rank_info const * const rinfo)
 {
   timer_reset(&timers[TIMER_ATA]);
@@ -112,7 +114,7 @@ static void __reset_cpd_timers(
 *
 * @return The Frobenius norm of X, squared.
 */
-static val_t __kruskal_norm(
+static val_t p_kruskal_norm(
   idx_t const nmodes,
   val_t const * const restrict lambda,
   matrix_t ** aTa)
@@ -162,7 +164,7 @@ static val_t __kruskal_norm(
 * @return The inner product of the two tensors, computed via:
 *         1^T hadamard(mats[nmodes-1], m1) \lambda.
 */
-static val_t __tt_kruskal_inner(
+static val_t p_tt_kruskal_inner(
   idx_t const nmodes,
   rank_info * const rinfo,
   thd_info * const thds,
@@ -232,7 +234,7 @@ static val_t __tt_kruskal_inner(
 * @return The inner product of the two tensors, computed via:
 *         \lambda^T hadamard(mats[nmodes-1], m1) \lambda.
 */
-static val_t __calc_fit(
+static val_t p_calc_fit(
   idx_t const nmodes,
   rank_info * const rinfo,
   thd_info * const thds,
@@ -245,10 +247,10 @@ static val_t __calc_fit(
   timer_start(&timers[TIMER_FIT]);
 
   /* First get norm of new model: lambda^T * (hada aTa) * lambda. */
-  val_t const norm_mats = __kruskal_norm(nmodes, lambda, aTa);
+  val_t const norm_mats = p_kruskal_norm(nmodes, lambda, aTa);
 
   /* Compute inner product of tensor with new model */
-  val_t const inner = __tt_kruskal_inner(nmodes, rinfo, thds, lambda, mats,m1);
+  val_t const inner = p_tt_kruskal_inner(nmodes, rinfo, thds, lambda, mats,m1);
 
   val_t const residual = sqrt(ttnormsq + norm_mats - (2 * inner));
   timer_stop(&timers[TIMER_FIT]);
@@ -256,100 +258,36 @@ static val_t __calc_fit(
 }
 
 
-/**
-* @brief Calculate (BtB * CtC * ...)^-1, where * is the Hadamard product. This
-*        is the Gram Matrix of the CPD.
-*
-* @param mode Which mode we are operating on (it is not used in the product).
-* @param nmodes The number of modes in the tensor.
-* @param aTa An array of matrices (length MAX_NMODES)containing BtB, CtC, etc.
-*            [OUT] The result is stored in ata[MAX_NMODES].
-*/
-static void __calc_M2(
-  idx_t const mode,
-  idx_t const nmodes,
-  matrix_t ** aTa)
-{
-  timer_start(&timers[TIMER_INV]);
-
-  idx_t const rank = aTa[0]->J;
-  val_t * const restrict av = aTa[MAX_NMODES]->vals;
-
-  /* ata[MAX_NMODES] = hada(aTa[0], aTa[1], ...) */
-  for(idx_t x=0; x < rank*rank; ++x) {
-    av[x] = 1.;
-  }
-  for(idx_t m=1; m < nmodes; ++m) {
-    idx_t const madjust = (mode + m) % nmodes;
-    val_t const * const vals = aTa[madjust]->vals;
-    for(idx_t x=0; x < rank*rank; ++x) {
-      av[x] *= vals[x];
-    }
-  }
-
-  /* M2 = M2^-1 */
-  mat_syminv(aTa[MAX_NMODES]);
-  timer_stop(&timers[TIMER_INV]);
-}
-
-
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-double cpd_als(
-  ftensor_t const * const ft,
+double cpd_als_iterate(
+  splatt_csf const * const tensors,
   matrix_t ** mats,
-  matrix_t ** globmats,
   val_t * const lambda,
   idx_t const nfactors,
   rank_info * const rinfo,
   double const * const opts)
 {
-  idx_t const nmodes = ft[0].nmodes;
+  idx_t const nmodes = tensors[0].nmodes;
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
 
-  /* Setup thread structures. + 64 bytes is to avoid false sharing. */
+  /* Setup thread structures. + 64 bytes is to avoid false sharing.
+   * TODO make this better */
   omp_set_num_threads(nthreads);
-  thd_info * thds =  thd_init(nthreads, 2,
+  thd_info * thds =  thd_init(nthreads, 3,
     (nfactors * nfactors * sizeof(val_t)) + 64,
-    TILE_SIZES[0] * nfactors * sizeof(val_t) + 64);
+    0,
+    (nmodes * nfactors * sizeof(val_t)) + 64);
 
   matrix_t * m1 = mats[MAX_NMODES];
-
-#ifdef SPLATT_USE_MPI
-  /* Extract MPI communication structures */
-  idx_t maxdim = 0;
-  idx_t maxlocal2nbr = 0;
-  idx_t maxnbr2globs = 0;
-  for(idx_t m=0; m < nmodes; ++m) {
-    maxlocal2nbr = SS_MAX(maxlocal2nbr, rinfo->nlocal2nbr[m]);
-    maxnbr2globs = SS_MAX(maxnbr2globs, rinfo->nnbr2globs[m]);
-    maxdim = SS_MAX(globmats[m]->I, maxdim);
-  }
-  maxlocal2nbr *= nfactors;
-  maxnbr2globs *= nfactors;
-
-  val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
-  val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
-  if(rinfo->distribution > 1) {
-    m1 = mat_alloc(maxdim, nfactors);
-  }
-
-  /* Exchange initial matrices */
-  for(idx_t m=1; m < nmodes; ++m) {
-    mpi_update_rows(ft[m].indmap, nbr2globs_buf, local2nbr_buf, mats[m],
-        globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
-  }
-#endif
-
-  matrix_t * m1ptr = m1; /* for restoring m1 */
 
   /* Initialize first A^T * A mats. We redundantly do the first because it
    * makes communication easier. */
   matrix_t * aTa[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
     aTa[m] = mat_alloc(nfactors, nfactors);
-    mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
+    mat_aTa(mats[m], aTa[m], rinfo, thds, nthreads);
   }
   /* used as buffer space */
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
@@ -357,21 +295,10 @@ double cpd_als(
   /* Compute input tensor norm */
   double oldfit = 0;
   double fit = 0;
-  val_t mynorm = 0;
-  #pragma omp parallel for reduction(+:mynorm)
-  for(idx_t n=0; n < ft[0].nnz; ++n) {
-    mynorm += ft[0].vals[n] * ft[0].vals[n];
-  }
-
-  val_t ttnormsq = 0;
-#ifdef SPLATT_USE_MPI
-  MPI_Allreduce(&mynorm, &ttnormsq, 1, SPLATT_MPI_VAL, MPI_SUM, rinfo->comm_3d);
-#else
-  ttnormsq = mynorm;
-#endif
+  val_t ttnormsq = csf_frobsq(tensors);
 
   /* setup timers */
-  __reset_cpd_timers(rinfo);
+  p_reset_cpd_timers(rinfo);
   sp_timer_t itertime;
   sp_timer_t modetime[MAX_NMODES];
   timer_start(&timers[TIMER_CPD]);
@@ -381,55 +308,34 @@ double cpd_als(
     timer_fstart(&itertime);
     for(idx_t m=0; m < nmodes; ++m) {
       timer_fstart(&modetime[m]);
-      mats[MAX_NMODES]->I = ft[0].dims[m];
-      m1->I = globmats[m]->I;
-      m1ptr->I = globmats[m]->I;
+      mats[MAX_NMODES]->I = tensors[0].dims[m];
+      m1->I = mats[m]->I;
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
-      mttkrp_splatt(&(ft[m]), mats, m, thds, nthreads);
+      mttkrp_csf(tensors, mats, m, thds, opts);
       timer_stop(&timers[TIMER_MTTKRP]);
-#ifdef SPLATT_USE_MPI
-      if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
-        m1 = m1ptr;
-        /* add my partial multiplications to globmats[m] */
-        mpi_add_my_partials(ft[m].indmap, mats[MAX_NMODES], m1, rinfo,
-            nfactors, m);
-        /* incorporate neighbors' partials */
-        mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
-            rinfo, nfactors, m, DEFAULT_COMM);
-      } else {
-        /* skip the whole process */
-        m1 = mats[MAX_NMODES];
-      }
-#endif
 
       /* M2 = (CtC .* BtB .* ...)^-1 */
-      __calc_M2(m, nmodes, aTa);
+      calc_gram_inv(m, nmodes, aTa);
 
       /* A = M1 * M2 */
-      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
-      mat_matmul(m1, aTa[MAX_NMODES], globmats[m]);
+      memset(mats[m]->vals, 0, mats[m]->I * nfactors * sizeof(val_t));
+      mat_matmul(m1, aTa[MAX_NMODES], mats[m]);
 
       /* normalize columns and extract lambda */
       if(it == 0) {
-        mat_normalize(globmats[m], lambda, MAT_NORM_2, rinfo, thds, nthreads);
+        mat_normalize(mats[m], lambda, MAT_NORM_2, rinfo, thds, nthreads);
       } else {
-        mat_normalize(globmats[m], lambda, MAT_NORM_MAX, rinfo, thds,nthreads);
+        mat_normalize(mats[m], lambda, MAT_NORM_MAX, rinfo, thds,nthreads);
       }
 
-#ifdef SPLATT_USE_MPI
-      /* send updated rows to neighbors */
-      mpi_update_rows(ft[m].indmap, nbr2globs_buf, local2nbr_buf, mats[m],
-          globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
-#endif
-
       /* update A^T*A */
-      mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
+      mat_aTa(mats[m], aTa[m], rinfo, thds, nthreads);
       timer_stop(&modetime[m]);
     } /* foreach mode */
 
-    fit = __calc_fit(nmodes, rinfo, thds, ttnormsq, lambda, globmats, m1, aTa);
+    fit = p_calc_fit(nmodes, rinfo, thds, ttnormsq, lambda, mats, m1, aTa);
     timer_stop(&itertime);
 
     if(rinfo->rank == 0 &&
@@ -455,62 +361,40 @@ double cpd_als(
     printf("Final fit: %0.5f\n", fit);
   }
 
-  /* POST PROCESSING */
-  /* normalize each mat and adjust lambda */
-  val_t * tmp = (val_t *) malloc(nfactors * sizeof(val_t));
-  for(idx_t m=0; m < nmodes; ++m) {
-    mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds, nthreads);
-    for(idx_t f=0; f < nfactors; ++f) {
-      lambda[f] *= tmp[f];
-    }
-  }
-  free(tmp);
+  cpd_post_process(nfactors, nmodes, mats, lambda, thds, nthreads, rinfo);
 
   /* CLEAN UP */
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(aTa[m]);
   }
   mat_free(aTa[MAX_NMODES]);
-
   thd_free(thds, nthreads);
-#ifdef SPLATT_USE_MPI
-  if(rinfo->distribution == 3) {
-    mat_free(m1ptr);
-  }
-  free(local2nbr_buf);
-  free(nbr2globs_buf);
-#endif
-
-#ifdef SPLATT_USE_MPI
-  mpi_time_stats(rinfo);
-#endif
 
   return fit;
 }
 
 
 
-/******************************************************************************
- * CPD OPTIONS FUNCTIONS
- *****************************************************************************/
-double * splatt_default_opts(void)
+void cpd_post_process(
+  idx_t const nfactors,
+  idx_t const nmodes,
+  matrix_t ** mats,
+  val_t * const lambda,
+  thd_info * const thds,
+  idx_t const nthreads,
+  rank_info * const rinfo)
 {
-  double * opts = (double *) malloc(SPLATT_OPTION_NOPTIONS * sizeof(double));
-  for(int i=0; i < SPLATT_OPTION_NOPTIONS; ++i) {
-    opts[i] = SPLATT_VAL_OFF;
+  val_t * tmp =  malloc(nfactors * sizeof(*tmp));
+
+  /* normalize each matrix and adjust lambda */
+  for(idx_t m=0; m < nmodes; ++m) {
+    mat_normalize(mats[m], tmp, MAT_NORM_2, rinfo, thds, nthreads);
+    for(idx_t f=0; f < nfactors; ++f) {
+      lambda[f] *= tmp[f];
+    }
   }
-  opts[SPLATT_OPTION_TOLERANCE] = DEFAULT_TOL;
-  opts[SPLATT_OPTION_NITER]     = DEFAULT_ITS;
-  opts[SPLATT_OPTION_NTHREADS]  = omp_get_num_procs();
-  opts[SPLATT_OPTION_TILE]      = SPLATT_NOTILE;
-  opts[SPLATT_OPTION_VERBOSITY] = SPLATT_VERBOSITY_LOW;
 
-  return opts;
+  free(tmp);
 }
 
-void splatt_free_opts(
-  double * opts)
-{
-  free(opts);
-}
 

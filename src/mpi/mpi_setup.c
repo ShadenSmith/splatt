@@ -9,7 +9,7 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-static void __fill_ineed_ptrs(
+static void p_fill_ineed_ptrs(
   sptensor_t const * const tt,
   idx_t const mode,
   rank_info * const rinfo,
@@ -61,7 +61,7 @@ static void __fill_ineed_ptrs(
 }
 
 
-static void __fill_ineed_inds(
+static void p_fill_ineed_inds(
   sptensor_t const * const tt,
   idx_t const mode,
   idx_t const nfactors,
@@ -159,7 +159,7 @@ static void __fill_ineed_inds(
 *
 * @param rinfo MPI rank information to fill in.
 */
-static void __setup_1d(
+static void p_setup_1d(
   rank_info * const rinfo)
 {
   rinfo->comm_3d = MPI_COMM_WORLD;
@@ -197,7 +197,7 @@ static void __setup_fine(
 *
 * @param rinfo MPI rank information to fill in.
 */
-static void __setup_3d(
+static void p_setup_3d(
   rank_info * const rinfo)
 {
   int * const dims_3d = rinfo->dims_3d;
@@ -254,10 +254,10 @@ void mpi_compute_ineed(
   idx_t const distribution)
 {
   /* fill local2nbr and nbr2globs ptrs */
-  __fill_ineed_ptrs(tt, mode, rinfo, rinfo->layer_comm[mode]);
+  p_fill_ineed_ptrs(tt, mode, rinfo, rinfo->layer_comm[mode]);
 
   /* fill indices */
-  __fill_ineed_inds(tt, mode, nfactors, rinfo, rinfo->layer_comm[mode]);
+  p_fill_ineed_inds(tt, mode, nfactors, rinfo, rinfo->layer_comm[mode]);
 }
 
 
@@ -266,10 +266,10 @@ void mpi_setup_comms(
 {
   switch(rinfo->distribution) {
   case 1:
-    __setup_1d(rinfo);
+    p_setup_1d(rinfo);
     break;
   case 3:
-    __setup_3d(rinfo);
+    p_setup_3d(rinfo);
     break;
   case SPLATT_MPI_FINE:
     __setup_fine(rinfo);
@@ -303,8 +303,27 @@ void rank_free(
       free(rinfo.nbr2globs_ptr[m]);
       free(rinfo.local2nbr_disp[m]);
       free(rinfo.nbr2globs_disp[m]);
+      free(rinfo.indmap[m]);
     }
     break;
   }
 }
+
+void mpi_cpy_indmap(
+  sptensor_t const * const tt,
+  rank_info * const rinfo,
+  idx_t const mode)
+{
+  /* copy if not NULL */
+  if(tt->indmap[mode] != NULL) {
+    idx_t const dim = tt->dims[mode];
+    rinfo->indmap[mode] = malloc(dim * sizeof(**(rinfo->indmap)));
+    memcpy(rinfo->indmap[mode], tt->indmap[mode],
+        dim * sizeof(**(rinfo->indmap)));
+
+  } else {
+    rinfo->indmap[mode] = NULL;
+  }
+}
+
 

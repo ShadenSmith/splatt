@@ -16,7 +16,7 @@
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-static sptensor_t * __tt_read_file(
+static sptensor_t * p_tt_read_file(
   FILE * fin)
 {
   char * ptr = NULL;
@@ -128,7 +128,7 @@ sptensor_t * tt_read_file(
   }
 
   timer_start(&timers[TIMER_IO]);
-  sptensor_t * tt = __tt_read_file(fin);
+  sptensor_t * tt = p_tt_read_file(fin);
   timer_stop(&timers[TIMER_IO]);
   fclose(fin);
   return tt;
@@ -227,6 +227,31 @@ void hgraph_write_file(
   }
   timer_stop(&timers[TIMER_IO]);
 }
+
+
+
+void graph_write_file(
+    splatt_graph const * const graph,
+    FILE * fout)
+{
+  timer_start(&timers[TIMER_IO]);
+  /* print header
+   * TODO: support other weight options */
+  fprintf(fout, "%"SPLATT_PF_IDX" %"SPLATT_PF_IDX" 001\n", graph->nvtxs,
+      graph->nedges/2);
+
+  /* now write adj list */
+  for(vtx_t v=0; v < graph->nvtxs; ++v) {
+    for(adj_t e=graph->eptr[v]; e < graph->eptr[v+1]; ++e) {
+      fprintf(fout, "%"SPLATT_PF_IDX" %"SPLATT_PF_IDX" ", graph->eind[e] + 1,
+          graph->ewgts[e]);
+    }
+    fprintf(fout, "\n");
+  }
+
+  timer_stop(&timers[TIMER_IO]);
+}
+
 
 void spmat_write(
   spmatrix_t const * const mat,

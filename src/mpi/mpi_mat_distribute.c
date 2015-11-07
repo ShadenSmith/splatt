@@ -30,7 +30,7 @@ static int const MSG_UPDATES   = 5;
 * @param tt The distributed tensor.
 * @param perm The resulting permutation (set to identity).
 */
-static void __naive_mat_distribution(
+static void p_naive_mat_distribution(
   rank_info * const rinfo,
   sptensor_t const * const tt,
   permutation_t * const perm)
@@ -84,7 +84,7 @@ static void __naive_mat_distribution(
 *
 * @return The selected rank.
 */
-static int __make_job(
+static int p_make_job(
   int const npes,
   int const lastp,
   idx_t * const pvols,
@@ -139,7 +139,7 @@ static int __make_job(
 *
 * @return The number of rows that were claimed.
 */
-static idx_t __check_job(
+static idx_t p_check_job(
   int const npes,
   idx_t * const pvols,
   rank_info * const rinfo,
@@ -185,7 +185,7 @@ static idx_t __check_job(
 *
 * @return The number of claimed rows.
 */
-static idx_t __tryclaim_rows(
+static idx_t p_tryclaim_rows(
   idx_t const amt,
   idx_t const * const inds,
   idx_t const localdim,
@@ -227,7 +227,7 @@ static idx_t __tryclaim_rows(
 *
 * @return The number of claimed rows.
 */
-static idx_t __mustclaim_rows(
+static idx_t p_mustclaim_rows(
   idx_t const amt,
   idx_t const * const inds,
   idx_t const localdim,
@@ -237,7 +237,7 @@ static idx_t __mustclaim_rows(
   idx_t * const newclaims)
 {
   /* first try local rows */
-  idx_t newrows = __tryclaim_rows(amt, inds, localdim, rinfo, claimed,
+  idx_t newrows = p_tryclaim_rows(amt, inds, localdim, rinfo, claimed,
       layerdim, newclaims);
 
   if(newrows == amt) {
@@ -260,7 +260,7 @@ static idx_t __mustclaim_rows(
 }
 
 
-static void __distribute_u3_rows(
+static void p_distribute_u3_rows(
   idx_t const m,
   int const * const pcount,
   idx_t * const pvols,
@@ -311,7 +311,7 @@ static void __distribute_u3_rows(
 
   while(1) {
     if(rank == 0) {
-      newp = __make_job(npes, newp, pvols, rinfo, comm, mustclaim, left);
+      newp = p_make_job(npes, newp, pvols, rinfo, comm, mustclaim, left);
     }
 
     MPI_Recv(&msg, 1, MPI_INT, 0, 0, comm, &(rinfo->status));
@@ -320,10 +320,10 @@ static void __distribute_u3_rows(
       MPI_Recv(&amt, 1, SPLATT_MPI_IDX, 0, 0, comm, &(rinfo->status));
       /* see how many I can claim */
       if(msg == MSG_TRYCLAIM) {
-        nclaimed = __tryclaim_rows(amt, inds, localdim, rinfo, claimed, dim,
+        nclaimed = p_tryclaim_rows(amt, inds, localdim, rinfo, claimed, dim,
             myclaims);
       } else {
-        nclaimed = __mustclaim_rows(amt, inds, localdim, rinfo, claimed, dim,
+        nclaimed = p_mustclaim_rows(amt, inds, localdim, rinfo, claimed, dim,
             myclaims);
       }
 
@@ -338,7 +338,7 @@ static void __distribute_u3_rows(
 
     /* check for updated rows, completion, etc. */
     if(rank == 0) {
-      amt = __check_job(npes, pvols, rinfo, comm, bufclaims, &left);
+      amt = p_check_job(npes, pvols, rinfo, comm, bufclaims, &left);
       /* force claim next turn if no progress made this time */
       mustclaim = (amt > 0);
     }
@@ -381,7 +381,7 @@ static void __distribute_u3_rows(
 *               rows that appear in 2 ranks, and rconns[2] stores the number of
 *               rows that appear in >2 ranks.
 */
-static void __fill_volume_stats(
+static void p_fill_volume_stats(
   idx_t const m,
   int const * const pcount,
   idx_t const ldim,
@@ -423,7 +423,7 @@ static void __fill_volume_stats(
 * @param rinfo The MPI rank information to fill in.
 * @param tt The distributed tensor which MAY be reordered.
 */
-static void __greedy_mat_distribution(
+static void p_greedy_mat_distribution(
   rank_info * const rinfo,
   sptensor_t const * const tt,
   permutation_t * const perm)
@@ -494,8 +494,8 @@ static void __greedy_mat_distribution(
       0, rinfo->layer_comm[m]);
 
     /* now distribute rows with >=3 pcount in a greedy fashion */
-    __fill_volume_stats(m, pcount, layerdim, rinfo, rconns);
-    __distribute_u3_rows(m, pcount, pvols, rconns, mine, &nrows,
+    p_fill_volume_stats(m, pcount, layerdim, rinfo, rconns);
+    p_distribute_u3_rows(m, pcount, pvols, rconns, mine, &nrows,
         inds, localdim, rinfo);
 
     /* prefix sum to get our new mat_start */
@@ -545,7 +545,7 @@ static void __greedy_mat_distribution(
 *
 * @param rinfo The structure containing MPI information.
 */
-static void __setup_mat_ptrs(
+static void p_setup_mat_ptrs(
   idx_t const mode,
   MPI_Comm const comm,
   rank_info * const rinfo)
@@ -606,11 +606,11 @@ permutation_t * mpi_distribute_mats(
 
   case SPLATT_MPI_FINE:
   case 3:
-    __greedy_mat_distribution(rinfo, tt, perm);
+    p_greedy_mat_distribution(rinfo, tt, perm);
     perm_apply(tt, perm->perms);
 
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      __setup_mat_ptrs(m, rinfo->layer_comm[m], rinfo);
+      p_setup_mat_ptrs(m, rinfo->layer_comm[m], rinfo);
     }
     break;
   }

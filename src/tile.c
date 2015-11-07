@@ -22,7 +22,7 @@
 * @return An array of length (nslabs+1) that points into inds and marks the
 *         start/end of each slab.
 */
-static idx_t * __mkslabptr(
+static idx_t * p_mkslabptr(
   idx_t const * const inds,
   idx_t const nnz,
   idx_t const nslabs)
@@ -55,7 +55,7 @@ static idx_t * __mkslabptr(
 *
 * @return The number of unique indices found in ind[start:end].
 */
-static idx_t __fill_uniques(
+static idx_t p_fill_uniques(
   idx_t const * const inds,
   idx_t const start,
   idx_t const end,
@@ -95,7 +95,7 @@ static idx_t __fill_uniques(
 * @param nuniques The number of unique indices in the mode (between start/end).
 * @param tsize The dimension of the tiles to construct.
 */
-static void __tile_uniques(
+static void p_tile_uniques(
   idx_t const start,
   idx_t const end,
   sptensor_t * const src,
@@ -146,7 +146,7 @@ static void __tile_uniques(
 * @param uniques The index of each unique value. Used to index into seen.
 * @param nuniques The number of uniques to clear.
 */
-static void __clear_uniques(
+static void p_clear_uniques(
   idx_t * const seen,
   idx_t * const uniques,
   idx_t const nuniques)
@@ -173,7 +173,7 @@ static void __clear_uniques(
 * @param nuniques An idx_t for each mode to count the unique indices in the
 *                 slab.
 */
-static void __pack_slab(
+static void p_pack_slab(
   idx_t const start,
   idx_t const end,
   sptensor_t * const tt,
@@ -188,21 +188,21 @@ static void __pack_slab(
   idx_t const idxmode = dim_perm[2];
 
   /* get unique fibers */
-  nuniques[fibmode] = __fill_uniques(tt->ind[fibmode], start, end,
+  nuniques[fibmode] = p_fill_uniques(tt->ind[fibmode], start, end,
     seen[fibmode], uniques[fibmode]);
-  __tile_uniques(start, end, tt, tt_buf, fibmode, seen[fibmode],
+  p_tile_uniques(start, end, tt, tt_buf, fibmode, seen[fibmode],
     uniques[fibmode], nuniques[fibmode], TILE_SIZES[1]);
 
   /* get unique idxs */
-  nuniques[idxmode] = __fill_uniques(tt_buf->ind[idxmode], start, end,
+  nuniques[idxmode] = p_fill_uniques(tt_buf->ind[idxmode], start, end,
     seen[idxmode], uniques[idxmode]);
-  __tile_uniques(start, end, tt_buf, tt, idxmode, seen[idxmode],
+  p_tile_uniques(start, end, tt_buf, tt, idxmode, seen[idxmode],
     uniques[idxmode], nuniques[idxmode], TILE_SIZES[2]);
 
   /* Clear out uniques for next slab. Complexity is #uniques, not dimension
    * of tensor... */
-  __clear_uniques(seen[fibmode], uniques[fibmode], nuniques[fibmode]);
-  __clear_uniques(seen[idxmode], uniques[idxmode], nuniques[idxmode]);
+  p_clear_uniques(seen[fibmode], uniques[fibmode], nuniques[fibmode]);
+  p_clear_uniques(seen[idxmode], uniques[idxmode], nuniques[idxmode]);
 }
 
 
@@ -227,7 +227,7 @@ void tt_tile(
   }
 
   /* fill in slabs */
-  idx_t * slabptr = __mkslabptr(tt->ind[dim_perm[0]], tt->nnz, nslabs);
+  idx_t * slabptr = p_mkslabptr(tt->ind[dim_perm[0]], tt->nnz, nslabs);
 
   /* seen and uniques are used to mark unique idxs in each slab */
   idx_t * seen[MAX_NMODES];
@@ -243,7 +243,7 @@ void tt_tile(
     idx_t const start = slabptr[s];
     idx_t const end = slabptr[s+1];
 
-    __pack_slab(start, end, tt, tt_buf, dim_perm, seen, uniques, nuniques);
+    p_pack_slab(start, end, tt, tt_buf, dim_perm, seen, uniques, nuniques);
   }
 
   for(idx_t m=1; m < tt->nmodes; ++m) {
@@ -255,5 +255,177 @@ void tt_tile(
   free(slabptr);
   timer_stop(&timers[TIMER_TILE]);
 }
+
+
+idx_t * tt_densetile(
+  sptensor_t * const tt,
+  idx_t const * const tile_dims)
+{
+  idx_t const nmodes = tt->nmodes;
+  idx_t ntiles = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    ntiles *= tile_dims[m];
+  }
+
+  /* the actual number of indices to place in each tile */
+  idx_t tsizes[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    tsizes[m] = SS_MAX(tt->dims[m] / tile_dims[m], 1);
+  }
+
+  idx_t * tcounts = (idx_t *) calloc(ntiles+2, sizeof(idx_t));
+
+  /* count tile sizes (in nnz) */
+  idx_t coord[MAX_NMODES];
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      /* capping at dims-1 fixes overflow when dims don't divide evenly */
+      coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
+    }
+    /* offset by 1 to make prefix sum easy */
+    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+    assert(id < ntiles);
+    ++tcounts[2+id];
+  }
+
+  /* prefix sum */
+  for(idx_t t=3; t <= ntiles+1; ++t) {
+    tcounts[t] += tcounts[t-1];
+  }
+
+  sptensor_t * newtt = tt_alloc(tt->nnz, tt->nmodes);
+
+  /* copy old tensor into new tiled one */
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
+    }
+    /* offset by 1 to make prefix sum easy */
+    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+    assert(id < ntiles);
+
+    idx_t newidx = tcounts[id+1]++;
+    newtt->vals[newidx] = tt->vals[x];
+    for(idx_t m=0; m < nmodes; ++m) {
+      newtt->ind[m][newidx] = tt->ind[m][x];
+    }
+  }
+
+  /* copy data into old struct */
+  memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
+  }
+  tt_free(newtt);
+
+  return tcounts;
+}
+
+
+
+idx_t get_tile_id(
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const * const tile_coord)
+{
+  idx_t id = 0;
+  idx_t mult = 1;
+  for(idx_t m=nmodes; m-- != 0;) {
+    id += tile_coord[m] * mult;
+    mult *= tile_dims[m];
+  }
+  /* bounds check */
+  if(id >= mult) {
+    id = TILE_ERR;
+  }
+  return id;
+}
+
+
+void fill_tile_coords(
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const tile_id,
+  idx_t * const tile_coord)
+{
+  /* Check for invalid id first */
+  idx_t maxid = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    maxid *= tile_dims[m];
+  }
+  if(tile_id >= maxid) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      tile_coord[m] = tile_dims[m];
+    }
+    return;
+  }
+
+  /* test passed, convert! */
+  idx_t id = tile_id;
+  for(idx_t m = nmodes; m-- != 0; ) {
+    tile_coord[m] = id % tile_dims[m];
+    id /= tile_dims[m];
+  }
+}
+
+
+idx_t get_next_tileid(
+  idx_t const previd,
+  idx_t const * const tile_dims,
+  idx_t const nmodes,
+  idx_t const iter_mode,
+  idx_t const mode_idx)
+{
+  idx_t maxid = 1;
+  idx_t coords[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    coords[m] = 0;
+    maxid *= tile_dims[m];
+  }
+
+  if(previd == TILE_BEGIN) {
+    coords[iter_mode] = mode_idx;
+    return get_tile_id(tile_dims, nmodes, coords);
+  }
+
+  /* check for out of bounds */
+  if(previd >= maxid) {
+    return TILE_ERR;
+  }
+
+  /* convert previd to coords */
+  fill_tile_coords(tile_dims, nmodes, previd, coords);
+
+  /* overflowing this mode means TILE_END */
+  idx_t const overmode = (iter_mode == 0) ? 1 : 0;
+
+  /* increment least significant mode (unless we're iterating over it) and
+   * propagate overflows */
+  idx_t pmode = (iter_mode == nmodes-1) ? nmodes-2 : nmodes-1;
+  ++coords[pmode];
+  while(coords[pmode] == tile_dims[pmode]) {
+    if(pmode == overmode) {
+      return TILE_END;
+    }
+
+    /* overflow this one too and move on */
+    coords[pmode] = 0;
+    --pmode;
+
+    /* we don't alter the mode we are iterating over */
+    if(pmode == iter_mode) {
+      /* XXX: checking for overmode should catch this */
+      assert(pmode > 0);
+      /* if we aren't at the end just skip over it */
+      --pmode;
+    }
+
+    /* we're now at a valid mode, carry over previous overflow */
+    ++coords[pmode];
+  }
+
+  return get_tile_id(tile_dims, nmodes, coords);
+}
+
 
 

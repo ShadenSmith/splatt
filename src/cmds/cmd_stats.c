@@ -11,19 +11,24 @@
  *****************************************************************************/
 static char stats_args_doc[] = "TENSOR";
 static char stats_doc[] =
-  "splatt-stats -- Print statistics about a tensor.\n\n"
+  "splatt-stats -- Print statistics about a tensor.\n\n";
+#if 0
   "Mode-independent types are:\n"
   "  basic\t\t\tPrint simple statistics\n"
   "Mode-dependent types are:\n"
   "  fibers\t\tAnalyze fiber statistics\n"
   "  hparts\t\tAnalyze a hypergraph partitioning\n";
+#endif
 
 static struct argp_option stats_options[] = {
+  { 0 }
+#if 0
   { "type", 't', "TYPE", 0, "type of analysis" },
   { "pfile", 'p', "PFILE", 0, "partition file" },
   { 0, 0, 0, 0, "Mode-dependent options:", 1},
   { "mode", 'm', "MODE", 0, "tensor mode to analyze (default: 1)" },
   { 0 }
+#endif
 };
 
 typedef struct

@@ -15,7 +15,7 @@
 /******************************************************************************
  * STATIC FUNCTIONS
  *****************************************************************************/
-static void __create_fptr(
+static void p_create_fptr(
   ftensor_t * const ft,
   sptensor_t const * const tt,
   idx_t const mode)
@@ -93,7 +93,7 @@ static void __create_fptr(
 }
 
 
-static void __create_syncptr(
+static void p_create_syncptr(
   ftensor_t * const ft,
   sptensor_t const * const tt,
   idx_t const mode)
@@ -122,7 +122,7 @@ static void __create_syncptr(
 
 
 
-static void __create_slabptr(
+static void p_create_slabptr(
   ftensor_t * const ft,
   sptensor_t const * const tt,
   idx_t const mode)
@@ -174,7 +174,7 @@ static void __create_slabptr(
 }
 
 
-static void __create_sliceptr(
+static void p_create_sliceptr(
   ftensor_t * const ft,
   sptensor_t const * const tt,
   idx_t const mode)
@@ -228,71 +228,6 @@ static void __create_sliceptr(
 
 
 /******************************************************************************
- * API FUNCTIONS
- *****************************************************************************/
-
-int splatt_csf_load(
-    char const * const fname,
-    splatt_idx_t * nmodes,
-    splatt_csf_t ** tensors,
-    double const * const options)
-{
-  sptensor_t * tt = tt_read(fname);
-  if(tt == NULL) {
-    return SPLATT_ERROR_BADINPUT;
-  }
-
-  tt_remove_empty(tt);
-
-  splatt_csf_t * fts = (splatt_csf_t *) malloc(tt->nmodes*sizeof(splatt_csf_t));
-
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ften_alloc(fts + m, tt, m, (int) options[SPLATT_OPTION_TILE]);
-  }
-
-  *tensors = fts;
-  *nmodes = tt->nmodes;
-
-  tt_free(tt);
-
-  return SPLATT_SUCCESS;
-}
-
-int splatt_csf_convert(
-    splatt_idx_t const nmodes,
-    splatt_idx_t const nnz,
-    splatt_idx_t ** const inds,
-    splatt_val_t * const vals,
-    splatt_csf_t ** tensors,
-    double const * const options)
-{
-  splatt_csf_t * fts = (splatt_csf_t *) malloc(nmodes * sizeof(splatt_csf_t));
-
-  sptensor_t tt;
-  tt_fill(&tt, nnz, nmodes, inds, vals);
-  tt_remove_empty(&tt);
-
-  for(idx_t m=0; m < nmodes; ++m) {
-    ften_alloc(fts + m, &tt, m, (int) options[SPLATT_OPTION_TILE]);
-  }
-
-  *tensors = fts;
-
-  return SPLATT_SUCCESS;
-}
-
-void splatt_free_csf(
-  splatt_idx_t const nmodes,
-  splatt_csf_t * tensors)
-{
-  for(idx_t m=0; m < nmodes; ++m) {
-    ften_free(tensors + m);
-  }
-}
-
-
-
-/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void ften_alloc(
@@ -322,22 +257,22 @@ void ften_alloc(
     tt_tile(tt, ft->dim_perm);
   }
 
-  __create_fptr(ft, tt, mode);
+  p_create_fptr(ft, tt, mode);
 
   switch(ft->tiled) {
   case SPLATT_NOTILE:
-    __create_sliceptr(ft, tt, mode);
+    p_create_sliceptr(ft, tt, mode);
     break;
   case SPLATT_SYNCTILE:
-    __create_syncptr(ft, tt, mode);
+    p_create_syncptr(ft, tt, mode);
     break;
   case SPLATT_COOPTILE:
-    __create_slabptr(ft, tt, mode);
+    p_create_slabptr(ft, tt, mode);
     break;
   default:
     fprintf(stderr, "SPLATT: tile type '%d' not recognized.\n", ft->tiled);
     /* just default to no tiling */
-    __create_sliceptr(ft, tt, mode);
+    p_create_sliceptr(ft, tt, mode);
     ft->tiled = SPLATT_NOTILE;
   }
 

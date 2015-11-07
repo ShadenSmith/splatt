@@ -17,7 +17,7 @@
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-static void __reorder_slices(
+static void p_reorder_slices(
   sptensor_t * const tt,
   ftensor_t const * const ft,
   idx_t const * const parts,
@@ -96,7 +96,7 @@ static void __reorder_slices(
   free(slice);
 }
 
-static void __reorder_fibs(
+static void p_reorder_fibs(
   sptensor_t * const tt,
   ftensor_t const * const ft,
   idx_t const * const parts,
@@ -176,7 +176,7 @@ static void __reorder_fibs(
   free(plookup);
 }
 
-static void __reorder_inds(
+static void p_reorder_inds(
   sptensor_t * const tt,
   ftensor_t const * const ft,
   idx_t const * const parts,
@@ -398,9 +398,9 @@ permutation_t * perm_hgraph(
   }
   printf("slices: %"SPLATT_PF_IDX"  fibs: %"SPLATT_PF_IDX"  inds: %"SPLATT_PF_IDX"\n", nslices, nfibs, ninds);
 
-  __reorder_slices(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
-  __reorder_fibs(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
-  __reorder_inds(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
+  p_reorder_slices(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
+  p_reorder_fibs(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
+  p_reorder_inds(tt, ft, parts, nparts, uncuts, ncut, perm, mode);
 
   /* actually apply permutation */
   perm_apply(tt, perm->perms);

@@ -17,7 +17,9 @@ static char bench_doc[] =
   "splatt-bench -- benchmark MTTKRP algorithms.\n\n"
   "Available MTTKRP algorithms are:\n"
   "  splatt\tThe algorithm introduced by splatt\n"
+  "  csf\t\tGeneralized CSF format\n"
   "  giga\t\tGigaTensor algorithm adapted from the MapReduce paradigm\n"
+  "  coord\t\tStream through a coordinate tensor\n"
   "  ttbox\t\tTensor-Vector products as done by Tensor Toolbox\n"
   "Available reordering algorithms are:\n"
   "  graph\t\t\tReorder based on the partitioning of a mode-independent graph\n"
@@ -27,9 +29,11 @@ static char bench_doc[] =
 typedef enum
 {
   ALG_SPLATT,
+  ALG_CSF,
   ALG_GIGA,
   ALG_DFACTO,
   ALG_TTBOX,
+  ALG_COORD,
   ALG_ERR,
   ALG_NALGS
 } splatt_algs;
@@ -40,6 +44,8 @@ static void (*bench_funcs[ALG_NALGS]) (sptensor_t * const tt,
                                        bench_opts const * const opts)
   = {
     [ALG_SPLATT] = bench_splatt,
+    [ALG_CSF]    = bench_csf,
+    [ALG_COORD]  = bench_coord,
     [ALG_GIGA]   = bench_giga,
     [ALG_TTBOX]  = bench_ttbox
   };
@@ -88,6 +94,10 @@ static error_t parse_bench_opt(
   case 'a':
     if(strcmp(arg, "splatt") == 0) {
       args->which[ALG_SPLATT] = 1;
+    } else if(strcmp(arg, "csf") == 0) {
+      args->which[ALG_CSF] = 1;
+    } else if(strcmp(arg, "coord") == 0) {
+      args->which[ALG_COORD] = 1;
     } else if(strcmp(arg, "giga") == 0) {
       args->which[ALG_GIGA] = 1;
     } else if(strcmp(arg, "dfacto") == 0) {
@@ -156,7 +166,7 @@ static error_t parse_bench_opt(
 static struct argp bench_argp =
   {bench_options, parse_bench_opt, bench_args_doc, bench_doc};
 
-static idx_t * __mkthreads(
+static idx_t * p_mkthreads(
   idx_t const nthreads,
   int const scale,
   idx_t * nruns)
@@ -250,7 +260,7 @@ void splatt_bench(
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.rank);
 
-  opts.threads = __mkthreads(args.nthreads, args.scale, &opts.nruns);
+  opts.threads = p_mkthreads(args.nthreads, args.scale, &opts.nruns);
 
   printf("Benchmarking ---------------------------------------------------\n");
   printf("RANK=%"SPLATT_PF_IDX" ITS=%"SPLATT_PF_IDX"\n", args.rank, args.niters);
@@ -259,6 +269,7 @@ void splatt_bench(
     if(args.which[a]) {
       bench_funcs[a](tt, mats, &opts);
     }
+    printf("\n");
   }
 
   perm_free(opts.perm);

@@ -18,6 +18,8 @@
 /******************************************************************************
  * DEFINES
  *****************************************************************************/
+#define MAX_NMODES SPLATT_MAX_NMODES
+
 /* alias splatt types */
 #define val_t splatt_val_t
 #define idx_t splatt_idx_t
@@ -29,11 +31,10 @@
 /******************************************************************************
  * DEFAULTS
  *****************************************************************************/
-static double const DEFAULT_TOL = 1e-4;
+static double const DEFAULT_TOL = 1e-5;
 
 static idx_t const DEFAULT_NFACTORS = 10;
 static idx_t const DEFAULT_ITS = 50;
-static idx_t const DEFAULT_THREADS = 1;
 static idx_t const DEFAULT_MPI_DISTRIBUTION = 0;
 
 #define SPLATT_MPI_FINE (MAX_NMODES + 1)
