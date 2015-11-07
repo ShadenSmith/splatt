@@ -7,21 +7,29 @@
 
 CTEST_DATA(mpi_io)
 {
-  sptensor_t * tensors;
+  idx_t ntensors;
+  sptensor_t * tensors[MAX_DSETS];
+  rank_info rinfo;
 };
 
 CTEST_SETUP(mpi_io)
 {
-  data->tensors = NULL;
+  for(idx_t i=0; i < data->ntensors; ++i) {
+    data->tensors[i] = tt_read(datasets[i]);
+  }
 }
 
 CTEST_TEARDOWN(mpi_io)
 {
-  free(data->tensors);
+  for(idx_t i=0; i < data->ntensors; ++i) {
+    tt_free(data->tensors[i]);
+  }
 }
 
-CTEST2(mpi_io, hi)
+CTEST2(mpi_io, simple_distribute)
 {
-  ASSERT_EQUAL(1, 1);
+  for(idx_t tt=0; tt < data->ntensors; ++tt) {
+
+  }
 }
 
