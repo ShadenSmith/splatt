@@ -177,7 +177,7 @@ static void p_setup_1d(
 *
 * @param rinfo MPI rank information to fill in.
 */
-static void __setup_fine(
+static void p_setup_fine(
   rank_info * const rinfo)
 {
   rinfo->comm_3d = MPI_COMM_WORLD;
@@ -272,7 +272,7 @@ void mpi_setup_comms(
     p_setup_3d(rinfo);
     break;
   case SPLATT_MPI_FINE:
-    __setup_fine(rinfo);
+    p_setup_fine(rinfo);
     break;
   default:
     fprintf(stderr, "SPLATT: distribution %"SPLATT_PF_IDX" not supported. "
