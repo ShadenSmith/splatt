@@ -356,11 +356,6 @@ double cpd_als_iterate(
   }
   timer_stop(&timers[TIMER_CPD]);
 
-  if(rinfo->rank == 0 &&
-      opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
-    printf("Final fit: %0.5f\n", fit);
-  }
-
   cpd_post_process(nfactors, nmodes, mats, lambda, thds, nthreads, rinfo);
 
   /* CLEAN UP */
