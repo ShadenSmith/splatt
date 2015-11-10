@@ -2,7 +2,64 @@
 \page api API Documentation
 \tableofcontents
 
+\splatt exposes much of its functionality through its C/C++ API.
+
+
 <!-- ----------------------------------------------------------------------------- -->
-\section \splatt functions
+\section api-opts \splatt options
+The \splatt API gives users the option to tune low-lever parameters that the
+executable typically hides from the user. Most \splatt functions require an
+array of type `double` to set various options.
+
+\subpage api_opt_list
+
+\subsection opts Option values
+  - `SPLATT_OPTION_NTHREADS`
+
+    Specify the number of OpenMP threads to use during computation.
+
+  - `SPLATT_OPTION_TOLERANCE`
+
+    Specify the tolerance for factorization. The algorithm terminates when the
+    change in fitness is below this threshold.
+
+  - `SPLATT_OPTION_NITER`
+
+    The maximum number of iterations to perform.
+
+  - `SPLATT_OPTION_VERBOSITY`
+
+    The verbosity level.
+
+
+  - `SPLATT_OPTION_CSF_ALLOC`
+
+    The allocation scheme for CSF tensors.
+
+
+  - `SPLATT_OPTION_TILE`
+
+    Which form of tiling to use.
+
+  - `SPLATT_OPTION_TILEDEPTH`
+
+    Which modes of the tensor will be tiled (if applicable).
+
+
+<!-- ----------------------------------------------------------------------------- -->
+\section api-data Data Structures
+
+\subpage api_struct_list
+
+
+<!-- ----------------------------------------------------------------------------- -->
+\section api-cpd Factorizations
+
+\subpage api_fact_list
+
+<!-- ----------------------------------------------------------------------------- -->
+\section api-ops Tensor Operations
+
+\subpage api_op_list
 
 */

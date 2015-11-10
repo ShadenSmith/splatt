@@ -273,6 +273,12 @@ extern 'C' {
  */
 
 /**
+\defgroup api_opt_list List of functions for \splatt options.
+@{
+*/
+
+
+/**
 * @brief Allocate and fill an options array with default options.
 *
 * @return The options array.
@@ -286,20 +292,24 @@ double * splatt_default_opts(void);
 void  splatt_free_opts(
     double * opts);
 
-
+/** @} */
 
 
 /*
  * DATA STRUCTURE API
  */
 
+/**
+\defgroup api_struct_list List of functions for \splatt data structures.
+@{
+*/
 
 /**
 * @brief Read a tensor from a file and convert to CSF format.
 *
 * @param fname The filename to read from.
-* @param nmodes [OUT] SPLATT will fill in the number of modes found.
-* @param tensors [OUT] An array of splatt_csf structure(s). Allocation scheme
+* @param[out] nmodes SPLATT will fill in the number of modes found.
+* @param[out] tensors An array of splatt_csf structure(s). Allocation scheme
 *                follows opts[SPLATT_OPTION_CSF_ALLOC].
 * @param options An options array allocated by splatt_default_opts().
 *
@@ -321,7 +331,7 @@ int splatt_csf_load(
 *             inds[0][n-1], inds[1][n-1], ..., inds[nmodes-1][n-1].
 * @param vals The actual values of the nonzeros. Nonzero 'n' is found at
 *             vals[n-1].
-* @param tensors [OUT] An array of splatt_csf structure(s). Allocation scheme
+* @param[out] tensors An array of splatt_csf structure(s). Allocation scheme
 *                follows opts[SPLATT_OPTION_CSF_ALLOC].
 * @param options Options array allocated by splatt_default_opts(). Use the
 *                splatt_option_t enum to change these values.
@@ -358,11 +368,17 @@ void splatt_free_csf(
 void splatt_free_kruskal(
     splatt_kruskal * factored);
 
-
+/** @} */
 
 /*
  * FACTORIZATION API
  */
+
+/**
+\defgroup api_fact_list List of functions for tensor factorizations.
+@{
+*/
+
 
 /**
 * @brief Compute the CPD using alternating least squares.
@@ -372,7 +388,7 @@ void splatt_free_kruskal(
 *               only present for nmodes=3.
 * @param tensors An array of splatt_csf created by SPLATT.
 * @param options Options array for SPLATT.
-* @param factored [OUT] The factored tensor in Kruskal format.
+* @param[out] factored The factored tensor in Kruskal format.
 *
 * @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
@@ -382,7 +398,12 @@ int splatt_cpd_als(
     double const * const options,
     splatt_kruskal * factored);
 
+/** @} */
 
+/**
+\defgroup api_op_list List of functions for tensor operations.
+@{
+*/
 
 /**
 * @brief Matricized Tensor times Khatri-Rao Product (MTTKRP) with a sparse
@@ -392,7 +413,7 @@ int splatt_cpd_als(
 * @param ncolumns How many columns each matrix has ('nfactors').
 * @param tensor The CSF tensor to multipy with.
 * @param matrices The row-major dense matrices to multiply with.
-* @param matout The output matrix.
+* @param[out] matout The output matrix.
 * @param options SPLATT options array.
 *
 * @return SPLATT error code. SPLATT_SUCCESS on success.
@@ -405,6 +426,7 @@ int splatt_mttkrp(
     splatt_val_t * const matout,
     double const * const options);
 
+/** @} */
 
 #ifdef __cplusplus
 }
