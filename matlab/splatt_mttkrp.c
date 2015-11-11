@@ -30,13 +30,13 @@ void mexFunction(
 
   double * cpd_opts = splatt_default_opts();
   if(nrhs > 1 && mxIsStruct(prhs[nrhs-1])) {
-    __parse_opts(prhs[nrhs-1], cpd_opts);
+    p_parse_opts(prhs[nrhs-1], cpd_opts);
   }
 
   mxArray const * matcells = prhs[1];
 
   splatt_idx_t nmodes;
-  splatt_csf_t * tt = __parse_tensor(nrhs, prhs, &nmodes,cpd_opts);
+  splatt_csf * tt = p_parse_tensor(nrhs, prhs, &nmodes, cpd_opts);
 
   splatt_idx_t const mode = (splatt_idx_t) mxGetScalar(prhs[2]) - 1;
 
@@ -44,7 +44,7 @@ void mexFunction(
   splatt_idx_t const nfactors = (splatt_idx_t) matdims[1];
 
   /* allocate and transpose matrices */
-  splatt_val_t * mats[MAX_NMODES];
+  splatt_val_t * mats[SPLATT_MAX_NMODES];
   for(m=0; m < nmodes; ++m) {
     splatt_idx_t const dim = tt[0].dims[m];
     mats[m] = (splatt_val_t *) malloc(dim * nfactors * sizeof(splatt_val_t));
@@ -65,7 +65,7 @@ void mexFunction(
   }
 
   /* MTTKRP */
-  int ret = splatt_mttkrp(mode, nfactors, tt+mode, mats, mats[mode], cpd_opts);
+  int ret = splatt_mttkrp(mode, nfactors, tt, mats, mats[mode], cpd_opts);
   if(ret != SPLATT_SUCCESS) {
     mexPrintf("splatt_mttkrp returned %d\n", ret);
     goto CLEANUP;
@@ -88,7 +88,7 @@ void mexFunction(
 
   /* cleanup */
   CLEANUP:
-  __free_tensor(nrhs, prhs, nmodes, tt);
+  p_free_tensor(nrhs, prhs, tt, cpd_opts);
   splatt_free_opts(cpd_opts);
   for(m=0; m < nmodes; ++m) {
     free(mats[m]);
