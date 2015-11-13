@@ -160,6 +160,8 @@ void splatt_cpd_cmd(
     exit(1);
   }
 
+  printf("Final fit: %"SPLATT_PF_VAL"\n", factored.fit);
+
   /* write output */
   if(args.write == 1) {
     vec_write(factored.lambda, args.nfactors, "lambda.mat");
