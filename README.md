@@ -13,6 +13,7 @@ nonzeros separated by newlines. Each line of of the file has the coordinates of
 the nonzero  followed by the value, all separated by spaces.  The following is
 an example 2x2x3 tensor with 5 nonzeros:
 
+    # This is a comment
     1 1 2 1.5
     1 2 2 2.5
     2 1 1 3.7
@@ -131,7 +132,7 @@ The following is an example usage of the SPLATT API:
 
     /* do the factorization! */
     splatt_kruskal_t factored;
-    ret = splatt_cpd(10, nmodes, tt, cpd_opts, &factored);
+    ret = splatt_cpd_als(tt, 10, cpd_opts, &factored);
 
     /* do some processing */
     for(splatt_idx_t m = 0; m < nmodes; ++m) {
