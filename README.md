@@ -140,7 +140,7 @@ The following is an example usage of the SPLATT API:
     }
 
     /* cleanup */
-    splatt_free_csf(nmodes, tt);
+    splatt_free_csf(tt, cpd_opts);
     splatt_free_kruskal(&factored);
     splatt_free_opts(cpd_opts);
 
