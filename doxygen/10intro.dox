@@ -6,7 +6,7 @@
 <!-- ***************************************************************************** -->
 <!-- ***************************************************************************** -->
 
-\splatt is a toolkit for factoring sparse tensors.
-
+The Surprisingly ParalleL spArse Tensor Toolkit (\splatt) is a software toolkit
+for factoring large, sparse tensors on multi-core and multi-node systems.
 
 */

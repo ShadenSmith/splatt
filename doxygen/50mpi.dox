@@ -1,8 +1,156 @@
 /*!
-\page mpi MPI Support
+\page mpi \splatt with MPI Support
 \tableofcontents
 
 <!-- ----------------------------------------------------------------------------- -->
-\section MPI
+\section mpi_exec Running \splatt on Distributed Systems
+
+\splatt can be configured to run on distributed systems with MPI. Support for
+MPI must be enabled during configuration:
+\verbatim
+    $ ./configure --mpi
+\endverbatim
+
+The build process continues normally after configuration. After building the
+\splatt executable, `mpirun` can be used with `splatt-cpd`. The following
+example runs `splatt-cpd` on four compute nodes, with one MPI process per node.
+Each MPI process will use OpenMP to utilize all available compute cores.
+
+\verbatim
+    $ mpirun --map-by ppr:1:node -np 4 splatt cpd mytensor.tns -r 10
+
+    ****************************************************************
+    splatt v1.0.0
+
+    Tensor information ---------------------------------------------
+    FILE=mytensor.tns
+    DIMS=45981x11537x2504 NNZ=229906 DENSITY=1.730791e-07
+    COORD-STORAGE=7.02MB
+
+    MPI information ------------------------------------------------
+    DISTRIBUTION=3D DIMS=4x1x1
+    AVG NNZ=57476
+    MAX NNZ=57523  (0.08% diff)
+    AVG COMMUNICATION VOL=32647
+    MAX COMMUNICATION VOL=33310  (1.99% diff)
+
+    Factoring ------------------------------------------------------
+    NFACTORS=10 MAXITS=50 TOL=1.0e-05 RANKS=4 THREADS=4
+    CSF-ALLOC=TWOMODE TILE=NO
+    CSF-STORAGE=13.21MB FACTOR-STORAGE=7.04MB
+
+      its =   1 (0.631s)  fit = 0.00000  delta = +3.0732e-06
+      its =   2 (0.686s)  fit = 0.00002  delta = +1.8533e-05
+      its =   3 (0.636s)  fit = 0.00021  delta = +1.8839e-04
+      its =   4 (0.613s)  fit = 0.00043  delta = +2.2130e-04
+      its =   5 (0.618s)  fit = 0.00059  delta = +1.6365e-04
+      its =   6 (0.619s)  fit = 0.00065  delta = +5.9063e-05
+      its =   7 (0.595s)  fit = 0.00067  delta = +1.7868e-05
+      its =   8 (0.613s)  fit = 0.00068  delta = +9.2210e-06
+    Final fit: 0.00068
+
+    Timing information ---------------------------------------------
+      TOTAL               5.799s
+      CPD                 5.011s
+    ****************************************************************
+\endverbatim
+
+It is important to take into consideration the number of threads that each MPI
+process will use. If more than one MPI process is assigned to a node, the
+number of OpenMP threads should be throttled with the `-t <nthreads>` flag.
+
+\subsection mpidist Selecting the Decomposition Dimensions
+By default, \splatt uses a medium-grained decomposition of the tensor which
+is formed by intersecting 1D partitions of each tensor mode \cite smith2015dms.
+\splatt will attempt to find an assignment of ranks that leads to a small
+communication volume. If you wish to use a custom decomposition dimension, we
+provide a `-d` flag.
+
+To use a custom medium-grained decomposition:
+\verbatim
+    $ mpirun --map-by ppr:1:node -np 4 splatt cpd mytensor.tns -r 10 -d 2x2x1
+
+    ****************************************************************
+    splatt v1.0.0
+
+    Tensor information ---------------------------------------------
+    FILE=mytensor.tns
+    DIMS=45981x11537x2504 NNZ=229906 DENSITY=1.730791e-07
+    COORD-STORAGE=7.02MB
+
+    MPI information ------------------------------------------------
+    DISTRIBUTION=3D DIMS=2x2x1
+    AVG NNZ=57476
+    MAX NNZ=57677  (0.35% diff)
+    AVG COMMUNICATION VOL=35387
+    MAX COMMUNICATION VOL=35714  (0.92% diff)
+
+    Factoring ------------------------------------------------------
+    NFACTORS=10 MAXITS=50 TOL=1.0e-05 RANKS=4 THREADS=4
+    CSF-ALLOC=TWOMODE TILE=NO
+    CSF-STORAGE=13.69MB FACTOR-STORAGE=7.28MB
+
+      its =   1 (0.579s)  fit = 0.00000  delta = +3.2466e-06
+      its =   2 (0.577s)  fit = 0.00015  delta = +1.5149e-04
+      its =   3 (0.579s)  fit = 0.00038  delta = +2.2426e-04
+      its =   4 (0.581s)  fit = 0.00047  delta = +8.9148e-05
+      its =   5 (0.576s)  fit = 0.00055  delta = +8.5531e-05
+      its =   6 (0.596s)  fit = 0.00063  delta = +7.7434e-05
+      its =   7 (0.613s)  fit = 0.00069  delta = +5.8126e-05
+      its =   8 (0.644s)  fit = 0.00070  delta = +1.3246e-05
+      its =   9 (0.582s)  fit = 0.00071  delta = +6.6029e-06
+    Final fit: 0.00071
+
+    Timing information ---------------------------------------------
+      TOTAL               6.099s
+      CPD                 5.330s
+    ****************************************************************
+\endverbatim
+
+Alternatively, you can pass `-d 1` to use a coarse-grained decomposition:
+\verbatim
+    $ mpirun --map-by ppr:1:node -np 4 splatt cpd mytensor.tns -r 10 -d 1
+
+    ****************************************************************
+    splatt v1.0.0
+
+    Tensor information ---------------------------------------------
+    FILE=mytensor.tns
+    DIMS=45981x11537x2504 NNZ=229906 DENSITY=1.730791e-07
+    COORD-STORAGE=7.02MB
+
+    MPI information ------------------------------------------------
+    DISTRIBUTION=1D DIMS=4x4x4
+    AVG NNZ=132950
+    MAX NNZ=133227  (0.21% diff)
+    AVG COMMUNICATION VOL=126413
+    MAX COMMUNICATION VOL=127348  (0.73% diff)
+
+    Factoring ------------------------------------------------------
+    NFACTORS=10 MAXITS=50 TOL=1.0e-05 RANKS=4 THREADS=4
+    CSF-ALLOC=ALLMODE TILE=NO
+    CSF-STORAGE=19.95MB FACTOR-STORAGE=7.60MB
+
+      its =   1 (0.487s)  fit = 0.00000  delta = +3.1196e-06
+      its =   2 (0.476s)  fit = 0.00002  delta = +1.4600e-05
+      its =   3 (0.479s)  fit = 0.00021  delta = +1.9381e-04
+      its =   4 (0.482s)  fit = 0.00061  delta = +3.9390e-04
+      its =   5 (0.479s)  fit = 0.00071  delta = +1.0275e-04
+      its =   6 (0.478s)  fit = 0.00072  delta = +1.2465e-05
+      its =   7 (0.479s)  fit = 0.00072  delta = +1.9414e-06
+    Final fit: 0.00072
+
+    Timing information ---------------------------------------------
+      TOTAL               4.110s
+      CPD                 3.361s
+    ****************************************************************
+\endverbatim
+
+
+
+
+\subsection mpiapi C/C++ MPI API
+The C/C++ API for distributed \splatt will be available in the next release.
+
 
 */

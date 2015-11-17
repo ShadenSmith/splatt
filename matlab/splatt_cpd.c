@@ -38,13 +38,14 @@ void mexFunction(
   }
 
   double * cpd_opts = splatt_default_opts();
+
   if(nrhs > 1 && mxIsStruct(prhs[nrhs-1])) {
-    __parse_opts(prhs[nrhs-1], cpd_opts);
+    p_parse_opts(prhs[nrhs-1], cpd_opts);
   }
 
   /* parse the tensor! */
   splatt_idx_t nmodes;
-  splatt_csf_t * tt = __parse_tensor(nrhs, prhs, &nmodes, cpd_opts);
+  splatt_csf * tt = p_parse_tensor(nrhs, prhs, &nmodes, cpd_opts);
   if(tt == NULL) {
     splatt_free_opts(cpd_opts);
     return;
@@ -53,27 +54,25 @@ void mexFunction(
   splatt_idx_t const nfactors = (splatt_idx_t) mxGetScalar(prhs[1]);
 
   /* do the factorization! */
-  splatt_kruskal_t factored;
-  splatt_cpd(nfactors, nmodes, tt, cpd_opts, &factored);
-
-  /* save dims and free memory */
-  splatt_idx_t ttdims[MAX_NMODES];
-  for(m=0; m < nmodes; ++m) {
-    ttdims[m] = tt[0].dims[m];
+  splatt_kruskal factored;
+  int err = splatt_cpd_als(tt, nfactors, cpd_opts, &factored);
+  if(err != SPLATT_SUCCESS) {
+    mexErrMsgTxt("splatt_cpd_als returned error.\n");
+    return;
   }
 
-  __free_tensor(nrhs, prhs, nmodes, tt);
+  p_free_tensor(nrhs, prhs, tt, cpd_opts);
 
   mwSize dim = (mwSize) nmodes;
   mxArray * mxLambda = mxCreateDoubleMatrix(nfactors, 1, mxREAL);
   memcpy(mxGetPr(mxLambda), factored.lambda, nfactors * sizeof(double));
 
   mxArray * matcell = mxCreateCellArray(1, &dim);
-  mxSetCell(matcell, 0, mxCreateDoubleMatrix(1, nfactors, mxREAL));
-  mxSetCell(matcell, 1, mxCreateDoubleMatrix(2, nfactors, mxREAL));
-  mxSetCell(matcell, 2, mxCreateDoubleMatrix(3, nfactors, mxREAL));
   for(m=0; m < nmodes; ++m) {
-    splatt_idx_t const nrows = ttdims[m];
+    mxSetCell(matcell, m, mxCreateDoubleMatrix(m+1, nfactors, mxREAL));
+  }
+  for(m=0; m < nmodes; ++m) {
+    splatt_idx_t const nrows = factored.dims[m];
     mxSetCell(matcell, m, mxCreateDoubleMatrix(nrows, nfactors, mxREAL));
 
     /* we have to transpose due to column-major ordering in matlab */
