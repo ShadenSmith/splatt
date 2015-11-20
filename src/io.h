@@ -36,6 +36,13 @@ static inline FILE * open_f(
 /******************************************************************************
  * TENSOR FUNCTIONS
  *****************************************************************************/
+#define tt_get_dims splatt_tt_get_dims
+void tt_get_dims(
+    FILE * fin,
+    idx_t * const outnmodes,
+    idx_t * const outnnz,
+    idx_t * outdims);
+
 #define tt_read_file splatt_tt_read_file
 sptensor_t * tt_read_file(
   char const * const fname);

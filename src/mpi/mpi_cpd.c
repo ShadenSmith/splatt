@@ -618,7 +618,7 @@ double mpi_cpd_als_iterate(
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
     mpi_update_rows(rinfo->indmap[m], nbr2globs_buf, local2nbr_buf, mats[m],
-        globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
+        globmats[m], rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
   }
 
   matrix_t * m1ptr = m1; /* for restoring m1 */
@@ -669,7 +669,7 @@ double mpi_cpd_als_iterate(
             nfactors, m);
         /* incorporate neighbors' partials */
         mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
-            rinfo, nfactors, m, DEFAULT_COMM);
+            rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
       } else {
         /* skip the whole process */
         m1 = mats[MAX_NMODES];
@@ -691,7 +691,7 @@ double mpi_cpd_als_iterate(
 
       /* send updated rows to neighbors */
       mpi_update_rows(rinfo->indmap[m], nbr2globs_buf, local2nbr_buf, mats[m],
-          globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
+          globmats[m], rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
 
       /* update A^T*A */
       mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
@@ -768,12 +768,12 @@ void mpi_update_rows(
   timer_start(&timers[TIMER_MPI_UPDATE]);
 
   switch(which) {
-  case SPLATT_POINT2POINT:
+  case SPLATT_COMM_POINT2POINT:
     p_update_rows_point2point(nbr2globs_buf, nbr2local_buf, localmat,
         globalmat, rinfo, nfactors, mode);
     break;
 
-  case SPLATT_ALL2ALL:
+  case SPLATT_COMM_ALL2ALL:
     p_update_rows_all2all(nbr2globs_buf, nbr2local_buf, localmat, globalmat,
         rinfo, nfactors, mode);
     break;
@@ -798,12 +798,12 @@ void mpi_reduce_rows(
   timer_start(&timers[TIMER_MPI_REDUCE]);
 
   switch(which) {
-  case SPLATT_POINT2POINT:
+  case SPLATT_COMM_POINT2POINT:
     p_reduce_rows_point2point(local2nbr_buf, nbr2globs_buf, localmat,
         globalmat, rinfo, nfactors, mode);
     break;
 
-  case SPLATT_ALL2ALL:
+  case SPLATT_COMM_ALL2ALL:
     p_reduce_rows_all2all(local2nbr_buf, nbr2globs_buf, localmat, globalmat,
         rinfo, nfactors, mode);
     break;

@@ -107,6 +107,9 @@ typedef enum
   SPLATT_OPTION_TILE,       /* Use cache tiling during MTTKRP. */
   SPLATT_OPTION_TILEDEPTH,  /* Minimium depth in CSF to tile, 0-indexed. */
 
+  SPLATT_OPTION_DECOMP,     /* Decomposition to use on distributed systems */
+  SPLATT_OPTION_COMM,       /* Communication pattern to use */
+
   SPLATT_OPTION_NOPTIONS    /* Gives the size of the options array. */
 } splatt_option_type;
 
@@ -161,9 +164,35 @@ typedef enum
 } splatt_csf_type;
 
 
+/**
+* @brief Tensor decomposition schemes.
+*/
+typedef enum
+{
+  /** @brief Coarse-grained decomposition is using a separate 1D decomposition
+   *         for each mode. */
+  SPLATT_DECOMP_COARSE,
+  /** @brief Medium-grained decomposition is an 'nmodes'-dimensional
+   *         decomposition. */
+  SPLATT_DECOMP_MEDIUM,
+  /** @brief Fine-grained decomposition distributes work at the nonzero level.
+   *         NOTE: requires a partitioning on the nonzeros. */
+  SPLATT_DECOMP_FINE
+} splatt_decomp_type;
+
+
+/**
+* @brief Communication pattern type. We support point-to-point, and all-to-all
+*        (vectorized).
+*/
+typedef enum
+{
+  SPLATT_COMM_POINT2POINT,
+  SPLATT_COMM_ALL2ALL
+} splatt_comm_type;
+
+
 static double const SPLATT_VAL_OFF = -DBL_MAX;
-
-
 
 
 
@@ -427,6 +456,57 @@ int splatt_mttkrp(
     double const * const options);
 
 /** @} */
+
+/*
+ * MPI API
+ */
+
+
+/**
+* @brief Read a tensor from a file, distribute among an MPI communicator, and
+*        convert to CSF format.
+*
+* @param fname The filename to read from.
+* @param[out] nmodes SPLATT will fill in the number of modes found.
+* @param[out] tensors An array of splatt_csf structure(s). Allocation scheme
+*                follows opts[SPLATT_OPTION_CSF_ALLOC].
+* @param options An options array allocated by splatt_default_opts(). The
+*                distribution scheme follows opts[SPLATT_OPTION_DECOMP].
+* @param comm The MPI communicator to distribute among.
+*
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
+*/
+int splatt_mpi_csf_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    splatt_csf ** tensors,
+    double const * const options,
+    MPI_Comm comm);
+
+
+
+/**
+* @brief Load a tensor in coordinate from from a file and distribute it among
+*        an MPI communicator.
+*
+* @param fname The file to read from.
+* @param[out] nmodes The number of modes in the tensor.
+* @param[out] nnz The number of nonzeros in my portion.
+* @param[out] inds An array of indices for each mode.
+* @param[out] vals The tensor nonzero values.
+* @param options SPLATT options array. Currently unused.
+* @param comm Which communicator to distribute among.
+*
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
+*/
+int splatt_mpi_coord_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    splatt_idx_t * nnz,
+    splatt_idx_t *** inds,
+    splatt_val_t ** vals,
+    double const * const options,
+    MPI_Comm comm);
 
 #ifdef __cplusplus
 }

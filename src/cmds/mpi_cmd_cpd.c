@@ -110,6 +110,7 @@ static error_t parse_cpd_opt(
   case 'd':
     /* fine-grained decomp */
     if(arg[0] == 'f') {
+      args->opts[SPLATT_OPTION_DECOMP] = SPLATT_DECOMP_FINE;
       args->distribution = SPLATT_MPI_FINE;
       break;
     }
@@ -119,7 +120,11 @@ static error_t parse_cpd_opt(
       buf = strtok(NULL, "x");
     }
     args->distribution = cnt;
+    if(cnt == 1) {
+      args->opts[SPLATT_OPTION_DECOMP] = SPLATT_DECOMP_COARSE;
+    }
     break;
+
   case 'p':
     args->pfname = arg;
     break;

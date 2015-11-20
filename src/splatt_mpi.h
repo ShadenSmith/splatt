@@ -24,6 +24,7 @@ typedef struct
 
 /******************************************************************************
  * PUBLIC STRUCTURES
+    
  *****************************************************************************/
 
 /**
@@ -103,19 +104,6 @@ typedef struct
   idx_t worksize;
 } rank_info;
 
-
-
-/**
-* @brief Communication pattern type. We support point-to-point, and all-to-all
-*        (vectorized).
-*/
-typedef enum
-{
-  SPLATT_POINT2POINT,
-  SPLATT_ALL2ALL
-} splatt_comm_type;
-
-#define DEFAULT_COMM SPLATT_ALL2ALL
 
 
 /******************************************************************************
@@ -282,6 +270,7 @@ sptensor_t * mpi_tt_read(
   rank_info * const rinfo);
 
 
+
 #define mpi_simple_distribute splatt_mpi_simple_distribute
 /**
 * @brief Do a simple distribution of the tensor stored in file 'ifname'.
@@ -290,13 +279,13 @@ sptensor_t * mpi_tt_read(
 *        communicator rinfo->comm_3d.
 *
 * @param ifname The file to read from.
-* @param rinfo MPI rank information.
+* @param comm The communicator to distribute among
 *
 * @return My own sub-tensor.
 */
 sptensor_t * mpi_simple_distribute(
   char const * const ifname,
-  rank_info * const rinfo);
+  MPI_Comm comm);
 
 
 #define mpi_filter_tt_1d splatt_mpi_filter_tt_1d

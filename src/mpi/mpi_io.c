@@ -7,6 +7,56 @@
 #include "../timer.h"
 
 
+
+/******************************************************************************
+ * API FUNCTONS
+ *****************************************************************************/
+int splatt_mpi_csf_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    splatt_csf ** tensors,
+    double const * const options,
+    MPI_Comm comm)
+{
+  sptensor_t * tt = NULL;
+
+  int rank, npes;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &npes);
+
+
+  return SPLATT_SUCCESS;
+}
+
+
+
+int splatt_mpi_coord_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    splatt_idx_t * nnz,
+    splatt_idx_t *** inds,
+    splatt_val_t ** vals,
+    double const * const options,
+    MPI_Comm comm)
+{
+  sptensor_t * tt = mpi_simple_distribute(fname, comm);
+
+  *nmodes = tt->nmodes;
+  *nnz = tt->nnz;
+
+  /* copy to output */
+  *vals = tt->vals;
+  *inds = malloc(tt->nmodes * sizeof(splatt_idx_t));
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    (*inds)[m] = tt->ind[m];
+  }
+
+  free(tt);
+
+  return SPLATT_SUCCESS;
+}
+
+
 /******************************************************************************
  * PRIVATE FUNCTONS
  *****************************************************************************/
@@ -799,7 +849,7 @@ sptensor_t * mpi_tt_read(
   }
 
   /* first naively distribute tensor nonzeros for analysis */
-  sptensor_t * ttbuf = mpi_simple_distribute(ifname, rinfo);
+  sptensor_t * ttbuf = mpi_simple_distribute(ifname, rinfo->comm_3d);
   p_fill_ssizes(ttbuf, ssizes, rinfo);
 
   /* actually parse tensor */
@@ -1053,46 +1103,67 @@ void mpi_write_part(
 
 sptensor_t * mpi_simple_distribute(
   char const * const ifname,
-  rank_info * const rinfo)
+  MPI_Comm comm)
 {
+  int rank, npes;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &npes);
+
+  idx_t dims[MAX_NMODES];
+  idx_t global_nnz;
+  idx_t nmodes;
+
+  FILE * fin = NULL;
+  if(rank == 0) {
+    fin = open_f(ifname, "r");
+    /* send dimension info */
+    tt_get_dims(fin, &nmodes, &global_nnz, dims);
+    rewind(fin);
+    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
+    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
+  } else {
+    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
+    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
+  }
+
   /* compute my even chunk of nonzeros -- root rank gets the extra amount */
-  idx_t const target_nnz = rinfo->global_nnz / rinfo->npes;
+  idx_t const target_nnz = global_nnz / npes;
   idx_t my_nnz = target_nnz;
-  if(rinfo->rank == 0) {
-    my_nnz = rinfo->global_nnz - ((rinfo->npes-1) * my_nnz);
+  if(rank == 0) {
+    my_nnz = global_nnz - ((npes-1) * my_nnz);
   }
 
   sptensor_t * tt = NULL;
 
   /* read/send all chunks */
-  if(rinfo->rank == 0) {
-    sptensor_t * tt_buf = tt_alloc(target_nnz, rinfo->nmodes);
-    FILE * fin = open_f(ifname, "r");
+  if(rank == 0) {
+    sptensor_t * tt_buf = tt_alloc(target_nnz, nmodes);
 
-    /* root gets leftovers at end, so start from p=1 */
-    for(int p=1; p < rinfo->npes; ++p) {
+    /* now send to everyone else */
+    for(int p=1; p < npes; ++p) {
       p_fill_tt_nnz(fin, tt_buf, target_nnz);
       for(idx_t m=0; m < tt_buf->nmodes;  ++m) {
-        MPI_Send(tt_buf->ind[m], target_nnz, SPLATT_MPI_IDX, p, 0, rinfo->comm_3d);
+        MPI_Send(tt_buf->ind[m], target_nnz, SPLATT_MPI_IDX, p, m, comm);
       }
-      MPI_Send(tt_buf->vals, target_nnz, SPLATT_MPI_VAL, p, 0, rinfo->comm_3d);
+      MPI_Send(tt_buf->vals, target_nnz, SPLATT_MPI_VAL, p, nmodes, comm);
     }
     tt_free(tt_buf);
 
-    /* now load my own */
-    tt = tt_alloc(my_nnz, rinfo->nmodes);
+    /* load my own */
+    tt = tt_alloc(my_nnz, nmodes);
     p_fill_tt_nnz(fin, tt, my_nnz);
+
     fclose(fin);
 
   } else {
+    MPI_Status status;
+
     /* receive my chunk */
-    tt = tt_alloc(my_nnz, rinfo->nmodes);
+    tt = tt_alloc(my_nnz, nmodes);
     for(idx_t m=0; m < tt->nmodes;  ++m) {
-      MPI_Recv(tt->ind[m], my_nnz, SPLATT_MPI_IDX, 0, 0, rinfo->comm_3d,
-          &(rinfo->status));
+      MPI_Recv(tt->ind[m], my_nnz, SPLATT_MPI_IDX, 0, m, comm, &status);
     }
-    MPI_Recv(tt->vals, my_nnz, SPLATT_MPI_VAL, 0, 0, rinfo->comm_3d,
-        &(rinfo->status));
+    MPI_Recv(tt->vals, my_nnz, SPLATT_MPI_VAL, 0, nmodes, comm, &status);
   }
 
   return tt;
