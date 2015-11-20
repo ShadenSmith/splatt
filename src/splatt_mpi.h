@@ -101,6 +101,10 @@ typedef struct
   /* Miscellaneous */
   MPI_Status status;
   MPI_Request req;
+  MPI_Status * stats;
+  MPI_Request * send_reqs;
+  MPI_Request * recv_reqs;
+
   idx_t worksize;
 } rank_info;
 

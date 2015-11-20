@@ -264,6 +264,10 @@ void mpi_compute_ineed(
 void mpi_setup_comms(
   rank_info * const rinfo)
 {
+  rinfo->stats = malloc(rinfo->npes * sizeof(MPI_Status));
+  rinfo->send_reqs = malloc(rinfo->npes * sizeof(MPI_Request));
+  rinfo->recv_reqs = malloc(rinfo->npes * sizeof(MPI_Request));
+
   switch(rinfo->distribution) {
   case 1:
     p_setup_1d(rinfo);
@@ -286,6 +290,10 @@ void rank_free(
   rank_info rinfo,
   idx_t const nmodes)
 {
+  free(rinfo.stats);
+  free(rinfo.send_reqs);
+  free(rinfo.recv_reqs);
+
   switch(rinfo.distribution) {
   case 1:
     break;

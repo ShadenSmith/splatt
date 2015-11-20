@@ -303,7 +303,19 @@ static void p_reduce_rows_all2all(
   } /* end recvs */
 }
 
-
+/**
+* @brief Do a reduction (sum) of all neighbor partial products which I own.
+*        Updates are written to globalmat.
+*        This version accomplishes the communication with an MPI_{Irecv,Isend}.
+*
+* @param local2nbr_buf A buffer at least as large as nlocal2nbr.
+* @param nbr2globs_buf A buffer at least as large as nnbr2globs.
+* @param localmat My local matrix containing partial products for other ranks.
+* @param globalmat The global factor matrix to update.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the matrices.
+* @param m The mode to operate on.
+*/
 static void p_reduce_rows_point2point(
   val_t * const restrict local2nbr_buf,
   val_t * const restrict nbr2globs_buf,
@@ -322,9 +334,27 @@ static void p_reduce_rows_point2point(
   val_t const * const restrict matv = localmat->vals;
   val_t * const restrict gmatv = globalmat->vals;
 
+  /* IRECVS */
+  for(int p=1; p < lsize; ++p) {
+    int const porig = (p + lrank) % lsize;
+    /* The number of rows to recv from porig */
+    int const nrecvs = rinfo->nbr2globs_ptr[m][porig] / nfactors;
+    int const disp  = rinfo->nbr2globs_disp[m][porig] / nfactors;
+    if(nrecvs == 0) {
+      continue;
+    }
+
+    /* do the actual communication */
+    timer_start(&timers[TIMER_MPI_COMM]);
+    MPI_Irecv(&(nbr2globs_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
+        porig, 0, rinfo->layer_comm[m], rinfo->recv_reqs + porig);
+    timer_stop(&timers[TIMER_MPI_COMM]);
+  }
+
+
   #pragma omp parallel default(shared)
   {
-    /* SENDS */
+    /* ISENDS */
     for(int p=1; p < lsize; ++p) {
       /* destination process -- starting from p+1 helps avoid contention */
       int const pdest = (p + lrank) % lsize;
@@ -349,7 +379,7 @@ static void p_reduce_rows_point2point(
       {
         timer_start(&timers[TIMER_MPI_COMM]);
         MPI_Isend(&(local2nbr_buf[disp*nfactors]), nsends*nfactors, SPLATT_MPI_VAL,
-            pdest, 0, rinfo->layer_comm[m], &(rinfo->req));
+            pdest, 0, rinfo->layer_comm[m], rinfo->send_reqs + pdest);
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
     } /* end sends */
@@ -365,12 +395,11 @@ static void p_reduce_rows_point2point(
         continue;
       }
 
-      /* do the actual communication */
+      /* Wait for receive to complete */
       #pragma omp master
       {
         timer_start(&timers[TIMER_MPI_COMM]);
-        MPI_Recv(&(nbr2globs_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
-            porig, 0, rinfo->layer_comm[m], &(rinfo->status));
+        MPI_Wait(rinfo->recv_reqs + porig, MPI_STATUS_IGNORE);
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
 
@@ -425,6 +454,26 @@ static void p_update_rows_point2point(
   int const lrank = rinfo->layer_rank[m];
   int const lsize = rinfo->layer_size[m];
 
+
+  /* IRECVS */
+  for(int p=1; p < lsize; ++p) {
+    int const porig = (p + lrank) % lsize;
+    /* The number of rows to recv from porig */
+    int const nrecvs = rinfo->local2nbr_ptr[m][porig] / nfactors;
+    int const disp = rinfo->local2nbr_disp[m][porig] / nfactors;
+
+    if(nrecvs == 0) {
+      continue;
+    }
+
+    /* do the actual communication */
+    timer_start(&timers[TIMER_MPI_COMM]);
+    MPI_Irecv(&(nbr2local_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
+        porig, 0, rinfo->layer_comm[m], rinfo->recv_reqs + porig);
+    timer_stop(&timers[TIMER_MPI_COMM]);
+  }
+
+
   #pragma omp parallel default(shared)
   {
     /* SENDS */
@@ -469,12 +518,11 @@ static void p_update_rows_point2point(
         continue;
       }
 
-      /* do the actual communication */
+      /* wait for the actual communication */
       #pragma omp master
       {
         timer_start(&timers[TIMER_MPI_COMM]);
-        MPI_Recv(&(nbr2local_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
-            porig, 0, rinfo->layer_comm[m], &(rinfo->status));
+        MPI_Wait(rinfo->recv_reqs + porig, MPI_STATUS_IGNORE);
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
 
