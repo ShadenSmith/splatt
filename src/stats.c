@@ -407,7 +407,7 @@ void mpi_rank_stats(
   idx_t volume = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
     /* if a layer has > 1 rank there is a necessary reduction step too */
-    if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
+    if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
       volume += 2 * (rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m]);
     } else {
       volume += rinfo->nlocal2nbr[m] + rinfo->nnbr2globs[m];
@@ -420,9 +420,22 @@ void mpi_rank_stats(
 
   if(rinfo->rank == 0) {
     printf("MPI information ------------------------------------------------\n");
-    printf("DISTRIBUTION=%"SPLATT_PF_IDX"D ", rinfo->distribution);
-    printf("DIMS=%dx%dx%d\n", rinfo->dims_3d[0], rinfo->dims_3d[1],
-        rinfo->dims_3d[2]);
+    switch(rinfo->decomp) {
+    case SPLATT_DECOMP_COARSE:
+      printf("DISTRIBUTION=COARSE\n");
+      break;
+    case SPLATT_DECOMP_MEDIUM:
+      printf("DISTRIBUTION=MEDIUM ");
+      printf("DIMS=%d", rinfo->dims_3d[0]);
+      for(idx_t m=1; m < rinfo->nmodes; ++m) {
+        printf("x%d", rinfo->dims_3d[m]);
+      }
+      printf("\n");
+      break;
+    case SPLATT_DECOMP_FINE:
+      printf("DISTRIBUTION=FINE\n");
+      break;
+    }
     idx_t avgvolume = totvolume / rinfo->npes;
 
     idx_t const avgnnz = totnnz / rinfo->npes;

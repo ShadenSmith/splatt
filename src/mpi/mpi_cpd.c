@@ -659,7 +659,7 @@ double mpi_cpd_als_iterate(
 
   val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
   val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
-  if(rinfo->distribution > 1) {
+  if(rinfo->decomp != SPLATT_DECOMP_COARSE) {
     m1 = mat_alloc(maxdim, nfactors);
   }
 
@@ -710,7 +710,7 @@ double mpi_cpd_als_iterate(
       m1->I = globmats[m]->I;
       m1ptr->I = globmats[m]->I;
 
-      if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
+    if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
         mpi_add_my_partials(rinfo->indmap[m], mats[MAX_NMODES], m1, rinfo,
@@ -790,7 +790,7 @@ double mpi_cpd_als_iterate(
   mat_free(aTa[MAX_NMODES]);
 
   thd_free(thds, nthreads);
-  if(rinfo->distribution == 3) {
+  if(rinfo->decomp != SPLATT_DECOMP_COARSE) {
     mat_free(m1ptr);
   }
   free(local2nbr_buf);

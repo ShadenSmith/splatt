@@ -53,7 +53,8 @@ typedef struct
   idx_t * mat_ptrs[MAX_NMODES];
 
   /* same as cpd_args distribution. */
-  idx_t distribution;
+  splatt_decomp_type decomp;
+
 
   /* Send/Recv Structures
    * nlocal2nbr: This is the number of rows that I have in my tensor but do not
@@ -92,7 +93,6 @@ typedef struct
   int rank;
   int npes;
   int rank_3d;
-  int mode_rank[MAX_NMODES];
   int dims_3d[MAX_NMODES];
   int coords_3d[MAX_NMODES];
   int layer_rank[MAX_NMODES];
@@ -255,7 +255,7 @@ void mpi_compute_ineed(
   sptensor_t const * const tt,
   idx_t const mode,
   idx_t const nfactors,
-  idx_t const distribution);
+  splatt_decomp_type const distribution);
 
 
 #define mpi_tt_read splatt_mpi_tt_read
@@ -326,7 +326,7 @@ void mpi_filter_tt_1d(
 permutation_t *  mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt,
-  idx_t const distribution);
+  splatt_decomp_type const distribution);
 
 
 #define mpi_find_owned splatt_mpi_find_owned

@@ -784,7 +784,7 @@ static void p_get_best_mpi_dim(
   int * primes = p_get_primes(rinfo->npes, &nprimes);
 
   idx_t total_size = 0;
-  for(idx_t m=0; m < rinfo->distribution; ++m) {
+  for(idx_t m=0; m < rinfo->nmodes; ++m) {
     total_size += rinfo->global_dims[m];
 
     /* reset mpi dims */
@@ -798,7 +798,7 @@ static void p_get_best_mpi_dim(
   for(int p = nprimes-1; p >= 0; --p) {
     int furthest = 0;
     /* find dim furthest from target */
-    for(idx_t m=0; m < rinfo->distribution; ++m) {
+    for(idx_t m=0; m < rinfo->nmodes; ++m) {
       /* distance is current - target */
       diffs[m] = (rinfo->global_dims[m] / rinfo->dims_3d[m]) - target;
       if(diffs[m] > diffs[furthest]) {
@@ -836,8 +836,8 @@ sptensor_t * mpi_tt_read(
   rinfo->nmodes = nmodes;
 
   /* first compute MPI dimension if not specified by the user */
-  if(rinfo->distribution == DEFAULT_MPI_DISTRIBUTION) {
-    rinfo->distribution = nmodes;
+  if(rinfo->decomp == DEFAULT_MPI_DISTRIBUTION) {
+    rinfo->decomp = SPLATT_DECOMP_MEDIUM;
     p_get_best_mpi_dim(rinfo);
   }
 
@@ -854,8 +854,8 @@ sptensor_t * mpi_tt_read(
 
   /* actually parse tensor */
   sptensor_t * tt = NULL;
-  switch(rinfo->distribution) {
-  case 1:
+  switch(rinfo->decomp) {
+  case SPLATT_DECOMP_COARSE:
     tt = p_read_tt_1d(ifname, ssizes, nmodes, rinfo);
     /* now fix tt->dims */
     for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -866,7 +866,7 @@ sptensor_t * mpi_tt_read(
     }
     break;
 
-  case 3:
+  case SPLATT_DECOMP_MEDIUM:
     tt = p_read_tt_3d(ifname, ssizes, nmodes, rinfo);
     /* now map tensor indices to local (layer) coordinates and fill in dims */
     for(idx_t m=0; m < nmodes; ++m) {
@@ -879,7 +879,8 @@ sptensor_t * mpi_tt_read(
       }
     }
     break;
-  case SPLATT_MPI_FINE:
+
+  case SPLATT_DECOMP_FINE:
     tt = p_rearrange_fine(ttbuf, pfname, ssizes, rinfo);
     /* now fix tt->dims */
     for(idx_t m=0; m < tt->nmodes; ++m) {

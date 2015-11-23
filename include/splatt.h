@@ -462,6 +462,8 @@ int splatt_mttkrp(
  */
 
 
+#ifdef SPLATT_USE_MPI
+
 /**
 * @brief Read a tensor from a file, distribute among an MPI communicator, and
 *        convert to CSF format.
@@ -507,6 +509,7 @@ int splatt_mpi_coord_load(
     splatt_val_t ** vals,
     double const * const options,
     MPI_Comm comm);
+#endif
 
 #ifdef __cplusplus
 }

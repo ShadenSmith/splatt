@@ -187,7 +187,6 @@ static void p_setup_fine(
     rinfo->dims_3d[m] = rinfo->npes;
     rinfo->layer_starts[m] = 0;
     rinfo->layer_rank[m] = rinfo->rank;
-    rinfo->mode_rank[m] = rinfo->rank;
     rinfo->rank_3d = rinfo->rank;
   }
 }
@@ -203,7 +202,14 @@ static void p_setup_3d(
   int * const dims_3d = rinfo->dims_3d;
   int periods[MAX_NMODES];
 
-  if(dims_3d[0] * dims_3d[1] * dims_3d[2] != rinfo->npes) {
+  idx_t const nmodes = rinfo->nmodes;
+
+  int dim = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    dim *= dims_3d[m];
+    periods[m] = 1;
+  }
+  if(dim != rinfo->npes) {
     if(rinfo->rank == 0) {
       fprintf(stderr, "SPLATT: dimension %dx%dx%d does not match np=%d.\n",
           dims_3d[0], dims_3d[1], dims_3d[2], rinfo->npes);
@@ -212,24 +218,18 @@ static void p_setup_3d(
     abort();
   }
 
-  periods[0] = periods[1] = periods[2] = 1;
-
   /* create new communicator and update global rank */
-  MPI_Cart_create(MPI_COMM_WORLD, 3, dims_3d, periods, 1, &(rinfo->comm_3d));
+  MPI_Cart_create(MPI_COMM_WORLD, nmodes, dims_3d, periods, 1,
+      &(rinfo->comm_3d));
   MPI_Comm_rank(MPI_COMM_WORLD, &(rinfo->rank));
   MPI_Comm_rank(rinfo->comm_3d, &(rinfo->rank_3d));
 
   /* get 3d coordinates */
-  MPI_Cart_coords(rinfo->comm_3d, rinfo->rank_3d, 3, rinfo->coords_3d);
+  MPI_Cart_coords(rinfo->comm_3d, rinfo->rank_3d, nmodes, rinfo->coords_3d);
 
   /* compute ranks relative to tensor mode */
-  for(idx_t m=0; m < 3; ++m) {
-    /* map coord within layer to 1D */
-    int const coord1d = rinfo->coords_3d[(m+1)%3] * dims_3d[(m+2)%3] +
-                        rinfo->coords_3d[(m+2)%3];
+  for(idx_t m=0; m < nmodes; ++m) {
     int const layer_id = rinfo->coords_3d[m];
-    /* relative rank in this mode */
-    rinfo->mode_rank[m] = (dims_3d[(m+1)%3] * dims_3d[(m+2)%3] * layer_id) + coord1d;
 
     /* now split 3D communicator into layers */
     MPI_Comm_split(rinfo->comm_3d, layer_id, 0, &(rinfo->layer_comm[m]));
@@ -251,7 +251,7 @@ void mpi_compute_ineed(
   sptensor_t const * const tt,
   idx_t const mode,
   idx_t const nfactors,
-  idx_t const distribution)
+  splatt_decomp_type const distribution)
 {
   /* fill local2nbr and nbr2globs ptrs */
   p_fill_ineed_ptrs(tt, mode, rinfo, rinfo->layer_comm[mode]);
@@ -268,19 +268,19 @@ void mpi_setup_comms(
   rinfo->send_reqs = malloc(rinfo->npes * sizeof(MPI_Request));
   rinfo->recv_reqs = malloc(rinfo->npes * sizeof(MPI_Request));
 
-  switch(rinfo->distribution) {
-  case 1:
+  switch(rinfo->decomp) {
+  case SPLATT_DECOMP_COARSE:
     p_setup_1d(rinfo);
     break;
-  case 3:
+  case SPLATT_DECOMP_MEDIUM:
     p_setup_3d(rinfo);
     break;
-  case SPLATT_MPI_FINE:
+  case SPLATT_DECOMP_FINE:
     p_setup_fine(rinfo);
     break;
   default:
-    fprintf(stderr, "SPLATT: distribution %"SPLATT_PF_IDX" not supported. "
-                    "Choose from {1,3}.\n", rinfo->distribution);
+    fprintf(stderr, "SPLATT: distribution %d not supported.\n", rinfo->decomp);
+    MPI_Finalize();
     abort();
   }
 }
@@ -294,10 +294,10 @@ void rank_free(
   free(rinfo.send_reqs);
   free(rinfo.recv_reqs);
 
-  switch(rinfo.distribution) {
-  case 1:
+  switch(rinfo.decomp) {
+  case SPLATT_DECOMP_COARSE:
     break;
-  case 3:
+  case SPLATT_DECOMP_MEDIUM:
     MPI_Comm_free(&rinfo.comm_3d);
     for(idx_t m=0; m < nmodes; ++m) {
       MPI_Comm_free(&rinfo.layer_comm[m]);
@@ -313,6 +313,8 @@ void rank_free(
       free(rinfo.nbr2globs_disp[m]);
       free(rinfo.indmap[m]);
     }
+    break;
+  case SPLATT_DECOMP_FINE:
     break;
   }
 }
