@@ -10,6 +10,7 @@
 #include "io.h"
 #include "reorder.h"
 #include "util.h"
+#include "ttm.h"
 
 
 /******************************************************************************
@@ -284,11 +285,96 @@ void cpd_stats(
 
   char * fstorage = bytes_str(fbytes);
   char * mstorage = bytes_str(mbytes);
-  printf("CSF-STORAGE=%s FACTOR-STORAGE=%s", fstorage, mstorage);
+  printf("STORAGE: CSF=%s FACTOR=%s", fstorage, mstorage);
   free(fstorage);
   free(mstorage);
   printf("\n\n");
 }
+
+
+void tucker_stats(
+  splatt_csf const * const csf,
+  idx_t const * const nfactors,
+  double const * const opts)
+{
+  /* find total storage */
+  size_t fbytes = csf_storage(csf, opts);
+  size_t mbytes = 0;
+  size_t cbytes = 1;
+  for(idx_t m=0; m < csf[0].nmodes; ++m) {
+    mbytes += csf[0].dims[m] * nfactors[m] * sizeof(val_t);
+    cbytes *= nfactors[m];
+  }
+  cbytes *= sizeof(val_t);
+
+  size_t const tbytes = tenout_dim(csf->nmodes, nfactors, csf->dims) * \
+      sizeof(val_t);
+
+  /* header */
+  printf("Factoring "
+         "------------------------------------------------------\n");
+  printf("NFACTORS=%"SPLATT_PF_IDX, nfactors[0]);
+  for(idx_t m=1; m < csf->nmodes; ++m) {
+    printf("x%"SPLATT_PF_IDX, nfactors[m]);
+  }
+  printf(" ");
+  printf("MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
+      (idx_t) opts[SPLATT_OPTION_NITER],
+      opts[SPLATT_OPTION_TOLERANCE]);
+  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) opts[SPLATT_OPTION_NTHREADS]);
+
+  printf("\n");
+
+  /* CSF allocation */
+  printf("CSF-ALLOC=");
+  splatt_csf_type which_csf = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which_csf) {
+  case SPLATT_CSF_ONEMODE:
+    printf("ONEMODE");
+    break;
+  case SPLATT_CSF_TWOMODE:
+    printf("TWOMODE");
+    break;
+  case SPLATT_CSF_ALLMODE:
+    printf("ALLMODE");
+    break;
+  }
+  printf(" ");
+
+  /* tiling info */
+  printf("TILE=");
+  splatt_tile_type which_tile = opts[SPLATT_OPTION_TILE];
+  switch(which_tile) {
+  case SPLATT_NOTILE:
+    printf("NO");
+    break;
+  case SPLATT_DENSETILE:
+    printf("DENSE TILE-DEPTH=%"SPLATT_PF_IDX,
+        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+    break;
+  case SPLATT_SYNCTILE:
+    printf("SYNC");
+    break;
+  case SPLATT_COOPTILE:
+    printf("COOP");
+    break;
+  }
+  printf("\n");
+
+  char * fstorage = bytes_str(fbytes);
+  char * mstorage = bytes_str(mbytes);
+  char * cstorage = bytes_str(cbytes);
+  char * tstorage = bytes_str(tbytes);
+  printf("STORAGE: CSF=%s FACTOR=%s CORE=%s TTMC=%s",
+      fstorage, mstorage, cstorage, tstorage);
+  free(fstorage);
+  free(mstorage);
+  free(cstorage);
+  free(tstorage);
+  printf("\n\n");
+
+}
+
 
 
 #ifdef SPLATT_USE_MPI
@@ -370,7 +456,7 @@ void mpi_cpd_stats(
 
   char * fstorage = bytes_str(fbytes);
   char * mstorage = bytes_str(mbytes);
-  printf("CSF-STORAGE=%s FACTOR-STORAGE=%s", fstorage, mstorage);
+  printf("STORAGE: CSF=%s FACTOR=%s", fstorage, mstorage);
   free(fstorage);
   free(mstorage);
   printf("\n\n");

@@ -142,6 +142,11 @@ void splatt_tucker_cmd(
 
   splatt_csf * csf = csf_alloc(tt, args.opts);
 
+  /* print Tucker stats? */
+  if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    tucker_stats(csf, nfactors, args.opts);
+  }
+
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
 

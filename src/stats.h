@@ -75,6 +75,21 @@ void cpd_stats(
   double const * const opts);
 
 
+#define tucker_stats splatt_tucker_stats
+/**
+* @brief Output work-related statistics before a Tucker factorization. This
+*        includes rank, #threads, tolerance, etc.
+*
+* @param csf The CSF tensor we are factoring.
+* @param nfactors The rank of each mode.
+* @param opts Other tucker options.
+*/
+void tucker_stats(
+  splatt_csf const * const csf,
+  idx_t const * const nfactors,
+  double const * const opts);
+
+
 /******************************************************************************
  * MPI FUNCTIONS
  *****************************************************************************/
