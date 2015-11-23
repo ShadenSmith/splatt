@@ -303,7 +303,19 @@ static void p_reduce_rows_all2all(
   } /* end recvs */
 }
 
-
+/**
+* @brief Do a reduction (sum) of all neighbor partial products which I own.
+*        Updates are written to globalmat.
+*        This version accomplishes the communication with an MPI_{Irecv,Isend}.
+*
+* @param local2nbr_buf A buffer at least as large as nlocal2nbr.
+* @param nbr2globs_buf A buffer at least as large as nnbr2globs.
+* @param localmat My local matrix containing partial products for other ranks.
+* @param globalmat The global factor matrix to update.
+* @param rinfo MPI rank information.
+* @param nfactors The number of columns in the matrices.
+* @param m The mode to operate on.
+*/
 static void p_reduce_rows_point2point(
   val_t * const restrict local2nbr_buf,
   val_t * const restrict nbr2globs_buf,
@@ -322,9 +334,27 @@ static void p_reduce_rows_point2point(
   val_t const * const restrict matv = localmat->vals;
   val_t * const restrict gmatv = globalmat->vals;
 
+  /* IRECVS */
+  for(int p=1; p < lsize; ++p) {
+    int const porig = (p + lrank) % lsize;
+    /* The number of rows to recv from porig */
+    int const nrecvs = rinfo->nbr2globs_ptr[m][porig] / nfactors;
+    int const disp  = rinfo->nbr2globs_disp[m][porig] / nfactors;
+    if(nrecvs == 0) {
+      continue;
+    }
+
+    /* do the actual communication */
+    timer_start(&timers[TIMER_MPI_COMM]);
+    MPI_Irecv(&(nbr2globs_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
+        porig, 0, rinfo->layer_comm[m], rinfo->recv_reqs + porig);
+    timer_stop(&timers[TIMER_MPI_COMM]);
+  }
+
+
   #pragma omp parallel default(shared)
   {
-    /* SENDS */
+    /* ISENDS */
     for(int p=1; p < lsize; ++p) {
       /* destination process -- starting from p+1 helps avoid contention */
       int const pdest = (p + lrank) % lsize;
@@ -349,7 +379,7 @@ static void p_reduce_rows_point2point(
       {
         timer_start(&timers[TIMER_MPI_COMM]);
         MPI_Isend(&(local2nbr_buf[disp*nfactors]), nsends*nfactors, SPLATT_MPI_VAL,
-            pdest, 0, rinfo->layer_comm[m], &(rinfo->req));
+            pdest, 0, rinfo->layer_comm[m], rinfo->send_reqs + pdest);
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
     } /* end sends */
@@ -365,12 +395,11 @@ static void p_reduce_rows_point2point(
         continue;
       }
 
-      /* do the actual communication */
+      /* Wait for receive to complete */
       #pragma omp master
       {
         timer_start(&timers[TIMER_MPI_COMM]);
-        MPI_Recv(&(nbr2globs_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
-            porig, 0, rinfo->layer_comm[m], &(rinfo->status));
+        MPI_Wait(rinfo->recv_reqs + porig, MPI_STATUS_IGNORE);
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
 
@@ -425,6 +454,26 @@ static void p_update_rows_point2point(
   int const lrank = rinfo->layer_rank[m];
   int const lsize = rinfo->layer_size[m];
 
+
+  /* IRECVS */
+  for(int p=1; p < lsize; ++p) {
+    int const porig = (p + lrank) % lsize;
+    /* The number of rows to recv from porig */
+    int const nrecvs = rinfo->local2nbr_ptr[m][porig] / nfactors;
+    int const disp = rinfo->local2nbr_disp[m][porig] / nfactors;
+
+    if(nrecvs == 0) {
+      continue;
+    }
+
+    /* do the actual communication */
+    timer_start(&timers[TIMER_MPI_COMM]);
+    MPI_Irecv(&(nbr2local_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
+        porig, 0, rinfo->layer_comm[m], rinfo->recv_reqs + porig);
+    timer_stop(&timers[TIMER_MPI_COMM]);
+  }
+
+
   #pragma omp parallel default(shared)
   {
     /* SENDS */
@@ -469,12 +518,11 @@ static void p_update_rows_point2point(
         continue;
       }
 
-      /* do the actual communication */
+      /* wait for the actual communication */
       #pragma omp master
       {
         timer_start(&timers[TIMER_MPI_COMM]);
-        MPI_Recv(&(nbr2local_buf[disp*nfactors]), nrecvs*nfactors, SPLATT_MPI_VAL,
-            porig, 0, rinfo->layer_comm[m], &(rinfo->status));
+        MPI_Wait(rinfo->recv_reqs + porig, MPI_STATUS_IGNORE);
         timer_stop(&timers[TIMER_MPI_COMM]);
       }
 
@@ -611,14 +659,14 @@ double mpi_cpd_als_iterate(
 
   val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
   val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
-  if(rinfo->distribution == 3) {
+  if(rinfo->decomp != SPLATT_DECOMP_COARSE) {
     m1 = mat_alloc(maxdim, nfactors);
   }
 
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
     mpi_update_rows(rinfo->indmap[m], nbr2globs_buf, local2nbr_buf, mats[m],
-        globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
+        globmats[m], rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
   }
 
   matrix_t * m1ptr = m1; /* for restoring m1 */
@@ -662,14 +710,14 @@ double mpi_cpd_als_iterate(
       m1->I = globmats[m]->I;
       m1ptr->I = globmats[m]->I;
 
-      if(rinfo->distribution > 1 && rinfo->layer_size[m] > 1) {
+    if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
         mpi_add_my_partials(rinfo->indmap[m], mats[MAX_NMODES], m1, rinfo,
             nfactors, m);
         /* incorporate neighbors' partials */
         mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
-            rinfo, nfactors, m, DEFAULT_COMM);
+            rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
       } else {
         /* skip the whole process */
         m1 = mats[MAX_NMODES];
@@ -691,7 +739,7 @@ double mpi_cpd_als_iterate(
 
       /* send updated rows to neighbors */
       mpi_update_rows(rinfo->indmap[m], nbr2globs_buf, local2nbr_buf, mats[m],
-          globmats[m], rinfo, nfactors, m, DEFAULT_COMM);
+          globmats[m], rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
 
       /* update A^T*A */
       mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
@@ -742,7 +790,7 @@ double mpi_cpd_als_iterate(
   mat_free(aTa[MAX_NMODES]);
 
   thd_free(thds, nthreads);
-  if(rinfo->distribution == 3) {
+  if(rinfo->decomp != SPLATT_DECOMP_COARSE) {
     mat_free(m1ptr);
   }
   free(local2nbr_buf);
@@ -768,17 +816,14 @@ void mpi_update_rows(
   timer_start(&timers[TIMER_MPI_UPDATE]);
 
   switch(which) {
-  case SPLATT_POINT2POINT:
+  case SPLATT_COMM_POINT2POINT:
     p_update_rows_point2point(nbr2globs_buf, nbr2local_buf, localmat,
         globalmat, rinfo, nfactors, mode);
     break;
 
-  case SPLATT_ALL2ALL:
+  case SPLATT_COMM_ALL2ALL:
     p_update_rows_all2all(nbr2globs_buf, nbr2local_buf, localmat, globalmat,
         rinfo, nfactors, mode);
-    break;
-
-  case SPLATT_SPARSEREDUCE:
     break;
   }
 
@@ -801,17 +846,14 @@ void mpi_reduce_rows(
   timer_start(&timers[TIMER_MPI_REDUCE]);
 
   switch(which) {
-  case SPLATT_POINT2POINT:
+  case SPLATT_COMM_POINT2POINT:
     p_reduce_rows_point2point(local2nbr_buf, nbr2globs_buf, localmat,
         globalmat, rinfo, nfactors, mode);
     break;
 
-  case SPLATT_ALL2ALL:
+  case SPLATT_COMM_ALL2ALL:
     p_reduce_rows_all2all(local2nbr_buf, nbr2globs_buf, localmat, globalmat,
         rinfo, nfactors, mode);
-    break;
-
-  case SPLATT_SPARSEREDUCE:
     break;
   }
   timer_stop(&timers[TIMER_MPI_REDUCE]);

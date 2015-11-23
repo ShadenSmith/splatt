@@ -13,7 +13,7 @@
  * API FUNCTIONS
  *****************************************************************************/
 
-int splatt_ttm(
+int splatt_ttmc(
     splatt_idx_t const mode,
     splatt_idx_t const * const ncolumns,
     splatt_csf const * const tensors,
@@ -47,7 +47,7 @@ int splatt_ttm(
 
   printf("thread\n");
 
-  ttm_csf(tensors, mats, tenout, mode, thds, options);
+  ttmc_csf(tensors, mats, tenout, mode, thds, options);
 
   printf("cleanup\n");
 
@@ -241,7 +241,7 @@ static inline void p_root_decide(
  *****************************************************************************/
 
 
-void ttm_csf(
+void ttmc_csf(
     splatt_csf const * const tensors,
     matrix_t ** mats,
     val_t * const tenout,
@@ -269,7 +269,7 @@ void ttm_csf(
 
 
 
-void ttm_stream(
+void ttmc_stream(
     sptensor_t const * const tt,
     matrix_t ** mats,
     val_t * const tenout,

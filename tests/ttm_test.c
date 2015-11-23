@@ -50,10 +50,10 @@ static void p_csf_ttm(
 
   for(idx_t m=0; m < tt->nmodes; ++m) {
     /* compute gold */
-    ttm_stream(tt, mats, gold, m, opts);
+    ttmc_stream(tt, mats, gold, m, opts);
 
     /* compute CSF test */
-    ttm_csf(csf, mats, test, m, thds, opts);
+    ttmc_csf(csf, mats, test, m, thds, opts);
 
     /* compare */
     p_compare_vecs(test, gold, outdim, outdim);

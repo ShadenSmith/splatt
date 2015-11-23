@@ -1301,7 +1301,6 @@ void mttkrp_splatt(
   idx_t const nslices = ft->dims[mode];
   idx_t const rank = M->J;
 
-  M->I = nslices;
   val_t * const mvals = M->vals;
   memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
 

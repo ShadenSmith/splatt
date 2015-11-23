@@ -392,7 +392,17 @@ static void p_fill_volume_stats(
   rconns[0] = rconns[1] = rconns[2] = 0;
   int tot = 0;
   for(idx_t i=0; i < ldim; ++i) {
-    assert(pcount[i] <= (rinfo->dims_3d[(m+1)%3] * rinfo->dims_3d[(m+2)%3]));
+
+#ifdef DEBUG
+    idx_t maxp = 1;
+    for(idx_t moff=0; moff < rinfo->nmodes; ++moff) {
+      if(moff != m) {
+        maxp *= rinfo->dims_3d[moff];
+      }
+    }
+    assert(pcount[i] <= maxp);
+#endif
+
     tot += pcount[i];
     switch(pcount[i]) {
     case 0:
@@ -502,10 +512,6 @@ static void p_greedy_mat_distribution(
     idx_t rowoffset;
     MPI_Scan(&nrows, &rowoffset, 1, SPLATT_MPI_IDX, MPI_SUM, rinfo->layer_comm[m]);
 
-    /* ensure all rows are claimed if you are the last rank in the layer */
-    if(rinfo->layer_rank[m] == (rinfo->npes / rinfo->dims_3d[m]) - 1) {
-      assert(rowoffset == rinfo->layer_ends[m] - rinfo->layer_starts[m]);
-    }
     rowoffset -= nrows;
 
     /* assign new labels - IPERM is easier to fill first.
@@ -584,11 +590,11 @@ static void p_setup_mat_ptrs(
 permutation_t * mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt,
-  idx_t const distribution)
+  splatt_decomp_type const distribution)
 {
   permutation_t * perm = perm_identity(tt->dims, tt->nmodes);
   switch(distribution) {
-  case 1:
+  case SPLATT_DECOMP_COARSE:
     /* assign simple 1D matrix distribution */
     for(idx_t m=0; m < tt->nmodes; ++m) {
       /* allocate space for start/end idxs */
@@ -605,10 +611,8 @@ permutation_t * mpi_distribute_mats(
     }
     break;
 
-  case 2:
-    break;
-
-  case 3:
+  case SPLATT_DECOMP_FINE:
+  case SPLATT_DECOMP_MEDIUM:
     p_greedy_mat_distribution(rinfo, tt, perm);
     perm_apply(tt, perm->perms);
 
@@ -617,7 +621,6 @@ permutation_t * mpi_distribute_mats(
     }
     break;
   }
-
   return perm;
 }
 

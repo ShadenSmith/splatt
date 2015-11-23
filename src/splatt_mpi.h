@@ -24,6 +24,7 @@ typedef struct
 
 /******************************************************************************
  * PUBLIC STRUCTURES
+    
  *****************************************************************************/
 
 /**
@@ -52,7 +53,8 @@ typedef struct
   idx_t * mat_ptrs[MAX_NMODES];
 
   /* same as cpd_args distribution. */
-  idx_t distribution;
+  splatt_decomp_type decomp;
+
 
   /* Send/Recv Structures
    * nlocal2nbr: This is the number of rows that I have in my tensor but do not
@@ -91,7 +93,6 @@ typedef struct
   int rank;
   int npes;
   int rank_3d;
-  int mode_rank[MAX_NMODES];
   int dims_3d[MAX_NMODES];
   int coords_3d[MAX_NMODES];
   int layer_rank[MAX_NMODES];
@@ -100,23 +101,13 @@ typedef struct
   /* Miscellaneous */
   MPI_Status status;
   MPI_Request req;
+  MPI_Status * stats;
+  MPI_Request * send_reqs;
+  MPI_Request * recv_reqs;
+
   idx_t worksize;
 } rank_info;
 
-
-
-/**
-* @brief Communication pattern type. We support point-to-point, all-to-all
-*        (vectorized), and our own sparse reduction pattern (soon).
-*/
-typedef enum
-{
-  SPLATT_POINT2POINT,
-  SPLATT_ALL2ALL,
-  SPLATT_SPARSEREDUCE
-} splatt_comm_type;
-
-#define DEFAULT_COMM SPLATT_ALL2ALL
 
 
 /******************************************************************************
@@ -140,6 +131,7 @@ double mpi_cpd_als_iterate(
   idx_t const nfactors,
   rank_info * const rinfo,
   double const * const opts);
+
 
 #define mpi_update_rows splatt_mpi_update_rows
 /**
@@ -263,7 +255,7 @@ void mpi_compute_ineed(
   sptensor_t const * const tt,
   idx_t const mode,
   idx_t const nfactors,
-  idx_t const distribution);
+  splatt_decomp_type const distribution);
 
 
 #define mpi_tt_read splatt_mpi_tt_read
@@ -271,13 +263,33 @@ void mpi_compute_ineed(
 * @brief Each rank reads their 3D partition of a tensor.
 *
 * @param ifname The file containing the tensor.
+* @param pfname The file containing partition information, if applicable.
 * @param rinfo Rank information.
 *
 * @return The rank's subtensor.
 */
 sptensor_t * mpi_tt_read(
   char const * const ifname,
+  char const * const pfname,
   rank_info * const rinfo);
+
+
+
+#define mpi_simple_distribute splatt_mpi_simple_distribute
+/**
+* @brief Do a simple distribution of the tensor stored in file 'ifname'.
+*        Load balance is based on nonzero count. No communication or other
+*        heuristics used. Tensor nonzeros are distributed among MPI
+*        communicator rinfo->comm_3d.
+*
+* @param ifname The file to read from.
+* @param comm The communicator to distribute among
+*
+* @return My own sub-tensor.
+*/
+sptensor_t * mpi_simple_distribute(
+  char const * const ifname,
+  MPI_Comm comm);
 
 
 #define mpi_filter_tt_1d splatt_mpi_filter_tt_1d
@@ -314,7 +326,7 @@ void mpi_filter_tt_1d(
 permutation_t *  mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt,
-  idx_t const distribution);
+  splatt_decomp_type const distribution);
 
 
 #define mpi_find_owned splatt_mpi_find_owned

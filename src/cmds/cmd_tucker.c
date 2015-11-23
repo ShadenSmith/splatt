@@ -127,7 +127,7 @@ void splatt_tucker_cmd(
   }
 
   /* print basic tensor stats? */
-  splatt_verbosity_t which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
+  splatt_verbosity_type which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
   if(which_verb >= SPLATT_VERBOSITY_LOW) {
     stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
   }

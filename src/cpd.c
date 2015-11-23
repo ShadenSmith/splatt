@@ -1,4 +1,5 @@
 
+
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
@@ -6,12 +7,8 @@
 #include "cpd.h"
 #include "matrix.h"
 #include "mttkrp.h"
-#include "sptensor.h"
-#include "stats.h"
 #include "timer.h"
 #include "thd_info.h"
-#include "tile.h"
-#include "io.h"
 #include "util.h"
 
 #include <math.h>
@@ -27,7 +24,7 @@ int splatt_cpd_als(
     splatt_csf const * const tensors,
     splatt_idx_t const nfactors,
     double const * const options,
-    splatt_kruskal_t * factored)
+    splatt_kruskal * factored)
 {
   matrix_t * mats[MAX_NMODES+1];
 
@@ -54,6 +51,7 @@ int splatt_cpd_als(
   factored->nmodes = nmodes;
   factored->lambda = lambda;
   for(idx_t m=0; m < nmodes; ++m) {
+    factored->dims[m] = tensors->dims[m];
     factored->factors[m] = mats[m]->vals;
   }
 
@@ -67,7 +65,7 @@ int splatt_cpd_als(
 
 
 void splatt_free_kruskal(
-    splatt_kruskal_t * factored)
+    splatt_kruskal * factored)
 {
   free(factored->lambda);
   for(idx_t m=0; m < factored->nmodes; ++m) {
@@ -357,11 +355,6 @@ double cpd_als_iterate(
     oldfit = fit;
   }
   timer_stop(&timers[TIMER_CPD]);
-
-  if(rinfo->rank == 0 &&
-      opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
-    printf("Final fit: %0.5f\n", fit);
-  }
 
   cpd_post_process(nfactors, nmodes, mats, lambda, thds, nthreads, rinfo);
 

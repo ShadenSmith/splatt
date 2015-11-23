@@ -5,4 +5,4 @@ function [xnorm] = splatt_norm(X)
 %
 % See also splatt_load, splatt_innerprod, splatt_mttkrp
 
-xnorm = norm(X{1}.vals);
+xnorm = norm(X{1}.pt{:}.vals);

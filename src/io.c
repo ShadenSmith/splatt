@@ -24,23 +24,9 @@ static sptensor_t * p_tt_read_file(
   /* first count nnz in tensor */
   idx_t nnz = 0;
   idx_t nmodes = 0;
-  char * line = NULL;
-  int64_t read;
-  size_t len = 0;
-  while((read = getline(&line, &len, fin)) != -1) {
-    if(read > 1 && line[0] != '#') {
-      /* get nmodes from first nnz line */
-      if(nnz == 0) {
-        ptr = strtok(line, " \t");
-        while(ptr != NULL) {
-          ++nmodes;
-          ptr = strtok(NULL, " \t");
-        }
-      }
-      ++nnz;
-    }
-  }
-  --nmodes;
+
+  idx_t dims[MAX_NMODES];
+  tt_get_dims(fin, &nmodes, &nnz, dims);
 
   if(nmodes > MAX_NMODES) {
     fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
@@ -52,6 +38,11 @@ static sptensor_t * p_tt_read_file(
 
   /* allocate structures */
   sptensor_t * tt = tt_alloc(nnz, nmodes);
+  memcpy(tt->dims, dims, nmodes * sizeof(*dims));
+
+  char * line = NULL;
+  int64_t read;
+  size_t len = 0;
 
   /* fill in tensor data */
   rewind(fin);
@@ -65,18 +56,6 @@ static sptensor_t * p_tt_read_file(
       }
       tt->vals[nnz++] = strtod(ptr, &ptr);
     }
-  }
-
-  /* now find the max dimension in each mode */
-  for(idx_t m=0; m < nmodes; ++m) {
-    idx_t const * const ind = tt->ind[m];
-    tt->dims[m] = 0;
-    for(idx_t n=0; n < nnz; ++n) {
-      if(ind[n] > tt->dims[m]) {
-        tt->dims[m] = ind[n];
-      }
-    }
-    tt->dims[m] += 1; /* account for 0-indexed ind */
   }
 
   free(line);
@@ -132,6 +111,60 @@ sptensor_t * tt_read_file(
   timer_stop(&timers[TIMER_IO]);
   fclose(fin);
   return tt;
+}
+
+
+void tt_get_dims(
+    FILE * fin,
+    idx_t * const outnmodes,
+    idx_t * const outnnz,
+    idx_t * outdims)
+{
+  char * ptr = NULL;
+  idx_t nnz = 0;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+
+  /* first count modes in tensor */
+  idx_t nmodes = 0;
+  while((read = getline(&line, &len, fin)) != -1) {
+    if(read > 1 && line[0] != '#') {
+      /* get nmodes from first nnz line */
+      ptr = strtok(line, " \t");
+      while(ptr != NULL) {
+        ++nmodes;
+        ptr = strtok(NULL, " \t");
+      }
+      break;
+    }
+  }
+  --nmodes;
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    outdims[m] = 0;
+  }
+
+  /* fill in tensor dimensions */
+  rewind(fin);
+  while((read = getline(&line, &len, fin)) != -1) {
+    /* skip empty and commented lines */
+    if(read > 1 && line[0] != '#') {
+      ptr = line;
+      for(idx_t m=0; m < nmodes; ++m) {
+        idx_t ind = strtoull(ptr, &ptr, 10);
+        outdims[m] = (ind > outdims[m]) ? ind : outdims[m];
+      }
+      /* skip over tensor val */
+      strtod(ptr, &ptr);
+      ++nnz;
+    }
+  }
+  *outnnz = nnz;
+  *outnmodes = nmodes;
+
+  rewind(fin);
+  free(line);
 }
 
 

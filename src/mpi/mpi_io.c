@@ -7,9 +7,227 @@
 #include "../timer.h"
 
 
+
+/******************************************************************************
+ * API FUNCTONS
+ *****************************************************************************/
+int splatt_mpi_csf_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    splatt_csf ** tensors,
+    double const * const options,
+    MPI_Comm comm)
+{
+  sptensor_t * tt = NULL;
+
+  int rank, npes;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &npes);
+
+
+  return SPLATT_SUCCESS;
+}
+
+
+
+int splatt_mpi_coord_load(
+    char const * const fname,
+    splatt_idx_t * nmodes,
+    splatt_idx_t * nnz,
+    splatt_idx_t *** inds,
+    splatt_val_t ** vals,
+    double const * const options,
+    MPI_Comm comm)
+{
+  sptensor_t * tt = mpi_simple_distribute(fname, comm);
+
+  *nmodes = tt->nmodes;
+  *nnz = tt->nnz;
+
+  /* copy to output */
+  *vals = tt->vals;
+  *inds = malloc(tt->nmodes * sizeof(splatt_idx_t));
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    (*inds)[m] = tt->ind[m];
+  }
+
+  free(tt);
+
+  return SPLATT_SUCCESS;
+}
+
+
 /******************************************************************************
  * PRIVATE FUNCTONS
  *****************************************************************************/
+
+/**
+* @brief Fill buf with the next 'nnz_to_read' tensor values.
+*
+* @param fin The file to read from.
+* @param buf The sptensor buffer to fill.
+* @param nnz_to_read The number of nonzeros to read.
+*/
+static void p_fill_tt_nnz(
+  FILE * fin,
+  sptensor_t * const buf,
+  idx_t const nnz_to_read)
+{
+  idx_t const nmodes = buf->nmodes;
+
+  char * ptr = NULL;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+
+  idx_t nnzread = 0;
+  while(nnzread < nnz_to_read && (read = getline(&line, &len, fin)) != -1) {
+    /* skip empty and commented lines */
+    if(read > 1 && line[0] != '#') {
+      ptr = line;
+      for(idx_t m=0; m < nmodes; ++m) {
+        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
+        buf->ind[m][nnzread] = ind;
+      }
+      val_t const v = strtod(ptr, &ptr);
+      buf->vals[nnzread++] = v;
+    }
+  }
+}
+
+
+static int * p_distribute_parts(
+  sptensor_t * const ttbuf,
+  char const * const pfname,
+  rank_info * const rinfo)
+{
+  /* root may have more than target_nnz */
+  idx_t const target_nnz = rinfo->global_nnz / rinfo->npes;
+  int * parts = (int *) malloc(SS_MAX(ttbuf->nnz, target_nnz) * sizeof(int));
+
+  if(rinfo->rank == 0) {
+    int ret;
+    FILE * fin = open_f(pfname, "r");
+
+    /* send to all other ranks */
+    for(int p=1; p < rinfo->npes; ++p) {
+      /* read into buffer */
+      for(idx_t n=0; n < target_nnz; ++n) {
+        if((ret = fscanf(fin, "%d", &(parts[n]))) == 0) {
+          fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n",
+              pfname);
+          exit(1);
+        }
+      }
+      MPI_Send(parts, target_nnz, MPI_INT, p, 0, rinfo->comm_3d);
+    }
+
+    /* now read my own part info */
+    for(idx_t n=0; n < ttbuf->nnz; ++n) {
+      if((ret = fscanf(fin, "%d", &(parts[n]))) == 0) {
+        fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n",
+            pfname);
+        exit(1);
+      }
+    }
+    fclose(fin);
+  } else {
+    /* receive part info */
+    MPI_Recv(parts, ttbuf->nnz, MPI_INT, 0, 0, rinfo->comm_3d,
+        &(rinfo->status));
+  }
+  return parts;
+}
+
+
+static sptensor_t * p_rearrange_fine(
+  sptensor_t * const ttbuf,
+  char const * const pfname,
+  idx_t * * ssizes,
+  rank_info * const rinfo)
+{
+  /* first distribute partitioning information */
+  int * parts = p_distribute_parts(ttbuf, pfname, rinfo);
+
+  /* count how many to send to each process */
+  int * nsend = (int *) calloc(rinfo->npes, sizeof(int));
+  int * nrecv = (int *) calloc(rinfo->npes, sizeof(int));
+  for(idx_t n=0; n < ttbuf->nnz; ++n) {
+    nsend[parts[n]] += 1;
+  }
+  MPI_Alltoall(nsend, 1, MPI_INT, nrecv, 1, MPI_INT, rinfo->comm_3d);
+
+  idx_t send_total = 0;
+  idx_t recv_total = 0;
+  for(int p=0; p < rinfo->npes; ++p) {
+    send_total += nsend[p];
+    recv_total += nrecv[p];
+  }
+  assert(send_total = ttbuf->nnz);
+
+  /* how many nonzeros I'll own */
+  idx_t nowned = recv_total;
+
+  int * send_disp = (int *) malloc((rinfo->npes+1) * sizeof(int));
+  int * recv_disp = (int *) malloc((rinfo->npes+1) * sizeof(int));
+
+  /* recv_disp is const so we'll just fill it out once */
+  recv_disp[0] = 0;
+  for(int p=1; p <= rinfo->npes; ++p) {
+    recv_disp[p] = recv_disp[p-1] + nrecv[p-1];
+  }
+
+  /* allocate my tensor and send buffer */
+  sptensor_t * tt = tt_alloc(nowned, rinfo->nmodes);
+  idx_t * isend_buf = (idx_t *) malloc(ttbuf->nnz * sizeof(idx_t));
+
+  /* rearrange into sendbuf and send one mode at a time */
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+    /* prefix sum to make disps */
+    send_disp[0] = send_disp[1] = 0;
+    for(int p=2; p <= rinfo->npes; ++p) {
+      send_disp[p] = send_disp[p-1] + nsend[p-2];
+    }
+
+    idx_t const * const ind = ttbuf->ind[m];
+    for(idx_t n=0; n < ttbuf->nnz; ++n) {
+      idx_t const index = send_disp[parts[n]+1]++;
+      isend_buf[index] = ind[n];
+    }
+
+    /* exchange indices */
+    MPI_Alltoallv(isend_buf, nsend, send_disp, SPLATT_MPI_IDX,
+                  tt->ind[m], nrecv, recv_disp, SPLATT_MPI_IDX,
+                  rinfo->comm_3d);
+  }
+  free(isend_buf);
+
+  /* lastly, rearrange vals */
+  val_t * vsend_buf = (val_t *) malloc(ttbuf->nnz * sizeof(val_t));
+  send_disp[0] = send_disp[1] = 0;
+  for(int p=2; p <= rinfo->npes; ++p) {
+    send_disp[p] = send_disp[p-1] + nsend[p-2];
+  }
+
+  val_t const * const vals = ttbuf->vals;
+  for(idx_t n=0; n < ttbuf->nnz; ++n) {
+    idx_t const index = send_disp[parts[n]+1]++;
+    vsend_buf[index] = vals[n];
+  }
+  /* exchange vals */
+  MPI_Alltoallv(vsend_buf, nsend, send_disp, SPLATT_MPI_VAL,
+                tt->vals,  nrecv, recv_disp, SPLATT_MPI_VAL,
+                rinfo->comm_3d);
+  free(vsend_buf);
+
+  free(nsend);
+  free(nrecv);
+  free(send_disp);
+  free(recv_disp);
+  free(parts);
+
+  return tt;
+}
 
 
 /**
@@ -421,79 +639,29 @@ static sptensor_t * p_read_tt_3d(
 }
 
 
-
 /**
 * @brief Count the nonzeros in each slice of X.
 *
-* @param fname The filename containing nonzeros.
+* @param tt My subtensor.
 * @param ssizes A 2D array for counting slice 'sizes'.
-* @param nmodes The number of modes in X.
 * @param rinfo MPI information (containing global dims, nnz, etc.).
 */
 static void p_fill_ssizes(
-  char const * const fname,
+  sptensor_t const * const tt,
   idx_t ** const ssizes,
-  idx_t const nmodes,
   rank_info const * const rinfo)
 {
-  int const rank = rinfo->rank;
-  int const size = rinfo->npes;
-
-  idx_t const nnz = rinfo->global_nnz;
-  idx_t const * const dims = rinfo->global_dims;
-
-  /* compute start/end nnz for counting */
-  idx_t const start = rank * nnz / size;
-  idx_t end = (rank + 1) * nnz / size;
-  if(end > nnz) {
-    end = nnz;
-  }
-
-  char * ptr = NULL;
-  char * line = NULL;
-  ssize_t read;
-  size_t len = 0;
-
-  /* skip to start */
-  idx_t nlines = 0;
-  FILE * fin = open_f(fname, "r");
-  while(nlines < start && (read = getline(&line, &len, fin)) != -1) {
-    if(read > 1 && line[0] != '#') {
-      ++nlines;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    idx_t const * const ind = tt->ind[m];
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      ssizes[m][ind[n]] += 1;
     }
-  }
 
-  /* start filling ssizes */
-  while(nlines < end && (read = getline(&line, &len, fin)) != -1) {
-    /* skip empty and commented lines */
-    if(read > 1 && line[0] != '#') {
-      ++nlines;
-      ptr = line;
-      for(idx_t m=0; m < nmodes; ++m) {
-        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
-        ssizes[m][ind] += 1;
-      }
-      /* skip over tensor val */
-      strtod(ptr, &ptr);
-    }
-  }
-  fclose(fin);
-
-  free(line);
-
-  /* reduce to get total slice counts */
-  for(idx_t m=0; m < nmodes; ++m) {
-    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) dims[m], SPLATT_MPI_IDX, MPI_SUM,
-        MPI_COMM_WORLD);
-
-    idx_t count = 0;
-    for(idx_t i=0; i < dims[m]; ++i) {
-      count += ssizes[m][i];
-    }
-    assert(count == nnz);
+    /* reduce to get total slice counts */
+    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) rinfo->global_dims[m],
+        SPLATT_MPI_IDX, MPI_SUM, rinfo->comm_3d);
   }
 }
-
 
 
 /**
@@ -616,7 +784,7 @@ static void p_get_best_mpi_dim(
   int * primes = p_get_primes(rinfo->npes, &nprimes);
 
   idx_t total_size = 0;
-  for(idx_t m=0; m < rinfo->distribution; ++m) {
+  for(idx_t m=0; m < rinfo->nmodes; ++m) {
     total_size += rinfo->global_dims[m];
 
     /* reset mpi dims */
@@ -630,7 +798,7 @@ static void p_get_best_mpi_dim(
   for(int p = nprimes-1; p >= 0; --p) {
     int furthest = 0;
     /* find dim furthest from target */
-    for(idx_t m=0; m < rinfo->distribution; ++m) {
+    for(idx_t m=0; m < rinfo->nmodes; ++m) {
       /* distance is current - target */
       diffs[m] = (rinfo->global_dims[m] / rinfo->dims_3d[m]) - target;
       if(diffs[m] > diffs[furthest]) {
@@ -652,6 +820,7 @@ static void p_get_best_mpi_dim(
 
 sptensor_t * mpi_tt_read(
   char const * const ifname,
+  char const * const pfname,
   rank_info * const rinfo)
 {
   timer_start(&timers[TIMER_IO]);
@@ -667,8 +836,8 @@ sptensor_t * mpi_tt_read(
   rinfo->nmodes = nmodes;
 
   /* first compute MPI dimension if not specified by the user */
-  if(rinfo->distribution == DEFAULT_MPI_DISTRIBUTION) {
-    rinfo->distribution = nmodes;
+  if(rinfo->decomp == DEFAULT_MPI_DISTRIBUTION) {
+    rinfo->decomp = SPLATT_DECOMP_MEDIUM;
     p_get_best_mpi_dim(rinfo);
   }
 
@@ -679,12 +848,14 @@ sptensor_t * mpi_tt_read(
     ssizes[m] = (idx_t *) calloc(rinfo->global_dims[m], sizeof(idx_t));
   }
 
-  p_fill_ssizes(ifname, ssizes, nmodes, rinfo);
+  /* first naively distribute tensor nonzeros for analysis */
+  sptensor_t * ttbuf = mpi_simple_distribute(ifname, rinfo->comm_3d);
+  p_fill_ssizes(ttbuf, ssizes, rinfo);
 
   /* actually parse tensor */
   sptensor_t * tt = NULL;
-  switch(rinfo->distribution) {
-  case 1:
+  switch(rinfo->decomp) {
+  case SPLATT_DECOMP_COARSE:
     tt = p_read_tt_1d(ifname, ssizes, nmodes, rinfo);
     /* now fix tt->dims */
     for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -695,7 +866,7 @@ sptensor_t * mpi_tt_read(
     }
     break;
 
-  case 3:
+  case SPLATT_DECOMP_MEDIUM:
     tt = p_read_tt_3d(ifname, ssizes, nmodes, rinfo);
     /* now map tensor indices to local (layer) coordinates and fill in dims */
     for(idx_t m=0; m < nmodes; ++m) {
@@ -708,10 +879,19 @@ sptensor_t * mpi_tt_read(
       }
     }
     break;
+
+  case SPLATT_DECOMP_FINE:
+    tt = p_rearrange_fine(ttbuf, pfname, ssizes, rinfo);
+    /* now fix tt->dims */
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      tt->dims[m] = rinfo->global_dims[m];
+      rinfo->layer_ends[m] = tt->dims[m];
+    }
+    break;
   }
 
+  tt_free(ttbuf);
   timer_stop(&timers[TIMER_IO]);
-
   return tt;
 }
 
@@ -920,4 +1100,74 @@ void mpi_write_part(
   }
   fclose(fout);
 }
+
+
+sptensor_t * mpi_simple_distribute(
+  char const * const ifname,
+  MPI_Comm comm)
+{
+  int rank, npes;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &npes);
+
+  idx_t dims[MAX_NMODES];
+  idx_t global_nnz;
+  idx_t nmodes;
+
+  FILE * fin = NULL;
+  if(rank == 0) {
+    fin = open_f(ifname, "r");
+    /* send dimension info */
+    tt_get_dims(fin, &nmodes, &global_nnz, dims);
+    rewind(fin);
+    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
+    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
+  } else {
+    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
+    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
+  }
+
+  /* compute my even chunk of nonzeros -- root rank gets the extra amount */
+  idx_t const target_nnz = global_nnz / npes;
+  idx_t my_nnz = target_nnz;
+  if(rank == 0) {
+    my_nnz = global_nnz - ((npes-1) * my_nnz);
+  }
+
+  sptensor_t * tt = NULL;
+
+  /* read/send all chunks */
+  if(rank == 0) {
+    sptensor_t * tt_buf = tt_alloc(target_nnz, nmodes);
+
+    /* now send to everyone else */
+    for(int p=1; p < npes; ++p) {
+      p_fill_tt_nnz(fin, tt_buf, target_nnz);
+      for(idx_t m=0; m < tt_buf->nmodes;  ++m) {
+        MPI_Send(tt_buf->ind[m], target_nnz, SPLATT_MPI_IDX, p, m, comm);
+      }
+      MPI_Send(tt_buf->vals, target_nnz, SPLATT_MPI_VAL, p, nmodes, comm);
+    }
+    tt_free(tt_buf);
+
+    /* load my own */
+    tt = tt_alloc(my_nnz, nmodes);
+    p_fill_tt_nnz(fin, tt, my_nnz);
+
+    fclose(fin);
+
+  } else {
+    MPI_Status status;
+
+    /* receive my chunk */
+    tt = tt_alloc(my_nnz, nmodes);
+    for(idx_t m=0; m < tt->nmodes;  ++m) {
+      MPI_Recv(tt->ind[m], my_nnz, SPLATT_MPI_IDX, 0, m, comm, &status);
+    }
+    MPI_Recv(tt->vals, my_nnz, SPLATT_MPI_VAL, 0, nmodes, comm, &status);
+  }
+
+  return tt;
+}
+
 

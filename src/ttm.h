@@ -17,10 +17,10 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-#define ttm_csf splatt_ttm_csf
+#define ttmc_csf splatt_ttmc_csf
 /**
-* @brief Tensor times Matrix (TTM). Multiplices a sparse tensor in CSF form
-*        by all matrices except one.
+* @brief Tensor times Matrix (TTM) chain. Multiplies a sparse tensor in CSF
+*        form by all matrices except one.
 *
 *        ** NOTE **
 *
@@ -38,7 +38,7 @@
 * @param thds Thread structures.
 * @param opts SPLATT options. This uses SPLATT_OPTION_CSF_ALLOC.
 */
-void ttm_csf(
+void ttmc_csf(
     splatt_csf const * const tensors,
     matrix_t ** mats,
     val_t * const tenout,
@@ -47,13 +47,35 @@ void ttm_csf(
     double const * const opts);
 
 
-void ttm_stream(
+#define ttmc_stream splatt_ttmc_stream
+/**
+* @brief Tensor times Matrix (TTM) chain. Multiplies a sparse tensor in
+*        coordinate form by all matrices except one.
+*
+*        ** NOTE **
+*
+*        The output is a tensor has dimensions (dims[mode] x ncolumns[0] x ...)
+*        The original dimension is placed first, contrary to the behavior of
+*        Tensor Toolbox and other software packages. This makes the data layout
+*        'automatically' the unfolded tensor for the proceeding SVD calculation
+*        during Tucker factorization.
+*
+*
+* @param tensors The coordinate tensor to use.
+* @param mats The input matrices.
+* @param tenout The output tensor.
+* @param mode Which mode we are computing for.
+* @param opts SPLATT options.
+*/
+void ttmc_stream(
     sptensor_t const * const tt,
     matrix_t ** mats,
     val_t * const tenout,
     idx_t const mode,
     double const * const opts);
 
+
+#define tenout_dim splatt_tenout_dim
 /**
 * @brief Compute the maximum needed size of tenout. The max size is based on
 *        performing TTM on any mode.
@@ -68,9 +90,6 @@ idx_t tenout_dim(
     idx_t const nmodes,
     idx_t const * const nfactors,
     idx_t const * const dims);
-
-
-
 
 
 #endif

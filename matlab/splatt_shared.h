@@ -18,7 +18,7 @@
 *
 * @return A pointer to mxstruct.fieldname.
 */
-static uint64_t * __get_uint64_data(
+static uint64_t * p_get_uint64_data(
     mxArray const * const mxstruct,
     char const * const field)
 {
@@ -34,11 +34,28 @@ static uint64_t * __get_uint64_data(
 *
 * @return A pointer to mxstruct.fieldname.
 */
-static double * __get_double_data(
+static double * p_get_double_data(
     mxArray const * const mxstruct,
     char const * const field)
 {
   return (double *) mxGetData(mxGetField(mxstruct, 0, field));
+}
+
+
+/**
+* @brief Extract a int pointer from a Matlab struct, given a string
+*        fieldname.
+*
+* @param mxstruct The Matlab struct.
+* @param field The field to extract.
+*
+* @return A pointer to mxstruct.fieldname.
+*/
+static int * p_get_int_data(
+    mxArray const * const mxstruct,
+    char const * const field)
+{
+  return (int *) mxGetData(mxGetField(mxstruct, 0, field));
 }
 
 
@@ -50,7 +67,7 @@ static double * __get_double_data(
 * @param len The number of elements.
 * @param vals The values to copy in.
 */
-static void __mk_int32(
+static void p_mk_int32(
     mxArray * const mxstruct,
     char const * const field,
     splatt_idx_t const len,
@@ -58,7 +75,7 @@ static void __mk_int32(
 {
   mxSetField(mxstruct, 0, field,
       mxCreateNumericMatrix(1, len, mxINT32_CLASS, mxREAL));
-  memcpy(__get_uint64_data(mxstruct, field), vals, len * sizeof(int32_t));
+  memcpy(p_get_uint64_data(mxstruct, field), vals, len * sizeof(int32_t));
 }
 
 
@@ -70,7 +87,7 @@ static void __mk_int32(
 * @param len The number of elements.
 * @param vals The values to copy in.
 */
-static void __mk_uint64(
+static void p_mk_uint64(
     mxArray * const mxstruct,
     char const * const field,
     splatt_idx_t const len,
@@ -78,7 +95,7 @@ static void __mk_uint64(
 {
   mxSetField(mxstruct, 0, field,
       mxCreateNumericMatrix(1, len, mxUINT64_CLASS, mxREAL));
-  memcpy(__get_uint64_data(mxstruct, field), vals, len * sizeof(uint64_t));
+  memcpy(p_get_uint64_data(mxstruct, field), vals, len * sizeof(uint64_t));
 }
 
 
@@ -90,7 +107,7 @@ static void __mk_uint64(
 * @param len The number of elements.
 * @param vals The values to copy in.
 */
-static void __mk_double(
+static void p_mk_double(
     mxArray * const mxstruct,
     char const * const field,
     splatt_idx_t const len,
@@ -98,7 +115,7 @@ static void __mk_double(
 {
   mxSetField(mxstruct, 0, field,
       mxCreateDoubleMatrix(1, len, mxREAL));
-  memcpy(__get_uint64_data(mxstruct, field), vals, len * sizeof(double));
+  memcpy(p_get_uint64_data(mxstruct, field), vals, len * sizeof(double));
 }
 
 /******************************************************************************
@@ -121,7 +138,7 @@ static splattlab_option_t option_names[] =
 };
 
 
-static void __parse_opts(
+static void p_parse_opts(
     mxArray const * const opts,
     double * const cpd_opts)
 {
@@ -159,9 +176,9 @@ static void __parse_opts(
 * @param nmodes A point to to be set specifying the number of found modes.
 * @param cpd_opts SPLATT options array.
 *
-* @return An array of splatt_csf_t tensors.
+* @return An array of splatt_csf tensors.
 */
-static splatt_csf_t * __convert_sptensor(
+static splatt_csf * p_convert_sptensor(
     mxArray const * const mat_inds,
     mxArray const * const mat_vals,
     splatt_idx_t * const nmodes,
@@ -176,7 +193,7 @@ static splatt_csf_t * __convert_sptensor(
 
   /* allocate extra tensor for re-arranging */
   splatt_val_t * vals = (splatt_val_t *) mxMalloc(nnz * sizeof(splatt_val_t));
-  splatt_idx_t * inds[MAX_NMODES];
+  splatt_idx_t * inds[SPLATT_MAX_NMODES];
   for(m=0; m < *nmodes; ++m) {
     inds[m] = (splatt_idx_t *) mxMalloc(nnz * sizeof(splatt_idx_t));
   }
@@ -194,7 +211,7 @@ static splatt_csf_t * __convert_sptensor(
     vals[n] = (splatt_val_t) mxvals[n];
   }
 
-  splatt_csf_t * tt;
+  splatt_csf * tt;
   splatt_csf_convert(*nmodes, nnz, inds, vals, &tt, cpd_opts);
 
   for(m=0; m < *nmodes; ++m) {
@@ -206,47 +223,98 @@ static splatt_csf_t * __convert_sptensor(
 }
 
 
-static splatt_csf_t * __unpack_csf_cell(
+/**
+* @brief Convert an mxArray to splatt_csf.
+*
+* @param cell The cell array to convert.
+* @param[out] outnmodes The number of modes in the tensor.
+*
+* @return The CSF tensor, unpacked.
+*/
+static splatt_csf * p_unpack_csf_cell(
     mxArray const * const cell,
     splatt_idx_t * outnmodes)
 {
-  splatt_idx_t m;
-  splatt_csf_t * tt = NULL;
-  splatt_idx_t nmodes = (splatt_idx_t) mxGetNumberOfElements(cell);
+  splatt_idx_t t, i, tile;
+  splatt_csf * csf = NULL;
+  splatt_idx_t ntensors = (splatt_idx_t) mxGetNumberOfElements(cell);
 
-  tt = (splatt_csf_t *) mxMalloc(nmodes * sizeof(splatt_csf_t));
+  csf = (splatt_csf *) mxMalloc(ntensors * sizeof(*csf));
 
-  for(m=0; m < nmodes; ++m) {
-    mxArray const * const curr = mxGetCell(cell, m);
+  for(t=0; t < ntensors; ++t) {
+    mxArray const * const curr = mxGetCell(cell, t);
 
-    tt[m].nmodes = nmodes;
-    tt[m].nnz = *(__get_uint64_data(curr, "nnz"));
-    memcpy(tt[m].dims, __get_uint64_data(curr, "dims"),
+    csf[t].nnz = *(p_get_uint64_data(curr, "nnz"));
+    csf[t].nmodes = *(p_get_uint64_data(curr, "nmodes"));
+
+    splatt_idx_t const nmodes = csf[t].nmodes;
+
+    memcpy(csf[t].dims, p_get_uint64_data(curr, "dims"),
         nmodes * sizeof(uint64_t));
-    memcpy(tt[m].dim_perm, __get_uint64_data(curr, "dim_perm"),
+    memcpy(csf[t].dim_perm, p_get_uint64_data(curr, "dim_perm"),
         nmodes * sizeof(uint64_t));
-    tt[m].nslcs = *(__get_uint64_data(curr, "nslcs"));
-    tt[m].nfibs = *(__get_uint64_data(curr, "nfibs"));
-    tt[m].sptr = __get_uint64_data(curr, "sptr");
-    tt[m].fptr = __get_uint64_data(curr, "fptr");
-    tt[m].fids = __get_uint64_data(curr, "fids");
-    tt[m].inds = __get_uint64_data(curr, "inds");
-    tt[m].vals = __get_double_data(curr, "vals");
+    memcpy(&(csf[t].which_tile), p_get_int_data(curr, "which_tile"),
+        sizeof(splatt_tile_type));
+    memcpy(&(csf[t].ntiles), p_get_uint64_data(curr, "ntiles"),
+        sizeof(uint64_t));
+    memcpy(csf[t].tile_dims, p_get_uint64_data(curr, "tile_dims"),
+        nmodes * sizeof(uint64_t));
 
-    if(*__get_uint64_data(curr, "has_indmap") == 1) {
-      tt[m].indmap = __get_uint64_data(curr, "indmap");
-    }
+    /* allocate sparsity patterns */
+    csf[t].pt = (csf_sparsity *)mxMalloc(csf[t].ntiles * sizeof(csf_sparsity));
 
-    tt[m].tiled = (int) *(__get_uint64_data(curr, "tiled"));
-    if(tt[m].tiled != SPLATT_NOTILE) {
-      tt[m].nslabs = *(__get_uint64_data(curr, "nslabs"));
-      tt[m].slabptr = __get_uint64_data(curr, "slabptr");
-      tt[m].sids = __get_uint64_data(curr, "sids");
-    }
-  }
+    /* extract each tile */
+    mxArray const * const pts = mxGetField(curr, 0, "pt");
+    for(tile=0; tile < csf[t].ntiles; ++tile) {
+      csf_sparsity * pt = csf[t].pt + tile;
+      mxArray const * const curr_tile = mxGetCell(pts, tile);
 
-  *outnmodes = nmodes;
-  return tt;
+      memcpy(pt->nfibs, p_get_uint64_data(curr_tile, "nfibs"),
+          nmodes * sizeof(uint64_t));
+      /* check for empty tile */
+      if(pt->nfibs[nmodes-1] == 0) {
+        pt->vals = NULL;
+
+        splatt_idx_t m;
+        for(m=0; m < nmodes; ++m) {
+          pt->fptr[m] = NULL;
+          pt->fids[m] = NULL;
+        }
+        /* first fptr may be accessed anyway */
+        pt->fptr[0] = (splatt_idx_t *) malloc(2 * sizeof(**(pt->fptr)));
+        pt->fptr[0][0] = 0;
+        pt->fptr[0][1] = 0;
+
+        continue;
+      }
+
+      pt->vals = p_get_double_data(curr_tile, "vals");
+
+      /* figure out which fids[*] exist */
+      int32_t has_fids[SPLATT_MAX_NMODES];
+      memcpy(has_fids, mxGetData(mxGetField(curr_tile, 0, "has_fids")),
+          nmodes * sizeof(int32_t));
+
+      /* grab fptr/fids */
+      mxArray const * const mxfptr = mxGetField(curr_tile, 0, "fptr");
+      splatt_idx_t m;
+      for(m=0; m < nmodes-1; ++m) {
+        pt->fptr[m] = mxGetData(mxGetCell(mxfptr, m));
+      }
+
+      mxArray const * const mxfids = mxGetField(curr_tile, 0, "fids");
+      for(m=0; m < nmodes; ++m) {
+        if(has_fids[m]) {
+          pt->fids[m] = mxGetData(mxGetCell(mxfids, m));
+        } else {
+          pt->fids[m] = NULL;
+        }
+      }
+    } /* foreach tile */
+  } /* foreach tensor */
+
+  *outnmodes = csf->nmodes;
+  return csf;
 }
 
 
@@ -266,13 +334,13 @@ static splatt_csf_t * __unpack_csf_cell(
 *
 * @return A list of CSF tensors.
 */
-static splatt_csf_t * __parse_tensor(
+static splatt_csf * p_parse_tensor(
     int const nargs,
     mxArray const * const args[],
     splatt_idx_t * nmodes,
     double const * const cpd_opts)
 {
-  splatt_csf_t * tt = NULL;
+  splatt_csf * tt = NULL;
   if(nargs < 1) {
     mexErrMsgTxt("Missing arguments. See 'help splatt_load' for usage.\n");
     return NULL;
@@ -283,9 +351,9 @@ static splatt_csf_t * __parse_tensor(
     splatt_csf_load(fname, nmodes, &tt, cpd_opts);
     mxFree(fname);
   } else if(nargs > 1 && mxIsNumeric(args[0]) && mxIsNumeric(args[1])) {
-    tt = __convert_sptensor(args[0], args[1], nmodes, cpd_opts);
+    tt = p_convert_sptensor(args[0], args[1], nmodes, cpd_opts);
   } else if(mxIsCell(args[0])) {
-    tt = __unpack_csf_cell(args[0], nmodes);
+    tt = p_unpack_csf_cell(args[0], nmodes);
   } else {
     mexErrMsgTxt("Invalid tensor format. See 'help splatt_load' for usage.\n");
     return NULL;
@@ -304,16 +372,17 @@ static splatt_csf_t * __parse_tensor(
 * @param nmodes The number of modes in the tensor.
 * @param tt The tensor to free.
 */
-static void __free_tensor(
+static void p_free_tensor(
     int const nargs,
     mxArray const * const args[],
-    splatt_idx_t const nmodes,
-    splatt_csf_t * tt)
+    splatt_csf * tt,
+    double const * const splatt_opts)
 {
   if(mxIsChar(args[0])) {
-    splatt_free_csf(nmodes, tt);
+    splatt_free_csf(tt, splatt_opts);
   } else if(nargs > 1 && mxIsNumeric(args[0]) && mxIsNumeric(args[1])) {
-    splatt_free_csf(nmodes, tt);
+    splatt_free_csf(tt, splatt_opts);
+    mexPrintf("correct\n");
   } else if(mxIsCell(args[0])) {
     /* pointer is mxMalloc'ed, we don't have to do anything */
   } else {

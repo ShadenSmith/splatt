@@ -32,6 +32,7 @@ static struct argp_option cpd_options[] = {
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
                                  "(default: 3)"},
+  {"partition", 'p', "FILE", 0, "MPI: partitioning for fine-grained"},
   { 0 }
 };
 
@@ -42,8 +43,9 @@ typedef struct
   int write;       /** do we write output to file? */
   double * opts;   /** splatt_cpd options */
   idx_t nfactors;
-  int distribution;
+  splatt_decomp_type decomp;
   int mpi_dims[MAX_NMODES];
+  char * pfname;   /** file that we read the partitioning from */
 } cpd_cmd_args;
 
 
@@ -57,10 +59,11 @@ static void default_cpd_opts(
 {
   args->opts = splatt_default_opts();
   args->ifname    = NULL;
+  args->pfname    = NULL;
   args->write     = DEFAULT_WRITE;
   args->nfactors  = DEFAULT_NFACTORS;
 
-  args->distribution = DEFAULT_MPI_DISTRIBUTION;
+  args->decomp = DEFAULT_MPI_DISTRIBUTION;
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     args->mpi_dims[m] = 1;
   }
@@ -105,12 +108,27 @@ static error_t parse_cpd_opt(
     args->nfactors = atoi(arg);
     break;
   case 'd':
+    /* fine-grained decomp */
+    if(arg[0] == 'f') {
+      args->opts[SPLATT_OPTION_DECOMP] = SPLATT_DECOMP_FINE;
+      args->decomp = SPLATT_DECOMP_FINE;
+      break;
+    }
     buf = strtok(arg, "x");
     while(buf != NULL) {
       args->mpi_dims[cnt++] = atoi(buf);
       buf = strtok(NULL, "x");
     }
-    args->distribution = cnt;
+    if(cnt == 1) {
+      args->opts[SPLATT_OPTION_DECOMP] = SPLATT_DECOMP_COARSE;
+      args->decomp = SPLATT_DECOMP_COARSE;
+    } else {
+      args->decomp = SPLATT_DECOMP_MEDIUM;
+    }
+    break;
+
+  case 'p':
+    args->pfname = arg;
     break;
 
   case ARGP_KEY_ARG:
@@ -154,8 +172,8 @@ void splatt_mpi_cpd_cmd(
   MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
   MPI_Comm_size(MPI_COMM_WORLD, &rinfo.npes);
 
-  rinfo.distribution = args.distribution;
-  for(int d=0; d < args.distribution; ++d) {
+  rinfo.decomp = args.decomp;
+  for(int d=0; d < MAX_NMODES; ++d) {
     rinfo.dims_3d[d] = SS_MAX(args.mpi_dims[d], 1);
   }
 
@@ -163,12 +181,12 @@ void splatt_mpi_cpd_cmd(
     print_header();
   }
 
-  tt = mpi_tt_read(args.ifname, &rinfo);
+  tt = mpi_tt_read(args.ifname, args.pfname, &rinfo);
 
   /* In the default setting, mpi_tt_read will set rinfo distribution.
    * Copy that back into args. TODO: make this less dumb. */
-  args.distribution = rinfo.distribution;
-  for(int m=0; m < args.distribution; ++m) {
+  args.decomp = rinfo.decomp;
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
     args.mpi_dims[m] = rinfo.dims_3d[m];
   }
 
@@ -178,11 +196,11 @@ void splatt_mpi_cpd_cmd(
   }
 
   /* determine matrix distribution - this also calls tt_remove_empty() */
-  permutation_t * perm = mpi_distribute_mats(&rinfo, tt, rinfo.distribution);
+  permutation_t * perm = mpi_distribute_mats(&rinfo, tt, rinfo.decomp);
 
-  /* 1D and 2D distributions require filtering because tt has nonzeros that
+  /* 1D distributions require filtering because tt has nonzeros that
    * don't belong in each ftensor */
-  if(rinfo.distribution == 1) {
+  if(rinfo.decomp == SPLATT_DECOMP_COARSE) {
     /* XXX  TODO */
     csf = malloc(tt->nmodes * sizeof(*csf));
     /* compress tensor to own local coordinate system */
@@ -254,7 +272,7 @@ void splatt_mpi_cpd_cmd(
      * to have the full dimensionality
      * */
     idx_t dim = csf->dims[m];
-    if(rinfo.distribution == 1) {
+    if(rinfo.decomp == SPLATT_DECOMP_COARSE) {
       dim = csf[(m+1)%nmodes].dims[m];
     }
     max_dim = SS_MAX(max_dim, dim);

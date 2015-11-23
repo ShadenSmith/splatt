@@ -22,6 +22,9 @@ double * splatt_default_opts(void)
   opts[SPLATT_OPTION_TILE]      = SPLATT_NOTILE;
   opts[SPLATT_OPTION_TILEDEPTH] = 1;
 
+  opts[SPLATT_OPTION_DECOMP] = SPLATT_DECOMP_MEDIUM;
+  opts[SPLATT_OPTION_COMM]   = SPLATT_COMM_ALL2ALL;
+
   if(omp_in_parallel()) {
     opts[SPLATT_OPTION_NTHREADS]  = 1;
   } else {

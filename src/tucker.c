@@ -68,7 +68,7 @@ int splatt_tucker_als(
       timer_fstart(&modetime[m]);
 
       timer_start(&timers[TIMER_TTM]);
-      ttm_csf(tensors, mats, gten, m, thds, options);
+      ttmc_csf(tensors, mats, gten, m, thds, options);
       timer_stop(&timers[TIMER_TTM]);
 
       timer_stop(&modetime[m]);
