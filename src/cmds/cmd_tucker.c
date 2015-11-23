@@ -150,18 +150,6 @@ void splatt_tucker_cmd(
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
 
-  /* print Tucker stats? */
-  if(which_verb >= SPLATT_VERBOSITY_LOW) {
-    printf("Factoring "
-           "------------------------------------------------------\n");
-    printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
-        args.nfactors,
-        (idx_t) args.opts[SPLATT_OPTION_NITER],
-        args.opts[SPLATT_OPTION_TOLERANCE]);
-    printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) args.opts[SPLATT_OPTION_NTHREADS]);
-    printf("TILE=NO\n");
-  }
-
   splatt_tucker_t out;
   splatt_tucker_als(nfactors, nmodes, csf, args.opts, &out);
 
