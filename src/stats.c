@@ -285,7 +285,7 @@ void cpd_stats(
 
   char * fstorage = bytes_str(fbytes);
   char * mstorage = bytes_str(mbytes);
-  printf("STORAGE: CSF=%s FACTOR=%s", fstorage, mstorage);
+  printf("STORAGE: CSF=%s FACTORS=%s", fstorage, mstorage);
   free(fstorage);
   free(mstorage);
   printf("\n\n");
@@ -365,7 +365,7 @@ void tucker_stats(
   char * mstorage = bytes_str(mbytes);
   char * cstorage = bytes_str(cbytes);
   char * tstorage = bytes_str(tbytes);
-  printf("STORAGE: CSF=%s FACTOR=%s CORE=%s TTMC=%s",
+  printf("STORAGE: CSF=%s FACTORS=%s CORE=%s TTMC=%s",
       fstorage, mstorage, cstorage, tstorage);
   free(fstorage);
   free(mstorage);
@@ -456,7 +456,7 @@ void mpi_cpd_stats(
 
   char * fstorage = bytes_str(fbytes);
   char * mstorage = bytes_str(mbytes);
-  printf("STORAGE: CSF=%s FACTOR=%s", fstorage, mstorage);
+  printf("STORAGE: CSF=%s FACTORS=%s", fstorage, mstorage);
   free(fstorage);
   free(mstorage);
   printf("\n\n");
