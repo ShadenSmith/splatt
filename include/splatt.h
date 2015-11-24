@@ -463,6 +463,10 @@ int splatt_mttkrp(
 
 
 #ifdef SPLATT_USE_MPI
+/*
+ * TODO: There is currently no MPI support for factorization. That is due in
+ *       version 1.2.x.
+ */
 
 /**
 * @brief Read a tensor from a file, distribute among an MPI communicator, and
@@ -510,6 +514,7 @@ int splatt_mpi_coord_load(
     double const * const options,
     MPI_Comm comm);
 #endif
+
 
 #ifdef __cplusplus
 }

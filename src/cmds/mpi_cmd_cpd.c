@@ -30,9 +30,14 @@ static struct argp_option cpd_options[] = {
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
-  {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
-                                 "(default: 3)"},
-  {"partition", 'p', "FILE", 0, "MPI: partitioning for fine-grained"},
+  {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution. "
+                                 "Medium-grained decomposition is the default,"
+                                 " and SPLATT will determine a good dimension.\n"
+                                 "\t-d 1 to use coarse-grained\n"
+                                 "\t-d IxJxK to specify medium-grained (default)\n"
+                                 "\t-d f to use fine-grained (-p required)\n"
+                                 },
+  {"partition", 'p', "FILE", 0, "MPI: partitioning file for fine-grained"},
   { 0 }
 };
 

@@ -24,7 +24,6 @@ typedef struct
 
 /******************************************************************************
  * PUBLIC STRUCTURES
-    
  *****************************************************************************/
 
 /**
@@ -319,7 +318,7 @@ void mpi_filter_tt_1d(
 * @param rinfo MPI structure containing rank and communicator information.
 * @param tt A partition of the tensor. NOTE: indices will be reordered after
 *           distribution to ensure contiguous matrix partitions.
-* @param distribution The dimension of the distribution to perform (1-3).
+* @param distribution The dimension of the distribution to perform.
 *
 * @return The permutation that was applied to tt.
 */
