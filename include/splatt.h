@@ -76,7 +76,7 @@
  * VERSION
  *****************************************************************************/
 #define SPLATT_VER_MAJOR     1
-#define SPLATT_VER_MINOR     0
+#define SPLATT_VER_MINOR     1
 #define SPLATT_VER_SUBMINOR  0
 
 

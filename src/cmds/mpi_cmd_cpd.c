@@ -178,7 +178,7 @@ void splatt_mpi_cpd_cmd(
   MPI_Comm_size(MPI_COMM_WORLD, &rinfo.npes);
 
   rinfo.decomp = args.decomp;
-  for(int d=0; d < MAX_NMODES; ++d) {
+  for(idx_t d=0; d < MAX_NMODES; ++d) {
     rinfo.dims_3d[d] = SS_MAX(args.mpi_dims[d], 1);
   }
 
