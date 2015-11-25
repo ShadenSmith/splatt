@@ -29,6 +29,7 @@ static char const * const timer_names[] = {
   [TIMER_MATMUL]    = "MAT MULT",
   [TIMER_ATA]       = "MAT A^TA",
   [TIMER_MATNORM]   = "MAT NORM",
+  [TIMER_SVD]       = "SVD",
   [TIMER_MISC]      = "MISC",
 #ifdef SPLATT_USE_MPI
   [TIMER_MPI]           = "MPI",

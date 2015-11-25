@@ -309,7 +309,7 @@ typedef struct splatt_csf
  *****************************************************************************/
 
 #ifdef __cplusplus
-extern 'C' {
+extern "C" {
 #endif
 
 /*

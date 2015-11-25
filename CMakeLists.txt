@@ -47,6 +47,11 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 endif()
 
+# Eigen3 support
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/scripts)
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIR})
+
 # check for MT-Metis support
 if (DEFINED USE_MTMETIS)
   message("Building with MT-Metis support.")
@@ -100,9 +105,11 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
 endif()
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_C_FLAGS}")
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-file(GLOB SPLATT_SOURCES src/*.c ${MPI_SOURCES})
+file(GLOB SPLATT_SOURCES src/*.c  src/*.cc ${MPI_SOURCES})
 
 # Generate splatt library
 add_subdirectory(lib)

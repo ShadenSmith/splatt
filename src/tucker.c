@@ -14,6 +14,8 @@
 #include "util.h"
 #include "ttm.h"
 
+#include "svd.h"
+
 #include <omp.h>
 
 /******************************************************************************
@@ -71,10 +73,23 @@ int splatt_tucker_als(
       ttmc_csf(tensors, mats, gten, m, thds, options);
       timer_stop(&timers[TIMER_TTM]);
 
+      /* find the truncated SVD of the TTMc output */
+      idx_t ncols = 1;
+      for(idx_t m2=0; m2 < tensors->nmodes; ++m2) {
+        if(m2 != m) {
+          ncols *= nfactors[m];
+        }
+      }
+      left_singulars(gten, mats[m]->vals, mats[m]->I, ncols, mats[m]->J);
+
       timer_stop(&modetime[m]);
     }
 
     timer_stop(&itertime);
+
+    /* compute core */
+
+    /* check for convergence */
 
     /* print progress */
     if(options[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
@@ -87,7 +102,8 @@ int splatt_tucker_als(
         }
       }
     }
-  }
+
+  } /* foreach iteration */
 
   /* cleanup */
   free(gten);
