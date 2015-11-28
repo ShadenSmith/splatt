@@ -17,6 +17,17 @@ EXTERNC void left_singulars(
     idx_t const ncols,
     idx_t const rank);
 
+#define make_core splatt_make_core
+EXTERNC void make_core(
+    val_t * ttmc,
+    val_t * lastmat,
+    val_t * core,
+    idx_t const nmodes,
+    idx_t const mode,
+    idx_t const * const nfactors,
+    idx_t const nlongrows);
+
+
 #undef EXTERNC
 
 #endif

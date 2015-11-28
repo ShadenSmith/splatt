@@ -14,9 +14,11 @@
 #include "util.h"
 #include "ttm.h"
 
+#include "tucker.h"
 #include "svd.h"
 
 #include <omp.h>
+#include <math.h>
 
 /******************************************************************************
  * API FUNCTIONS
@@ -29,8 +31,6 @@ int splatt_tucker_als(
     splatt_tucker_t * factored)
 {
   matrix_t * mats[MAX_NMODES+1];
-
-  idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
 
   /* fill in factored */
   idx_t maxcols = 0;
@@ -46,70 +46,18 @@ int splatt_tucker_als(
   }
   factored->core = (val_t *) calloc(csize, sizeof(val_t));
 
-  idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
-  val_t * gten = malloc(tenout_size * sizeof(*gten));
+  rank_info rinfo;
+  rinfo.rank = 0;
 
-  /* thread structures */
-  omp_set_num_threads(nthreads);
-  thd_info * thds =  thd_init(nthreads, 1,
-    (maxcols * sizeof(val_t)) + 64);
-
-  sp_timer_t itertime;
-  sp_timer_t modetime[MAX_NMODES];
-
-  double oldfit = 0;
-  double fit = 0;
-
-  /* foreach iteration */
-  idx_t const niters = (idx_t) options[SPLATT_OPTION_NITER];
-  for(idx_t it=0; it < niters; ++it) {
-    timer_fstart(&itertime);
-
-    /* foreach mode */
-    for(idx_t m=0; m < nmodes; ++m) {
-      timer_fstart(&modetime[m]);
-
-      timer_start(&timers[TIMER_TTM]);
-      ttmc_csf(tensors, mats, gten, m, thds, options);
-      timer_stop(&timers[TIMER_TTM]);
-
-      /* find the truncated SVD of the TTMc output */
-      idx_t ncols = 1;
-      for(idx_t m2=0; m2 < tensors->nmodes; ++m2) {
-        if(m2 != m) {
-          ncols *= nfactors[m];
-        }
-      }
-      left_singulars(gten, mats[m]->vals, mats[m]->I, ncols, mats[m]->J);
-
-      timer_stop(&modetime[m]);
-    }
-
-    timer_stop(&itertime);
-
-    /* compute core */
-
-    /* check for convergence */
-
-    /* print progress */
-    if(options[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
-      printf("  its = %3"SPLATT_PF_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.4e\n",
-          it+1, itertime.seconds, fit, fit - oldfit);
-      if(options[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_LOW) {
-        for(idx_t m=0; m < nmodes; ++m) {
-          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs)\n", m+1,
-              modetime[m].seconds);
-        }
-      }
-    }
-
-  } /* foreach iteration */
+  /* compute the factorization */
+  tucker_hooi_iterate(tensors, mats, factored->core, nfactors, &rinfo,
+      options);
 
   /* cleanup */
-  free(gten);
   for(idx_t m=0; m < nmodes; ++m) {
-    free(mats[m]);
+    free(mats[m]); /* just delete the pointer */
   }
+
   return SPLATT_SUCCESS;
 }
 
@@ -127,4 +75,148 @@ void splatt_free_tucker(
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+
+/**
+* @brief Compute the number of columns in the TTMc output for all modes. The
+*        total core tensor size also is written to ncols[nmodes].
+*
+* @param nfactors The rank of the decomposition in each mode.
+* @param nmodes The number of modes.
+* @param[out] ncols ncols[m] stores the number of columns in the output of the
+*                   mode-m TTMc.
+*/
+static void p_compute_ncols(
+    idx_t const * const nfactors,
+    idx_t const nmodes,
+    idx_t * const ncols)
+{
+  /* initialize */
+  for(idx_t m=0; m <= nmodes; ++m) {
+    ncols[m] = 1;
+  }
+
+  /* fill in all modes, plus ncols[nmodes] which stores core size */
+  for(idx_t m=0; m <= nmodes; ++m) {
+    for(idx_t moff=0; moff < nmodes; ++moff) {
+      /* skip the mode we are computing */
+      if(moff != m) {
+        ncols[m] *= nfactors[moff];
+      }
+    }
+  }
+}
+
+
+
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
+
+double tucker_calc_fit(
+    val_t const * const core,
+    idx_t const core_size,
+    val_t const ttnormsq)
+{
+  timer_start(&timers[TIMER_FIT]);
+
+  val_t gnormsq = 0;
+  for(idx_t x=0; x < core_size; ++x) {
+    gnormsq += core[x] * core[x];
+  }
+
+  double const residual = sqrt(ttnormsq - gnormsq);
+  double fit = 1 - (residual / sqrt((double)ttnormsq));
+
+  timer_stop(&timers[TIMER_FIT]);
+
+  return fit;
+}
+
+
+double tucker_hooi_iterate(
+    splatt_csf const * const tensors,
+    matrix_t ** mats,
+    val_t * const core,
+    idx_t const * const nfactors,
+    rank_info * const rinfo,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+
+  /* allocate the TTMc output */
+  idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
+  val_t * gten = malloc(tenout_size * sizeof(*gten));
+
+  /* find # columns for each TTMc and output core */
+  idx_t ncols[MAX_NMODES+1];
+  p_compute_ncols(nfactors, nmodes, ncols);
+  idx_t const maxcols = ncols[argmax_elem(ncols, nmodes)];
+
+  /* thread structures */
+  idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
+  omp_set_num_threads(nthreads);
+  thd_info * thds =  thd_init(nthreads, 1,
+    (maxcols * sizeof(val_t)) + 64);
+
+  sp_timer_t itertime;
+  sp_timer_t modetime[MAX_NMODES];
+
+  double oldfit = 0;
+  double fit = 0;
+
+  val_t const ttnormsq = csf_frobsq(tensors);
+
+  /* foreach iteration */
+  idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
+  for(idx_t it=0; it < niters; ++it) {
+    timer_fstart(&itertime);
+
+    /* foreach mode */
+    for(idx_t m=0; m < nmodes; ++m) {
+      timer_fstart(&modetime[m]);
+
+      timer_start(&timers[TIMER_TTM]);
+      ttmc_csf(tensors, mats, gten, m, thds, opts);
+      timer_stop(&timers[TIMER_TTM]);
+
+      /* find the truncated SVD of the TTMc output */
+      left_singulars(gten, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
+
+      timer_stop(&modetime[m]);
+    }
+    timer_stop(&itertime);
+
+    /* compute core */
+    make_core(gten, mats[nmodes-1]->vals, core, nmodes, nmodes-1, nfactors,
+        tensors->dims[nmodes-1]);
+
+    /* check for convergence */
+    fit = tucker_calc_fit(core, ncols[nmodes], ttnormsq);
+
+    /* print progress */
+    if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
+      printf("  its = %3"SPLATT_PF_IDX" (%0.3fs)  fit = %0.5f  delta = %+0.4e\n",
+          it+1, itertime.seconds, fit, fit - oldfit);
+      if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_LOW) {
+        for(idx_t m=0; m < nmodes; ++m) {
+          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs)\n", m+1,
+              modetime[m].seconds);
+        }
+      }
+    }
+    if(it > 0 && fabs(fit - oldfit) < opts[SPLATT_OPTION_TOLERANCE]) {
+      break;
+    }
+    oldfit = fit;
+
+  } /* foreach iteration */
+
+  free(gten);
+  thd_free(thds, nthreads);
+
+  return fit;
+}
+
 

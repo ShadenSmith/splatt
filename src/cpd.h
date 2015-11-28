@@ -21,8 +21,8 @@
 * @brief The primary computation in CPD-ALS. API functions call this one.
 *
 * @param tensors The CSF tensor(s) to factor.
-* @param mats [OUT] The output factors.
-* @param lambda [OUT] The output vector for scaling.
+* @param[out] mats The output factors.
+* @param[out] lambda The output vector for scaling.
 * @param nfactors The rank of the factorization.
 * @param rinfo MPI rank information (not used, TODO remove).
 * @param opts SPLATT options array.
@@ -47,8 +47,8 @@ double cpd_als_iterate(
 *
 * @param nfactors The rank of the decomposition.
 * @param nmodes The number of modes of the tensor.
-* @param mats [OUT] The output factors.
-* @param lambda [OUT] The output vector for scaling.
+* @param[out] mats The output factors.
+* @param[out] lambda The output vector for scaling.
 * @param thds Thread buffers.
 * @param nthreads The number of threads to use.
 * @param rinfo MPI rank information (not used, TODO remove).
