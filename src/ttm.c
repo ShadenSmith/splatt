@@ -162,8 +162,6 @@ static void p_csf_ttm_root(
   int const tid = omp_get_thread_num();
   val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
 
-  int const swap_vecs = (csf->dim_perm[2] < csf->dim_perm[1]);
-
   /* foreach slice */
   idx_t const nslices = csf->pt[tile_id].nfibs[0];
   #pragma omp for schedule(dynamic, 16) nowait
@@ -193,12 +191,7 @@ static void p_csf_ttm_root(
 
       /* accumulate outer product into tenout */
       val_t const * const restrict av = avals  + (fids[f] * rankA);
-
-      if(!swap_vecs) {
-        p_twovec_outer_prod(av, rankA, accumF, rankB, outv);
-      } else {
-        p_twovec_outer_prod(accumF, rankB, av, rankA, outv);
-      }
+      p_twovec_outer_prod(av, rankA, accumF, rankB, outv);
     }
   }
 }

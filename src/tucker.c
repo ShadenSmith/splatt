@@ -46,12 +46,8 @@ int splatt_tucker_als(
   }
   factored->core = (val_t *) calloc(csize, sizeof(val_t));
 
-  rank_info rinfo;
-  rinfo.rank = 0;
-
   /* compute the factorization */
-  tucker_hooi_iterate(tensors, mats, factored->core, nfactors, &rinfo,
-      options);
+  tucker_hooi_iterate(tensors, mats, factored->core, nfactors, options);
 
   /* cleanup */
   for(idx_t m=0; m < nmodes; ++m) {
@@ -108,6 +104,43 @@ static void p_compute_ncols(
 }
 
 
+/**
+* @brief Fill an array with the mode permutation used to compute a Tucker core.
+*
+* @param tensors The CSF tensor.
+* @param[out] perm The permutation array to fill.
+* @param opts The options used to allocate 'tensors'
+*/
+static void p_fill_core_perm(
+    splatt_csf const * const tensors,
+    idx_t * const perm,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+
+  splatt_csf_type const which = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which) {
+  case SPLATT_CSF_ONEMODE:
+    memcpy(perm, tensors[0].dim_perm, nmodes * sizeof(*perm));
+    break;
+
+  case SPLATT_CSF_TWOMODE:
+    memcpy(perm, tensors[1].dim_perm, nmodes * sizeof(*perm));
+    break;
+
+  case SPLATT_CSF_ALLMODE:
+    memcpy(perm, tensors[nmodes-1].dim_perm, nmodes * sizeof(*perm));
+    break;
+
+  default:
+    /* XXX */
+    fprintf(stderr, "SPLATT: splatt_csf_type %d not recognized.\n", which);
+    break;
+  }
+}
+
+
+
 
 
 /******************************************************************************
@@ -140,7 +173,6 @@ double tucker_hooi_iterate(
     matrix_t ** mats,
     val_t * const core,
     idx_t const * const nfactors,
-    rank_info * const rinfo,
     double const * const opts)
 {
   idx_t const nmodes = tensors->nmodes;
@@ -216,7 +248,51 @@ double tucker_hooi_iterate(
   free(gten);
   thd_free(thds, nthreads);
 
+  permute_core(tensors, core, nfactors, opts);
+
   return fit;
+}
+
+
+void permute_core(
+    splatt_csf const * const tensors,
+    val_t * const core,
+    idx_t const * const nfactors,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+  idx_t ncols[MAX_NMODES+1];
+  p_compute_ncols(nfactors, nmodes, ncols);
+
+  idx_t perm[MAX_NMODES];
+  p_fill_core_perm(tensors, perm, opts);
+
+  val_t * newcore = malloc(ncols[nmodes] * sizeof(*newcore));
+
+  idx_t ind[MAX_NMODES];
+  for(idx_t x=0; x < ncols[nmodes]; ++x) {
+    /* translate x into ind */
+    idx_t id = x;
+    for(idx_t m=nmodes; m-- != 0; ){
+      ind[m] = id % nfactors[m];
+      id /= nfactors[m];
+    }
+
+    /* translate ind into an index into core */
+    idx_t mult = ncols[nmodes-1];
+    idx_t translated = mult * ind[perm[0]];
+    for(idx_t m=1; m < nmodes; ++m) {
+      mult /= nfactors[perm[m]];
+      translated += mult * ind[perm[m]];
+    }
+
+    /* now copy */
+    newcore[x] = core[translated];
+  }
+
+  /* copy permuted core into old core */
+  memcpy(core, newcore, ncols[nmodes] * sizeof(*core));
+  free(newcore);
 }
 
 

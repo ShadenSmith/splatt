@@ -24,19 +24,24 @@
 * @param[out] mats The output factors.
 * @param[out] core The output core tensor.
 * @param nfactors The rank of the factorization.
-* @param rinfo MPI rank information (not used, TODO remove).
 * @param opts SPLATT options array.
 *
 * @return The final fitness of the factorization.
 */
 double tucker_hooi_iterate(
-  splatt_csf const * const tensors,
-  matrix_t ** mats,
-  val_t * const core,
-  idx_t const * const nfactors,
-  rank_info * const rinfo,
-  double const * const opts);
+    splatt_csf const * const tensors,
+    matrix_t ** mats,
+    val_t * const core,
+    idx_t const * const nfactors,
+    double const * const opts);
 
+
+#define permute_core splatt_permute_core
+void permute_core(
+    splatt_csf const * const tensors,
+    val_t * const core,
+    idx_t const * const nfactors,
+    double const * const opts);
 
 
 #endif

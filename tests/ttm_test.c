@@ -4,6 +4,8 @@
 #include "../src/thd_info.h"
 #include "../src/io.h"
 #include "../src/util.h"
+#include "../src/svd.h"
+#include "../src/tucker.h"
 
 #include "ctest/ctest.h"
 
@@ -32,23 +34,94 @@ static void p_compare_vecs(
 }
 
 
+static void p_csf_core(
+    double const * const opts,
+    sptensor_t * tt,
+    matrix_t ** mats,
+    idx_t const * const nfactors)
+{
+  idx_t const nmodes = tt->nmodes;
+
+  thd_info * thds = thd_init(opts[SPLATT_OPTION_NTHREADS], 1,
+      nfactors[argmax_elem(nfactors, nmodes)] * sizeof(val_t) + 64);
+
+  /* tenout allocations */
+  idx_t const outdim = tenout_dim(nmodes, nfactors, tt->dims);
+  val_t * gold = calloc(outdim , sizeof(*gold));
+  val_t * test = calloc(outdim , sizeof(*test));
+
+  /* core allocations */
+  idx_t core_size = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    core_size *= nfactors[m];
+  }
+  val_t * gold_core = calloc(core_size, sizeof(*gold_core));
+  val_t * test_core = calloc(core_size, sizeof(*test_core));
+
+  splatt_csf * csf = csf_alloc(tt, opts);
+
+  /* compute gold, always with first mode for core ordering */
+  ttmc_stream(tt, mats, gold, 0, opts);
+  make_core(gold, mats[0]->vals, gold_core, nmodes, 0,
+      nfactors, tt->dims[0]);
+
+  /* compute CSF test */
+  ttmc_csf(csf, mats, test, nmodes-1, thds, opts);
+  make_core(test, mats[nmodes-1]->vals, test_core, nmodes, nmodes-1,
+      nfactors, csf->dims[nmodes-1]);
+  permute_core(csf, test_core, nfactors, opts);
+
+  /* compare */
+  p_compare_vecs(test_core, gold_core, core_size, core_size);
+
+  csf_free(csf, opts);
+  thd_free(thds, opts[SPLATT_OPTION_NTHREADS]);
+  free(gold);
+  free(test);
+}
+
+
 static void p_csf_ttm(
     double const * const opts,
     sptensor_t * tt,
     matrix_t ** mats,
     idx_t const * const nfactors)
 {
+  idx_t const nmodes = tt->nmodes;
+
   thd_info * thds = thd_init(opts[SPLATT_OPTION_NTHREADS], 1,
-      nfactors[argmax_elem(nfactors, tt->nmodes)] * sizeof(val_t) + 64);
+      nfactors[argmax_elem(nfactors, nmodes)] * sizeof(val_t) + 64);
 
   /* tenout allocations */
-  idx_t const outdim = tenout_dim(tt->nmodes, nfactors, tt->dims);
+  idx_t const outdim = tenout_dim(nmodes, nfactors, tt->dims);
   val_t * gold = calloc(outdim , sizeof(*gold));
   val_t * test = calloc(outdim , sizeof(*test));
 
   splatt_csf * csf = csf_alloc(tt, opts);
+  idx_t perm[MAX_NMODES];
 
-  for(idx_t m=0; m < tt->nmodes; ++m) {
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* XXX only test when dim_perm is sorted, because columns in tenout will be
+     * permuted otherwise */
+    splatt_csf_type const which = opts[SPLATT_OPTION_CSF_ALLOC];
+    switch(which) {
+    case SPLATT_CSF_ALLMODE:
+      memcpy(perm, csf[m].dim_perm, nmodes * sizeof(*perm));
+      for(idx_t mtest=2; mtest < nmodes; ++mtest) {
+        /* skip if out of order */
+        if(perm[mtest] < perm[mtest-1]) {
+          return;
+        }
+      }
+      break;
+
+    default:
+      /* XXX */
+      fprintf(stderr, "SPLATT: splatt_csf_type %d not supported.\n", which);
+      ASSERT_FAIL();
+      break;
+    }
+
     /* compute gold */
     ttmc_stream(tt, mats, gold, m, opts);
 
@@ -146,5 +219,22 @@ CTEST2(ttm, csf_all_notile_3mode)
   }
 }
 
+CTEST2(ttm, rearrange_core)
+{
+  idx_t const nthreads = 7;
+
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
+  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+
+  for(idx_t i=0; i < data->ntensors; ++i) {
+    sptensor_t * tt = data->tensors[i];
+
+    if(tt->nmodes == 3) {
+      p_csf_core(opts, tt, data->mats[i], data->nfactors);
+    }
+  }
+}
 
 
