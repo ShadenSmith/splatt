@@ -200,6 +200,14 @@ double tucker_hooi_iterate(
 
   val_t const ttnormsq = csf_frobsq(tensors);
 
+  idx_t largest[MAX_NMODES];
+  ttmc_largest_outer(tensors, largest, opts);
+  printf("largest:");
+  for(idx_t m=0; m < nmodes; ++m) {
+    printf(" %lu", largest[m]);
+  }
+  printf("\n\n");
+
   /* foreach iteration */
   idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
   for(idx_t it=0; it < niters; ++it) {

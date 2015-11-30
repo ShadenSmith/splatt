@@ -327,6 +327,34 @@ void ttmc_stream(
 }
 
 
+void ttmc_largest_outer(
+    splatt_csf const * const tensors,
+    idx_t * const outer_sizes,
+    double const * const opts)
+{
+  idx_t const ntensors = csf_ntensors(tensors, opts);
+  idx_t const nmodes = tensors->nmodes;
+
+  memset(outer_sizes, 0, nmodes * sizeof(*outer_sizes));
+
+  for(idx_t t=0; t < ntensors; ++t) {
+    splatt_csf const * const csf = &(tensors[t]);
+    idx_t const ntiles = csf->ntiles;
+
+    for(idx_t tile=0; tile < ntiles; ++tile) {
+      for(idx_t m=0; m < nmodes-2; ++m) {
+        idx_t const madj = csf->dim_perm[m];
+        idx_t const * const fptr = csf->pt[tile].fptr[m];
+        idx_t const nfibs = csf->pt[tile].nfibs[m];
+
+        for(idx_t f=0; f < nfibs; ++f) {
+          outer_sizes[madj] = SS_MAX(outer_sizes[madj], fptr[f+1] - fptr[f]);
+        }
+      }
+    }
+  }
+}
+
 
 idx_t tenout_dim(
     idx_t const nmodes,

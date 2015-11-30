@@ -593,19 +593,7 @@ void csf_free(
   splatt_csf * const csf,
   double const * const opts)
 {
-  idx_t ntensors = 0;
-  splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
-  switch(which) {
-  case SPLATT_CSF_ONEMODE:
-    ntensors = 1;
-    break;
-  case SPLATT_CSF_TWOMODE:
-    ntensors = 2;
-    break;
-  case SPLATT_CSF_ALLMODE:
-    ntensors = csf[0].nmodes;
-    break;
-  }
+  idx_t const ntensors = csf_ntensors(csf, opts);
 
   for(idx_t i=0; i < ntensors; ++i) {
     csf_free_mode(csf + i);
@@ -630,6 +618,35 @@ void csf_free_mode(
   free(csf->pt);
 }
 
+
+idx_t csf_ntensors(
+    splatt_csf const * const tensors,
+    double const * const opts)
+{
+  idx_t ntensors = 0;
+  splatt_csf_type const which = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which) {
+  case SPLATT_CSF_ONEMODE:
+    ntensors = 1;
+    break;
+
+  case SPLATT_CSF_TWOMODE:
+    ntensors = 2;
+    break;
+
+  case SPLATT_CSF_ALLMODE:
+    ntensors = tensors->nmodes;
+    break;
+
+  default:
+    /* XXX */
+    fprintf(stderr, "not supported yet\n");
+    break;
+  }
+
+  assert(ntensors > 0);
+  return ntensors;
+}
 
 
 void csf_find_mode_order(
@@ -667,19 +684,7 @@ size_t csf_storage(
   splatt_csf const * const tensors,
   double const * const opts)
 {
-  idx_t ntensors = 0;
-  splatt_csf_type which_alloc = opts[SPLATT_OPTION_CSF_ALLOC];
-  switch(which_alloc) {
-  case SPLATT_CSF_ONEMODE:
-    ntensors = 1;
-    break;
-  case SPLATT_CSF_TWOMODE:
-    ntensors = 2;
-    break;
-  case SPLATT_CSF_ALLMODE:
-    ntensors = tensors[0].nmodes;
-    break;
-  }
+  idx_t const ntensors = csf_ntensors(tensors, opts);
 
   size_t bytes = 0;
   for(idx_t m=0; m < ntensors; ++m) {

@@ -75,6 +75,23 @@ void ttmc_stream(
     double const * const opts);
 
 
+#define ttmc_largest_outer splatt_ttmc_largest_outer
+/**
+* @brief Fill 'outer_sizes' with the largest outer product (# vectors) that
+*        is needed during TTMc, for each mode. This is equivalent to the
+*        largest number of children that any node has.
+*
+* @param tensors The CSF tensor(s) to analyze.
+* @param[out] outer_sizes An array to fill with the maximum # of outer products
+*             per mode.
+* @param opts SPLATT options.
+*/
+void ttmc_largest_outer(
+    splatt_csf const * const tensors,
+    idx_t * const outer_sizes,
+    double const * const opts);
+
+
 #define tenout_dim splatt_tenout_dim
 /**
 * @brief Compute the maximum needed size of tenout. The max size is based on

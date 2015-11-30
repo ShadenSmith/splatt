@@ -88,6 +88,21 @@ void csf_free(
 void csf_free_mode(
     splatt_csf * const csf);
 
+
+
+/**
+* @brief Return the number of tensors allocated.
+*
+* @param tensors The allocated tensor(s).
+* @param opts The options during allocation.
+*
+* @return The number of tensors.
+*/
+idx_t csf_ntensors(
+    splatt_csf const * const tensors,
+    double const * const opts);
+
+
 #define csf_storage splatt_csf_storage
 /**
 * @brief Compute the number of bytes requiredto store a tensor.
