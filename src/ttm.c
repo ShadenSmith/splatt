@@ -9,7 +9,9 @@
 
 #include <omp.h>
 
+#ifdef SPLATT_USE_CBLAS
 #include <cblas.h>
+#endif
 
 
 /******************************************************************************
