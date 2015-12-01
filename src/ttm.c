@@ -6,11 +6,12 @@
 #include "ttm.h"
 #include "thd_info.h"
 #include "tile.h"
+#include "util.h"
 
 #include <omp.h>
 
 #ifdef SPLATT_USE_CBLAS
-#include <cblas.h>
+#include SPLATT_STRFY(SPLATT_CBLAS_INCLUDE)
 #endif
 
 
