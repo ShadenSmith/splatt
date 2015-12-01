@@ -52,7 +52,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/scripts)
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
-#find_package(CBLAS)
+find_package(CBLAS)
 if( CBLAS_FOUND )
   add_definitions(-DSPLATT_USE_CBLAS=1)
   add_definitions(-DSPLATT_CBLAS_INCLUDE=${CBLAS_INCLUDE_FILE})
