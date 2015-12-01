@@ -10,10 +10,6 @@
 
 #include <omp.h>
 
-#ifdef SPLATT_USE_CBLAS
-#include SPLATT_STRFY(SPLATT_CBLAS_INCLUDE)
-#endif
-
 
 /******************************************************************************
  * API FUNCTIONS
@@ -114,13 +110,22 @@ static inline void p_twovec_outer_prod_tiled(
     idx_t const nfibers,
     val_t * const restrict out)
 {
-#ifdef SPLATT_USE_CBLAS
-	cblas_dgemm(
-      CblasColMajor, CblasNoTrans, CblasTrans, /* transposes */
-      ncol_accums, ncol_fids, nfibers,         /* dimensions */
-      1., accums_buf, ncol_accums,             /* A */
-      fids_buf, ncol_fids, 1.,                 /* B */
-      out, ncol_accums);                       /* C */
+#ifdef SPLATT_USE_BLAS
+  double alpha = 1.;
+  double beta = 1.;
+  char transA = 'N';
+  char transB = 'T';
+  int M = ncol_accums;
+  int N = ncol_fids;
+  int K = nfibers;
+	dgemm_(
+      &transA, &transB, /* transposes */
+      &M, &N, &K,       /* dimensions */
+      &alpha,
+      accums_buf, &M,   /* A */
+      fids_buf, &N,     /* B */
+      &beta, out, &M);  /* C */
+
 #else
   /* (slow) summation of outer products */
   for(idx_t f=0; f < nfibers; ++f) {
