@@ -52,6 +52,14 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/scripts)
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
+find_package(CBLAS)
+if( CBLAS_FOUND )
+  add_definitions(-DSPLATT_USE_CBLAS=1)
+  include_directories(${CBLAS_INCLUDE_DIR})
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${CBLAS_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${CBLAS_LINKER_FLAGS}")
+endif()
+
 # check for MT-Metis support
 if (DEFINED USE_MTMETIS)
   message("Building with MT-Metis support.")

@@ -42,9 +42,6 @@ static void p_csf_core(
 {
   idx_t const nmodes = tt->nmodes;
 
-  thd_info * thds = thd_init(opts[SPLATT_OPTION_NTHREADS], 1,
-      nfactors[argmax_elem(nfactors, nmodes)] * sizeof(val_t) + 64);
-
   /* tenout allocations */
   idx_t const outdim = tenout_dim(nmodes, nfactors, tt->dims);
   val_t * gold = calloc(outdim , sizeof(*gold));
@@ -59,6 +56,8 @@ static void p_csf_core(
   val_t * test_core = calloc(core_size, sizeof(*test_core));
 
   splatt_csf * csf = csf_alloc(tt, opts);
+  thd_info * thds =  tucker_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
+      nfactors, opts);
 
   /* compute gold, always with first mode for core ordering */
   ttmc_stream(tt, mats, gold, 0, opts);
@@ -89,9 +88,6 @@ static void p_csf_ttm(
 {
   idx_t const nmodes = tt->nmodes;
 
-  thd_info * thds = thd_init(opts[SPLATT_OPTION_NTHREADS], 1,
-      nfactors[argmax_elem(nfactors, nmodes)] * sizeof(val_t) + 64);
-
   /* tenout allocations */
   idx_t const outdim = tenout_dim(nmodes, nfactors, tt->dims);
   val_t * gold = calloc(outdim , sizeof(*gold));
@@ -99,6 +95,9 @@ static void p_csf_ttm(
 
   splatt_csf * csf = csf_alloc(tt, opts);
   idx_t perm[MAX_NMODES];
+
+  thd_info * thds =  tucker_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
+      nfactors, opts);
 
   for(idx_t m=0; m < nmodes; ++m) {
     /* XXX only test when dim_perm is sorted, because columns in tenout will be

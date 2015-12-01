@@ -6,7 +6,10 @@
 #include "ttm.h"
 #include "thd_info.h"
 #include "tile.h"
+
 #include <omp.h>
+
+#include <cblas.h>
 
 
 /******************************************************************************
@@ -37,19 +40,13 @@ int splatt_ttmc(
     maxcols = SS_MAX(maxcols, ncolumns[m]);
   }
 
-  printf("extracted\n");
-
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
   idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
   omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 1,
     (maxcols * sizeof(val_t)) + 64);
 
-  printf("thread\n");
-
   ttmc_csf(tensors, mats, tenout, mode, thds, options);
-
-  printf("cleanup\n");
 
   /* cleanup */
   thd_free(thds, nthreads);
@@ -74,7 +71,7 @@ int splatt_ttmc(
 * @param nA The number of elements in rowA.
 * @param rowB The second row vector.
 * @param nB The number of elements in rowB.
-* @param out The output matrix which is (nA x nB).
+* @param[out] out The output matrix which is (nA x nB).
 */
 static inline void p_twovec_outer_prod(
     val_t const * const restrict rowA,
@@ -90,6 +87,46 @@ static inline void p_twovec_outer_prod(
       orow[j] += ival * rowB[j];
     }
   }
+}
+
+
+/**
+* @brief Compute C = A * B^T, where A is a column-major matrix of the gathered
+*        rows related to fiber ids. B is a column-major matrix of the
+*        accumulated nonzero values.
+*
+* @param fids_buf The gathered rows of the factor matrix (from fiber ids).
+* @param ncol_fids The number of columns in the gathered rows, or the number of
+*                  rows in the column-major matrix.
+* @param accums_buf The accumulated nonzero contributions.
+* @param ncol_accums The number of columns in the accumulation.
+* @param nfibers The number of total fibers (outer products) to work on.
+* @param[out] out The output matrix, which is (ncol_fids x ncol_accums).
+*/
+static inline void p_twovec_outer_prod_tiled(
+    val_t const * const restrict fids_buf,
+    idx_t const ncol_fids,
+    val_t const * const restrict accums_buf,
+    idx_t const ncol_accums,
+    idx_t const nfibers,
+    val_t * const restrict out)
+{
+#ifdef SPLATT_USE_CBLAS
+	cblas_dgemm(
+      CblasColMajor, CblasNoTrans, CblasTrans, /* transposes */
+      ncol_accums, ncol_fids, nfibers,         /* dimensions */
+      1., accums_buf, ncol_accums,             /* A */
+      fids_buf, ncol_fids, 1.,                 /* B */
+      out, ncol_accums);                       /* C */
+#else
+  /* (slow) summation of outer products */
+  for(idx_t f=0; f < nfibers; ++f) {
+    val_t const * const restrict rowA = fids_buf + (f * ncol_fids);
+    val_t const * const restrict rowB = accums_buf + (f * ncol_accums);
+
+    p_twovec_outer_prod(rowA, ncol_fids, rowB, ncol_accums, out);
+  }
+#endif
 }
 
 
@@ -160,7 +197,12 @@ static void p_csf_ttm_root(
   val_t const * const bvals = B->vals;
 
   int const tid = omp_get_thread_num();
-  val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
+  val_t * const restrict accum_nnz_raw = (val_t *) thds[tid].scratch[0];
+
+  /* tiled outer products */
+  idx_t naccum;
+  idx_t * const accum_fids  = thds[tid].scratch[1];
+  val_t * const accum_oprod = thds[tid].scratch[2];
 
   /* foreach slice */
   idx_t const nslices = csf->pt[tile_id].nfibs[0];
@@ -170,14 +212,19 @@ static void p_csf_ttm_root(
 
     val_t * const restrict outv = tenout + (fid * rankA * rankB);
 
+    naccum = 0;
+
     /* foreach fiber in slice */
     for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
-      /* first entry of the fiber is used to initialize accumF */
+      /* grab nnz accumulation buffer */
+      val_t * const restrict accum_nnz = accum_nnz_raw + (naccum * rankB);
+
+      /* first entry of the fiber is used to initialize accum_nnz */
       idx_t const jjfirst  = fptr[f];
       val_t const vfirst   = vals[jjfirst];
       val_t const * const restrict bv = bvals + (inds[jjfirst] * rankB);
       for(idx_t r=0; r < rankB; ++r) {
-        accumF[r] = vfirst * bv[r];
+        accum_nnz[r] = vfirst * bv[r];
       }
 
       /* foreach nnz in fiber */
@@ -185,15 +232,27 @@ static void p_csf_ttm_root(
         val_t const v = vals[jj];
         val_t const * const restrict bv = bvals + (inds[jj] * rankB);
         for(idx_t r=0; r < rankB; ++r) {
-          accumF[r] += v * bv[r];
+          accum_nnz[r] += v * bv[r];
         }
       }
 
       /* accumulate outer product into tenout */
-      val_t const * const restrict av = avals  + (fids[f] * rankA);
-      p_twovec_outer_prod(av, rankA, accumF, rankB, outv);
+      accum_fids[naccum++] = fids[f];
+    } /* foreach fiber */
+
+    /* OUTER PRODUCTS */
+
+    /* gather rows into accum_oprod */
+    for(idx_t r=0; r < naccum; ++r) {
+      memcpy(accum_oprod + (r * rankA), avals + (accum_fids[r] * rankA),
+          rankA * sizeof(*accum_oprod));
     }
-  }
+
+    /* tiled outer product */
+    p_twovec_outer_prod_tiled(accum_oprod, rankA, accum_nnz_raw, rankB, naccum,
+        outv);
+
+  } /* foreach outer slice */
 }
 
 
@@ -342,6 +401,7 @@ void ttmc_largest_outer(
     idx_t const ntiles = csf->ntiles;
 
     for(idx_t tile=0; tile < ntiles; ++tile) {
+      /* don't count mode above nnz; they accumulate instead of oprod */
       for(idx_t m=0; m < nmodes-2; ++m) {
         idx_t const madj = csf->dim_perm[m];
         idx_t const * const fptr = csf->pt[tile].fptr[m];

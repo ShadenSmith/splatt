@@ -37,11 +37,37 @@ double tucker_hooi_iterate(
 
 
 #define permute_core splatt_permute_core
+/**
+* @brief Permute the dense core output from tucker_hooi_iterate. Permutation
+*        is necessary because of the mode ordering done during CSF allocation.
+*
+* @param tensors The CSF tensor(s) used.
+* @param core The core to permute.
+* @param nfactors The ranks of the decomposition.
+* @param opts The options used during allocation/factorization.
+*/
 void permute_core(
     splatt_csf const * const tensors,
     val_t * const core,
     idx_t const * const nfactors,
     double const * const opts);
 
+
+#define tucker_alloc_thds splatt_tucker_alloc_thds
+/**
+* @brief Allocate threads structures used in the Tucker decomposition.
+*
+* @param nthreads The number of threads to allocate.
+* @param tensors The CSF tensor(s).
+* @param nfactors The ranks of the decomposition.
+* @param opts The options used during CSF allocation.
+*
+* @return Thread structures.
+*/
+thd_info * tucker_alloc_thds(
+    idx_t const nthreads,
+    splatt_csf const * const tensors,
+    idx_t const * const nfactors,
+    double const * const opts);
 
 #endif

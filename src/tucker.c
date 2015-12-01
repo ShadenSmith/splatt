@@ -1,4 +1,3 @@
-
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
@@ -168,6 +167,36 @@ double tucker_calc_fit(
 }
 
 
+thd_info * tucker_alloc_thds(
+    idx_t const nthreads,
+    splatt_csf const * const tensors,
+    idx_t const * const nfactors,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+
+  /* find largest number of fibers we need to accumulate */
+  idx_t largest_nfibs[MAX_NMODES];
+  ttmc_largest_outer(tensors, largest_nfibs, opts);
+  idx_t const largest = largest_nfibs[argmax_elem(largest_nfibs, nmodes)];
+
+  /* find # columns for each TTMc and output core */
+  idx_t ncols[MAX_NMODES+1];
+  p_compute_ncols(nfactors, nmodes, ncols);
+  idx_t const maxcols = ncols[argmax_elem(ncols, nmodes)];
+
+  thd_info * thds =  thd_init(nthreads, 3,
+    /* nnz accumulation */
+    (largest * maxcols * sizeof(val_t)) + 64,
+    /* fids */
+    (largest * sizeof(idx_t)) + 64,
+    /* actual rows corresponding to fids */
+    (tenout_dim(nmodes, nfactors, largest_nfibs) * sizeof(val_t)) + 64);
+
+  return thds;
+}
+
+
 double tucker_hooi_iterate(
     splatt_csf const * const tensors,
     matrix_t ** mats,
@@ -184,13 +213,11 @@ double tucker_hooi_iterate(
   /* find # columns for each TTMc and output core */
   idx_t ncols[MAX_NMODES+1];
   p_compute_ncols(nfactors, nmodes, ncols);
-  idx_t const maxcols = ncols[argmax_elem(ncols, nmodes)];
 
   /* thread structures */
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
   omp_set_num_threads(nthreads);
-  thd_info * thds =  thd_init(nthreads, 1,
-    (maxcols * sizeof(val_t)) + 64);
+  thd_info * thds =  tucker_alloc_thds(nthreads, tensors, nfactors, opts);
 
   sp_timer_t itertime;
   sp_timer_t modetime[MAX_NMODES];
@@ -199,14 +226,6 @@ double tucker_hooi_iterate(
   double fit = 0;
 
   val_t const ttnormsq = csf_frobsq(tensors);
-
-  idx_t largest[MAX_NMODES];
-  ttmc_largest_outer(tensors, largest, opts);
-  printf("largest:");
-  for(idx_t m=0; m < nmodes; ++m) {
-    printf(" %lu", largest[m]);
-  }
-  printf("\n\n");
 
   /* foreach iteration */
   idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
