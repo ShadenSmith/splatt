@@ -174,17 +174,14 @@ static inline void p_clear_tenout(
 * @param tenout Output tensor.
 * @param thds Thread structures.
 */
-static void p_csf_ttm_root(
+static void p_csf_ttmc_root3(
   splatt_csf const * const csf,
   idx_t const tile_id,
   matrix_t ** mats,
   val_t * const tenout,
   thd_info * const thds)
 {
-  if(csf->nmodes != 3) {
-    fprintf(stderr, "SPLATT: TTM only supports 3 modes right now.\n");
-    exit(1);
-  }
+  assert(csf->nmodes == 3);
 
   matrix_t const * const A = mats[csf->dim_perm[1]];
   matrix_t const * const B = mats[csf->dim_perm[2]];
@@ -264,6 +261,31 @@ static void p_csf_ttm_root(
 }
 
 
+
+static void p_csf_ttmc_root(
+  splatt_csf const * const csf,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  val_t * const tenout,
+  thd_info * const thds)
+{
+  /* extract tensor structures */
+  idx_t const nmodes = csf->nmodes;
+  val_t const * const vals = csf->pt[tile_id].vals;
+
+  /* empty tile, just return */
+  if(vals == NULL) {
+    return;
+  }
+  if(nmodes == 3) {
+    p_csf_ttmc_root3(csf, tile_id, mats, tenout, thds);
+    return;
+  }
+
+}
+
+
+
 static inline void p_root_decide(
     splatt_csf const * const tensor,
     matrix_t ** mats,
@@ -280,7 +302,7 @@ static inline void p_root_decide(
     idx_t tid = 0;
     switch(tensor->which_tile) {
     case SPLATT_NOTILE:
-      p_csf_ttm_root(tensor, 0, mats, tenout, thds);
+      p_csf_ttmc_root(tensor, 0, mats, tenout, thds);
       break;
 
     /* XXX */
