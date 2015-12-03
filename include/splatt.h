@@ -149,7 +149,7 @@ typedef enum
   SPLATT_DENSETILE,
   /* DEPRECATED - pending CSF implementations */
   SPLATT_SYNCTILE,
-  SPLATT_COOPTILE,
+  SPLATT_COOPTILE
 } splatt_tile_type;
 
 
@@ -160,7 +160,7 @@ typedef enum
 {
   SPLATT_CSF_ONEMODE, /** Only allocate one CSF for factorization. */
   SPLATT_CSF_TWOMODE, /** Allocate one for the smallest and largest modes. */
-  SPLATT_CSF_ALLMODE, /** Allocate one CSF for every mode. */
+  SPLATT_CSF_ALLMODE  /** Allocate one CSF for every mode. */
 } splatt_csf_type;
 
 

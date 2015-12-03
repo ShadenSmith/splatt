@@ -10,6 +10,38 @@
 
 #include <omp.h>
 
+#ifdef SPLATT_USE_BLAS
+
+/* BLAS prototypes */
+
+
+#if   SPLATT_IDX_TYPEWIDTH == 32
+#define BLAS_GEMM sgemm_
+
+void sgemm_(
+    char * transA, char * transB,
+    int * M, int * N, int * K,
+    float * alpha,
+    float const * const A, int * LDA,
+    float const * const B, int * LDB,
+    float * beta,
+    float * const C, int * LDC);
+
+#else
+
+#define BLAS_GEMM dgemm_
+void dgemm_(
+    char * transA, char * transB,
+    int * M, int * N, int * K,
+    double * alpha,
+    double const * const A, int * LDA,
+    double const * const B, int * LDB,
+    double * beta,
+    double * const C, int * LDC);
+
+#endif
+#endif
+
 
 /******************************************************************************
  * API FUNCTIONS
@@ -111,14 +143,15 @@ static inline void p_twovec_outer_prod_tiled(
     val_t * const restrict out)
 {
 #ifdef SPLATT_USE_BLAS
-  double alpha = 1.;
-  double beta = 1.;
+  val_t alpha = 1.;
+  val_t beta = 1.;
   char transA = 'N';
   char transB = 'T';
   int M = ncol_accums;
   int N = ncol_fids;
   int K = nfibers;
-	dgemm_(
+
+	BLAS_GEMM(
       &transA, &transB, /* transposes */
       &M, &N, &K,       /* dimensions */
       &alpha,
@@ -277,11 +310,59 @@ static void p_csf_ttmc_root(
   if(vals == NULL) {
     return;
   }
+#if 1
   if(nmodes == 3) {
     p_csf_ttmc_root3(csf, tile_id, mats, tenout, thds);
     return;
   }
+#endif
 
+  idx_t const mode = csf->dim_perm[0];
+
+  idx_t ncols = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(m != mode) {
+      ncols *= mats[m]->J;
+    }
+  }
+
+  idx_t ncols_lvl[MAX_NMODES];
+  ncols_lvl[0] = ncols;
+  for(idx_t m=1; m < nmodes; ++m) {
+    ncols_lvl[m] = ncols_lvl[m-1] / mats[csf->dim_perm[m]]->J;
+  }
+
+  val_t * buf[MAX_NMODES];
+  printf("ncols:");
+  for(idx_t m=0; m < nmodes-1; ++m) {
+    printf(" %lu", ncols_lvl[m]);
+    buf[m] = calloc(ncols_lvl[m], sizeof(**buf));
+  }
+  printf("\n");
+
+  idx_t const nfibs = csf->pt[tile_id].nfibs[0];
+  assert(nfibs <= mats[MAX_NMODES]->I);
+
+
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) csf->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) csf->pt[tile_id].fids;
+
+
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < nfibs; ++s) {
+    idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
+
+    assert(fid < mats[MAX_NMODES]->I);
+
+  }
+
+
+  /* cleanup */
+  for(idx_t m=0; m < nmodes-1; ++m) {
+    free(buf[m]);
+  }
 }
 
 
