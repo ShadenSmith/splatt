@@ -551,3 +551,14 @@ idx_t tenout_dim(
 }
 
 
+void print_cache_size(
+    splatt_csf const * const tensors,
+    idx_t const * const nfactors,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+  for(idx_t depth = 1; depth < nmodes - 1; ++depth) {
+  }
+}
+
+

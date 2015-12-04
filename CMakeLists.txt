@@ -64,6 +64,14 @@ if( BLAS_FOUND )
   message("USING BLAS LIBS: " ${BLAS_LIBRARIES})
 endif()
 
+find_package(LAPACK)
+if( LAPACK_FOUND )
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
+  message("USING LAPACK LIBS: " ${LAPACK_LIBRARIES})
+endif()
+
+
 # check for MT-Metis support
 if (DEFINED USE_MTMETIS)
   message("Building with MT-Metis support.")
