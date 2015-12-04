@@ -305,6 +305,8 @@ double tucker_hooi_iterate(
   double oldfit = 0;
   double fit = 0;
 
+  val_t * svdbuf = malloc(tenout_size * sizeof(*svdbuf));
+
   print_cache_size(tensors, nfactors, opts);
 
   val_t const ttnormsq = csf_frobsq(tensors);
@@ -323,8 +325,6 @@ double tucker_hooi_iterate(
       timer_stop(&timers[TIMER_TTM]);
 
       /* find the truncated SVD of the TTMc output */
-      val_t * buf;
-      buf = malloc(mats[m]->I * ncols[m] * sizeof(*buf));
 #if 0
       memcpy(buf, gten, mats[m]->I * ncols[m] * sizeof(*buf));
       left_singulars(buf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
@@ -334,16 +334,14 @@ double tucker_hooi_iterate(
       printf("\n");
 #endif
 
-      memcpy(buf, gten, mats[m]->I * ncols[m] * sizeof(*buf));
-      p_svd(buf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
+      memcpy(svdbuf, gten, mats[m]->I * ncols[m] * sizeof(*svdbuf));
+      p_svd(svdbuf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
 #if 0
       for(idx_t c=0; c < ncols[m]; ++c) {
         printf(" %f", mats[m]->vals[c]);
       }
       printf("\n---\n");
 #endif
-      free(buf);
-
 
       timer_stop(&modetime[m]);
     }
@@ -374,6 +372,7 @@ double tucker_hooi_iterate(
 
   } /* foreach iteration */
 
+  free(svdbuf);
   free(gten);
   thd_free(thds, nthreads);
 

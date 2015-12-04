@@ -10,6 +10,8 @@
 
 #include <omp.h>
 
+#define TTM_TILED 1
+
 #ifdef SPLATT_USE_BLAS
 
 /* BLAS prototypes */
@@ -274,12 +276,18 @@ static void p_csf_ttmc_root3(
         }
       }
 
+#if TTM_TILED
       /* accumulate outer product into tenout */
       accum_fids[naccum++] = fids[f];
+#else
+      val_t const * const restrict av = avals  + (fids[f] * rankA);
+      p_twovec_outer_prod(av, rankA, accum_nnz, rankB, outv);
+#endif
     } /* foreach fiber */
 
     /* OUTER PRODUCTS */
 
+#if TTM_TILED
     /* gather rows into accum_oprod */
     for(idx_t r=0; r < naccum; ++r) {
       memcpy(accum_oprod + (r * rankA), avals + (accum_fids[r] * rankA),
@@ -289,6 +297,7 @@ static void p_csf_ttmc_root3(
     /* tiled outer product */
     p_twovec_outer_prod_tiled(accum_oprod, rankA, accum_nnz_raw, rankB, naccum,
         outv);
+#endif
 
   } /* foreach outer slice */
 }
