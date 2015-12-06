@@ -116,6 +116,7 @@ void mat_aTa(
   thd_info * const thds,
   idx_t const nthreads);
 
+
 #define calc_gram_inv splatt_calc_gram_inv
 /**
 * @brief Calculate (BtB * CtC * ...)^-1, where * is the Hadamard product. This
@@ -130,6 +131,7 @@ void calc_gram_inv(
   idx_t const mode,
   idx_t const nmodes,
   matrix_t ** aTa);
+
 
 #define mat_normalize splatt_mat_normalize
 /**
@@ -178,6 +180,18 @@ matrix_t * mat_rand(
 matrix_t * mat_alloc(
   idx_t const nrows,
   idx_t const ncols);
+
+
+#define mat_transpose splatt_mat_transpose
+/**
+* @brief Fill matrix B with transpose(A). Assumes B is already allocated.
+*
+* @param A The matrix to transpose.
+* @param[out] B The transposed matrix.
+*/
+void mat_transpose(
+  matrix_t const * const A,
+  matrix_t * B);
 
 
 #define mat_free splatt_mat_free

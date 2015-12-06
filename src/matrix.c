@@ -425,10 +425,12 @@ void mat_matmul(
   matrix_t  * const C)
 {
   timer_start(&timers[TIMER_MATMUL]);
+
   /* check dimensions */
   assert(A->J == B->I);
-  assert(C->I == A->I);
-  assert(C->J == B->J);
+  assert(C->I * C->J >= A->I * B->J);
+  C->I = A->I;
+  C->J = B->J;
 
   val_t const * const restrict av = A->vals;
   val_t const * const restrict bv = B->vals;
@@ -514,6 +516,34 @@ void calc_gram_inv(
   timer_stop(&timers[TIMER_INV]);
 }
 
+
+void mat_transpose(
+  matrix_t const * const A,
+  matrix_t * B)
+{
+  idx_t const I = A->I;
+  idx_t const J = A->J;
+
+  assert(B->vals != NULL);
+  assert(B->I * B->J >= I*J);
+
+  B->I = J;
+  B->J = I;
+
+  #pragma omp parallel
+  {
+    val_t const * const av = A->vals;
+    val_t       * const bv = B->vals;
+
+    for(idx_t j=0; j < J; ++j) {
+      #pragma omp for nowait
+      for(idx_t i=0; i < I; ++i) {
+        bv[i + (j*I)] = av[j + (i*J)];
+      }
+    }
+  } /* end omp parallel */
+
+}
 
 
 matrix_t * mat_alloc(
