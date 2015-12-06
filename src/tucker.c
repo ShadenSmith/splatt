@@ -67,6 +67,39 @@ void splatt_free_tucker(
 }
 
 
+
+
+/******************************************************************************
+ * STRUCTURES
+ *****************************************************************************/
+
+typedef struct
+{
+  /* state tracking */
+  idx_t idxstack[MAX_NMODES];
+
+  /** The number of columns in the output of TTMc (for each mode) */
+  idx_t gten_cols[MAX_NMODES];
+
+  /** The size of the outer product at each depth during TTMc (for each mode).
+   *  Examples:
+   *  1. accum_size[0][:] gives the size of each accumulation during TTMc for
+   *  the first mode.
+   *
+   *  2. accum_size[1][nmodes-1] gives the size of the accumulation just above
+   *  the leaf level during the second TTMc operation.
+   */
+  idx_t accum_size[MAX_NMODES][MAX_NMODES];
+
+  /* buffers */
+  idx_t * accum_fids[MAX_NMODES];
+  val_t * accum[MAX_NMODES];
+
+  val_t * svdbuf;
+} tucker_ws;
+
+
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/

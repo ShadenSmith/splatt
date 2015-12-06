@@ -350,23 +350,17 @@ static void p_csf_ttmc_root(
   printf("\n");
 
   idx_t const nfibs = csf->pt[tile_id].nfibs[0];
-  assert(nfibs <= mats[MAX_NMODES]->I);
-
 
   idx_t const * const * const restrict fp
       = (idx_t const * const *) csf->pt[tile_id].fptr;
   idx_t const * const * const restrict fids
       = (idx_t const * const *) csf->pt[tile_id].fids;
 
-
   #pragma omp for schedule(dynamic, 16) nowait
   for(idx_t s=0; s < nfibs; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
 
-    assert(fid < mats[MAX_NMODES]->I);
-
   }
-
 
   /* cleanup */
   for(idx_t m=0; m < nmodes-1; ++m) {
