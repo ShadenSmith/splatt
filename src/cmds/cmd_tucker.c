@@ -132,9 +132,11 @@ void splatt_tucker_cmd(
     stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
   }
 
+  idx_t core_size = 1;
   idx_t nfactors[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     nfactors[m] = args.nfactors;
+    core_size *= nfactors[m];
   }
 
   /* XXX update when TTM is ready */
@@ -150,14 +152,37 @@ void splatt_tucker_cmd(
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
 
-  splatt_tucker_t out;
-  splatt_tucker_als(nfactors, nmodes, csf, args.opts, &out);
+  splatt_tucker_t factored;
+  int ret = splatt_tucker_als(nfactors, nmodes, csf, args.opts, &factored);
+  if(ret != SPLATT_SUCCESS) {
+    fprintf(stderr, "splatt_tucker_als returned %d. Aborting.\n", ret);
+    exit(1);
+  }
+
+  /* write output */
+  if(args.write == 1) {
+    vec_write(factored.core, core_size, "core.mat");
+
+    for(idx_t m=0; m < nmodes; ++m) {
+      char * matfname = NULL;
+      asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+
+      matrix_t tmpmat;
+      tmpmat.rowmajor = 1;
+      tmpmat.I = csf->dims[m];
+      tmpmat.J = nfactors[m];
+      tmpmat.vals = factored.factors[m];
+
+      mat_write(&tmpmat, matfname);
+      free(matfname);
+    }
+  }
 
   /* free up the ftensor allocations */
   csf_free(csf, args.opts);
 
   /* output + cleanup */
-  splatt_free_tucker(&out);
+  splatt_free_tucker(&factored);
   free(args.opts);
 }
 
