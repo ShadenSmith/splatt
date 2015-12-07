@@ -262,7 +262,7 @@ void make_core(
   val_t beta = 0;
 
   /* C' = B' * A */
-	dgemm_(
+	BLAS_GEMM(
       &transA, &transB,
       &N, &M, &K,
       &alpha,

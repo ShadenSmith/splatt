@@ -12,37 +12,6 @@
 
 #define TTM_TILED 1
 
-#ifdef SPLATT_USE_BLAS
-
-/* BLAS prototypes */
-
-
-#if   SPLATT_IDX_TYPEWIDTH == 32
-#define BLAS_GEMM sgemm_
-
-void sgemm_(
-    char * transA, char * transB,
-    int * M, int * N, int * K,
-    float * alpha,
-    float const * const A, int * LDA,
-    float const * const B, int * LDB,
-    float * beta,
-    float * const C, int * LDC);
-
-#else
-
-#define BLAS_GEMM dgemm_
-void dgemm_(
-    char * transA, char * transB,
-    int * M, int * N, int * K,
-    double * alpha,
-    double const * const A, int * LDA,
-    double const * const B, int * LDB,
-    double * beta,
-    double * const C, int * LDC);
-
-#endif
-#endif
 
 
 /******************************************************************************

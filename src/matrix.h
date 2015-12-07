@@ -32,6 +32,64 @@ typedef enum
 } splatt_mat_norm;
 
 
+
+/******************************************************************************
+ * BLAS / LAPACK PROTOTYPES
+ *****************************************************************************/
+
+#if   SPLATT_VAL_TYPEWIDTH == 32
+#define BLAS_GEMM sgemm_
+void sgemm_(
+    char * transA, char * transB,
+    int * M, int * N, int * K,
+    float * alpha,
+    float const * const A, int * LDA,
+    float const * const B, int * LDB,
+    float * beta,
+    float * const C, int * LDC);
+
+/* SVD */
+#define LAPACK_SVD sgesdd_
+void sgesdd_(
+	char * jobz,
+  int * M, int * N,
+  float * A, int * LDA,
+  float * S,
+  float * U, int * LDU,
+  float * Vt, int * LDVt,
+  float * work, int * lwork, int * iwork,
+  int * info);
+
+#else
+
+#define BLAS_GEMM dgemm_
+void dgemm_(
+    char * transA, char * transB,
+    int * M, int * N, int * K,
+    double * alpha,
+    double const * const A, int * LDA,
+    double const * const B, int * LDB,
+    double * beta,
+    double * const C, int * LDC);
+
+
+/* SVD */
+#define LAPACK_SVD dgesdd_
+void dgesdd_(
+	char * jobz,
+  int * M, int * N,
+  double * A, int * LDA,
+  double * S,
+  double * U, int * LDU,
+  double * Vt, int * LDVt,
+  double * work, int * lwork, int * iwork,
+  int * info);
+
+#endif
+
+
+
+
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/

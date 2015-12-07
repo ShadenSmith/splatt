@@ -1,5 +1,6 @@
 
 #include "svd.h"
+#include "matrix.h"
 #include "timer.h"
 #include "util.h"
 
@@ -35,7 +36,7 @@ void left_singulars(
   int info = 0;
 
   /* query */
-  dgesdd_(
+  LAPACK_SVD(
       &jobz,
       &M, &N,
       inmat, &LDA,
@@ -52,7 +53,7 @@ void left_singulars(
   val_t * workspace = malloc(lwork * sizeof(*workspace));
 
   /* do the SVD */
-  dgesdd_(
+  LAPACK_SVD(
       &jobz,
       &M, &N,
       inmat, &LDA,
