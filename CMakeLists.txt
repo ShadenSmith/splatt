@@ -52,8 +52,6 @@ endif()
 
 # Eigen3 support
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/scripts)
-find_package(Eigen3 REQUIRED)
-include_directories(${EIGEN3_INCLUDE_DIR})
 
 find_package(BLAS)
 if( BLAS_FOUND )
@@ -124,8 +122,6 @@ else()
   # turn off warning entirely for release builds
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
 endif()
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_C_FLAGS}")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 

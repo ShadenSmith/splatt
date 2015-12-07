@@ -2,6 +2,7 @@
 #include "../src/matrix.h"
 #include "ctest/ctest.h"
 #include "splatt_test.h"
+#include <omp.h>
 
 #define NMATS 4
 

@@ -28,8 +28,9 @@ static void p_compare_vecs(
     idx_t const len_gold)
 {
   ASSERT_EQUAL(len_gold, len_test);
+
   for(idx_t i=0; i < len_gold; ++i) {
-    ASSERT_DBL_NEAR_TOL(gold[i], test[i], 1e-10);
+    ASSERT_DBL_NEAR_TOL(gold[i], test[i], 1e-9);
   }
 }
 
@@ -44,8 +45,8 @@ static void p_csf_core(
 
   /* tenout allocations */
   idx_t const outdim = tenout_dim(nmodes, nfactors, tt->dims);
-  val_t * gold = calloc(outdim , sizeof(*gold));
-  val_t * test = calloc(outdim , sizeof(*test));
+  val_t * gold_ttmc = calloc(outdim , sizeof(*gold_ttmc));
+  val_t * test_ttmc = calloc(outdim , sizeof(*test_ttmc));
 
   /* core allocations */
   idx_t core_size = 1;
@@ -59,14 +60,30 @@ static void p_csf_core(
   thd_info * thds =  tucker_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
       nfactors, opts);
 
+  /* make a matrix out of TTMc */
+  matrix_t gold_mat;
+  gold_mat.I = tt->dims[0];
+  gold_mat.J = 1;
+  for(idx_t m=1; m < tt->nmodes; ++m) {
+    gold_mat.J *= nfactors[m];
+  }
+  gold_mat.vals = gold_ttmc;
+
+  matrix_t core_mat;
+  core_mat.I = nfactors[0];
+  core_mat.J = core_size / nfactors[0];
+  core_mat.vals = gold_core;
+
   /* compute gold, always with first mode for core ordering */
-  ttmc_stream(tt, mats, gold, 0, opts);
-  make_core(gold, mats[0]->vals, gold_core, nmodes, 0,
-      nfactors, tt->dims[0]);
+  ttmc_stream(tt, mats, gold_ttmc, 0, opts);
+  matrix_t * A = mat_alloc(mats[0]->I, nfactors[0]);
+  mat_transpose(mats[0], A);
+  mat_matmul(A, &gold_mat, &core_mat);
+  mat_free(A);
 
   /* compute CSF test */
-  ttmc_csf(csf, mats, test, nmodes-1, thds, opts);
-  make_core(test, mats[nmodes-1]->vals, test_core, nmodes, nmodes-1,
+  ttmc_csf(csf, mats, test_ttmc, nmodes-1, thds, opts);
+  make_core(test_ttmc, mats[nmodes-1]->vals, test_core, nmodes, nmodes-1,
       nfactors, csf->dims[nmodes-1]);
   permute_core(csf, test_core, nfactors, opts);
 
@@ -75,8 +92,8 @@ static void p_csf_core(
 
   csf_free(csf, opts);
   thd_free(thds, opts[SPLATT_OPTION_NTHREADS]);
-  free(gold);
-  free(test);
+  free(gold_ttmc);
+  free(test_ttmc);
 }
 
 

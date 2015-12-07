@@ -230,83 +230,48 @@ thd_info * tucker_alloc_thds(
 }
 
 
-
-static void p_svd(
-    val_t * inmat,
-    val_t * outmat,
-    idx_t const nrows,
-    idx_t const ncols,
-    idx_t const rank)
+void make_core(
+    val_t * ttmc,
+    val_t * lastmat,
+    val_t * core,
+    idx_t const nmodes,
+    idx_t const mode,
+    idx_t const * const nfactors,
+    idx_t const nlongrows)
 {
-	timer_start(&timers[TIMER_SVD]);
-
-  char jobz = 'S';
-
-  /* actually pass in A^T */
-  int M = ncols;
-  int N = nrows;
-  int LDA = M;
-
-  val_t * S = malloc(SS_MIN(M,N) * sizeof(*S));
-
-  /* NOTE: change these if we switch to jobz=O */
-  int LDU = M;
-  int LDVt = SS_MIN(M,N);
-
-  val_t * U = malloc(LDU * SS_MIN(M,N) * sizeof(*U));
-  val_t * Vt = malloc(LDVt * N * sizeof(*Vt));
-
-  val_t work_size;
-  int lwork = -1;
-  int * iwork = malloc(8 * SS_MIN(M,N) * sizeof(*iwork));
-  int info = 0;
-
-  /* query */
-  dgesdd_(
-      &jobz,
-      &M, &N,
-      inmat, &LDA,
-      S,
-      U, &LDU,
-      Vt, &LDVt,
-      &work_size, &lwork,
-      iwork, &info);
-  if(info) {
-    fprintf(stderr, "SPLATT: DGESDD returned %d\n", info);
-  }
-
-  lwork = work_size;
-  val_t * workspace = malloc(lwork * sizeof(*workspace));
-
-  /* do the SVD */
-  dgesdd_(
-      &jobz,
-      &M, &N,
-      inmat, &LDA,
-      S,
-      U, &LDU,
-      Vt, &LDVt,
-      workspace, &lwork,
-      iwork, &info);
-  if(info) {
-    fprintf(stderr, "SPLATT: DGESDD returned %d\n", info);
-  }
-
-  /* copy matrix Vt to outmat */
-  for(idx_t r=0; r < nrows; ++r) {
-    for(idx_t c=0; c < rank; ++c) {
-      outmat[c + (r*rank)] = Vt[c + (r*LDVt)];
+	timer_start(&timers[TIMER_MATMUL]);
+  idx_t ncols = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(m != mode) {
+      ncols *= nfactors[m];
     }
   }
 
-  free(workspace);
-  free(iwork);
+  /* C = A' * B */
+  val_t * A = lastmat;
+  val_t * B = ttmc;
+  val_t * C = core;
 
-  free(S);
-  free(Vt);
-  free(U);
+  int M = nfactors[mode];
+  int N = ncols;
+  int K = nlongrows;
 
-	timer_stop(&timers[TIMER_SVD]);
+  char transA = 'N';
+  char transB = 'T';
+  val_t alpha = 1.;
+  val_t beta = 0;
+
+  /* C' = B' * A */
+	dgemm_(
+      &transA, &transB,
+      &N, &M, &K,
+      &alpha,
+      B, &N,
+      A, &M,
+      &beta,
+      C, &N);
+
+	timer_stop(&timers[TIMER_MATMUL]);
 }
 
 
@@ -358,23 +323,8 @@ double tucker_hooi_iterate(
       timer_stop(&timers[TIMER_TTM]);
 
       /* find the truncated SVD of the TTMc output */
-#if 0
-      memcpy(buf, gten, mats[m]->I * ncols[m] * sizeof(*buf));
-      left_singulars(buf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
-      for(idx_t c=0; c < ncols[m]; ++c) {
-        printf(" %f", mats[m]->vals[c]);
-      }
-      printf("\n");
-#endif
-
       memcpy(svdbuf, gten, mats[m]->I * ncols[m] * sizeof(*svdbuf));
-      p_svd(svdbuf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
-#if 0
-      for(idx_t c=0; c < ncols[m]; ++c) {
-        printf(" %f", mats[m]->vals[c]);
-      }
-      printf("\n---\n");
-#endif
+      left_singulars(svdbuf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
 
       timer_stop(&modetime[m]);
     }
