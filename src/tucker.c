@@ -82,6 +82,9 @@ typedef struct
   idx_t gten_cols[MAX_NMODES];
 
   /** The size of the outer product at each depth during TTMc (for each mode).
+   *  This routine accounts for CSF-ALLOC strategy, because the size of outer
+   *  products will vary based on the CSF traversal strategy.
+   *
    *  Examples:
    *  1. accum_size[0][:] gives the size of each accumulation during TTMc for
    *  the first mode.
@@ -95,7 +98,9 @@ typedef struct
   idx_t * accum_fids[MAX_NMODES];
   val_t * accum[MAX_NMODES];
 
+  /* SVD */
   val_t * svdbuf;
+  val_t * lwork;
 } tucker_ws;
 
 
@@ -170,6 +175,56 @@ static void p_fill_core_perm(
     break;
   }
 }
+
+
+
+/**
+* @brief Allocate and fill a Tucker workspace.
+*
+* @param[out] ws The workspace to fill.
+* @param nfactors The ranks of the decomposition.
+* @param tensors The CSF tensor(s).
+* @param opts The options used during CSF allocation and factorization.
+*/
+static void p_alloc_tucker_ws(
+    tucker_ws * const ws,
+    idx_t const * const nfactors,
+    splatt_csf const * const tensors,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+
+  /* initialize ptr arrays with NULL */
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    ws->accum_fids[m] = NULL;
+    ws->accum[m] = NULL;
+  }
+
+  /* fill #cols in TTMc output */
+  p_compute_ncols(nfactors, nmodes, ws->gten_cols);
+
+  alloc_svd_ws(&(ws->svdbuf), &(ws->svd_U), &(ws->svd_S), &(ws->svd_Vt),
+      &(ws->lwork), &(ws->iwork), nmodes, tensors->dims, ws->gten_cols);
+}
+
+
+
+/**
+* @brief Free all memory allocated for a Tucker workspace.
+*
+* @param ws The workspace to free.
+*/
+static void p_free_tucker_ws(
+    tucker_ws * const ws)
+{
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    free(ws->accum_fids[m]);
+    free(ws->accum[m]);
+  }
+  free(ws->svdbuf);
+  free(ws->lwork);
+}
+
 
 
 
@@ -256,14 +311,14 @@ void make_core(
   int N = ncols;
   int K = nlongrows;
 
-  char transA = 'N';
-  char transB = 'T';
+  char transA = 'T';
+  char transB = 'N';
   val_t alpha = 1.;
   val_t beta = 0;
 
-  /* C' = B' * A */
+  /* C' = B' * A, but transA/B are flipped to account for row-major ordering */
 	BLAS_GEMM(
-      &transA, &transB,
+      &transB, &transA,
       &N, &M, &K,
       &alpha,
       B, &N,
@@ -284,6 +339,9 @@ double tucker_hooi_iterate(
 {
   idx_t const nmodes = tensors->nmodes;
 
+  tucker_ws ws;
+  p_alloc_tucker_ws(&ws, nfactors, tensors, opts);
+
   /* allocate the TTMc output */
   idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
   val_t * gten = malloc(tenout_size * sizeof(*gten));
@@ -303,8 +361,6 @@ double tucker_hooi_iterate(
   double oldfit = 0;
   double fit = 0;
 
-  val_t * svdbuf = malloc(tenout_size * sizeof(*svdbuf));
-
   print_cache_size(tensors, nfactors, opts);
 
   val_t const ttnormsq = csf_frobsq(tensors);
@@ -323,8 +379,8 @@ double tucker_hooi_iterate(
       timer_stop(&timers[TIMER_TTM]);
 
       /* find the truncated SVD of the TTMc output */
-      memcpy(svdbuf, gten, mats[m]->I * ncols[m] * sizeof(*svdbuf));
-      left_singulars(svdbuf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
+      memcpy(ws.svdbuf, gten, mats[m]->I * ncols[m] * sizeof(*(ws.svdbuf)));
+      left_singulars(ws.svdbuf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
 
       timer_stop(&modetime[m]);
     }
@@ -355,7 +411,7 @@ double tucker_hooi_iterate(
 
   } /* foreach iteration */
 
-  free(svdbuf);
+  p_free_tucker_ws(&ws);
   free(gten);
   thd_free(thds, nthreads);
 
