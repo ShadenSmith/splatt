@@ -99,8 +99,7 @@ typedef struct
   val_t * accum[MAX_NMODES];
 
   /* SVD */
-  val_t * svdbuf;
-  val_t * lwork;
+  svd_ws sws;
 } tucker_ws;
 
 
@@ -203,8 +202,8 @@ static void p_alloc_tucker_ws(
   /* fill #cols in TTMc output */
   p_compute_ncols(nfactors, nmodes, ws->gten_cols);
 
-  alloc_svd_ws(&(ws->svdbuf), &(ws->svd_U), &(ws->svd_S), &(ws->svd_Vt),
-      &(ws->lwork), &(ws->iwork), nmodes, tensors->dims, ws->gten_cols);
+  /* SVD allocations */
+  alloc_svd_ws(&(ws->sws), nmodes, tensors->dims, ws->gten_cols);
 }
 
 
@@ -221,8 +220,7 @@ static void p_free_tucker_ws(
     free(ws->accum_fids[m]);
     free(ws->accum[m]);
   }
-  free(ws->svdbuf);
-  free(ws->lwork);
+  free_svd_ws(&(ws->sws));
 }
 
 
@@ -379,8 +377,8 @@ double tucker_hooi_iterate(
       timer_stop(&timers[TIMER_TTM]);
 
       /* find the truncated SVD of the TTMc output */
-      memcpy(ws.svdbuf, gten, mats[m]->I * ncols[m] * sizeof(*(ws.svdbuf)));
-      left_singulars(ws.svdbuf, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J);
+      left_singulars(gten, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J,
+          &(ws.sws));
 
       timer_stop(&modetime[m]);
     }

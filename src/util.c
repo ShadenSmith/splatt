@@ -12,7 +12,7 @@
  *****************************************************************************/
 val_t rand_val(void)
 {
-  /* TODO: modify this to work based on the size of idx_t */
+  /* TODO: modify this to work based on the size of val_t */
   val_t v =  3.0 * ((val_t) rand() / (val_t) RAND_MAX);
   if(rand() % 2 == 0) {
     v *= -1;
@@ -50,7 +50,8 @@ char * bytes_str(
   }
   char * ret = NULL;
   if(asprintf(&ret, "%0.2f%s", size, suffix[suff]) == -1) {
-    fprintf(stderr, "SPLATT: asprintf failed with%"SPLATT_PF_IDX" bytes.\n", bytes);
+    fprintf(stderr, "SPLATT: asprintf failed with%"SPLATT_PF_IDX" bytes.\n",
+        bytes);
     ret = NULL;
   }
   return ret;

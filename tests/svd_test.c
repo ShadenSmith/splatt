@@ -29,7 +29,6 @@ CTEST_SETUP(svd)
   data->nrows = 4;
   data->ncols = 3;
   data->A = malloc(data->nrows * data->ncols * sizeof(val_t));
-  data->buf = malloc(data->nrows * data->ncols * sizeof(val_t));
   data->left = malloc(data->nrows * data->ncols * sizeof(val_t));
   for(idx_t i=0; i < data->nrows * data->ncols; ++i) {
     data->A[i] = i+1;
@@ -40,15 +39,16 @@ CTEST_SETUP(svd)
 CTEST_TEARDOWN(svd)
 {
   free(data->A);
-  free(data->buf);
   free(data->left);
 }
 
 CTEST2(svd, svd)
 {
+  svd_ws ws;
+  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
+
   for(idx_t r=1; r <= 2; ++r) {
-    memcpy(data->buf, data->A, data->nrows * data->ncols * sizeof(val_t));
-    left_singulars(data->buf, data->left, data->nrows, data->ncols, r);
+    left_singulars(data->A, data->left, data->nrows, data->ncols, r, &ws);
 
 
     for(idx_t i=0; i < data->nrows; ++i) {
@@ -57,4 +57,6 @@ CTEST2(svd, svd)
       }
     }
   }
+
+  free_svd_ws(&ws);
 }
