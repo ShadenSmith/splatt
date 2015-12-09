@@ -10,6 +10,7 @@ build/
 
 mode*.mat
 lambda.mat
+core.mat
 
 CMakeCache.txt
 Makefile
