@@ -126,7 +126,6 @@ void splatt_tucker_cmd(
     return;
   }
 
-  /* print basic tensor stats? */
   splatt_verbosity_type which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
   if(which_verb >= SPLATT_VERBOSITY_LOW) {
     stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
@@ -143,11 +142,6 @@ void splatt_tucker_cmd(
   args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
 
   splatt_csf * csf = csf_alloc(tt, args.opts);
-
-  /* print Tucker stats? */
-  if(which_verb >= SPLATT_VERBOSITY_LOW) {
-    tucker_stats(csf, nfactors, args.opts);
-  }
 
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);

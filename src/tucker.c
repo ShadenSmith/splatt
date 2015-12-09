@@ -45,6 +45,12 @@ int splatt_tucker_als(
   }
   factored->core = (val_t *) calloc(csize, sizeof(val_t));
 
+  /* print Tucker stats? */
+  splatt_verbosity_type which_verb = options[SPLATT_OPTION_VERBOSITY];
+  if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    tucker_stats(tensors, nfactors, options);
+  }
+
   /* compute the factorization */
   tucker_hooi_iterate(tensors, mats, factored->core, nfactors, options);
 

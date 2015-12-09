@@ -135,6 +135,8 @@ add_subdirectory(include)
 # Compile applications
 add_subdirectory(src)
 
+add_subdirectory(bench)
+
 # UNIT TESTS
 add_subdirectory(tests)
 

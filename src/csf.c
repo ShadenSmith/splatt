@@ -5,6 +5,7 @@
 #include "csf.h"
 #include "sort.h"
 #include "tile.h"
+#include "stats.h"
 
 #include "io.h"
 
@@ -25,6 +26,12 @@ int splatt_csf_load(
   }
 
   tt_remove_empty(tt);
+
+  /* print basic tensor stats? */
+  splatt_verbosity_type which_verb = options[SPLATT_OPTION_VERBOSITY];
+  if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    stats_tt(tt, fname, STATS_BASIC, 0, NULL);
+  }
 
   *tensors = csf_alloc(tt, options);
   *nmodes = tt->nmodes;
