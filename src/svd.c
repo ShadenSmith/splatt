@@ -140,8 +140,8 @@ void alloc_svd_ws(
     max_U = SS_MAX(max_U, M * mindim);
     max_Vt = SS_MAX(max_Vt, N * mindim);
 
-    int const lwork = p_optimal_svd_work_size(nrows[m], ncolumns[m]);
-    max_lwork= SS_MAX(lwork, ws->lwork);
+    int const lwork = p_optimal_svd_work_size(M, N);
+    max_lwork= SS_MAX(lwork, max_lwork);
   }
 
   /* allocate matrices */
