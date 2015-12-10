@@ -109,9 +109,4 @@ idx_t tenout_dim(
     idx_t const * const dims);
 
 
-void print_cache_size(
-    splatt_csf const * const tensors,
-    idx_t const * const nfactors,
-    double const * const opts);
-
 #endif

@@ -131,7 +131,7 @@ static inline void p_twovec_outer_prod_tiled(
       &beta, out, &M);  /* C */
 
 #else
-  /* (slow) summation of outer products */
+  /* (possibly slow) summation of outer products */
   for(idx_t f=0; f < nfibers; ++f) {
     val_t const * const restrict rowA = fids_buf + (f * ncol_fids);
     val_t const * const restrict rowB = accums_buf + (f * ncol_accums);
@@ -520,17 +520,6 @@ idx_t tenout_dim(
   }
 
   return maxdim;
-}
-
-
-void print_cache_size(
-    splatt_csf const * const tensors,
-    idx_t const * const nfactors,
-    double const * const opts)
-{
-  idx_t const nmodes = tensors->nmodes;
-  for(idx_t depth = 1; depth < nmodes - 1; ++depth) {
-  }
 }
 
 

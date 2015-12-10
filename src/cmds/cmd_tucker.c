@@ -139,7 +139,8 @@ void splatt_tucker_cmd(
   }
 
   /* XXX update when TTM is ready */
-  args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+  //args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+  args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
 
   splatt_csf * csf = csf_alloc(tt, args.opts);
 

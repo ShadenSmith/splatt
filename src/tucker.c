@@ -19,6 +19,8 @@
 #include <omp.h>
 #include <math.h>
 
+
+
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
@@ -182,6 +184,71 @@ static void p_fill_core_perm(
 }
 
 
+static void p_print_cache_size(
+    tucker_ws const * const ws,
+    splatt_csf const * const tensors,
+    idx_t const * const nfactors,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+  for(idx_t m=0; m < nmodes; ++m) {
+    splatt_csf const * const csf = tensors;
+
+    idx_t mult = ws->gten_cols[m] / nfactors[m];
+    for(idx_t depth = 1; depth < nmodes - 1; ++depth) {
+      idx_t bytes = 0;
+      idx_t nfibs = 0;
+
+      for(idx_t t=0; t < csf->ntiles; ++t) {
+        csf_sparsity const * const pt = csf->pt + t;
+        bytes += pt->nfibs[depth] * nfactors[csf->dim_perm[depth]] * mult;
+        nfibs += pt->nfibs[depth];
+      }
+
+      /* depth computed */
+      char * s = bytes_str(bytes * sizeof(val_t));
+      printf("depth %"SPLATT_PF_IDX" nfibs=%"SPLATT_PF_IDX" (%s)\n", depth,
+          nfibs, s);
+      free(s);
+
+      mult /= nfactors[csf->dim_perm[depth]];
+    }
+  }
+}
+
+
+
+static void p_print_cache_size2(
+    tucker_ws const * const ws,
+    splatt_csf const * const csf,
+    idx_t const * const nfactors,
+    double const * const opts)
+{
+  idx_t const nmodes = csf->nmodes;
+  idx_t ncols = ws->gten_cols[0] / nfactors[0];
+  for(idx_t depth = 1; depth < nmodes - 1; ++depth) {
+    idx_t bytes = 0;
+    idx_t nfibs = 0;
+
+    for(idx_t t=0; t < csf->ntiles; ++t) {
+      csf_sparsity const * const pt = csf->pt + t;
+      printf("ncols: %lu\n", ncols);
+      bytes += pt->nfibs[depth] * ncols;
+      nfibs += pt->nfibs[depth];
+    }
+
+    /* depth computed */
+    char * s = bytes_str(bytes * sizeof(val_t));
+    printf("depth %"SPLATT_PF_IDX" nfibs=%"SPLATT_PF_IDX" (%0.2f%% nnz) (%s)\n",
+        depth, nfibs, 100. * ((double) nfibs / (double) csf->nnz), s);
+    free(s);
+
+    ncols /= nfactors[csf->dim_perm[depth]];
+  }
+}
+
+
+
 
 /**
 * @brief Allocate and fill a Tucker workspace.
@@ -207,6 +274,9 @@ static void p_alloc_tucker_ws(
 
   /* fill #cols in TTMc output */
   p_compute_ncols(nfactors, nmodes, ws->gten_cols);
+
+  p_print_cache_size2(ws, tensors, nfactors, opts);
+  return;
 
   /* SVD allocations */
   alloc_svd_ws(&(ws->sws), nmodes, tensors->dims, ws->gten_cols);
@@ -345,6 +415,7 @@ double tucker_hooi_iterate(
 
   tucker_ws ws;
   p_alloc_tucker_ws(&ws, nfactors, tensors, opts);
+  return SPLATT_SUCCESS;
 
   /* allocate the TTMc output */
   idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
@@ -364,8 +435,6 @@ double tucker_hooi_iterate(
 
   double oldfit = 0;
   double fit = 0;
-
-  print_cache_size(tensors, nfactors, opts);
 
   val_t const ttnormsq = csf_frobsq(tensors);
 
