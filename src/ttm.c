@@ -648,13 +648,10 @@ void ttmc_csf(
   case SPLATT_CSF_ONEMODE:
     outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
     if(outdepth == 0) {
-      printf("ROOT\n");
       p_root_decide(tensors+0, mats, tenout, mode, thds, opts);
     } else if(outdepth == nmodes - 1) {
-      printf("LEAF\n");
       p_leaf_decide(tensors+0, mats, tenout, mode, thds, opts);
     } else {
-      printf("INTL\n");
       p_intl_decide(tensors+0, mats, tenout, mode, thds, opts);
     }
     break;
@@ -663,23 +660,19 @@ void ttmc_csf(
   case SPLATT_CSF_TWOMODE:
     /* longest mode handled via second tensor's root */
     if(mode == tensors[0].dim_perm[nmodes-1]) {
-      printf("ROOT\n");
       p_root_decide(tensors+1, mats, tenout, mode, thds, opts);
     /* root and internal modes are handled via first tensor */
     } else {
       outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
       if(outdepth == 0) {
-        printf("ROOT\n");
         p_root_decide(tensors+0, mats, tenout, mode, thds, opts);
       } else {
-        printf("INTL\n");
         p_intl_decide(tensors+0, mats, tenout, mode, thds, opts);
       }
     }
     break;
 
   case SPLATT_CSF_ALLMODE:
-    printf("ROOT\n");
     p_root_decide(tensors+mode, mats, tenout, mode, thds, opts);
     break;
 
