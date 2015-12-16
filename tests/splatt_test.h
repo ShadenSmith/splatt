@@ -10,7 +10,9 @@
 
 static char const * const datasets[] = {
   DATASET(small.tns),
-  DATASET(med.tns),
+  DATASET(med_a.tns),
+  DATASET(med_b.tns),
+  DATASET(med_c.tns),
   DATASET(small4.tns),
   DATASET(med4.tns)
 };
@@ -19,7 +21,9 @@ static char const * const datasets[] = {
 
 static char const * const graphs[] = {
   GRAPH(small.graph),
-  GRAPH(med.graph),
+  GRAPH(med_a.graph),
+  GRAPH(med_b.graph),
+  GRAPH(med_c.graph),
   GRAPH(small4.graph),
   GRAPH(med4.graph)
 };

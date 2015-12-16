@@ -169,7 +169,12 @@ static void p_fill_core_perm(
     break;
 
   case SPLATT_CSF_TWOMODE:
-    memcpy(perm, tensors[1].dim_perm, nmodes * sizeof(*perm));
+    /* if longest mode was the last mode */
+    if(nmodes-1 == tensors[0].dim_perm[nmodes-1]) {
+      memcpy(perm, tensors[1].dim_perm, nmodes * sizeof(*perm));
+    } else {
+      memcpy(perm, tensors[0].dim_perm, nmodes * sizeof(*perm));
+    }
     break;
 
   case SPLATT_CSF_ALLMODE:
@@ -180,6 +185,18 @@ static void p_fill_core_perm(
     /* XXX */
     fprintf(stderr, "SPLATT: splatt_csf_type %d not recognized.\n", which);
     break;
+  }
+
+  /* If we did not compute the last mode on root, adjust permutation by moving
+   * the last computed mode to front. */
+  if(perm[0] != nmodes-1) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      /* move last mode to beginning and shift to fit */
+      if(perm[m] == nmodes-1) {
+        memmove(perm+1, perm, m * sizeof(*perm));
+        perm[0] = nmodes-1;
+      }
+    }
   }
 }
 
@@ -509,16 +526,18 @@ void permute_core(
 
   val_t * newcore = malloc(ncols[nmodes] * sizeof(*newcore));
 
-  idx_t ind[MAX_NMODES];
+  /* translate each entry in the core tensor individually */
+  #pragma omp parallel for
   for(idx_t x=0; x < ncols[nmodes]; ++x) {
-    /* translate x into ind */
+    idx_t ind[MAX_NMODES];
+    /* translate x into ind, respecting the natural ordering of modes */
     idx_t id = x;
     for(idx_t m=nmodes; m-- != 0; ){
       ind[m] = id % nfactors[m];
       id /= nfactors[m];
     }
 
-    /* translate ind into an index into core */
+    /* translate ind to an index into core, accounting for permutation */
     idx_t mult = ncols[nmodes-1];
     idx_t translated = mult * ind[perm[0]];
     for(idx_t m=1; m < nmodes; ++m) {

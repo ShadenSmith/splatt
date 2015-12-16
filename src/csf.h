@@ -139,7 +139,7 @@ val_t csf_frobsq(
 * @param nmodes The number of modes.
 * @param which Which ordering to use.
 * @param mode Which mode to focus on (if applicable e.g., CSF_SORTED_MINUSONE).
-* @param perm_dims [OUT] is filled with the mode permutation. perm_dims[m]
+* @param[out] perm_dims is filled with the mode permutation. perm_dims[m]
 *                  specifies which mode will be the m-th mode operated on.
 */
 void csf_find_mode_order(

@@ -12,6 +12,18 @@
 
 #define TTM_TILED 1
 
+#define NLOCKS 1024
+static omp_lock_t locks[NLOCKS];
+static int locks_initialized = 0;
+static void p_init_locks()
+{
+  if (!locks_initialized) {
+    for(int i=0; i < NLOCKS; ++i) {
+      omp_init_lock(locks+i);
+    }
+    locks_initialized = 1;
+  }
+}
 
 
 /******************************************************************************
@@ -67,7 +79,8 @@ int splatt_ttmc(
  *****************************************************************************/
 
 /**
-* @brief Compute (rowA^T rowB) and accumulate into row-major 'out'.
+* @brief Compute (rowA^T rowB) into row-major 'out'. Any former values in 'out'
+*        are overwritten.
 *
 * @param rowA The first row vector.
 * @param nA The number of elements in rowA.
@@ -76,6 +89,31 @@ int splatt_ttmc(
 * @param[out] out The output matrix which is (nA x nB).
 */
 static inline void p_twovec_outer_prod(
+    val_t const * const restrict rowA,
+    idx_t const nA,
+    val_t const * const restrict rowB,
+    idx_t const nB,
+    val_t * const restrict out)
+{
+  for(idx_t i=0; i < nA; ++i) {
+    val_t * const restrict orow = out + (i*nB);
+    val_t const ival = rowA[i];
+    for(idx_t j=0; j < nB; ++j) {
+      orow[j] = ival * rowB[j];
+    }
+  }
+}
+
+/**
+* @brief Compute (rowA^T rowB) AND ACCUMULATE into row-major 'out'.
+*
+* @param rowA The first row vector.
+* @param nA The number of elements in rowA.
+* @param rowB The second row vector.
+* @param nB The number of elements in rowB.
+* @param[out] out The output matrix which is (nA x nB).
+*/
+static inline void p_twovec_outer_prod_accum(
     val_t const * const restrict rowA,
     idx_t const nA,
     val_t const * const restrict rowB,
@@ -136,7 +174,7 @@ static inline void p_twovec_outer_prod_tiled(
     val_t const * const restrict rowA = fids_buf + (f * ncol_fids);
     val_t const * const restrict rowB = accums_buf + (f * ncol_accums);
 
-    p_twovec_outer_prod(rowA, ncol_fids, rowB, ncol_accums, out);
+    p_twovec_outer_prod_accum(rowA, ncol_fids, rowB, ncol_accums, out);
   }
 #endif
 }
@@ -170,7 +208,7 @@ static inline void p_clear_tenout(
 
 
 /**
-* @brief Perform TTM on the root mode of a CSF tensor. No locks are used.
+* @brief Perform TTM on the root mode of a 3D CSF tensor. No locks are used.
 *
 * @param csf The input tensor.
 * @param tile_id Which tile.
@@ -250,7 +288,7 @@ static void p_csf_ttmc_root3(
       accum_fids[naccum++] = fids[f];
 #else
       val_t const * const restrict av = avals  + (fids[f] * rankA);
-      p_twovec_outer_prod(av, rankA, accum_nnz, rankB, outv);
+      p_twovec_outer_prod_accum(av, rankA, accum_nnz, rankB, outv);
 #endif
     } /* foreach fiber */
 
@@ -270,6 +308,149 @@ static void p_csf_ttmc_root3(
 
   } /* foreach outer slice */
 }
+
+
+static void p_csf_ttmc_intl3(
+  splatt_csf const * const csf,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  val_t * const tenout,
+  thd_info * const thds)
+{
+
+  matrix_t const * const A = mats[csf->dim_perm[0]];
+  matrix_t const * const B = mats[csf->dim_perm[2]];
+
+  idx_t const rankA = A->J;
+  idx_t const rankB = B->J;
+
+  val_t const * const restrict vals = csf->pt[tile_id].vals;
+
+  idx_t const * const restrict sptr = csf->pt[tile_id].fptr[0];
+  idx_t const * const restrict fptr = csf->pt[tile_id].fptr[1];
+
+  idx_t const * const restrict sids = csf->pt[tile_id].fids[0];
+  idx_t const * const restrict fids = csf->pt[tile_id].fids[1];
+  idx_t const * const restrict inds = csf->pt[tile_id].fids[2];
+
+  val_t const * const avals = A->vals;
+  val_t const * const bvals = B->vals;
+
+  int const tid = omp_get_thread_num();
+  val_t * const restrict accum_nnz = (val_t *) thds[tid].scratch[0];
+
+  /* foreach slice */
+  idx_t const nslices = csf->pt[tile_id].nfibs[0];
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < nslices; ++s) {
+    idx_t const fid = (sids == NULL) ? s : sids[s];
+
+    val_t const * const restrict av = avals + (fid * rankA);
+
+    /* foreach fiber in slice */
+    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+
+      /* first entry of the fiber is used to initialize accum_nnz */
+      idx_t const jjfirst  = fptr[f];
+      val_t const vfirst   = vals[jjfirst];
+      val_t const * const restrict bv = bvals + (inds[jjfirst] * rankB);
+      for(idx_t r=0; r < rankB; ++r) {
+        accum_nnz[r] = vfirst * bv[r];
+      }
+
+      /* foreach nnz in fiber */
+      for(idx_t jj=fptr[f]+1; jj < fptr[f+1]; ++jj) {
+        val_t const v = vals[jj];
+        val_t const * const restrict bv = bvals + (inds[jj] * rankB);
+        for(idx_t r=0; r < rankB; ++r) {
+          accum_nnz[r] += v * bv[r];
+        }
+      }
+
+      /* accumulate outer product into tenout */
+      val_t * const restrict outv = tenout + (fids[f] * rankA * rankB);
+      omp_set_lock(locks + (fids[f] % NLOCKS));
+      p_twovec_outer_prod_accum(av, rankA, accum_nnz, rankB, outv);
+      omp_unset_lock(locks + (fids[f] % NLOCKS));
+    } /* foreach fiber */
+  } /* foreach slice */
+}
+
+
+
+/**
+* @brief Perform TTM on the leaf mode of a 3D CSF tensor.
+*
+* @param csf The input tensor.
+* @param tile_id Which tile.
+* @param mats Input matrices.
+* @param tenout Output tensor.
+* @param thds Thread structures.
+*/
+static void p_csf_ttmc_leaf3(
+  splatt_csf const * const csf,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  val_t * const tenout,
+  thd_info * const thds)
+{
+  assert(csf->nmodes == 3);
+
+  matrix_t const * const A = mats[csf->dim_perm[0]];
+  matrix_t const * const B = mats[csf->dim_perm[1]];
+
+  idx_t const rankA = A->J;
+  idx_t const rankB = B->J;
+
+  val_t const * const restrict vals = csf->pt[tile_id].vals;
+
+  idx_t const * const restrict sptr = csf->pt[tile_id].fptr[0];
+  idx_t const * const restrict fptr = csf->pt[tile_id].fptr[1];
+
+  idx_t const * const restrict sids = csf->pt[tile_id].fids[0];
+  idx_t const * const restrict fids = csf->pt[tile_id].fids[1];
+  idx_t const * const restrict inds = csf->pt[tile_id].fids[2];
+
+  val_t const * const avals = A->vals;
+  val_t const * const bvals = B->vals;
+
+  int const tid = omp_get_thread_num();
+
+  /* tiled outer products */
+  val_t * const accum_oprod = thds[tid].scratch[2];
+
+  /* foreach slice */
+  idx_t const nslices = csf->pt[tile_id].nfibs[0];
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < nslices; ++s) {
+    idx_t const fid = (sids == NULL) ? s : sids[s];
+
+    /* root row */
+    val_t const * const restrict av = avals + (fid * rankA);
+
+    /* foreach fiber in slice */
+    for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+
+      /* fill fiber with outer product */
+      val_t const * const restrict bv = bvals + (fids[f] * rankB);
+      p_twovec_outer_prod(av, rankA, bv, rankB, accum_oprod);
+
+      /* foreach nnz in fiber */
+      for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
+        val_t const v = vals[jj];
+        val_t * const restrict outv = tenout + (inds[jj] * rankA * rankB);
+        omp_set_lock(locks + (inds[jj] % NLOCKS));
+        for(idx_t r=0; r < rankA * rankB; ++r) {
+          outv[r] += v * accum_oprod[r];
+        }
+        omp_unset_lock(locks + (inds[jj] % NLOCKS));
+      }
+
+    } /* foreach fiber */
+  }
+
+}
+
 
 
 
@@ -371,6 +552,72 @@ static inline void p_root_decide(
 
 
 
+static void p_intl_decide(
+    splatt_csf const * const csf,
+    matrix_t ** mats,
+    val_t * const tenout,
+    idx_t const mode,
+    thd_info * const thds,
+    double const * const opts)
+{
+
+  idx_t const nmodes = csf->nmodes;
+
+  #pragma omp parallel
+  {
+    timer_start(&thds[omp_get_thread_num()].ttime);
+    /* tile id */
+    idx_t tid = 0;
+    switch(csf->which_tile) {
+    case SPLATT_NOTILE:
+      p_csf_ttmc_intl3(csf, 0, mats, tenout, thds);
+      break;
+
+    /* XXX */
+    default:
+      fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
+      exit(1);
+      break;
+    }
+    timer_stop(&thds[omp_get_thread_num()].ttime);
+  }
+}
+
+
+
+static void p_leaf_decide(
+    splatt_csf const * const csf,
+    matrix_t ** mats,
+    val_t * const tenout,
+    idx_t const mode,
+    thd_info * const thds,
+    double const * const opts)
+{
+  idx_t const nmodes = csf->nmodes;
+  idx_t const depth = nmodes - 1;
+
+  #pragma omp parallel
+  {
+    timer_start(&thds[omp_get_thread_num()].ttime);
+
+    /* tile id */
+    idx_t tid = 0;
+    switch(csf->which_tile) {
+    case SPLATT_NOTILE:
+      p_csf_ttmc_leaf3(csf, 0, mats, tenout, thds);
+      break;
+
+    /* XXX */
+    default:
+      fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
+      exit(1);
+      break;
+    }
+    timer_stop(&thds[omp_get_thread_num()].ttime);
+  } /* end omp parallel */
+}
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -388,11 +635,51 @@ void ttmc_csf(
   p_clear_tenout(tenout, mats, tensors->nmodes, mode, tensors->dims);
 
   omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
+	p_init_locks();
+
+  idx_t nmodes = tensors[0].nmodes;
+  /* find out which level in the tree this is */
+  idx_t outdepth = MAX_NMODES;
 
   /* choose which TTM function to use */
   splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
   switch(which) {
+
+  case SPLATT_CSF_ONEMODE:
+    outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
+    if(outdepth == 0) {
+      printf("ROOT\n");
+      p_root_decide(tensors+0, mats, tenout, mode, thds, opts);
+    } else if(outdepth == nmodes - 1) {
+      printf("LEAF\n");
+      p_leaf_decide(tensors+0, mats, tenout, mode, thds, opts);
+    } else {
+      printf("INTL\n");
+      p_intl_decide(tensors+0, mats, tenout, mode, thds, opts);
+    }
+    break;
+
+
+  case SPLATT_CSF_TWOMODE:
+    /* longest mode handled via second tensor's root */
+    if(mode == tensors[0].dim_perm[nmodes-1]) {
+      printf("ROOT\n");
+      p_root_decide(tensors+1, mats, tenout, mode, thds, opts);
+    /* root and internal modes are handled via first tensor */
+    } else {
+      outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
+      if(outdepth == 0) {
+        printf("ROOT\n");
+        p_root_decide(tensors+0, mats, tenout, mode, thds, opts);
+      } else {
+        printf("INTL\n");
+        p_intl_decide(tensors+0, mats, tenout, mode, thds, opts);
+      }
+    }
+    break;
+
   case SPLATT_CSF_ALLMODE:
+    printf("ROOT\n");
     p_root_decide(tensors+mode, mats, tenout, mode, thds, opts);
     break;
 
