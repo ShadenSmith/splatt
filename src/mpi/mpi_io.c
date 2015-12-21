@@ -46,7 +46,7 @@ int splatt_mpi_coord_load(
 
   /* copy to output */
   *vals = tt->vals;
-  *inds = malloc(tt->nmodes * sizeof(splatt_idx_t));
+  *inds = splatt_malloc(tt->nmodes * sizeof(splatt_idx_t));
   for(idx_t m=0; m < tt->nmodes; ++m) {
     (*inds)[m] = tt->ind[m];
   }
@@ -103,7 +103,7 @@ static int * p_distribute_parts(
 {
   /* root may have more than target_nnz */
   idx_t const target_nnz = rinfo->global_nnz / rinfo->npes;
-  int * parts = (int *) malloc(SS_MAX(ttbuf->nnz, target_nnz) * sizeof(int));
+  int * parts = (int *) splatt_malloc(SS_MAX(ttbuf->nnz, target_nnz) * sizeof(int));
 
   if(rinfo->rank == 0) {
     int ret;
@@ -168,8 +168,8 @@ static sptensor_t * p_rearrange_fine(
   /* how many nonzeros I'll own */
   idx_t nowned = recv_total;
 
-  int * send_disp = (int *) malloc((rinfo->npes+1) * sizeof(int));
-  int * recv_disp = (int *) malloc((rinfo->npes+1) * sizeof(int));
+  int * send_disp = (int *) splatt_malloc((rinfo->npes+1) * sizeof(int));
+  int * recv_disp = (int *) splatt_malloc((rinfo->npes+1) * sizeof(int));
 
   /* recv_disp is const so we'll just fill it out once */
   recv_disp[0] = 0;
@@ -179,7 +179,7 @@ static sptensor_t * p_rearrange_fine(
 
   /* allocate my tensor and send buffer */
   sptensor_t * tt = tt_alloc(nowned, rinfo->nmodes);
-  idx_t * isend_buf = (idx_t *) malloc(ttbuf->nnz * sizeof(idx_t));
+  idx_t * isend_buf = (idx_t *) splatt_malloc(ttbuf->nnz * sizeof(idx_t));
 
   /* rearrange into sendbuf and send one mode at a time */
   for(idx_t m=0; m < ttbuf->nmodes; ++m) {
@@ -203,7 +203,7 @@ static sptensor_t * p_rearrange_fine(
   free(isend_buf);
 
   /* lastly, rearrange vals */
-  val_t * vsend_buf = (val_t *) malloc(ttbuf->nnz * sizeof(val_t));
+  val_t * vsend_buf = (val_t *) splatt_malloc(ttbuf->nnz * sizeof(val_t));
   send_disp[0] = send_disp[1] = 0;
   for(int p=2; p <= rinfo->npes; ++p) {
     send_disp[p] = send_disp[p-1] + nsend[p-2];
@@ -743,7 +743,7 @@ static int * p_get_primes(
   int * nprimes)
 {
   int size = 10;
-  int * p = (int *) malloc(size * sizeof(int));
+  int * p = (int *) splatt_malloc(size * sizeof(int));
   int np = 0;
 
   while(N != 1) {
@@ -1010,8 +1010,8 @@ void mpi_write_mats(
 
   if(rinfo->rank == 0) {
     matbuf = mat_alloc(maxdim, nfactors);
-    loc_iperm = (idx_t *) malloc(maxdim * sizeof(idx_t));
-    vbuf = (val_t *) malloc(maxdim * nfactors * sizeof(val_t));
+    loc_iperm = (idx_t *) splatt_malloc(maxdim * sizeof(idx_t));
+    vbuf = (val_t *) splatt_malloc(maxdim * nfactors * sizeof(val_t));
   }
 
   for(idx_t m=0; m < nmodes; ++m) {

@@ -286,10 +286,10 @@ static void p_distribute_u3_rows(
   char * claimed = (char *) calloc(dim, sizeof(char));
 
   /* a list of all rows I just claimed */
-  idx_t * myclaims = (idx_t *) malloc(left * sizeof(idx_t));
+  idx_t * myclaims = (idx_t *) splatt_malloc(left * sizeof(idx_t));
 
   /* incoming new assignments */
-  idx_t * bufclaims = (idx_t *) malloc(left * sizeof(idx_t));
+  idx_t * bufclaims = (idx_t *) splatt_malloc(left * sizeof(idx_t));
 
   /* mark the rows already claimed */
   for(idx_t i=0; i < *nrows; ++i) {
@@ -449,8 +449,8 @@ static void p_greedy_mat_distribution(
 
   /* count of appearances for each idx across all ranks */
   idx_t rconns[3];
-  int * pcount = (int *) malloc(max_dim * sizeof(int));
-  idx_t * mine = (idx_t *) malloc(max_dim * sizeof(idx_t));
+  int * pcount = (int *) splatt_malloc(max_dim * sizeof(int));
+  idx_t * mine = (idx_t *) splatt_malloc(max_dim * sizeof(idx_t));
 
   int lnpes; /* npes in layer */
   idx_t * pvols; /* volumes of each rank */
@@ -497,7 +497,7 @@ static void p_greedy_mat_distribution(
 
     /* get size of layer and allocate volumes */
     MPI_Comm_size(rinfo->layer_comm[m], &lnpes);
-    pvols = (idx_t *) malloc(lnpes * sizeof(idx_t));
+    pvols = (idx_t *) splatt_malloc(lnpes * sizeof(idx_t));
 
     /* root process gathers all communication volumes */
     MPI_Gather(&myvol, 1, SPLATT_MPI_IDX, pvols, 1, SPLATT_MPI_IDX,

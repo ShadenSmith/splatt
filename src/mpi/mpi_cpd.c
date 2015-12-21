@@ -657,8 +657,8 @@ double mpi_cpd_als_iterate(
   maxlocal2nbr *= nfactors;
   maxnbr2globs *= nfactors;
 
-  val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
-  val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
+  val_t * local2nbr_buf = (val_t *) splatt_malloc(maxlocal2nbr * sizeof(val_t));
+  val_t * nbr2globs_buf = (val_t *) splatt_malloc(maxnbr2globs * sizeof(val_t));
   if(rinfo->decomp != SPLATT_DECOMP_COARSE) {
     m1 = mat_alloc(maxdim, nfactors);
   }
@@ -774,7 +774,7 @@ double mpi_cpd_als_iterate(
 
   /* POST PROCESSING */
   /* normalize each mat and adjust lambda */
-  val_t * tmp = (val_t *) malloc(nfactors * sizeof(val_t));
+  val_t * tmp = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
   for(idx_t m=0; m < nmodes; ++m) {
     mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds, nthreads);
     for(idx_t f=0; f < nfactors; ++f) {

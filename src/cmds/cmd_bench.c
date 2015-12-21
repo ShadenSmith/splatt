@@ -179,7 +179,7 @@ static idx_t * p_mkthreads(
     while((idx_t)(1 << tcount) <= nthreads) {
       ++tcount;
     }
-    tsizes = (idx_t *) malloc(tcount * sizeof(idx_t));
+    tsizes = (idx_t *) splatt_malloc(tcount * sizeof(idx_t));
 
     for(idx_t t=0; t < tcount; ++t) {
       tsizes[t] = (idx_t) (1 << t);
@@ -187,7 +187,7 @@ static idx_t * p_mkthreads(
 
   } else {
     tcount = 1;
-    tsizes = (idx_t *) malloc(1 * sizeof(idx_t));
+    tsizes = (idx_t *) splatt_malloc(1 * sizeof(idx_t));
     tsizes[0] = nthreads;
   }
 

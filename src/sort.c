@@ -456,7 +456,7 @@ void tt_sort_range(
 {
   idx_t * cmplt;
   if(dim_perm == NULL) {
-    cmplt = (idx_t*) malloc(tt->nmodes * sizeof(idx_t));
+    cmplt = (idx_t*) splatt_malloc(tt->nmodes * sizeof(idx_t));
     cmplt[0] = mode;
     for(idx_t m=1; m < tt->nmodes; ++m) {
       cmplt[m] = (mode + m) % tt->nmodes;

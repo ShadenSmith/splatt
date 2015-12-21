@@ -23,7 +23,7 @@ static void p_fill_ineed_ptrs(
 
   rinfo->nlocal2nbr[m] = 0;
   rinfo->local2nbr_ptr[m] = (int *) calloc((size+1),  sizeof(int));
-  rinfo->nbr2globs_ptr[m] = (int *) malloc((size+1) * sizeof(int));
+  rinfo->nbr2globs_ptr[m] = (int *) splatt_malloc((size+1) * sizeof(int));
 
   int * const local2nbr_ptr = rinfo->local2nbr_ptr[m];
   int * const nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
@@ -75,11 +75,11 @@ static void p_fill_ineed_inds(
   MPI_Comm_rank(comm, &rank);
 
   /* allocate space for all communicated indices */
-  rinfo->local2nbr_inds[m] = (idx_t *) malloc(rinfo->nlocal2nbr[m] *
+  rinfo->local2nbr_inds[m] = (idx_t *) splatt_malloc(rinfo->nlocal2nbr[m] *
       sizeof(idx_t));
-  rinfo->nbr2local_inds[m] = (idx_t *) malloc(rinfo->nlocal2nbr[m] *
+  rinfo->nbr2local_inds[m] = (idx_t *) splatt_malloc(rinfo->nlocal2nbr[m] *
       sizeof(idx_t));
-  rinfo->nbr2globs_inds[m] = (idx_t *) malloc(rinfo->nnbr2globs[m] *
+  rinfo->nbr2globs_inds[m] = (idx_t *) splatt_malloc(rinfo->nnbr2globs[m] *
       sizeof(idx_t));
 
   /* extract these pointers to save some typing */
@@ -108,8 +108,8 @@ static void p_fill_ineed_inds(
     }
   }
 
-  rinfo->local2nbr_disp[m] = (int *) malloc(size * sizeof(int));
-  rinfo->nbr2globs_disp[m] = (int *) malloc(size * sizeof(int));
+  rinfo->local2nbr_disp[m] = (int *) splatt_malloc(size * sizeof(int));
+  rinfo->nbr2globs_disp[m] = (int *) splatt_malloc(size * sizeof(int));
   int * const local2nbr_disp = rinfo->local2nbr_disp[m];
   int * const nbr2globs_disp = rinfo->nbr2globs_disp[m];
 
@@ -264,9 +264,9 @@ void mpi_compute_ineed(
 void mpi_setup_comms(
   rank_info * const rinfo)
 {
-  rinfo->stats = malloc(rinfo->npes * sizeof(MPI_Status));
-  rinfo->send_reqs = malloc(rinfo->npes * sizeof(MPI_Request));
-  rinfo->recv_reqs = malloc(rinfo->npes * sizeof(MPI_Request));
+  rinfo->stats = splatt_malloc(rinfo->npes * sizeof(MPI_Status));
+  rinfo->send_reqs = splatt_malloc(rinfo->npes * sizeof(MPI_Request));
+  rinfo->recv_reqs = splatt_malloc(rinfo->npes * sizeof(MPI_Request));
 
   switch(rinfo->decomp) {
   case SPLATT_DECOMP_COARSE:
@@ -327,7 +327,7 @@ void mpi_cpy_indmap(
   /* copy if not NULL */
   if(tt->indmap[mode] != NULL) {
     idx_t const dim = tt->dims[mode];
-    rinfo->indmap[mode] = malloc(dim * sizeof(**(rinfo->indmap)));
+    rinfo->indmap[mode] = splatt_malloc(dim * sizeof(**(rinfo->indmap)));
     memcpy(rinfo->indmap[mode], tt->indmap[mode],
         dim * sizeof(**(rinfo->indmap)));
 

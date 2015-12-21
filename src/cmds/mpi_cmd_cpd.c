@@ -207,7 +207,7 @@ void splatt_mpi_cpd_cmd(
    * don't belong in each ftensor */
   if(rinfo.decomp == SPLATT_DECOMP_COARSE) {
     /* XXX  TODO */
-    csf = malloc(tt->nmodes * sizeof(*csf));
+    csf = splatt_malloc(tt->nmodes * sizeof(*csf));
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
 
@@ -290,7 +290,7 @@ void splatt_mpi_cpd_cmd(
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.nfactors);
 
-  val_t * lambda = (val_t *) malloc(args.nfactors * sizeof(val_t));
+  val_t * lambda = (val_t *) splatt_malloc(args.nfactors * sizeof(val_t));
 
   mpi_cpd_stats(csf, args.nfactors, args.opts, &rinfo);
 
