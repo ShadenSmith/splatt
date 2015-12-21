@@ -311,9 +311,9 @@ static void p_mk_outerptr(
   /* grab sparsity pattern */
   csf_sparsity * const pt = ct->pt + tile_id;
 
-  pt->fptr[0] = malloc((nfibs+1) * sizeof(**(pt->fptr)));
+  pt->fptr[0] = splatt_malloc((nfibs+1) * sizeof(**(pt->fptr)));
   if(ct->ntiles > 1) {
-    pt->fids[0] = malloc(nfibs * sizeof(**(pt->fids)));
+    pt->fids[0] = splatt_malloc(nfibs * sizeof(**(pt->fids)));
   } else {
     pt->fids[0] = NULL;
   }
@@ -393,8 +393,8 @@ static void p_mk_fptr(
   pt->nfibs[mode] = nfibs;
 
 
-  pt->fptr[mode] = malloc((nfibs+1) * sizeof(**(pt->fptr)));
-  pt->fids[mode] = malloc(nfibs * sizeof(**(pt->fids)));
+  pt->fptr[mode] = splatt_malloc((nfibs+1) * sizeof(**(pt->fptr)));
+  pt->fids[mode] = splatt_malloc(nfibs * sizeof(**(pt->fids)));
   idx_t * const restrict fp = pt->fptr[mode];
   idx_t * const restrict fi = pt->fids[mode];
   fp[0] = 0;
@@ -443,14 +443,14 @@ static void p_csf_alloc_untiled(
   for(idx_t m=0; m < nmodes; ++m) {
     ct->tile_dims[m] = 1;
   }
-  ct->pt = malloc(sizeof(*(ct->pt)));
+  ct->pt = splatt_malloc(sizeof(*(ct->pt)));
 
   csf_sparsity * const pt = ct->pt;
 
   /* last row of fptr is just nonzero inds */
   pt->nfibs[nmodes-1] = ct->nnz;
-  pt->fids[nmodes-1] = malloc(ct->nnz * sizeof(**(pt->fids)));
-  pt->vals           = malloc(ct->nnz * sizeof(*(pt->vals)));
+  pt->fids[nmodes-1] = splatt_malloc(ct->nnz * sizeof(**(pt->fids)));
+  pt->vals           = splatt_malloc(ct->nnz * sizeof(*(pt->vals)));
   memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]],
       ct->nnz * sizeof(**(pt->fids)));
   memcpy(pt->vals, tt->vals, ct->nnz * sizeof(*(pt->vals)));
@@ -499,7 +499,7 @@ static void p_csf_alloc_densetile(
   idx_t * nnz_ptr = tt_densetile(tt, ct->tile_dims);
 
   ct->ntiles = ntiles;
-  ct->pt = malloc(ntiles * sizeof(*(ct->pt)));
+  ct->pt = splatt_malloc(ntiles * sizeof(*(ct->pt)));
 
   for(idx_t t=0; t < ntiles; ++t) {
     idx_t const startnnz = nnz_ptr[t];
@@ -516,7 +516,7 @@ static void p_csf_alloc_densetile(
         pt->nfibs[m] = 0;
       }
       /* first fptr may be accessed anyway */
-      pt->fptr[0] = (idx_t *) malloc(2 * sizeof(**(pt->fptr)));
+      pt->fptr[0] = (idx_t *) splatt_malloc(2 * sizeof(**(pt->fptr)));
       pt->fptr[0][0] = 0;
       pt->fptr[0][1] = 0;
       pt->vals = NULL;
@@ -526,11 +526,11 @@ static void p_csf_alloc_densetile(
     /* last row of fptr is just nonzero inds */
     pt->nfibs[nmodes-1] = ptnnz;
 
-    pt->fids[nmodes-1] = malloc(ptnnz * sizeof(**(pt->fids)));
+    pt->fids[nmodes-1] = splatt_malloc(ptnnz * sizeof(**(pt->fids)));
     memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]] + startnnz,
         ptnnz * sizeof(**(pt->fids)));
 
-    pt->vals = malloc(ptnnz * sizeof(*(pt->vals)));
+    pt->vals = splatt_malloc(ptnnz * sizeof(*(pt->vals)));
     memcpy(pt->vals, tt->vals + startnnz, ptnnz * sizeof(*(pt->vals)));
 
     /* create fptr entries for the rest of the modes */
@@ -717,12 +717,12 @@ splatt_csf * csf_alloc(
 
   switch((splatt_csf_type) opts[SPLATT_OPTION_CSF_ALLOC]) {
   case SPLATT_CSF_ONEMODE:
-    ret = malloc(sizeof(*ret));
+    ret = splatt_malloc(sizeof(*ret));
     p_mk_csf(ret, tt, CSF_SORTED_SMALLFIRST, 0, opts);
     break;
 
   case SPLATT_CSF_TWOMODE:
-    ret = malloc(2 * sizeof(*ret));
+    ret = splatt_malloc(2 * sizeof(*ret));
     /* regular CSF allocation */
     p_mk_csf(ret + 0, tt, CSF_SORTED_SMALLFIRST, 0, opts);
 
@@ -740,7 +740,7 @@ splatt_csf * csf_alloc(
     break;
 
   case SPLATT_CSF_ALLMODE:
-    ret = malloc(tt->nmodes * sizeof(*ret));
+    ret = splatt_malloc(tt->nmodes * sizeof(*ret));
     for(idx_t m=0; m < tt->nmodes; ++m) {
       p_mk_csf(ret + m, tt, CSF_SORTED_MINUSONE, m, opts);
     }

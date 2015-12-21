@@ -9,7 +9,8 @@
  *****************************************************************************/
 double * splatt_default_opts(void)
 {
-  double * opts = (double *) malloc(SPLATT_OPTION_NOPTIONS * sizeof(double));
+  double * opts = (double *) splatt_malloc(SPLATT_OPTION_NOPTIONS * \
+      sizeof(*opts));
   for(int i=0; i < SPLATT_OPTION_NOPTIONS; ++i) {
     opts[i] = SPLATT_VAL_OFF;
   }

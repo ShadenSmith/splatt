@@ -364,7 +364,7 @@ static void p_fill_vwts(
 
   /* weight based on nnz in fiber */
   case VTX_WT_FIB_NNZ:
-    hg->vwts = (idx_t *) malloc(hg->nvtxs * sizeof(idx_t));
+    hg->vwts = (idx_t *) splatt_malloc(hg->nvtxs * sizeof(idx_t));
     #pragma omp parallel for
     for(idx_t v=0; v < hg->nvtxs; ++v) {
       hg->vwts[v] = ft->fptr[v+1] - ft->fptr[v];
@@ -405,7 +405,7 @@ static idx_t p_map_idx(
 hgraph_t * hgraph_nnz_alloc(
   sptensor_t const * const tt)
 {
-  hgraph_t * hg = (hgraph_t *) malloc(sizeof(hgraph_t));
+  hgraph_t * hg = (hgraph_t *) splatt_malloc(sizeof(hgraph_t));
   hg->nvtxs = tt->nnz;
   p_fill_vwts(NULL, hg, VTX_WT_NONE);
 
@@ -438,7 +438,7 @@ hgraph_t * hgraph_nnz_alloc(
   }
 
   /* each nnz causes 'nmodes' connections */
-  hg->eind = (idx_t *) malloc(tt->nnz * tt->nmodes * sizeof(idx_t));
+  hg->eind = (idx_t *) splatt_malloc(tt->nnz * tt->nmodes * sizeof(idx_t));
   idx_t * const restrict eind = hg->eind;
 
   offset = 1;
@@ -460,7 +460,7 @@ hgraph_t * hgraph_fib_alloc(
   ftensor_t const * const ft,
   idx_t const mode)
 {
-  hgraph_t * hg = (hgraph_t *) malloc(sizeof(hgraph_t));
+  hgraph_t * hg = (hgraph_t *) splatt_malloc(sizeof(hgraph_t));
 
   /* vertex weights are nnz per fiber */
   hg->nvtxs = ft->nfibs;
@@ -505,7 +505,7 @@ hgraph_t * hgraph_fib_alloc(
     saved = tmp;
   }
 
-  hg->eind = (idx_t *) malloc(ncon * sizeof(idx_t));
+  hg->eind = (idx_t *) splatt_malloc(ncon * sizeof(idx_t));
   idx_t * const restrict eind = hg->eind;
 
   /* now fill in eind while using eptr as a marker */
@@ -555,7 +555,7 @@ idx_t * hgraph_uncut(
   *ret_nnotcut = ncut;
 
   /* go back and fill in uncut edges */
-  idx_t * cut = (idx_t *) malloc(ncut * sizeof(idx_t));
+  idx_t * cut = (idx_t *) splatt_malloc(ncut * sizeof(idx_t));
   idx_t ptr = 0;
   for(idx_t h=0; h < nhedges; ++h) {
     int iscut = 0;
@@ -627,23 +627,23 @@ splatt_graph * graph_alloc(
     int use_vtx_wgts,
     int use_edge_wgts)
 {
-  splatt_graph * ret = malloc(sizeof(*ret));
+  splatt_graph * ret = splatt_malloc(sizeof(*ret));
 
   ret->nvtxs = nvtxs;
   ret->nedges = nedges;
-  ret->eptr = malloc((nvtxs+1) * sizeof(*(ret->eptr)));
-  ret->eind = malloc(nedges * sizeof(*(ret->eind)));
+  ret->eptr = splatt_malloc((nvtxs+1) * sizeof(*(ret->eptr)));
+  ret->eind = splatt_malloc(nedges * sizeof(*(ret->eind)));
 
   ret->eptr[nvtxs] = nedges;
 
   if(use_vtx_wgts) {
-    ret->vwgts = malloc(nvtxs * sizeof(*(ret->vwgts)));
+    ret->vwgts = splatt_malloc(nvtxs * sizeof(*(ret->vwgts)));
   } else {
     ret->vwgts = NULL;
   }
 
   if(use_edge_wgts) {
-    ret->ewgts = malloc(nedges * sizeof(*(ret->ewgts)));
+    ret->ewgts = splatt_malloc(nedges * sizeof(*(ret->ewgts)));
   } else {
     ret->ewgts = NULL;
   }
@@ -677,7 +677,7 @@ idx_t * patoh_part(
   int const ncon = 1;
 
   /* vertex weights */
-  int * vwts = (int *) malloc(nvtxs * sizeof(int));
+  int * vwts = (int *) splatt_malloc(nvtxs * sizeof(int));
   if(hg->vwts != NULL) {
     for(int v=0; v < nvtxs; ++v) {
       vwts[v] = (int) hg->vwts[v];
@@ -691,26 +691,26 @@ idx_t * patoh_part(
   /* edge weights */
   int * hwts = NULL;
   if(hg->hewts != NULL) {
-    hwts = (int *) malloc(nnets * sizeof(int));
+    hwts = (int *) splatt_malloc(nnets * sizeof(int));
     for(int h=0; h < nnets; ++h) {
       hwts[h] = (int) hg->hewts[h];
     }
   }
 
   /* net start/end */
-  int * eptr = (int *) malloc((nnets+1) * sizeof(int));
+  int * eptr = (int *) splatt_malloc((nnets+1) * sizeof(int));
   for(int v=0; v <= nnets; ++v) {
     eptr[v] = (int) hg->eptr[v];
   }
 
   /* netted vertices */
-  int * eind = (int *) malloc(eptr[nnets] * sizeof(int));
+  int * eind = (int *) splatt_malloc(eptr[nnets] * sizeof(int));
   for(int v=0; v < eptr[nnets]; ++v) {
     eind[v] = (int) hg->eind[v];
   }
 
-  int * pvec = (int *) malloc(nvtxs * sizeof(int));
-  int * pwts = (int *) malloc(nparts * sizeof(int));
+  int * pvec = (int *) splatt_malloc(nvtxs * sizeof(int));
+  int * pwts = (int *) splatt_malloc(nparts * sizeof(int));
   int cut;
 
   args._k = (int) nparts;
@@ -721,7 +721,7 @@ idx_t * patoh_part(
       pwts, &cut);
 
   /* copy patoh output to idx_t */
-  idx_t * parts = (idx_t *) malloc(nvtxs * sizeof(idx_t));
+  idx_t * parts = (idx_t *) splatt_malloc(nvtxs * sizeof(idx_t));
   for(idx_t p=0; p < hg->nvtxs; ++p) {
     parts[p] = (idx_t) pvec[p];
   }
@@ -745,7 +745,7 @@ idx_t * ashado_part(
     idx_t const nparts)
 {
   double * opts = ashado_default_opts();
-  idx_t * part = (idx_t *) malloc(hg->nvtxs * sizeof(idx_t));
+  idx_t * part = (idx_t *) splatt_malloc(hg->nvtxs * sizeof(idx_t));
 
   ashado_partition(nparts, hg->nvtxs, hg->nhedges, hg->eptr, hg->eind,
       hg->vwts, hg->hewts, opts, 5, part);

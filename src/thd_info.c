@@ -157,12 +157,12 @@ thd_info * thd_init(
   idx_t const nscratch,
   ...)
 {
-  thd_info * thds = (thd_info *) malloc(nthreads * sizeof(thd_info));
+  thd_info * thds = (thd_info *) splatt_malloc(nthreads * sizeof(thd_info));
 
   for(idx_t t=0; t < nthreads; ++t) {
     timer_reset(&thds[t].ttime);
     thds[t].nscratch = nscratch;
-    thds[t].scratch = (void **) malloc(nscratch * sizeof(void*));
+    thds[t].scratch = (void **) splatt_malloc(nscratch * sizeof(void*));
   }
 
   va_list args;
@@ -170,7 +170,7 @@ thd_info * thd_init(
   for(idx_t s=0; s < nscratch; ++s) {
     idx_t const bytes = va_arg(args, idx_t);
     for(idx_t t=0; t < nthreads; ++t) {
-      thds[t].scratch[s] = (void *) malloc(bytes);
+      thds[t].scratch[s] = (void *) splatt_malloc(bytes);
       memset(thds[t].scratch[s], 0, bytes);
     }
   }

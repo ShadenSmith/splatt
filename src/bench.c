@@ -236,7 +236,7 @@ void bench_giga(
   sp_timer_t itertime;
   sp_timer_t modetime;
   thd_info * thds = thd_init(threads[nruns-1], 0);
-  val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
+  val_t * scratch = (val_t *) splatt_malloc(tt->nnz * sizeof(val_t));
 
   matrix_t * colmats[MAX_NMODES+1];
 
@@ -382,7 +382,7 @@ void bench_ttbox(
   thd_info * thds = thd_init(threads[nruns-1], 0);
 
   printf("** TTBOX **\n");
-  val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
+  val_t * scratch = (val_t *) splatt_malloc(tt->nnz * sizeof(val_t));
 
   timer_start(&timers[TIMER_TTBOX]);
   for(idx_t t=0; t < nruns; ++t) {

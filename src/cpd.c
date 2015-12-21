@@ -40,7 +40,7 @@ int splatt_cpd_als(
   }
   mats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
 
-  val_t * lambda = (val_t *) malloc(nfactors * sizeof(val_t));
+  val_t * lambda = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
 
   /* do the factorization! */
   factored->fit = cpd_als_iterate(tensors, mats, lambda, nfactors, &rinfo,
@@ -379,7 +379,7 @@ void cpd_post_process(
   idx_t const nthreads,
   rank_info * const rinfo)
 {
-  val_t * tmp =  malloc(nfactors * sizeof(*tmp));
+  val_t * tmp =  splatt_malloc(nfactors * sizeof(*tmp));
 
   /* normalize each matrix and adjust lambda */
   for(idx_t m=0; m < nmodes; ++m) {

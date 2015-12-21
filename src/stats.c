@@ -103,7 +103,7 @@ static void p_stats_hparts(
   idx_t * unique[MAX_NMODES];
   idx_t nunique[MAX_NMODES];
   for(idx_t m=0; m < ft.nmodes; ++m) {
-    unique[m] = (idx_t *) malloc(ft.dims[ft.dim_perm[m]]
+    unique[m] = (idx_t *) splatt_malloc(ft.dims[ft.dim_perm[m]]
       * sizeof(idx_t));
   }
 

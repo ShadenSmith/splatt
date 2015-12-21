@@ -100,7 +100,7 @@ idx_t * tt_get_slices(
   *nunique = found;
 
   /* now copy unique slices */
-  idx_t * slices = (idx_t *) malloc(found * sizeof(idx_t));
+  idx_t * slices = (idx_t *) splatt_malloc(found * sizeof(idx_t));
   idx_t ptr = 0;
   for(idx_t i=0; i < maxrange; ++i) {
     if(slice_mkrs[i] == 1) {
@@ -160,7 +160,7 @@ idx_t tt_remove_empty(
     maxdim = tt->dims[m] > maxdim ? tt->dims[m] : maxdim;
   }
   /* slice counts */
-  idx_t * scounts = (idx_t *) malloc(maxdim * sizeof(idx_t));
+  idx_t * scounts = (idx_t *) splatt_malloc(maxdim * sizeof(idx_t));
 
   for(idx_t m=0; m < nmodes; ++m) {
     dim_sizes[m] = 0;
@@ -191,7 +191,7 @@ idx_t tt_remove_empty(
       }
     }
 
-    tt->indmap[m] = (idx_t *) malloc(dim_sizes[m] * sizeof(idx_t));
+    tt->indmap[m] = (idx_t *) splatt_malloc(dim_sizes[m] * sizeof(idx_t));
 
     /* relabel all indices in mode m */
     tt->dims[m] = dim_sizes[m];
@@ -225,19 +225,19 @@ sptensor_t * tt_alloc(
   idx_t const nnz,
   idx_t const nmodes)
 {
-  sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
+  sptensor_t * tt = (sptensor_t*) splatt_malloc(sizeof(sptensor_t));
   tt->tiled = SPLATT_NOTILE;
 
   tt->nnz = nnz;
-  tt->vals = (val_t*) malloc(nnz * sizeof(val_t));
+  tt->vals = (val_t*) splatt_malloc(nnz * sizeof(val_t));
 
   tt->nmodes = nmodes;
   tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
 
-  tt->dims = (idx_t*) malloc(nmodes * sizeof(idx_t));
-  tt->ind = (idx_t**) malloc(nmodes * sizeof(idx_t*));
+  tt->dims = (idx_t*) splatt_malloc(nmodes * sizeof(idx_t));
+  tt->ind = (idx_t**) splatt_malloc(nmodes * sizeof(idx_t*));
   for(idx_t m=0; m < nmodes; ++m) {
-    tt->ind[m] = (idx_t*) malloc(nnz * sizeof(idx_t));
+    tt->ind[m] = (idx_t*) splatt_malloc(nnz * sizeof(idx_t));
     tt->indmap[m] = NULL;
   }
 
@@ -260,7 +260,7 @@ void tt_fill(
   tt->nmodes = nmodes;
   tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
 
-  tt->dims = (idx_t*) malloc(nmodes * sizeof(idx_t));
+  tt->dims = (idx_t*) splatt_malloc(nmodes * sizeof(idx_t));
   for(idx_t m=0; m < nmodes; ++m) {
     tt->indmap[m] = NULL;
 

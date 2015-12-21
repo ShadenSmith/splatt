@@ -30,13 +30,13 @@ int splatt_mttkrp(
   /* fill matrix pointers  */
   matrix_t * mats[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
-    mats[m] = (matrix_t *) malloc(sizeof(matrix_t));
+    mats[m] = (matrix_t *) splatt_malloc(sizeof(matrix_t));
     mats[m]->I = tensors->dims[m];
     mats[m]->J = ncolumns,
     mats[m]->rowmajor = 1;
     mats[m]->vals = matrices[m];
   }
-  mats[MAX_NMODES] = (matrix_t *) malloc(sizeof(matrix_t));
+  mats[MAX_NMODES] = (matrix_t *) splatt_malloc(sizeof(matrix_t));
   mats[MAX_NMODES]->I = tensors->dims[mode];
   mats[MAX_NMODES]->J = ncolumns;
   mats[MAX_NMODES]->rowmajor = 1;
@@ -1624,7 +1624,7 @@ void mttkrp_stream(
 
   idx_t const nmodes = tt->nmodes;
 
-  val_t * accum = (val_t *) malloc(nfactors * sizeof(val_t));
+  val_t * accum = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
 
   val_t * mvals[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {

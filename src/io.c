@@ -421,7 +421,7 @@ idx_t * part_read(
 
   *nparts = 0;
   idx_t ret;
-  idx_t * arr = (idx_t *) malloc(nvtxs * sizeof(idx_t));
+  idx_t * arr = (idx_t *) splatt_malloc(nvtxs * sizeof(idx_t));
   for(idx_t i=0; i < nvtxs; ++i) {
     if((ret = fscanf(pfile, "%"SPLATT_PF_IDX, &(arr[i]))) == 0) {
       fprintf(stderr, "SPLATT ERROR: not enough elements in '%s'\n", ifname);

@@ -42,4 +42,30 @@ static idx_t const DEFAULT_MPI_DISTRIBUTION = MAX_NMODES+1;
 static int const DEFAULT_WRITE = 1;
 static int const DEFAULT_TILE = 0;
 
+
+
+/******************************************************************************
+ * MEMORY ALLOCATION
+ *****************************************************************************/
+
+/**
+* @brief Allocate 'bytes' memory, 64-bit aligned. Returns a pointer to memory.
+*
+* @param bytes The number of bytes to allocate.
+*
+* @return The allocated memory.
+*/
+void * splatt_malloc(
+    size_t const bytes);
+
+
+/**
+* @brief Free memory allocated by splatt_malloc().
+*
+* @param ptr The pointer to free.
+*/
+void splatt_free(
+    void * ptr);
+
+
 #endif

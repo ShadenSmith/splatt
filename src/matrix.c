@@ -520,10 +520,10 @@ matrix_t * mat_alloc(
   idx_t const nrows,
   idx_t const ncols)
 {
-  matrix_t * mat = (matrix_t *) malloc(sizeof(matrix_t));
+  matrix_t * mat = (matrix_t *) splatt_malloc(sizeof(matrix_t));
   mat->I = nrows;
   mat->J = ncols;
-  mat->vals = (val_t *) malloc(nrows * ncols * sizeof(val_t));
+  mat->vals = (val_t *) splatt_malloc(nrows * ncols * sizeof(val_t));
   mat->rowmajor = 1;
   return mat;
 }
@@ -596,13 +596,13 @@ spmatrix_t * spmat_alloc(
   idx_t const ncols,
   idx_t const nnz)
 {
-  spmatrix_t * mat = (spmatrix_t*) malloc(sizeof(spmatrix_t));
+  spmatrix_t * mat = (spmatrix_t*) splatt_malloc(sizeof(spmatrix_t));
   mat->I = nrows;
   mat->J = ncols;
   mat->nnz = nnz;
-  mat->rowptr = (idx_t*) malloc((nrows+1) * sizeof(idx_t));
-  mat->colind = (idx_t*) malloc(nnz * sizeof(idx_t));
-  mat->vals   = (val_t*) malloc(nnz * sizeof(val_t));
+  mat->rowptr = (idx_t*) splatt_malloc((nrows+1) * sizeof(idx_t));
+  mat->colind = (idx_t*) splatt_malloc(nnz * sizeof(idx_t));
+  mat->vals   = (val_t*) splatt_malloc(nnz * sizeof(val_t));
   return mat;
 }
 
