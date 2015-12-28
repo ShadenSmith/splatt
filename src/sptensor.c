@@ -126,7 +126,6 @@ idx_t tt_remove_dups(
     /* if the two nnz are the same, average them */
     if(p_same_coord(tt, newnnz, nnz)) {
       tt->vals[newnnz] += tt->vals[nnz];
-      tt->vals[newnnz] /= 2;
     } else {
       /* new another nnz */
       ++newnnz;

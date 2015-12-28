@@ -97,7 +97,7 @@ void splatt_check(
           }
           FILE * fout = fopen(buf, "w");
           for(idx_t i=0; i < tt->dims[m]; ++i) {
-            fprintf(fout, "%"SPLATT_PF_IDX"\n", map[i]);
+            fprintf(fout, "%"SPLATT_PF_IDX"\n", 1+map[i]);
           }
           fclose(fout);
           free(buf);

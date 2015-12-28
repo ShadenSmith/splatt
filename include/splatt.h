@@ -77,7 +77,7 @@
  *****************************************************************************/
 #define SPLATT_VER_MAJOR     1
 #define SPLATT_VER_MINOR     1
-#define SPLATT_VER_SUBMINOR  0
+#define SPLATT_VER_SUBMINOR  1
 
 
 
@@ -294,7 +294,7 @@ typedef struct splatt_csf
  *****************************************************************************/
 
 #ifdef __cplusplus
-extern 'C' {
+extern "C" {
 #endif
 
 /*
