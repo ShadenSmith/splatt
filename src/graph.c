@@ -22,7 +22,7 @@
 
 /* use multi-constraint balancing for m-partite graphs */
 #ifndef SPLATT_USE_VTX_WGTS
-#define SPLATT_USE_VTX_WGTS 1
+#define SPLATT_USE_VTX_WGTS 0
 #endif
 
 
