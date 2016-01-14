@@ -20,6 +20,10 @@
 #include <ashado.h>
 #endif
 
+/* use multi-constraint balancing for m-partite graphs */
+#ifndef SPLATT_USE_VTX_WGTS
+#define SPLATT_USE_VTX_WGTS 1
+#endif
 
 
 /******************************************************************************
@@ -297,6 +301,38 @@ static void p_fill_ijk_graph(
 }
 
 
+
+/**
+* @brief Fill the multi-constraint vertex weights with the #nnz that appear in
+*        each index.
+*
+* @param graph The graph to fill.
+* @param tt The tensor we are converting.
+*/
+static void p_fill_graph_vwgts(
+    splatt_graph * const graph,
+    sptensor_t const * const tt)
+{
+  idx_t const nnz = tt->nnz;
+
+  assert(graph->nvwgts == tt->nmodes);
+
+  wgt_t * const vwgts = graph->vwgts;
+  memset(vwgts, 0, graph->nvtxs * graph->nvwgts * sizeof(*vwgts));
+
+  idx_t offset = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    idx_t const * const inds = tt->ind[m];
+
+    /* each nnz appearance is 1 weight */
+    for(idx_t x=0; x < nnz; ++x) {
+      idx_t const v = inds[x] + offset;
+      vwgts[m + (v * graph->nvwgts)] += 1;
+    }
+    offset += tt->dims[m];
+  }
+}
+
 /**
 * @brief Takes a list of graphs and returns them stacked on top of each other.
 *        No adjacency lists are altered, only vertices added.
@@ -318,7 +354,8 @@ static splatt_graph * p_merge_graphs(
     ncon += graphs[m]->nedges;
   }
 
-  splatt_graph * ret = graph_alloc(nvtxs, ncon, 0, 1);
+  splatt_graph * ret = graph_alloc(nvtxs, ncon, graphs[0]->nvwgts,
+      graphs[0]->ewgts != NULL);
 
   /* fill in ret */
   vtx_t voffset = 0;
@@ -333,7 +370,9 @@ static splatt_graph * p_merge_graphs(
       ret->eptr[v + voffset] = eptr[v] + eoffset;
       for(adj_t e=eptr[v]; e < eptr[v+1]; ++e) {
         ret->eind[e + eoffset] = eind[e];
-        ret->ewgts[e + eoffset] = ewgts[e];
+        if(ret->ewgts != NULL) {
+          ret->ewgts[e + eoffset] = ewgts[e];
+        }
       }
     }
     voffset += graphs[m]->nvtxs;
@@ -602,7 +641,11 @@ splatt_graph * graph_convert(
     /* count size of adjacency list */
     adj_t const ncon = p_count_adj_size(&csf);
 
+#if SPLATT_USE_VTX_WGTS == 0
     graphs[m] = graph_alloc(tt->dims[m], ncon, 0, 1);
+#else
+    graphs[m] = graph_alloc(tt->dims[m], ncon, tt->nmodes, 1);
+#endif
     p_fill_ijk_graph(&csf, graphs[m]);
 
     csf_free_mode(&csf);
@@ -617,6 +660,11 @@ splatt_graph * graph_convert(
     graph_free(graphs[m]);
   }
 
+  /* handle vertex weights */
+  if(full_graph->nvwgts > 0) {
+    p_fill_graph_vwgts(full_graph, tt);
+  }
+
   return full_graph;
 }
 
@@ -624,7 +672,7 @@ splatt_graph * graph_convert(
 splatt_graph * graph_alloc(
     vtx_t nvtxs,
     adj_t nedges,
-    int use_vtx_wgts,
+    int num_vtx_wgts,
     int use_edge_wgts)
 {
   splatt_graph * ret = splatt_malloc(sizeof(*ret));
@@ -636,8 +684,9 @@ splatt_graph * graph_alloc(
 
   ret->eptr[nvtxs] = nedges;
 
-  if(use_vtx_wgts) {
-    ret->vwgts = splatt_malloc(nvtxs * sizeof(*(ret->vwgts)));
+  ret->nvwgts = num_vtx_wgts;
+  if(num_vtx_wgts) {
+    ret->vwgts = splatt_malloc(nvtxs * ret->nvwgts * sizeof(*(ret->vwgts)));
   } else {
     ret->vwgts = NULL;
   }

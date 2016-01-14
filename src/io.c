@@ -268,16 +268,30 @@ void graph_write_file(
     FILE * fout)
 {
   timer_start(&timers[TIMER_IO]);
-  /* print header
-   * TODO: support other weight options */
-  fprintf(fout, "%"SPLATT_PF_IDX" %"SPLATT_PF_IDX" 001\n", graph->nvtxs,
-      graph->nedges/2);
+  /* print header */
+  fprintf(fout, "%"SPLATT_PF_IDX" %"SPLATT_PF_IDX" 0%d%d", graph->nvtxs,
+      graph->nedges/2, graph->vwgts != NULL, graph->ewgts != NULL);
+  /* handle multi-constraint partitioning */
+  if(graph->nvwgts > 1) {
+    fprintf(fout, " %d", graph->nvwgts);
+  }
+  fprintf(fout, "\n");
 
   /* now write adj list */
   for(vtx_t v=0; v < graph->nvtxs; ++v) {
+    /* vertex weights */
+    if(graph->vwgts != NULL) {
+      for(idx_t x=0; x < graph->nvwgts; ++x) {
+        fprintf(fout, "%"SPLATT_PF_IDX" ", graph->vwgts[x+(v*graph->nvwgts)]);
+      }
+    }
+
     for(adj_t e=graph->eptr[v]; e < graph->eptr[v+1]; ++e) {
-      fprintf(fout, "%"SPLATT_PF_IDX" %"SPLATT_PF_IDX" ", graph->eind[e] + 1,
-          graph->ewgts[e]);
+      fprintf(fout, "%"SPLATT_PF_IDX" ", graph->eind[e] + 1);
+      /* edge weight */
+      if(graph->ewgts != NULL) {
+        fprintf(fout, "%"SPLATT_PF_IDX" ", graph->ewgts[e]);
+      }
     }
     fprintf(fout, "\n");
   }
