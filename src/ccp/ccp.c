@@ -12,6 +12,11 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+
+/**
+* @brief Counts the number of times a probe was performed. This is useful for
+*        benchmarking pruning strategies.
+*/
 static idx_t nprobes = 0;
 
 
@@ -76,6 +81,21 @@ static idx_t p_binary_search(
 
 
 
+/**
+* @brief Find an epsilon-approximate partitioning using recursive bisection.
+*        If we are using integer weights and eps=0, this is an optimal
+*        partitioning.
+*
+* @param weights An array of workload weights, length 'nitems'.
+* @param nitems The number of items we are partitioning.
+* @param[out] parts A ptr into weights, marking each partition. THIS IS ASSUMED
+*                   to be pre-allocated at least of size 'nparts+1'.
+* @param nparts The number of partitions to compute.
+* @param eps RB is used until the possible range of optimality is within 'eps.'
+*            Use eps=0 to compute exact partitionings (with integer weights).
+*
+* @return The amount of work in the largest partition (i.e., the bottleneck).
+*/
 static idx_t p_eps_rb_partition_1d(
     idx_t * const weights,
     idx_t const nitems,

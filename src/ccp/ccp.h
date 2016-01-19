@@ -17,6 +17,17 @@
  *****************************************************************************/
 
 #define partition_1d splatt_partition_1d
+/**
+* @brief Compute the optimal 1D partitioning of 'weights'.
+*
+* @param weights An array of workload weights, length 'nitems'.
+* @param nitems The number of items we are partitioning.
+* @param[out] parts A ptr into weights, marking each partition. THIS IS ASSUMED
+*                   to be pre-allocated at least of size 'nparts+1'.
+* @param nparts The number of partitions to compute.
+*
+* @return The amount of work in the largest partition (i.e., the bottleneck).
+*/
 idx_t partition_1d(
     idx_t * const weights,
     idx_t const nitems,
@@ -24,6 +35,21 @@ idx_t partition_1d(
     idx_t const nparts);
 
 
+#define lprobe splatt_lprobe
+/**
+* @brief Attempt to partition 'weights' with each process having at most
+*        'bottleneck' amount of work.
+*
+* @param weights An array of workload weights, length 'nitems'.
+* @param nitems The number of items we are partitioning.
+* @param[out] parts A ptr into weights, marking each partition. THIS IS ASSUMED
+*                   to be pre-allocated at least of size 'nparts+1'.
+* @param nparts The number of partitions to compute.
+* @param bottleneck The maximum partition size.
+*
+* @return Returns true if it was able to successfully partition, false
+*         otherwise.
+*/
 bool lprobe(
     idx_t const * const weights,
     idx_t const nitems,
