@@ -112,22 +112,10 @@ idx_t partition_1d(
 {
   prefix_sum_inc(weights, nitems);
 
-  idx_t const total_weight = weights[nitems-1];
-
   nprobes = 0;
 
-  /* naive attempts */
-  bool success;
-  idx_t bottleneck;
-#if 0
-  idx_t bottleneck = (total_weight / nparts) - 1; /* -1 because we inc first */
-  do {
-    ++bottleneck;
-    success = lprobe(weights, nitems, parts, nparts, bottleneck);
-  } while(!success);
-#else
-  bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
-#endif
+  /* use recursive bisectioning with 0 tolerance to get exact solution */
+  idx_t bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
 
   printf("nprobes: %lu\n", nprobes);
 
