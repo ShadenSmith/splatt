@@ -6,11 +6,24 @@
 
 #include "ccp.h"
 
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+static idx_t nprobes = 0;
 
+
+/**
+* @brief Perform a linear search on an array for a value.
+*
+* @param weights The array to search.
+* @param left The lower bound to begin at.
+* @param right The upper (exclusive) bound of items.
+* @param target The target value.
+*
+* @return The index j, where weights[j] <= target && weights[j+1] > target.
+*/
 static idx_t p_linear_search(
     idx_t const * const weights,
     idx_t const left,
@@ -26,6 +39,17 @@ static idx_t p_linear_search(
   return right;
 }
 
+
+/**
+* @brief Perform a binary search on an array for a value.
+*
+* @param weights The array to search.
+* @param left The lower bound to begin at.
+* @param right The upper (exclusive) bound of items.
+* @param target The target value.
+*
+* @return The index j, where weights[j] <= target && weights[j+1] > target.
+*/
 static idx_t p_binary_search(
     idx_t const * const weights,
     idx_t left,
@@ -51,6 +75,30 @@ static idx_t p_binary_search(
 
 
 
+static idx_t p_eps_rb_partition_1d(
+    idx_t * const weights,
+    idx_t const nitems,
+    idx_t * const parts,
+    idx_t const nparts,
+    idx_t const eps)
+{
+  idx_t lower = weights[nitems-1] / nparts;
+  idx_t upper = weights[nitems-1];
+
+  do {
+    idx_t mid = lower + ((upper - lower) / 2);
+    if(lprobe(weights, nitems, parts, nparts, mid)) {
+      upper = mid;
+    } else {
+      lower = mid+1;
+    }
+  } while(upper > lower + eps);
+
+  return upper;
+}
+
+
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
@@ -66,16 +114,20 @@ idx_t partition_1d(
 
   idx_t const total_weight = weights[nitems-1];
 
-  idx_t nprobes = 0;
+  nprobes = 0;
 
   /* naive attempts */
   bool success;
+  idx_t bottleneck;
+#if 0
   idx_t bottleneck = (total_weight / nparts) - 1; /* -1 because we inc first */
   do {
-    ++nprobes;
     ++bottleneck;
     success = lprobe(weights, nitems, parts, nparts, bottleneck);
   } while(!success);
+#else
+  bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
+#endif
 
   printf("nprobes: %lu\n", nprobes);
 
@@ -97,13 +149,6 @@ bool lprobe(
 
   idx_t const wtotal = weights[nitems-1];
 
-#if 0
-  while(p < nparts && bsum < wtotal) {
-    parts[p] = p_linear_search(weights, parts[p-1], nitems, bsum);
-    bsum = weights[parts[p]] + bottleneck;
-    ++p;
-  }
-#else
   idx_t step = nitems / nparts;
   while(p < nparts && bsum < wtotal) {
     while(step < nitems && weights[step] < bsum) {
@@ -114,12 +159,13 @@ bool lprobe(
     bsum = weights[parts[p]] + bottleneck;
     ++p;
   }
-#endif
 
   parts[p] = nitems;
 
+  ++nprobes;
   return bsum >= wtotal;
 }
+
 
 
 void prefix_sum_inc(

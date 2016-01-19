@@ -196,14 +196,14 @@ CTEST2(ccp, probe)
 
 CTEST2(ccp, bigpart)
 {
-  idx_t const N = 2500000;
+  idx_t const N = 25000000;
   idx_t const P = 24;
 
   idx_t * weights = malloc(N * sizeof(*weights));
   idx_t * parts = malloc((P+1) * sizeof(*weights));
 
   for(idx_t x=0; x < N; ++x) {
-    weights[x] = rand_idx() % N;
+    weights[x] = rand_idx() % 100;
   }
 
   sp_timer_t part;
