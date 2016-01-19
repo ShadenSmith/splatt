@@ -6,6 +6,7 @@
 #include "../io.h"
 #include "../timer.h"
 
+#include "../ccp/ccp.h"
 
 
 /******************************************************************************
@@ -246,6 +247,20 @@ static void p_find_my_slices(
 {
   idx_t const * const dims = rinfo->global_dims;
 
+#if 1
+  for(idx_t m=0; m < nmodes; ++m) {
+    idx_t * parts = splatt_malloc((rinfo->dims_3d[m] + 1) * sizeof(*parts));
+
+    /* optimally partition this mode */
+    partition_1d(ssizes[m], dims[m], parts, rinfo->dims_3d[m]);
+
+    rinfo->layer_starts[m] = parts[rinfo->coords_3d[m]];
+    rinfo->layer_ends[m] = parts[rinfo->coords_3d[m]+1];
+
+    splatt_free(parts);
+  }
+
+#else
   /* find start/end slices for my partition */
   for(idx_t m=0; m < nmodes; ++m) {
     idx_t pnnz = nnz / rinfo->dims_3d[m]; /* nnz in a layer */
@@ -304,6 +319,7 @@ static void p_find_my_slices(
       rinfo->layer_ends[m] = dims[m];
     }
   }
+#endif
 }
 
 

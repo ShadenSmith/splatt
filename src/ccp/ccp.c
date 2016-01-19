@@ -5,6 +5,7 @@
  *****************************************************************************/
 
 #include "ccp.h"
+#include "../timer.h"
 
 
 /******************************************************************************
@@ -110,6 +111,7 @@ idx_t partition_1d(
     idx_t * const parts,
     idx_t const nparts)
 {
+  timer_start(&timers[TIMER_PART]);
   prefix_sum_inc(weights, nitems);
 
   nprobes = 0;
@@ -119,6 +121,7 @@ idx_t partition_1d(
 
   printf("nprobes: %lu\n", nprobes);
 
+  timer_stop(&timers[TIMER_PART]);
   return bottleneck;
 }
 
