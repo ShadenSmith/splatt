@@ -1,4 +1,8 @@
 
+1.1.2
+=====
+
+
 1.1.1
 =====
 * Updated README.md to include MPI instructions.
