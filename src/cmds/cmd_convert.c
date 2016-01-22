@@ -17,7 +17,9 @@ static char convert_doc[] =
   "  nnz\t\tHypergraph modeling the sparsity pattern of nonzeros (fine-grained)\n"
   "  fibmat\t\tCSR matrix whose rows are fibers\n"
   "Mode-independent conversion types are:\n"
-  "  graph\t\tTri-partite graph model\n";
+  "  graph\t\tTri-partite graph model\n"
+  "  coo\t\tDefault coordinate format\n"
+  "  bin\t\tBinary coordinate format\n";
 
 typedef struct
 {
@@ -55,6 +57,10 @@ static error_t parse_convert_opt(
       args->type = CNV_IJK_GRAPH;
     } else if(strcmp(arg, "fibmat") == 0) {
       args->type = CNV_FIB_SPMAT;
+    } else if(strcmp(arg, "bin") == 0) {
+      args->type = CNV_BINARY;
+    } else if(strcmp(arg, "coo") == 0) {
+      args->type = CNV_COORD;
     }
     break;
 

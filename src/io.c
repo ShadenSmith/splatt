@@ -64,6 +64,39 @@ static sptensor_t * p_tt_read_file(
 }
 
 
+static sptensor_t * p_tt_read_binary_file(
+  FILE * fin)
+{
+  char * ptr = NULL;
+
+  /* first count nnz in tensor */
+  idx_t nnz = 0;
+  idx_t nmodes = 0;
+
+  idx_t dims[MAX_NMODES];
+  tt_get_dims_binary(fin, &nmodes, &nnz, dims);
+
+  if(nmodes > MAX_NMODES) {
+    fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
+                    "Found %"SPLATT_PF_IDX". Please recompile with "
+                    "MAX_NMODES=%"SPLATT_PF_IDX".\n",
+            MAX_NMODES, nmodes, nmodes);
+    return NULL;
+  }
+
+  /* allocate structures */
+  sptensor_t * tt = tt_alloc(nnz, nmodes);
+  memcpy(tt->dims, dims, nmodes * sizeof(*dims));
+
+  /* fill in tensor data */
+  for (idx_t m=0; m < nmodes; ++m) {
+    fread(tt->ind[m], sizeof(*tt->ind[m]), nnz, fin);
+  }
+  fread(tt->vals, sizeof(*tt->vals), nnz, fin);
+
+  return tt;
+}
+
 
 /******************************************************************************
  * API FUNCTIONS
@@ -108,6 +141,23 @@ sptensor_t * tt_read_file(
 
   timer_start(&timers[TIMER_IO]);
   sptensor_t * tt = p_tt_read_file(fin);
+  timer_stop(&timers[TIMER_IO]);
+  fclose(fin);
+  return tt;
+}
+
+
+sptensor_t * tt_read_binary_file(
+  char const * const fname)
+{
+  FILE * fin;
+  if((fin = fopen(fname, "r")) == NULL) {
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
+    return NULL;
+  }
+
+  timer_start(&timers[TIMER_IO]);
+  sptensor_t * tt = p_tt_read_binary_file(fin);
   timer_stop(&timers[TIMER_IO]);
   fclose(fin);
   return tt;
@@ -168,6 +218,25 @@ void tt_get_dims(
 }
 
 
+void tt_get_dims_binary(
+    FILE * fin,
+    idx_t * const outnmodes,
+    idx_t * const outnnz,
+    idx_t * outdims)
+{
+  char * ptr = NULL;
+  idx_t nnz = 0;
+  char * line = NULL;
+  ssize_t read;
+  size_t len = 0;
+
+  fread(outnmodes, sizeof(*outnmodes), 1, fin);
+  fread(outdims, sizeof(*outdims), *outnmodes, fin);
+  fread(outnnz, sizeof(*outnnz), 1, fin);
+}
+
+
+
 void tt_write(
   sptensor_t const * const tt,
   char const * const fname)
@@ -203,6 +272,48 @@ void tt_write_file(
   }
   timer_stop(&timers[TIMER_IO]);
 }
+
+
+void tt_write_binary(
+  sptensor_t const * const tt,
+  char const * const fname)
+{
+  FILE * fout;
+  if(fname == NULL) {
+    fout = stdout;
+  } else {
+    if((fout = fopen(fname,"w")) == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+      return;
+    }
+  }
+
+  tt_write_binary_file(tt, fout);
+
+  if(fname != NULL) {
+    fclose(fout);
+  }
+}
+
+
+void tt_write_binary_file(
+  sptensor_t const * const tt,
+  FILE * fout)
+{
+  timer_start(&timers[TIMER_IO]);
+
+  fwrite(&tt->nmodes, sizeof(tt->nmodes), 1, fout);
+  fwrite(tt->dims, sizeof(*tt->dims), tt->nmodes, fout);
+  fwrite(&tt->nnz, sizeof(tt->nnz), 1, fout);
+
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    fwrite(tt->ind[m], sizeof(*tt->ind[m]), tt->nnz, fout);
+  }
+  fwrite(tt->vals, sizeof(*tt->vals), tt->nnz, fout);
+
+  timer_stop(&timers[TIMER_IO]);
+}
+
 
 void hgraph_write(
   hgraph_t const * const hg,

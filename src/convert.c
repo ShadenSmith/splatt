@@ -131,6 +131,12 @@ void tt_convert(
   case CNV_FIB_SPMAT:
     p_convert_fib_mat(tt, mode, ofname);
     break;
+  case CNV_BINARY:
+    tt_write_binary(tt, ofname);
+    break;
+  case CNV_COORD:
+    tt_write(tt, ofname);
+    break;
   default:
     fprintf(stderr, "SPLATT ERROR: convert type not implemented.\n");
     exit(1);
