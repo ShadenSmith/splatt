@@ -346,10 +346,12 @@ static void p_tt_quicksort3(
     ind2[i] = imid[2];
 
     if(i > start + 1) {
+      #pragma omp task
       p_tt_quicksort3(tt, cmplt, start, i);
     }
     ++i; /* skip the pivot element */
     if(end - i > 1) {
+      #pragma omp task
       p_tt_quicksort3(tt, cmplt, i, end);
     }
   }
@@ -424,15 +426,70 @@ static void p_tt_quicksort(
     }
 
     if(i > start + 1) {
+      #pragma omp task
       p_tt_quicksort(tt, cmplt, start, i);
     }
     ++i; /* skip the pivot element */
     if(end - i > 1) {
+      #pragma omp task
       p_tt_quicksort(tt, cmplt, i, end);
     }
   }
 }
 
+
+/**
+* @brief Perform a simple parallel quicksort with OpenMP tasks.
+*
+* @param a The array to sort.
+* @param n The length of the array.
+*/
+static void p_par_quicksort(
+  idx_t * const a,
+  idx_t const n)
+{
+  if(n < MIN_QUICKSORT_SIZE) {
+    insertion_sort(a, n);
+  } else {
+    size_t i = 1;
+    size_t j = n-1;
+    size_t k = n >> 1;
+    idx_t mid = a[k];
+    a[k] = a[0];
+    while(i < j) {
+      if(a[i] > mid) { /* a[i] is on the wrong side */
+        if(a[j] <= mid) { /* swap a[i] and a[j] */
+          idx_t tmp = a[i];
+          a[i] = a[j];
+          a[j] = tmp;
+          ++i;
+        }
+        --j;
+      } else {
+        if(a[j] > mid) { /* a[j] is on the right side */
+          --j;
+        }
+        ++i;
+      }
+    }
+
+    if(a[i] > mid) {
+      --i;
+    }
+    a[0] = a[i];
+    a[i] = mid;
+
+    if(i > 1) {
+      #pragma omp task
+      p_par_quicksort(a,i);
+    }
+    ++i; /* skip the pivot element */
+    if(n-i > 1) {
+      #pragma omp task
+      p_par_quicksort(a+i, n-i);
+    }
+  }
+}
 
 
 /******************************************************************************
@@ -466,13 +523,19 @@ void tt_sort_range(
   }
 
   timer_start(&timers[TIMER_SORT]);
-  switch(tt->type) {
-  case SPLATT_NMODE:
-    p_tt_quicksort(tt, cmplt, start, end);
-    break;
-  case SPLATT_3MODE:
-    p_tt_quicksort3(tt, cmplt, start, end);
-    break;
+  #pragma omp parallel
+  {
+    switch(tt->type) {
+    case SPLATT_NMODE:
+      #pragma omp single
+      p_tt_quicksort(tt, cmplt, start, end);
+      break;
+    case SPLATT_3MODE:
+      #pragma omp single
+      p_tt_quicksort3(tt, cmplt, start, end);
+      break;
+    }
+    #pragma omp taskwait
   }
 
   if(dim_perm == NULL) {
@@ -499,51 +562,18 @@ void insertion_sort(
   timer_stop(&timers[TIMER_SORT]);
 }
 
-
 void quicksort(
   idx_t * const a,
   idx_t const n)
 {
   timer_start(&timers[TIMER_SORT]);
-  if(n < MIN_QUICKSORT_SIZE) {
-    insertion_sort(a, n);
-  } else {
-    size_t i = 1;
-    size_t j = n-1;
-    size_t k = n >> 1;
-    idx_t mid = a[k];
-    a[k] = a[0];
-    while(i < j) {
-      if(a[i] > mid) { /* a[i] is on the wrong side */
-        if(a[j] <= mid) { /* swap a[i] and a[j] */
-          idx_t tmp = a[i];
-          a[i] = a[j];
-          a[j] = tmp;
-          ++i;
-        }
-        --j;
-      } else {
-        if(a[j] > mid) { /* a[j] is on the right side */
-          --j;
-        }
-        ++i;
-      }
-    }
 
-    if(a[i] > mid) {
-      --i;
-    }
-    a[0] = a[i];
-    a[i] = mid;
-
-    if(i > 1) {
-      quicksort(a,i);
-    }
-    ++i; /* skip the pivot element */
-    if(n-i > 1) {
-      quicksort(a+i, n-i);
-    }
+  #pragma omp parallel
+  {
+    #pragma omp single
+    p_par_quicksort(a,n);
   }
+
   timer_stop(&timers[TIMER_SORT]);
 }
 
