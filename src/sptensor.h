@@ -80,6 +80,17 @@ sptensor_t * tt_alloc(
 
 
 #define tt_fill splatt_tt_fill
+/**
+* @brief Store inds/vals info into tt and determine dimension information.
+*        NOTE: This only stores the pointers directly, does not allocate
+*        memory!
+*
+* @param tt The tensor to fill.
+* @param nnz The length of inds/vals.
+* @param nmodes The number of modes in the tensor.
+* @param inds A 2D array of indices. The x'th nnz is found at ind[0][x], ...
+* @param vals An array of values.
+*/
 void tt_fill(
   sptensor_t * const tt,
   idx_t const nnz,

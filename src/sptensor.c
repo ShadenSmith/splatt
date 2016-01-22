@@ -270,9 +270,9 @@ void tt_fill(
   for(idx_t m=0; m < nmodes; ++m) {
     tt->indmap[m] = NULL;
 
-    tt->dims[m] = inds[m][0];
+    tt->dims[m] = 1 + inds[m][0];
     for(idx_t i=1; i < nnz; ++i) {
-      tt->dims[m] = SS_MAX(tt->dims[m], inds[m][i]);
+      tt->dims[m] = SS_MAX(tt->dims[m], 1 + inds[m][i]);
     }
   }
 }
