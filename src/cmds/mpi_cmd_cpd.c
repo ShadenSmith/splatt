@@ -187,6 +187,9 @@ void splatt_mpi_cpd_cmd(
   }
 
   tt = mpi_tt_read(args.ifname, args.pfname, &rinfo);
+  if(tt == NULL) {
+    return;
+  }
 
   /* In the default setting, mpi_tt_read will set rinfo distribution.
    * Copy that back into args. TODO: make this less dumb. */

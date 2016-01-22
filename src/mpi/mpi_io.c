@@ -826,6 +826,16 @@ sptensor_t * mpi_tt_read(
   timer_start(&timers[TIMER_IO]);
   idx_t nmodes;
 
+  /* first just make sure it exists */
+  FILE * fin;
+  if((fin = fopen(ifname, "r")) == NULL) {
+    if(rinfo->rank == 0) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", ifname);
+    }
+    return NULL;
+  }
+  fclose(fin);
+
   if(rinfo->rank == 0) {
     /* get tensor stats */
     p_get_dims(ifname, &(rinfo->global_nnz), &nmodes, rinfo->global_dims);
