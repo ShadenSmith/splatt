@@ -12,6 +12,28 @@
 
 #include "timer.h"
 
+/******************************************************************************
+ * STRUCTURES
+ *****************************************************************************/
+
+typedef enum
+{
+  SPLATT_BIN_COORD,
+  SPLATT_BIN_CSF
+} splatt_magic_type;
+
+
+/**
+* @brief This struct is written to the beginning of any binary tensor file
+*        written by SPLATT.
+*/
+typedef struct
+{
+  int32_t magic;
+  size_t idx_width;
+  size_t val_width;
+} bin_header;
+
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
@@ -64,17 +86,112 @@ static sptensor_t * p_tt_read_file(
 }
 
 
+/**
+* @brief Populate a binary header from an input file.
+*
+* @param fin The file to read from.
+* @param header The header to populate.
+*/
+static void p_read_binary_header(
+  FILE * fin,
+  bin_header * header)
+{
+  fread(&(header->magic), sizeof(header->magic), 1, fin);
+  fread(&(header->idx_width), sizeof(header->idx_width), 1, fin);
+  fread(&(header->val_width), sizeof(header->val_width), 1, fin);
+
+  if(header->idx_width > SPLATT_IDX_TYPEWIDTH / 8) {
+    fprintf(stderr, "SPLATT: ERROR input has %zu-bit integers. "
+                    "Build with SPLATT_IDX_TYPEWIDTH %zu\n",
+                    header->idx_width * 8, header->idx_width * 8);
+    exit(EXIT_FAILURE);
+  }
+
+  if(header->val_width > SPLATT_VAL_TYPEWIDTH / 8) {
+    fprintf(stderr, "SPLATT: WARNING input has %zu-bit floating-point values. "
+                    "Build with SPLATT_VAL_TYPEWIDTH %zu for full precision\n",
+                    header->val_width * 8, header->val_width * 8);
+  }
+}
+
+
+/**
+* @brief Write a binary header to an input file.
+*
+* @param fout The file to write to.
+* @param tt The tensor to form a header from.
+* @param[out] header The header to write.
+*/
+static void p_write_tt_binary_header(
+  FILE * fout,
+  sptensor_t const * const tt,
+  bin_header * header)
+{
+  int32_t type = SPLATT_BIN_COORD;
+  fwrite(&type, sizeof(type), 1, fout);
+
+  /* now see if all indices fit in 32bit values */
+  size_t idx = tt->nnz < UINT32_MAX ?  sizeof(uint32_t) : sizeof(uint64_t);
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    if(tt->dims[m] > UINT32_MAX) {
+      idx = sizeof(uint64_t);
+      break;
+    }
+  }
+
+  /* now see if every value can exactly be represented as a float */
+  size_t val = sizeof(float);
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    float conv = tt->vals[n];
+    if((splatt_val_t) conv != tt->vals[n]) {
+      val = sizeof(splatt_val_t);
+    }
+  }
+
+  header->magic = type;
+  header->idx_width = idx;
+  header->val_width = val;
+
+  fwrite(&idx, sizeof(idx), 1, fout);
+  fwrite(&val, sizeof(val), 1, fout);
+}
+
+
+
+/**
+* @brief Read a COORD tensor from a binary file, converting from smaller idx or
+*        val precision if necessary.
+*
+* @param fin The file to read from.
+*
+* @return The parsed tensor.
+*/
 static sptensor_t * p_tt_read_binary_file(
   FILE * fin)
 {
-  char * ptr = NULL;
+  bin_header header;
+  p_read_binary_header(fin, &header);
 
-  /* first count nnz in tensor */
   idx_t nnz = 0;
   idx_t nmodes = 0;
-
   idx_t dims[MAX_NMODES];
-  tt_get_dims_binary(fin, &nmodes, &nnz, dims);
+
+  if(header.idx_width == sizeof(splatt_idx_t)) {
+    fread(&nmodes, sizeof(nmodes), 1, fin);
+    fread(dims, sizeof(*dims), nmodes, fin);
+    fread(&nnz, sizeof(nnz), 1, fin);
+  } else {
+    /* read them individually */
+    uint32_t buf;
+    fread(&buf, sizeof(buf), 1, fin);
+    nmodes = buf;
+    for(idx_t m=0; m < nmodes; ++m) {
+      fread(&buf, sizeof(buf), 1, fin);
+      dims[m] = buf;
+    }
+    fread(&buf, sizeof(buf), 1, fin);
+    nnz = buf;
+  }
 
   if(nmodes > MAX_NMODES) {
     fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
@@ -89,10 +206,31 @@ static sptensor_t * p_tt_read_binary_file(
   memcpy(tt->dims, dims, nmodes * sizeof(*dims));
 
   /* fill in tensor data */
-  for (idx_t m=0; m < nmodes; ++m) {
-    fread(tt->ind[m], sizeof(*tt->ind[m]), nnz, fin);
+
+  /* READ INDS */
+  if(header.idx_width == sizeof(splatt_idx_t)) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      fread(tt->ind[m], sizeof(*(tt->ind[m])), nnz, fin);
+    }
+  } else {
+    uint32_t buf;
+    for(idx_t m=0; m < nmodes; ++m) {
+      for(idx_t n=0; n < tt->nnz; ++n) {
+        fread(&buf, sizeof(buf), 1, fin);
+        tt->ind[m][n] = buf;
+      }
+    }
   }
-  fread(tt->vals, sizeof(*tt->vals), nnz, fin);
+
+  if(header.val_width == sizeof(splatt_val_t)) {
+    fread(tt->vals, sizeof(*(tt->vals)), nnz, fin);
+  } else {
+    float buf;
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      fread(&buf, sizeof(buf), 1, fin);
+      tt->vals[n] = buf;
+    }
+  }
 
   return tt;
 }
@@ -218,25 +356,6 @@ void tt_get_dims(
 }
 
 
-void tt_get_dims_binary(
-    FILE * fin,
-    idx_t * const outnmodes,
-    idx_t * const outnnz,
-    idx_t * outdims)
-{
-  char * ptr = NULL;
-  idx_t nnz = 0;
-  char * line = NULL;
-  ssize_t read;
-  size_t len = 0;
-
-  fread(outnmodes, sizeof(*outnmodes), 1, fin);
-  fread(outdims, sizeof(*outdims), *outnmodes, fin);
-  fread(outnnz, sizeof(*outnnz), 1, fin);
-}
-
-
-
 void tt_write(
   sptensor_t const * const tt,
   char const * const fname)
@@ -302,14 +421,62 @@ void tt_write_binary_file(
 {
   timer_start(&timers[TIMER_IO]);
 
-  fwrite(&tt->nmodes, sizeof(tt->nmodes), 1, fout);
-  fwrite(tt->dims, sizeof(*tt->dims), tt->nmodes, fout);
-  fwrite(&tt->nnz, sizeof(tt->nnz), 1, fout);
+  bin_header header;
+  p_write_tt_binary_header(fout, tt, &header);
 
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    fwrite(tt->ind[m], sizeof(*tt->ind[m]), tt->nnz, fout);
+  /* WRITE INDICES */
+
+  /* if we are writing to the same precision they are stored in, just fwrite */
+  if(header.idx_width == sizeof(splatt_idx_t)) {
+    fwrite(&tt->nmodes, sizeof(tt->nmodes), 1, fout);
+    fwrite(tt->dims, sizeof(*tt->dims), tt->nmodes, fout);
+    fwrite(&tt->nnz, sizeof(tt->nnz), 1, fout);
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      fwrite(tt->ind[m], sizeof(*tt->ind[m]), tt->nnz, fout);
+    }
+
+  /* otherwise we convert (downwards) element-wise */
+  } else if(header.idx_width < sizeof(splatt_idx_t)) {
+    uint32_t buf = tt->nmodes;
+    fwrite(&buf, sizeof(buf), 1, fout);
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      buf = tt->dims[m];
+      fwrite(&buf, sizeof(buf), 1, fout);
+    }
+    buf = tt->nnz;
+    fwrite(&buf, sizeof(buf), 1, fout);
+    /* write inds */
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      for(idx_t n=0; n < tt->nnz; ++n) {
+        buf = tt->ind[m][n];
+        fwrite(&buf, sizeof(buf), 1, fout);
+      }
+    }
+
+  } else {
+    /* XXX this should never be reached */
+    fprintf(stderr, "SPLATT: the impossible happened, "
+                    "idx_width > IDX_TYPEWIDTH.\n");
+    abort();
   }
-  fwrite(tt->vals, sizeof(*tt->vals), tt->nnz, fout);
+
+  /* WRITE VALUES */
+
+  if(header.val_width == sizeof(splatt_val_t)) {
+    fwrite(tt->vals, sizeof(*tt->vals), tt->nnz, fout);
+  /* otherwise we convert (downwards) element-wise */
+  } else if(header.val_width < sizeof(splatt_val_t)) {
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      float buf = tt->vals[n];
+      fwrite(&buf, sizeof(buf), 1, fout);
+    }
+
+  } else {
+    /* XXX this should never be reached */
+    fprintf(stderr, "SPLATT: the impossible happened, "
+                    "val_width > VAL_TYPEWIDTH.\n");
+    abort();
+  }
 
   timer_stop(&timers[TIMER_IO]);
 }
