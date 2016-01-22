@@ -114,6 +114,9 @@ void tt_convert(
   splatt_convert_type const type)
 {
   sptensor_t * tt = tt_read(ifname);
+  if(tt == NULL) {
+    return;
+  }
   stats_tt(tt, ifname, STATS_BASIC, 0, NULL);
 
   timer_start(&timers[TIMER_CONVERT]);

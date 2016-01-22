@@ -97,6 +97,9 @@ void splatt_stats(
   print_header();
 
   sptensor_t * tt = tt_read(args.ifname);
+  if(tt == NULL) {
+    return;
+  }
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
   if(args.type != STATS_BASIC) {
     stats_tt(tt, args.ifname, args.type, args.mode, args.pfname);

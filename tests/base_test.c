@@ -7,7 +7,7 @@
 CTEST(base, alloc_aligned)
 {
   void * ptr = splatt_malloc(4096);
-  ASSERT_EQUAL(0, (int)ptr % 64);
+  ASSERT_EQUAL((uintptr_t) 0, (uintptr_t)ptr % 64);
   splatt_free(ptr);
 }
 

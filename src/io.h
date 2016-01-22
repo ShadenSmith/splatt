@@ -43,6 +43,7 @@ void tt_get_dims(
     idx_t * const outnnz,
     idx_t * outdims);
 
+#define tt_get_dims_binary splatt_tt_get_dims_binary
 void tt_get_dims_binary(
     FILE * fin,
     idx_t * const outnmodes,
@@ -54,6 +55,7 @@ void tt_get_dims_binary(
 sptensor_t * tt_read_file(
   char const * const fname);
 
+#define tt_read_binary_file splatt_tt_read_binary_file
 sptensor_t * tt_read_binary_file(
   char const * const fname);
 
@@ -71,6 +73,7 @@ void tt_write(
   sptensor_t const * const tt,
   char const * const fname);
 
+#define tt_write_binary_file tt_write_binary_file
 void tt_write_binary(
   sptensor_t const * const tt,
   char const * const fname);

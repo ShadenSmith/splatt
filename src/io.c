@@ -384,7 +384,7 @@ void graph_write_file(
       graph->nedges/2, graph->vwgts != NULL, graph->ewgts != NULL);
   /* handle multi-constraint partitioning */
   if(graph->nvwgts > 1) {
-    fprintf(fout, " %d", graph->nvwgts);
+    fprintf(fout, " %"SPLATT_PF_IDX, graph->nvwgts);
   }
   fprintf(fout, "\n");
 

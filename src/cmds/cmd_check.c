@@ -72,6 +72,9 @@ void splatt_check(
 
   print_header();
   sptensor_t * tt = tt_read(args.ifname);
+  if(tt == NULL) {
+    return;
+  }
 
   idx_t const rnnz = tt_remove_dups(tt);
   idx_t const rslices = tt_remove_empty(tt);

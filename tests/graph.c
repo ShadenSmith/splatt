@@ -76,7 +76,7 @@ CTEST2(graph, graph_convert)
     /* clean up */
     fclose(gold);
     fclose(fin);
-    unlink(TMP_FILE);
+    remove(TMP_FILE);
     graph_free(graph);
   }
 }
