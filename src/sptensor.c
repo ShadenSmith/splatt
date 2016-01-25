@@ -215,15 +215,7 @@ idx_t tt_remove_empty(
 sptensor_t * tt_read(
   char const * const ifname)
 {
-  int l = strlen(ifname);
-  sptensor_t * tt;
-  if (l > 4 && strcmp(ifname + l - 4, ".bin") == 0) {
-    tt = tt_read_binary_file(ifname);
-  }
-  else {
-    tt = tt_read_file(ifname);
-  }
-  return tt;
+  return tt_read_file(ifname);
 }
 
 

@@ -124,3 +124,31 @@ CTEST2(mpi_io, splatt_mpi_coord_load)
     }
   } /* foreach tensor */
 }
+
+
+CTEST2(mpi_io, splatt_mpi_coord_load_binary)
+{
+  int rank, npes;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &npes);
+
+  double * opts = splatt_default_opts();
+  for(idx_t tt=0; tt < data->ntensors; ++tt) {
+    splatt_idx_t nmodes;
+    splatt_idx_t nnz;
+    splatt_idx_t ** inds;
+    splatt_val_t * vals;
+    int ret = splatt_mpi_coord_load(datasets[tt], &nmodes, &nnz,  &inds, &vals,
+        opts, MPI_COMM_WORLD);
+
+    ASSERT_EQUAL(SPLATT_SUCCESS, ret);
+    ASSERT_EQUAL(data->tensors[tt]->nmodes, nmodes);
+    ASSERT_NOT_NULL(vals);
+    ASSERT_NOT_NULL(inds);
+    for(idx_t m=0; m < nmodes; ++m) {
+      ASSERT_NOT_NULL(inds[m]);
+    }
+  }
+}
+
+

@@ -34,6 +34,44 @@ static inline FILE * open_f(
 
 
 /******************************************************************************
+ * BINARY READS
+ *****************************************************************************/
+
+typedef enum
+{
+  SPLATT_BIN_COORD,
+  SPLATT_BIN_CSF
+} splatt_magic_type;
+
+
+/**
+* @brief This struct is written to the beginning of any binary tensor file
+*        written by SPLATT.
+*/
+typedef struct
+{
+  int32_t magic;
+  size_t idx_width;
+  size_t val_width;
+} bin_header;
+
+#define read_binary_header splatt_read_binary_header
+/**
+* @brief Populate a binary header from an input file.
+*
+* @param fin The file to read from.
+* @param[OUT] header The header to populate.
+*/
+void read_binary_header(
+    FILE * fin,
+    bin_header * header);
+
+
+bool is_bin_fname(
+    char const * const fname);
+
+
+/******************************************************************************
  * TENSOR FUNCTIONS
  *****************************************************************************/
 #define tt_get_dims splatt_tt_get_dims

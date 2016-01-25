@@ -40,7 +40,7 @@ CTEST2(io, binary_io)
     tt_write_binary(gold, TMP_FILE);
 
     /* now read it back */
-    sptensor_t * tt_bin = tt_read_binary_file(TMP_FILE);
+    sptensor_t * tt_bin = tt_read(TMP_FILE);
 
     /* now check for correctness */
     ASSERT_EQUAL(gold->nnz, tt_bin->nnz);

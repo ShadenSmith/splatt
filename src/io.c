@@ -12,28 +12,6 @@
 
 #include "timer.h"
 
-/******************************************************************************
- * STRUCTURES
- *****************************************************************************/
-
-typedef enum
-{
-  SPLATT_BIN_COORD,
-  SPLATT_BIN_CSF
-} splatt_magic_type;
-
-
-/**
-* @brief This struct is written to the beginning of any binary tensor file
-*        written by SPLATT.
-*/
-typedef struct
-{
-  int32_t magic;
-  size_t idx_width;
-  size_t val_width;
-} bin_header;
-
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
@@ -83,35 +61,6 @@ static sptensor_t * p_tt_read_file(
   free(line);
 
   return tt;
-}
-
-
-/**
-* @brief Populate a binary header from an input file.
-*
-* @param fin The file to read from.
-* @param header The header to populate.
-*/
-static void p_read_binary_header(
-  FILE * fin,
-  bin_header * header)
-{
-  fread(&(header->magic), sizeof(header->magic), 1, fin);
-  fread(&(header->idx_width), sizeof(header->idx_width), 1, fin);
-  fread(&(header->val_width), sizeof(header->val_width), 1, fin);
-
-  if(header->idx_width > SPLATT_IDX_TYPEWIDTH / 8) {
-    fprintf(stderr, "SPLATT: ERROR input has %zu-bit integers. "
-                    "Build with SPLATT_IDX_TYPEWIDTH %zu\n",
-                    header->idx_width * 8, header->idx_width * 8);
-    exit(EXIT_FAILURE);
-  }
-
-  if(header->val_width > SPLATT_VAL_TYPEWIDTH / 8) {
-    fprintf(stderr, "SPLATT: WARNING input has %zu-bit floating-point values. "
-                    "Build with SPLATT_VAL_TYPEWIDTH %zu for full precision\n",
-                    header->val_width * 8, header->val_width * 8);
-  }
 }
 
 
@@ -170,7 +119,7 @@ static sptensor_t * p_tt_read_binary_file(
   FILE * fin)
 {
   bin_header header;
-  p_read_binary_header(fin, &header);
+  read_binary_header(fin, &header);
 
   idx_t nnz = 0;
   idx_t nmodes = 0;
@@ -277,8 +226,14 @@ sptensor_t * tt_read_file(
     return NULL;
   }
 
+  sptensor_t * tt;
+
   timer_start(&timers[TIMER_IO]);
-  sptensor_t * tt = p_tt_read_file(fin);
+  if(!is_bin_fname(fname)) {
+    tt = p_tt_read_file(fin);
+  } else {
+    tt = p_tt_read_binary_file(fin);
+  }
   timer_stop(&timers[TIMER_IO]);
   fclose(fin);
   return tt;
@@ -480,6 +435,42 @@ void tt_write_binary_file(
 
   timer_stop(&timers[TIMER_IO]);
 }
+
+
+bool is_bin_fname(
+    char const * const fname)
+{
+  int l = strlen(fname);
+  if (l > 4 && strcmp(fname + l - 4, ".bin") == 0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+
+void read_binary_header(
+  FILE * fin,
+  bin_header * header)
+{
+  fread(&(header->magic), sizeof(header->magic), 1, fin);
+  fread(&(header->idx_width), sizeof(header->idx_width), 1, fin);
+  fread(&(header->val_width), sizeof(header->val_width), 1, fin);
+
+  if(header->idx_width > SPLATT_IDX_TYPEWIDTH / 8) {
+    fprintf(stderr, "SPLATT: ERROR input has %zu-bit integers. "
+                    "Build with SPLATT_IDX_TYPEWIDTH %zu\n",
+                    header->idx_width * 8, header->idx_width * 8);
+    exit(EXIT_FAILURE);
+  }
+
+  if(header->val_width > SPLATT_VAL_TYPEWIDTH / 8) {
+    fprintf(stderr, "SPLATT: WARNING input has %zu-bit floating-point values. "
+                    "Build with SPLATT_VAL_TYPEWIDTH %zu for full precision\n",
+                    header->val_width * 8, header->val_width * 8);
+  }
+}
+
 
 
 void hgraph_write(
