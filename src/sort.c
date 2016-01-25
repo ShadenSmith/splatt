@@ -14,6 +14,8 @@
 /* switch to insertion sort past this point */
 #define MIN_QUICKSORT_SIZE 8
 
+/* don't bother spawning threads for small sorts */
+#define SMALL_SORT_SIZE 1000
 
 
 /******************************************************************************
@@ -568,10 +570,15 @@ void quicksort(
 {
   timer_start(&timers[TIMER_SORT]);
 
-  #pragma omp parallel
-  {
-    #pragma omp single
+  if(n < SMALL_SORT_SIZE) {
     p_par_quicksort(a,n);
+  } else {
+    #pragma omp parallel
+    {
+      /* single call at the beginning, then omp tasks use more threads */
+      #pragma omp single
+      p_par_quicksort(a,n);
+    }
   }
 
   timer_stop(&timers[TIMER_SORT]);

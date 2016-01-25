@@ -44,7 +44,7 @@ static inline FILE * open_f(
 typedef enum
 {
   SPLATT_FILE_TEXT_COORD,      /* plain list of tuples + values */
-  SPLATT_FILE_BIN_COORD   /* a binary version of the coordinate format */
+  SPLATT_FILE_BIN_COORD        /* a binary version of the coordinate format */
 } splatt_file_type;
 
 
