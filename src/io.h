@@ -33,9 +33,40 @@ static inline FILE * open_f(
 
 
 
+
+/******************************************************************************
+ * FILE TYPES
+ *****************************************************************************/
+
+/**
+* @brief An enum describing the supported input file types.
+*/
+typedef enum
+{
+  SPLATT_FILE_TEXT_COORD,      /* plain list of tuples + values */
+  SPLATT_FILE_BIN_COORD   /* a binary version of the coordinate format */
+} splatt_file_type;
+
+
+#define get_file_type splatt_get_file_type
+/**
+* @brief Attempt to determine the type of tensor file based on the extension.
+*        NOTE: Defaults to SPLATT_FILE_TEXT_COORD and prints to stderr if
+*        unable to determine.
+*
+* @param fname The filename to analyze.
+*
+* @return A file type.
+*/
+splatt_file_type get_file_type(
+    char const * const fname);
+
+
+
 /******************************************************************************
  * BINARY READS
  *****************************************************************************/
+
 
 typedef enum
 {
@@ -66,9 +97,6 @@ void read_binary_header(
     FILE * fin,
     bin_header * header);
 
-
-bool is_bin_fname(
-    char const * const fname);
 
 
 /******************************************************************************

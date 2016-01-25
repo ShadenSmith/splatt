@@ -13,6 +13,49 @@
 #include "timer.h"
 
 
+
+/******************************************************************************
+ * FILE TYPES
+ *****************************************************************************/
+struct ftype
+{
+  char * extension;
+  splatt_file_type type;
+};
+
+static struct ftype file_extensions[] = {
+  { ".tns", SPLATT_FILE_TEXT_COORD },
+  { ".coo", SPLATT_FILE_TEXT_COORD },
+  { ".bin", SPLATT_FILE_BIN_COORD  },
+  { NULL, 0}
+};
+
+
+splatt_file_type get_file_type(
+    char const * const fname)
+{
+  /* find last . in filename */
+  char const * const suffix = strrchr(fname, '.');
+  if(suffix == NULL) {
+    goto NOT_FOUND;
+  }
+
+  size_t idx = 0;
+  do {
+    if(strcmp(suffix, file_extensions[idx].extension) == 0) {
+      return file_extensions[idx].type;
+    }
+  } while(file_extensions[++idx].extension != NULL);
+
+
+  /* default to text coordinate format */
+  NOT_FOUND:
+  fprintf(stderr, "SPLATT: extension for '%s' not recognized. "
+                  "Defaulting to ASCII coordinate form.\n", fname);
+  return SPLATT_FILE_TEXT_COORD;
+}
+
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
@@ -226,13 +269,16 @@ sptensor_t * tt_read_file(
     return NULL;
   }
 
-  sptensor_t * tt;
+  sptensor_t * tt = NULL;
 
   timer_start(&timers[TIMER_IO]);
-  if(!is_bin_fname(fname)) {
-    tt = p_tt_read_file(fin);
-  } else {
-    tt = p_tt_read_binary_file(fin);
+  switch(get_file_type(fname)) {
+    case SPLATT_FILE_TEXT_COORD:
+      tt = p_tt_read_file(fin);
+      break;
+    case SPLATT_FILE_BIN_COORD:
+      tt = p_tt_read_binary_file(fin);
+      break;
   }
   timer_stop(&timers[TIMER_IO]);
   fclose(fin);
@@ -434,18 +480,6 @@ void tt_write_binary_file(
   }
 
   timer_stop(&timers[TIMER_IO]);
-}
-
-
-bool is_bin_fname(
-    char const * const fname)
-{
-  int l = strlen(fname);
-  if (l > 4 && strcmp(fname + l - 4, ".bin") == 0) {
-    return true;
-  } else {
-    return false;
-  }
 }
 
 
