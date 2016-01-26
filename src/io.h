@@ -82,9 +82,10 @@ typedef enum
 typedef struct
 {
   int32_t magic;
-  size_t idx_width;
-  size_t val_width;
+  uint64_t idx_width;
+  uint64_t val_width;
 } bin_header;
+
 
 #define read_binary_header splatt_read_binary_header
 /**

@@ -123,7 +123,7 @@ static void p_write_tt_binary_header(
   fwrite(&type, sizeof(type), 1, fout);
 
   /* now see if all indices fit in 32bit values */
-  size_t idx = tt->nnz < UINT32_MAX ?  sizeof(uint32_t) : sizeof(uint64_t);
+  uint64_t idx = tt->nnz < UINT32_MAX ?  sizeof(uint32_t) : sizeof(uint64_t);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     if(tt->dims[m] > UINT32_MAX) {
       idx = sizeof(uint64_t);
@@ -132,7 +132,7 @@ static void p_write_tt_binary_header(
   }
 
   /* now see if every value can exactly be represented as a float */
-  size_t val = sizeof(float);
+  uint64_t val = sizeof(float);
   for(idx_t n=0; n < tt->nnz; ++n) {
     float conv = tt->vals[n];
     if((splatt_val_t) conv != tt->vals[n]) {
