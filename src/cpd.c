@@ -393,3 +393,31 @@ void cpd_post_process(
 }
 
 
+splatt_val_t splatt_kruskal_estimate(
+    splatt_kruskal const * const factored,
+    splatt_idx_t const * const coords)
+{
+  idx_t const nfactors = factored->rank;
+  val_t * accum = splatt_malloc(nfactors * sizeof(*accum));
+  for(idx_t f=0; f < nfactors; ++f) {
+    accum[f] = factored->lambda[f];
+  }
+
+  for(idx_t m=0; m < factored->nmodes; ++m) {
+    val_t const * const row = factored->factors[m] + (coords[m] * nfactors);
+    for(idx_t f=0; f < nfactors; ++f) {
+      accum[f] *= row[f];
+    }
+  }
+
+  val_t est = 0;
+  for(idx_t f=0; f < nfactors; ++f) {
+    est += accum[f];
+  }
+
+  splatt_free(accum);
+
+  return est;
+}
+
+

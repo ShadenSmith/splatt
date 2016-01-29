@@ -28,7 +28,7 @@
  * size. */
 
 #ifndef SPLATT_IDX_TYPEWIDTH
-  #define SPLATT_IDX_TYPEWIDTH 64
+  #define SPLATT_IDX_TYPEWIDTH 32
 #endif
 
 #ifndef SPLATT_VAL_TYPEWIDTH
@@ -427,7 +427,26 @@ int splatt_cpd_als(
     double const * const options,
     splatt_kruskal * factored);
 
+
+/**
+* @brief Compute the estimated value of a coordinate, given a factored tensor.
+*        This is equal to:
+*             \sum_{r=1}^{rank} [A(i,r) * B(j,r) * C(k,r) ... ]
+*
+* @param factored The factored tensor.
+* @param coords The index to estimate.
+*
+* @return The estimated value.
+*/
+splatt_val_t splatt_kruskal_estimate(
+    splatt_kruskal const * const factored,
+    splatt_idx_t const * const coords);
+
+
 /** @} */
+
+
+
 
 /**
 \defgroup api_op_list List of functions for tensor operations.
