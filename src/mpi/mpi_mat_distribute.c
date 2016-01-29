@@ -400,7 +400,7 @@ static void p_fill_volume_stats(
         maxp *= rinfo->dims_3d[moff];
       }
     }
-    assert(pcount[i] <= maxp);
+    assert((idx_t)pcount[i] <= maxp);
 #endif
 
     tot += pcount[i];
