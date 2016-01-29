@@ -168,22 +168,9 @@ static sptensor_t * p_tt_read_binary_file(
   idx_t nmodes = 0;
   idx_t dims[MAX_NMODES];
 
-  if(header.idx_width == sizeof(splatt_idx_t)) {
-    fread(&nmodes, sizeof(nmodes), 1, fin);
-    fread(dims, sizeof(*dims), nmodes, fin);
-    fread(&nnz, sizeof(nnz), 1, fin);
-  } else {
-    /* read them individually */
-    uint32_t buf;
-    fread(&buf, sizeof(buf), 1, fin);
-    nmodes = buf;
-    for(idx_t m=0; m < nmodes; ++m) {
-      fread(&buf, sizeof(buf), 1, fin);
-      dims[m] = buf;
-    }
-    fread(&buf, sizeof(buf), 1, fin);
-    nnz = buf;
-  }
+  fill_binary_idx(&nmodes, 1, &header, fin);
+  fill_binary_idx(dims, nmodes, &header, fin);
+  fill_binary_idx(&nnz, 1, &header, fin);
 
   if(nmodes > MAX_NMODES) {
     fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
@@ -198,31 +185,10 @@ static sptensor_t * p_tt_read_binary_file(
   memcpy(tt->dims, dims, nmodes * sizeof(*dims));
 
   /* fill in tensor data */
-
-  /* READ INDS */
-  if(header.idx_width == sizeof(splatt_idx_t)) {
-    for(idx_t m=0; m < nmodes; ++m) {
-      fread(tt->ind[m], sizeof(*(tt->ind[m])), nnz, fin);
-    }
-  } else {
-    uint32_t buf;
-    for(idx_t m=0; m < nmodes; ++m) {
-      for(idx_t n=0; n < tt->nnz; ++n) {
-        fread(&buf, sizeof(buf), 1, fin);
-        tt->ind[m][n] = buf;
-      }
-    }
+  for(idx_t m=0; m < nmodes; ++m) {
+    fill_binary_idx(tt->ind[m], nnz, &header, fin);
   }
-
-  if(header.val_width == sizeof(splatt_val_t)) {
-    fread(tt->vals, sizeof(*(tt->vals)), nnz, fin);
-  } else {
-    float buf;
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      fread(&buf, sizeof(buf), 1, fin);
-      tt->vals[n] = buf;
-    }
-  }
+  fill_binary_val(tt->vals, nnz, &header, fin);
 
   return tt;
 }
@@ -504,6 +470,43 @@ void read_binary_header(
                     header->val_width * 8, header->val_width * 8);
   }
 }
+
+
+void fill_binary_idx(
+    idx_t * const buffer,
+    idx_t const count,
+    bin_header const * const header,
+    FILE * fin)
+{
+  if(header->idx_width == sizeof(splatt_idx_t)) {
+    fread(buffer, sizeof(idx_t), count, fin);
+  } else {
+    uint32_t ubuf;
+    for(idx_t n=0; n < count; ++n) {
+      fread(&ubuf, sizeof(ubuf), 1, fin);
+      buffer[n] = ubuf;
+    }
+  }
+}
+
+
+void fill_binary_val(
+    val_t * const buffer,
+    idx_t const count,
+    bin_header const * const header,
+    FILE * fin)
+{
+  if(header->val_width == sizeof(splatt_val_t)) {
+    fread(buffer, sizeof(val_t), count, fin);
+  } else {
+    float fbuf;
+    for(idx_t n=0; n < count; ++n) {
+      fread(&fbuf, sizeof(fbuf), 1, fin);
+      buffer[n] = fbuf;
+    }
+  }
+}
+
 
 
 

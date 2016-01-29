@@ -99,10 +99,48 @@ void read_binary_header(
     bin_header * header);
 
 
+#define fill_binary_idx splatt_fill_binary_idx
+/**
+* @brief Fill an array of idx_t with values from a binary file. 'header' tells
+*        us whether we can just fread() the whole array or must read one at a
+*        time.
+*
+* @param buffer The buffer of idx_t to fill.
+* @param count The number of entries to read.
+* @param header The binary header telling us datatype sizes.
+* @param fin The file to read from.
+*/
+void fill_binary_idx(
+    idx_t * const buffer,
+    idx_t const count,
+    bin_header const * const header,
+    FILE * fin);
+
+
+#define fill_binary_val splatt_fill_binary_val
+/**
+* @brief Fill an array of val_t with values from a binary file. 'header' tells
+*        us whether we can just fread() the whole array or must read one at a
+*        time.
+*
+* @param buffer The buffer of val_t to fill.
+* @param count The number of entries to read.
+* @param header The binary header telling us datatype sizes.
+* @param fin The file to read from.
+*/
+void fill_binary_val(
+    val_t * const buffer,
+    idx_t const count,
+    bin_header const * const header,
+    FILE * fin);
+
+
+
 
 /******************************************************************************
  * TENSOR FUNCTIONS
  *****************************************************************************/
+
 #define tt_get_dims splatt_tt_get_dims
 void tt_get_dims(
     FILE * fin,

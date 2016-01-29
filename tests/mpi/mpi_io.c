@@ -2,8 +2,11 @@
 #include "../ctest/ctest.h"
 #include "../splatt_test.h"
 
+#include "../../src/io.h"
 #include "../../src/sptensor.h"
 #include "../../src/sort.h"
+
+static char const * const TMP_FILE = "tmp.bin";
 
 
 CTEST_DATA(mpi_io)
@@ -27,14 +30,6 @@ CTEST_TEARDOWN(mpi_io)
     tt_free(data->tensors[i]);
   }
 }
-
-CTEST2(mpi_io, simple_distribute)
-{
-  for(idx_t tt=0; tt < data->ntensors; ++tt) {
-
-  }
-}
-
 
 CTEST2(mpi_io, splatt_mpi_coord_load)
 {
@@ -82,7 +77,7 @@ CTEST2(mpi_io, splatt_mpi_coord_load)
       tmp = tt_alloc(global, nmodes);
 
       /* copy mine */
-      memcpy(tmp->vals, vals, nnz * sizeof(*vals));
+      memcpy(tmp->vals, vals, nnz * sizeof(*(tmp->vals)));
       for(idx_t m=0; m < nmodes; ++m) {
         memcpy(tmp->ind[m], inds[m], nnz * sizeof(**inds));
       }
@@ -134,13 +129,21 @@ CTEST2(mpi_io, splatt_mpi_coord_load_binary)
 
   double * opts = splatt_default_opts();
   for(idx_t tt=0; tt < data->ntensors; ++tt) {
+
+    /* convert to binary */
+    if(rank == 0) {
+      tt_write_binary(data->tensors[tt], TMP_FILE);
+    }
+
+    /* distribute binary tensor */
     splatt_idx_t nmodes;
     splatt_idx_t nnz;
     splatt_idx_t ** inds;
     splatt_val_t * vals;
-    int ret = splatt_mpi_coord_load(datasets[tt], &nmodes, &nnz,  &inds, &vals,
+    int ret = splatt_mpi_coord_load(TMP_FILE, &nmodes, &nnz,  &inds, &vals,
         opts, MPI_COMM_WORLD);
 
+    /* make sure things were actually allocated */
     ASSERT_EQUAL(SPLATT_SUCCESS, ret);
     ASSERT_EQUAL(data->tensors[tt]->nmodes, nmodes);
     ASSERT_NOT_NULL(vals);
@@ -148,7 +151,55 @@ CTEST2(mpi_io, splatt_mpi_coord_load_binary)
     for(idx_t m=0; m < nmodes; ++m) {
       ASSERT_NOT_NULL(inds[m]);
     }
+
+    /* now check distribution - exact comparison should be good (no sorting) */
+    sptensor_t * gold = tt_read(TMP_FILE);
+    idx_t const target_nnz = gold->nnz / npes;
+    if(rank == 0) {
+      ASSERT_EQUAL(gold->nnz - ((npes-1) * target_nnz), nnz);
+    } else {
+      ASSERT_EQUAL(target_nnz, nnz);
+    }
+
+    /* all nnz better be accounted for */
+    idx_t total_nnz;
+    MPI_Allreduce(&nnz, &total_nnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+        MPI_COMM_WORLD);
+    ASSERT_EQUAL(gold->nnz, total_nnz);
+
+    /* where my nonzeros start (relative to global tensor) */
+    idx_t start_nnz = 0;
+    if(rank > 0) {
+      start_nnz = (rank-1) * target_nnz;
+    } else {
+      start_nnz = (npes-1) * target_nnz;
+    }
+
+    /* check inds */
+    for(idx_t m=0; m < nmodes; ++m) {
+      for(idx_t n=0; n < nnz; ++n) {
+        ASSERT_EQUAL(gold->ind[m][n + start_nnz], inds[m][n]);
+      }
+      splatt_free(inds[m]);
+    }
+    /* check vals */
+    for(idx_t n=0; n < nnz; ++n) {
+      ASSERT_DBL_NEAR_TOL(gold->vals[n + start_nnz], vals[n], 0.);
+    }
+
+    splatt_free(inds);
+    splatt_free(vals);
+    tt_free(gold);
+  }
+
+  /* delete temporary file */
+  if(rank == 0) {
+    remove(TMP_FILE);
   }
 }
+
+
+
+
 
 

@@ -41,12 +41,20 @@ int splatt_mpi_coord_load(
 {
   sptensor_t * tt = mpi_simple_distribute(fname, comm);
 
+  if(tt == NULL) {
+    *nmodes = 0;
+    *nnz = 0;
+    *vals = NULL;
+    *inds = NULL;
+    return SPLATT_ERROR_BADINPUT;
+  }
+
   *nmodes = tt->nmodes;
   *nnz = tt->nnz;
 
   /* copy to output */
   *vals = tt->vals;
-  *inds = splatt_malloc(tt->nmodes * sizeof(splatt_idx_t));
+  *inds = splatt_malloc(tt->nmodes * sizeof(**inds));
   for(idx_t m=0; m < tt->nmodes; ++m) {
     (*inds)[m] = tt->ind[m];
   }
@@ -298,8 +306,8 @@ static void p_find_my_slices(
     /* it is possible to have a very small dimension and too many ranks */
     if(rinfo->dims_3d[m] > 1 && rinfo->layer_starts[m] == 0
         && rinfo->layer_ends[m] == dims[m]) {
-      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %lu.\n",
-          rinfo->rank, m+1);
+      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %"\
+          SPLATT_PF_IDX".\n", rinfo->rank, m+1);
       rinfo->layer_starts[m] = dims[m];
       rinfo->layer_ends[m] = dims[m];
     }
@@ -366,8 +374,8 @@ static void p_find_my_slices_1d(
     /* it is possible to have a very small dimension and too many ranks */
     if(rinfo->npes > 1 && rinfo->mat_start[m] == 0
         && rinfo->mat_end[m] == dims[m]) {
-      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %lu.\n",
-          rinfo->rank, m+1);
+      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %"\
+          SPLATT_PF_IDX".\n", rinfo->rank, m+1);
       rinfo->mat_start[m] = dims[m];
       rinfo->mat_end[m] = dims[m];
     }
@@ -814,6 +822,180 @@ static void p_get_best_mpi_dim(
 }
 
 
+
+/**
+* @brief Read a sparse tensor in coordinate form from a text file and
+*        and distribute among MPI ranks.
+*
+* @param fin The file to read from.
+* @param comm The MPI communicator to distribute among.
+*
+* @return The sparse tensor.
+*/
+static sptensor_t * p_tt_mpi_read_file(
+    FILE * fin,
+    MPI_Comm comm)
+{
+  int rank, npes;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &npes);
+
+  idx_t dims[MAX_NMODES];
+  idx_t global_nnz;
+  idx_t nmodes;
+  sptensor_t * tt = NULL;
+
+  if(rank == 0) {
+    /* send dimension info */
+    tt_get_dims(fin, &nmodes, &global_nnz, dims);
+    rewind(fin);
+    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
+    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
+  } else {
+    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
+    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
+  }
+
+  /* compute my even chunk of nonzeros -- root rank gets the extra amount */
+  idx_t const target_nnz = global_nnz / npes;
+  idx_t my_nnz = target_nnz;
+  if(rank == 0) {
+    my_nnz = global_nnz - ((npes-1) * my_nnz);
+  }
+
+  /* read/send all chunks */
+  if(rank == 0) {
+    sptensor_t * tt_buf = tt_alloc(target_nnz, nmodes);
+
+    /* now send to everyone else */
+    for(int p=1; p < npes; ++p) {
+      p_fill_tt_nnz(fin, tt_buf, target_nnz);
+      for(idx_t m=0; m < tt_buf->nmodes;  ++m) {
+        MPI_Send(tt_buf->ind[m], target_nnz, SPLATT_MPI_IDX, p, m, comm);
+      }
+      MPI_Send(tt_buf->vals, target_nnz, SPLATT_MPI_VAL, p, nmodes, comm);
+    }
+    tt_free(tt_buf);
+
+    /* load my own */
+    tt = tt_alloc(my_nnz, nmodes);
+    p_fill_tt_nnz(fin, tt, my_nnz);
+  } else {
+    MPI_Status status;
+
+    /* receive my chunk */
+    tt = tt_alloc(my_nnz, nmodes);
+    for(idx_t m=0; m < tt->nmodes;  ++m) {
+      MPI_Recv(tt->ind[m], my_nnz, SPLATT_MPI_IDX, 0, m, comm, &status);
+    }
+    MPI_Recv(tt->vals, my_nnz, SPLATT_MPI_VAL, 0, nmodes, comm, &status);
+  }
+
+  return tt;
+}
+
+
+/**
+* @brief Read a sparse tensor in coordinate form from a binary file and
+*        distribute among MPI ranks.
+*
+* @param fin The file to read from.
+* @param comm The MPI communicator to distribute among.
+*
+* @return The sparse tensor.
+*/
+static sptensor_t * p_tt_mpi_read_binary_file(
+    FILE * fin,
+    MPI_Comm comm)
+{
+  sptensor_t * tt = NULL;
+
+  int rank, npes;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &npes);
+
+  idx_t global_nnz;
+  idx_t nmodes;
+  idx_t dims[MAX_NMODES];
+
+  /* get header and tensor stats */
+  bin_header header;
+  if(rank == 0) {
+    read_binary_header(fin, &header);
+    fill_binary_idx(&nmodes, 1, &header, fin);
+    fill_binary_idx(dims, nmodes, &header, fin);
+    fill_binary_idx(&global_nnz, 1, &header, fin);
+  }
+
+  /* send dimension info */
+  if(rank == 0) {
+    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
+    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
+  } else {
+    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
+    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
+  }
+
+  /* sanity check */
+  if(nmodes > MAX_NMODES) {
+    if(rank == 0) {
+      fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
+                      "Found %"SPLATT_PF_IDX". Please recompile with "
+                      "MAX_NMODES=%"SPLATT_PF_IDX".\n",
+              MAX_NMODES, nmodes, nmodes);
+    }
+    return NULL;
+  }
+
+  /* compute my even chunk of nonzeros -- root rank gets the extra amount */
+  idx_t const target_nnz = global_nnz / npes;
+  idx_t my_nnz = target_nnz;
+  if(rank == 0) {
+    my_nnz = global_nnz - ((npes-1)* target_nnz);
+  }
+
+  tt = tt_alloc(my_nnz, nmodes);
+  /* read/send all chunks */
+  if(rank == 0) {
+    /* handle inds */
+    idx_t * ibuf = splatt_malloc(target_nnz * sizeof(idx_t));
+    for(idx_t m=0; m < nmodes; ++m) {
+      for(int p=1; p < npes; ++p) {
+        fill_binary_idx(ibuf, target_nnz, &header, fin);
+        MPI_Send(ibuf, target_nnz, SPLATT_MPI_IDX, p, m, comm);
+      }
+
+      /* load my own */
+      fill_binary_idx(tt->ind[m], my_nnz, &header, fin);
+    }
+    splatt_free(ibuf);
+
+    /* now vals */
+    val_t * vbuf = splatt_malloc(target_nnz * sizeof(val_t));
+    for(int p=1; p < npes; ++p) {
+      fill_binary_val(vbuf, target_nnz, &header, fin);
+      MPI_Send(vbuf, target_nnz, SPLATT_MPI_VAL, p, nmodes, comm);
+    }
+    splatt_free(vbuf);
+
+    /* finally, load my own vals */
+    fill_binary_val(tt->vals, my_nnz, &header, fin);
+
+  } else {
+    /* non-root ranks just recv */
+    MPI_Status status;
+
+    /* receive my chunk */
+    for(idx_t m=0; m < tt->nmodes;  ++m) {
+      MPI_Recv(tt->ind[m], my_nnz, SPLATT_MPI_IDX, 0, m, comm, &status);
+    }
+    MPI_Recv(tt->vals, my_nnz, SPLATT_MPI_VAL, 0, nmodes, comm, &status);
+  }
+
+  return tt;
+}
+
+
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
@@ -1120,61 +1302,24 @@ sptensor_t * mpi_simple_distribute(
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &npes);
 
-  idx_t dims[MAX_NMODES];
-  idx_t global_nnz;
-  idx_t nmodes;
+  sptensor_t * tt = NULL;
 
   FILE * fin = NULL;
   if(rank == 0) {
     fin = open_f(ifname, "r");
-    /* send dimension info */
-    tt_get_dims(fin, &nmodes, &global_nnz, dims);
-    rewind(fin);
-    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
-    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
-  } else {
-    MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
-    MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
   }
 
-  /* compute my even chunk of nonzeros -- root rank gets the extra amount */
-  idx_t const target_nnz = global_nnz / npes;
-  idx_t my_nnz = target_nnz;
-  if(rank == 0) {
-    my_nnz = global_nnz - ((npes-1) * my_nnz);
+  switch(get_file_type(ifname)) {
+    case SPLATT_FILE_TEXT_COORD:
+      tt = p_tt_mpi_read_file(fin, comm);
+      break;
+    case SPLATT_FILE_BIN_COORD:
+      tt = p_tt_mpi_read_binary_file(fin, comm);
+      break;
   }
 
-  sptensor_t * tt = NULL;
-
-  /* read/send all chunks */
   if(rank == 0) {
-    sptensor_t * tt_buf = tt_alloc(target_nnz, nmodes);
-
-    /* now send to everyone else */
-    for(int p=1; p < npes; ++p) {
-      p_fill_tt_nnz(fin, tt_buf, target_nnz);
-      for(idx_t m=0; m < tt_buf->nmodes;  ++m) {
-        MPI_Send(tt_buf->ind[m], target_nnz, SPLATT_MPI_IDX, p, m, comm);
-      }
-      MPI_Send(tt_buf->vals, target_nnz, SPLATT_MPI_VAL, p, nmodes, comm);
-    }
-    tt_free(tt_buf);
-
-    /* load my own */
-    tt = tt_alloc(my_nnz, nmodes);
-    p_fill_tt_nnz(fin, tt, my_nnz);
-
     fclose(fin);
-
-  } else {
-    MPI_Status status;
-
-    /* receive my chunk */
-    tt = tt_alloc(my_nnz, nmodes);
-    for(idx_t m=0; m < tt->nmodes;  ++m) {
-      MPI_Recv(tt->ind[m], my_nnz, SPLATT_MPI_IDX, 0, m, comm, &status);
-    }
-    MPI_Recv(tt->vals, my_nnz, SPLATT_MPI_VAL, 0, nmodes, comm, &status);
   }
 
   return tt;
