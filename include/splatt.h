@@ -429,18 +429,22 @@ int splatt_cpd_als(
 
 
 /**
-* @brief Compute the estimated value of a coordinate, given a factored tensor.
+* @brief Compute the predicted value of a coordinate, given a factored tensor.
 *        This is equal to:
 *             \sum_{r=1}^{rank} [A(i,r) * B(j,r) * C(k,r) ... ]
 *
 * @param factored The factored tensor.
-* @param coords The index to estimate.
+* @param coords The 0-indexed coordinate to predicte.
+* @param[out] predicted The index to predicte.
 *
-* @return The estimated value.
+* @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success. If
+*         'coords' is beyond the dimension of the factored tensor,
+*         SPLATT_ERROR_BADINPUT is returned.
 */
-splatt_val_t splatt_kruskal_estimate(
+int splatt_kruskal_predict(
     splatt_kruskal const * const factored,
-    splatt_idx_t const * const coords);
+    splatt_idx_t const * const coords,
+    splatt_val_t * const predicted);
 
 
 /** @} */

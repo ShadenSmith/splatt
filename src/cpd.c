@@ -14,66 +14,6 @@
 #include <math.h>
 #include <omp.h>
 
-
-
-/******************************************************************************
- * API FUNCTIONS
- *****************************************************************************/
-
-int splatt_cpd_als(
-    splatt_csf const * const tensors,
-    splatt_idx_t const nfactors,
-    double const * const options,
-    splatt_kruskal * factored)
-{
-  matrix_t * mats[MAX_NMODES+1];
-
-  idx_t nmodes = tensors->nmodes;
-
-  rank_info rinfo;
-  rinfo.rank = 0;
-
-  /* allocate factor matrices */
-  idx_t maxdim = tensors->dims[argmax_elem(tensors->dims, nmodes)];
-  for(idx_t m=0; m < nmodes; ++m) {
-    mats[m] = (matrix_t *) mat_rand(tensors[0].dims[m], nfactors);
-  }
-  mats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
-
-  val_t * lambda = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
-
-  /* do the factorization! */
-  factored->fit = cpd_als_iterate(tensors, mats, lambda, nfactors, &rinfo,
-      options);
-
-  /* store output */
-  factored->rank = nfactors;
-  factored->nmodes = nmodes;
-  factored->lambda = lambda;
-  for(idx_t m=0; m < nmodes; ++m) {
-    factored->dims[m] = tensors->dims[m];
-    factored->factors[m] = mats[m]->vals;
-  }
-
-  /* clean up */
-  mat_free(mats[MAX_NMODES]);
-  for(idx_t m=0; m < nmodes; ++m) {
-    free(mats[m]); /* just the matrix_t ptr, data is safely in factored */
-  }
-  return SPLATT_SUCCESS;
-}
-
-
-void splatt_free_kruskal(
-    splatt_kruskal * factored)
-{
-  free(factored->lambda);
-  for(idx_t m=0; m < factored->nmodes; ++m) {
-    free(factored->factors[m]);
-  }
-}
-
-
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
@@ -258,6 +198,113 @@ static val_t p_calc_fit(
 }
 
 
+static val_t p_predict_val(
+    val_t * const buffer)
+{
+
+}
+
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+
+int splatt_cpd_als(
+    splatt_csf const * const tensors,
+    splatt_idx_t const nfactors,
+    double const * const options,
+    splatt_kruskal * factored)
+{
+  matrix_t * mats[MAX_NMODES+1];
+
+  idx_t nmodes = tensors->nmodes;
+
+  rank_info rinfo;
+  rinfo.rank = 0;
+
+  /* allocate factor matrices */
+  idx_t maxdim = tensors->dims[argmax_elem(tensors->dims, nmodes)];
+  for(idx_t m=0; m < nmodes; ++m) {
+    mats[m] = (matrix_t *) mat_rand(tensors[0].dims[m], nfactors);
+  }
+  mats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
+
+  val_t * lambda = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
+
+  /* do the factorization! */
+  factored->fit = cpd_als_iterate(tensors, mats, lambda, nfactors, &rinfo,
+      options);
+
+  /* store output */
+  factored->rank = nfactors;
+  factored->nmodes = nmodes;
+  factored->lambda = lambda;
+  for(idx_t m=0; m < nmodes; ++m) {
+    factored->dims[m] = tensors->dims[m];
+    factored->factors[m] = mats[m]->vals;
+  }
+
+  /* clean up */
+  mat_free(mats[MAX_NMODES]);
+  for(idx_t m=0; m < nmodes; ++m) {
+    free(mats[m]); /* just the matrix_t ptr, data is safely in factored */
+  }
+  return SPLATT_SUCCESS;
+}
+
+
+void splatt_free_kruskal(
+    splatt_kruskal * factored)
+{
+  free(factored->lambda);
+  for(idx_t m=0; m < factored->nmodes; ++m) {
+    free(factored->factors[m]);
+  }
+}
+
+
+int splatt_kruskal_predict(
+    splatt_kruskal const * const factored,
+    splatt_idx_t const * const coords,
+    splatt_val_t * const predicted)
+{
+  /* check for out of bounds */
+  for(idx_t m=0; m < factored->nmodes; ++m) {
+    if(coords[m] >= factored->dims[m]) {
+      return SPLATT_ERROR_BADINPUT;
+    }
+  }
+
+  /* initialize accumulation of each latent factor with lambda(r) */
+  idx_t const nfactors = factored->rank;
+  val_t * restrict accum = splatt_malloc(nfactors * sizeof(*accum));
+  for(idx_t f=0; f < nfactors; ++f) {
+    accum[f] = factored->lambda[f];
+  }
+
+  /* now multiply each factor by A(i,:), B(j,:) ... */
+  for(idx_t m=0; m < factored->nmodes; ++m) {
+    val_t const * const restrict row = factored->factors[m] +
+        (coords[m] * nfactors);
+    for(idx_t f=0; f < nfactors; ++f) {
+      accum[f] *= row[f];
+    }
+  }
+
+  /* finally, sum the factors to form the final estimated value */
+  val_t est = 0;
+  for(idx_t f=0; f < nfactors; ++f) {
+    est += accum[f];
+  }
+
+  splatt_free(accum);
+
+  *predicted = est;
+  return SPLATT_SUCCESS;
+}
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -390,34 +437,6 @@ void cpd_post_process(
   }
 
   free(tmp);
-}
-
-
-splatt_val_t splatt_kruskal_estimate(
-    splatt_kruskal const * const factored,
-    splatt_idx_t const * const coords)
-{
-  idx_t const nfactors = factored->rank;
-  val_t * accum = splatt_malloc(nfactors * sizeof(*accum));
-  for(idx_t f=0; f < nfactors; ++f) {
-    accum[f] = factored->lambda[f];
-  }
-
-  for(idx_t m=0; m < factored->nmodes; ++m) {
-    val_t const * const row = factored->factors[m] + (coords[m] * nfactors);
-    for(idx_t f=0; f < nfactors; ++f) {
-      accum[f] *= row[f];
-    }
-  }
-
-  val_t est = 0;
-  for(idx_t f=0; f < nfactors; ++f) {
-    est += accum[f];
-  }
-
-  splatt_free(accum);
-
-  return est;
 }
 
 
