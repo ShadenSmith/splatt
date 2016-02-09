@@ -89,3 +89,20 @@ void timer_inc_verbose(void)
   }
 }
 
+
+void reset_cpd_timers()
+{
+  timer_reset(&timers[TIMER_ATA]);
+#ifdef SPLATT_USE_MPI
+  timer_reset(&timers[TIMER_MPI]);
+  timer_reset(&timers[TIMER_MPI_IDLE]);
+  timer_reset(&timers[TIMER_MPI_COMM]);
+  timer_reset(&timers[TIMER_MPI_ATA]);
+  timer_reset(&timers[TIMER_MPI_REDUCE]);
+  timer_reset(&timers[TIMER_MPI_NORM]);
+  timer_reset(&timers[TIMER_MPI_UPDATE]);
+  timer_reset(&timers[TIMER_MPI_FIT]);
+#endif
+}
+
+

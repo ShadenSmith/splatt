@@ -28,7 +28,7 @@
  * size. */
 
 #ifndef SPLATT_IDX_TYPEWIDTH
-  #define SPLATT_IDX_TYPEWIDTH 32
+  #define SPLATT_IDX_TYPEWIDTH 64
 #endif
 
 #ifndef SPLATT_VAL_TYPEWIDTH

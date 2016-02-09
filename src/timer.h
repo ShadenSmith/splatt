@@ -98,6 +98,15 @@ void report_times(void);
 */
 void timer_inc_verbose(void);
 
+
+#define reset_cpd_timers splatt_reset_cpd_timers
+/**
+* @brief Resets serial and MPI timers that were activated during some CPD
+*        pre-processing.
+*/
+void reset_cpd_timers();
+
+
 /**
 * @brief Reset all fields of a sp_timer_t.
 *
