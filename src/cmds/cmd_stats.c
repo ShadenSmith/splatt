@@ -83,7 +83,7 @@ static error_t parse_stats_opt(
 static struct argp stats_argp =
   {stats_options, parse_stats_opt, stats_args_doc, stats_doc};
 
-void splatt_stats(
+int splatt_stats(
   int argc,
   char ** argv)
 {
@@ -98,12 +98,14 @@ void splatt_stats(
 
   sptensor_t * tt = tt_read(args.ifname);
   if(tt == NULL) {
-    return;
+    return SPLATT_ERROR_BADINPUT;
   }
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
   if(args.type != STATS_BASIC) {
     stats_tt(tt, args.ifname, args.type, args.mode, args.pfname);
   }
   tt_free(tt);
+
+  return EXIT_SUCCESS;
 }
 

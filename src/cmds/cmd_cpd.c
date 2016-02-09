@@ -119,7 +119,7 @@ static struct argp cpd_argp =
 /******************************************************************************
  * SPLATT-CPD
  *****************************************************************************/
-void splatt_cpd_cmd(
+int splatt_cpd_cmd(
   int argc,
   char ** argv)
 {
@@ -134,7 +134,7 @@ void splatt_cpd_cmd(
 
   tt = tt_read(args.ifname);
   if(tt == NULL) {
-    return;
+    return SPLATT_ERROR_BADINPUT;
   }
 
   /* print basic tensor stats? */
@@ -159,7 +159,7 @@ void splatt_cpd_cmd(
   int ret = splatt_cpd_als(csf, args.nfactors, args.opts, &factored);
   if(ret != SPLATT_SUCCESS) {
     fprintf(stderr, "splatt_cpd_als returned %d. Aborting.\n", ret);
-    exit(1);
+    return ret;
   }
 
   printf("Final fit: %"SPLATT_PF_VAL"\n", factored.fit);
@@ -190,5 +190,6 @@ void splatt_cpd_cmd(
   /* free factor matrix allocations */
   splatt_free_kruskal(&factored);
 
+  return EXIT_SUCCESS;
 }
 
