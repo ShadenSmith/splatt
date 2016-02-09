@@ -53,7 +53,7 @@ int splatt_sgd_cmd(
 
   /* test rmse */
   sptensor_t * test = tt_read(argv[2]);
-  stats_tt(test, argv[1], STATS_BASIC, 0, NULL);
+  stats_tt(test, argv[2], STATS_BASIC, 0, NULL);
 
 
   printf("TEST RMSE: %0.5f\n", kruskal_rmse(test, &model));
