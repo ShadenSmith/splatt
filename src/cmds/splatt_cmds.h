@@ -59,6 +59,7 @@ int splatt_convert(int argc, char ** argv);
 int splatt_reorder(int argc, char ** argv);
 int splatt_stats(int argc, char ** argv);
 
+int splatt_sgd_cmd(int argc, char ** argv);
 
 
 
@@ -87,6 +88,8 @@ static cmd_struct const splatt_cmds[] = {
   { "reorder", splatt_reorder },
   { "stats", splatt_stats },
   { "help", NULL},
+
+  { "sgd", splatt_sgd_cmd },
 
   { NULL, NULL }
 };
