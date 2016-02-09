@@ -161,7 +161,7 @@ static struct argp cpd_argp =
  * SPLATT-CPD
  *****************************************************************************/
 
-void splatt_mpi_cpd_cmd(
+int splatt_mpi_cpd_cmd(
   int argc,
   char ** argv)
 {
@@ -188,7 +188,7 @@ void splatt_mpi_cpd_cmd(
 
   tt = mpi_tt_read(args.ifname, args.pfname, &rinfo);
   if(tt == NULL) {
-    return;
+    return SPLATT_ERROR_BADINPUT;
   }
 
   /* In the default setting, mpi_tt_read will set rinfo distribution.
@@ -321,6 +321,7 @@ void splatt_mpi_cpd_cmd(
 
   perm_free(perm);
   rank_free(rinfo, nmodes);
+  return EXIT_SUCCESS;
 }
 
 #endif

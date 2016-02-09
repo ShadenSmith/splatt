@@ -60,7 +60,7 @@ static error_t parse_check_opt(
 static struct argp check_argp =
   {check_options, parse_check_opt, check_args_doc, check_doc};
 
-void splatt_check(
+int splatt_check(
   int argc,
   char ** argv)
 {
@@ -73,7 +73,7 @@ void splatt_check(
   print_header();
   sptensor_t * tt = tt_read(args.ifname);
   if(tt == NULL) {
-    return;
+    return SPLATT_ERROR_BADINPUT;
   }
 
   idx_t const rnnz = tt_remove_dups(tt);
@@ -110,5 +110,7 @@ void splatt_check(
   } /* if errors */
 
   tt_free(tt);
+
+  return EXIT_SUCCESS;
 }
 
