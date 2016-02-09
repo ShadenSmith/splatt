@@ -64,6 +64,18 @@ permutation_t *  tt_perm(
   char const * const pfile);
 
 
+#define shuffle_idx splatt_shuffle_idx
+/**
+* @brief Shuffle an array of idx_t.
+*
+* @param arr The array to shuffle.
+* @param N The number of elements.
+*/
+void shuffle_idx(
+    idx_t * const arr,
+    idx_t const N);
+
+
 #define build_pptr splatt_build_pptr
 /**
 * @brief Build a data structure containing the size of each partition (in
