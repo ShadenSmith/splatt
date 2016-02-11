@@ -932,10 +932,10 @@ sptensor_t * mpi_tt_read(
     break;
 
   case SPLATT_DECOMP_MEDIUM:
-    //tt = p_read_tt_3d(ifname, ssizes, ttbuf->nmodes, rinfo);
     tt = p_rearrange_medium(ttbuf, ssizes, rinfo);
 
     /* now map tensor indices to local (layer) coordinates and fill in dims */
+    #pragma omp parallel for schedule(static, 1)
     for(idx_t m=0; m < ttbuf->nmodes; ++m) {
       tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
       for(idx_t n=0; n < tt->nnz; ++n) {
