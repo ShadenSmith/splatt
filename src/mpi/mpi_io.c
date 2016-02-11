@@ -5,6 +5,7 @@
 #include "../splatt_mpi.h"
 #include "../io.h"
 #include "../timer.h"
+#include "../util.h"
 
 
 
@@ -148,18 +149,63 @@ static int * p_distribute_parts(
 }
 
 
-static sptensor_t * p_rearrange_fine(
+/**
+* @brief Map a nonzero to an MPI rank based on the layer boundaries.
+*
+* @param ttbuf The sparse tensor.
+* @param n The index of the nonzero.
+* @param rinfo MPI rank information (uses dims_3d and layer_ptrs).
+*
+* @return The MPI rank that owns ttbuf[n].
+*/
+static int p_determine_owner(
   sptensor_t * const ttbuf,
-  char const * const pfname,
-  idx_t * * ssizes,
+  idx_t const n,
   rank_info * const rinfo)
 {
-  /* first distribute partitioning information */
-  int * parts = p_distribute_parts(ttbuf, pfname, rinfo);
+  int coords[MAX_NMODES];
 
+  /* determine the coordinates of the owner rank */
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+    idx_t const id = ttbuf->ind[m][n];
+    /* silly linear scan over each layer.
+     * TODO: do a binary search */
+    for(int l=0; l <= rinfo->dims_3d[m]; ++l) {
+      if(id < rinfo->layer_ptrs[m][l]) {
+        coords[m] = l-1;
+        break;
+      }
+    }
+  }
+
+  /* translate that to an MPI rank */
+  int owner;
+  MPI_Cart_rank(rinfo->comm_3d, coords, &owner);
+
+  if(rinfo->rank == 0) {
+    //printf("(%d %d %d) -> %d\n", coords[0], coords[1], coords[2], owner);
+  }
+  return owner;
+}
+
+
+/**
+* @brief Rearrange nonzeros in ttbuf based on a nonzero partitioning.
+*
+* @param ttbuf The nonzeros to rearrange.
+* @param parts The partitioning.
+* @param rinfo MPI rank information.
+*
+* @return A new rearranged tensor.
+*/
+static sptensor_t * p_rearrange_by_part(
+  sptensor_t * const ttbuf,
+  int const * const parts,
+  rank_info * const rinfo)
+{
   /* count how many to send to each process */
-  int * nsend = (int *) calloc(rinfo->npes, sizeof(int));
-  int * nrecv = (int *) calloc(rinfo->npes, sizeof(int));
+  int * nsend = calloc(rinfo->npes, sizeof(*nsend));
+  int * nrecv = calloc(rinfo->npes, sizeof(*nrecv));
   for(idx_t n=0; n < ttbuf->nnz; ++n) {
     nsend[parts[n]] += 1;
   }
@@ -232,87 +278,10 @@ static sptensor_t * p_rearrange_fine(
   free(nrecv);
   free(send_disp);
   free(recv_disp);
-  free(parts);
 
   return tt;
 }
 
-
-/**
-* @brief Find the start/end slices in each mode for my partition of X.
-*
-* @param ssizes The nnz in each slice.
-* @param nmodes The number of modes of X.
-* @param nnz The number of nonzeros in total.
-* @param rinfo MPI information.
-*/
-static void p_find_my_slices(
-  idx_t ** const ssizes,
-  idx_t const nmodes,
-  idx_t const nnz,
-  rank_info * const rinfo)
-{
-  idx_t const * const dims = rinfo->global_dims;
-
-  /* find start/end slices for my partition */
-  for(idx_t m=0; m < nmodes; ++m) {
-    idx_t pnnz = nnz / rinfo->dims_3d[m]; /* nnz in a layer */
-    /* current processor */
-    int currp  = 0;
-    idx_t lastn = 0;
-    idx_t nnzcnt = 0;
-
-    rinfo->layer_starts[m] = 0;
-    rinfo->layer_ends[m] = dims[m];
-
-#if 1
-    for(idx_t s=0; s < dims[m]; ++s) {
-      if(nnzcnt >= lastn + pnnz) {
-        /* choose this slice or the previous, whichever is closer */
-        if(s > 0) {
-          idx_t const thisdist = nnzcnt - (lastn + pnnz);
-          idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
-          if(prevdist < thisdist) {
-            lastn = nnzcnt - ssizes[m][s-1];
-          } else {
-            lastn = nnzcnt;
-          }
-        } else {
-          lastn = nnzcnt;
-        }
-
-        ++currp;
-
-        /* adjust target nnz based on what is left */
-        pnnz = (nnz - lastn) / SS_MAX(1, rinfo->dims_3d[m] - currp);
-
-        if(currp == rinfo->coords_3d[m]) {
-          rinfo->layer_starts[m] = s;
-        } else if(currp == rinfo->coords_3d[m]+1
-            && currp != rinfo->dims_3d[m]) {
-          /* only set layer_end if we aren't at the end of the tensor */
-          rinfo->layer_ends[m] = s;
-          break;
-        }
-      }
-      nnzcnt += ssizes[m][s];
-    }
-#else
-    idx_t const ideal = dims[m] / rinfo->dims_3d[m];
-    rinfo->layer_starts[m] = rinfo->coords_3d[m] * ideal;
-    rinfo->layer_ends[m] = SS_MIN(dims[m], (rinfo->coords_3d[m]+1) * ideal);
-#endif
-
-    /* it is possible to have a very small dimension and too many ranks */
-    if(rinfo->dims_3d[m] > 1 && rinfo->layer_starts[m] == 0
-        && rinfo->layer_ends[m] == dims[m]) {
-      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %"\
-          SPLATT_PF_IDX".\n", rinfo->rank, m+1);
-      rinfo->layer_starts[m] = dims[m];
-      rinfo->layer_ends[m] = dims[m];
-    }
-  }
-}
 
 
 static void p_find_my_slices_1d(
@@ -383,54 +352,6 @@ static void p_find_my_slices_1d(
 }
 
 
-/**
-* @brief Count the nonzero values in a partition of X.
-*
-* @param fname The name of the file containing X.
-* @param nmodes The number of modes of X.
-*
-* @return The number of nonzeros in the intersection of all sstarts and sends.
-*/
-static idx_t p_count_my_nnz(
-  char const * const fname,
-  idx_t const nmodes,
-  idx_t const * const sstarts,
-  idx_t const * const sends)
-{
-  FILE * fin = open_f(fname, "r");
-
-  char * ptr = NULL;
-  char * line = NULL;
-  ssize_t read;
-  size_t len = 0;
-
-  /* count nnz in my partition */
-  idx_t mynnz = 0;
-  while((read = getline(&line, &len, fin)) != -1) {
-    /* skip empty and commented lines */
-    if(read > 1 && line[0] != '#') {
-      int mine = 1;
-      ptr = line;
-      for(idx_t m=0; m < nmodes; ++m) {
-        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
-        if(ind < sstarts[m] || ind >= sends[m]) {
-          mine = 0;
-        }
-      }
-      if(mine) {
-        ++mynnz;
-      }
-      /* skip over tensor val */
-      strtod(ptr, &ptr);
-    }
-  }
-  fclose(fin);
-
-  free(line);
-
-  return mynnz;
-}
-
 
 /**
 * @brief Count the nonzero values in a partition of X.
@@ -482,52 +403,6 @@ static idx_t p_count_my_nnz_1d(
   return mynnz;
 }
 
-/**
-* @brief Read a partition of X into tt.
-*
-* @param fname The file containing X.
-* @param tt The tensor structure (must be pre-allocated).
-* @param sstarts Array of starting slices, inclusive (one for each mode).
-* @param sends Array of ending slices, exclusive (one for each mode).
-*/
-static void p_read_tt_part(
-  char const * const fname,
-  sptensor_t * const tt,
-  idx_t const * const sstarts,
-  idx_t const * const sends)
-{
-  idx_t const nnz = tt->nnz;
-  idx_t const nmodes = tt->nmodes;
-
-  char * ptr = NULL;
-  char * line = NULL;
-  ssize_t read;
-  size_t len = 0;
-
-  FILE * fin = open_f(fname, "r");
-  idx_t nnzread = 0;
-  while(nnzread < nnz && (read = getline(&line, &len, fin)) != -1) {
-    /* skip empty and commented lines */
-    if(read > 1 && line[0] != '#') {
-      int mine = 1;
-      ptr = line;
-      for(idx_t m=0; m < nmodes; ++m) {
-        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
-        tt->ind[m][nnzread] = ind;
-        if(ind < sstarts[m] || ind >= sends[m]) {
-          mine = 0;
-        }
-      }
-      val_t const v = strtod(ptr, &ptr);
-      tt->vals[nnzread] = v;
-      if(mine) {
-        ++nnzread;
-      }
-    }
-  }
-  fclose(fin);
-  free(line);
-}
 
 
 /**
@@ -613,38 +488,144 @@ static sptensor_t * p_read_tt_1d(
 
 
 /**
-* @brief Read my portion of X from a file.
+* @brief Find the boundaries for each process layer.
 *
-* @param fname The file containing X.
-* @param ssizes The nonzero counts in each slice.
-* @param nmodes The number of modes in X.
-* @param rinfo MPI information (nnz, 3D comm, etc.).
-*
-* @return My portion of the sparse tensor read from fname.
+* @param ssizes The number of nonzeros found in each index (of each mode).
+*               ssizes[1][5] is the number of nonzeros in X(:,5,:).
+* @param rinfo MPI rank information.
 */
-static sptensor_t * p_read_tt_3d(
-  char const * const fname,
+static void p_find_layer_boundaries(
   idx_t ** const ssizes,
-  idx_t const nmodes,
   rank_info * const rinfo)
 {
-  int const rank = rinfo->rank_3d;
-  idx_t const nnz = rinfo->global_nnz;
   idx_t const * const dims = rinfo->global_dims;
+  idx_t const nnz = rinfo->global_nnz;
 
   /* find start/end slices for my partition */
-  p_find_my_slices(ssizes, nmodes, nnz, rinfo);
+  #pragma omp parallel for schedule(static, 1)
+  for(idx_t m=0; m < rinfo->nmodes; ++m) {
+    int const layer_dim = rinfo->dims_3d[m];
+    idx_t pnnz = nnz / layer_dim; /* nnz in a layer */
 
-  /* count nnz in my partition and allocate */
-  idx_t const mynnz = p_count_my_nnz(fname, nmodes, rinfo->layer_starts,
-      rinfo->layer_ends);
-  sptensor_t * tt = tt_alloc(mynnz, nmodes);
+    /* current processor */
+    int currp  = 0;
+    idx_t lastn = 0;
+    idx_t nnzcnt = ssizes[m][0];
 
-  /* now actually load values */
-  p_read_tt_part(fname, tt, rinfo->layer_starts, rinfo->layer_ends);
+    /* initialize layer_ptrs */
+    rinfo->layer_ptrs[m]
+        = splatt_malloc((layer_dim+1) * sizeof(**(rinfo->layer_ptrs)));
+    rinfo->layer_ptrs[m][currp++] = 0;
+    rinfo->layer_ptrs[m][layer_dim] = dims[m];
 
+    if(layer_dim == 1) {
+      continue;
+    }
+
+    /* foreach slice */
+    for(idx_t s=1; s < dims[m]; ++s) {
+      nnzcnt += ssizes[m][s];
+
+      /* if we have passed the next layer boundary */
+      if(nnzcnt >= lastn + pnnz) {
+
+        /* choose this slice or the previous, whichever is closer */
+        idx_t const thisdist = nnzcnt - (lastn + pnnz);
+        idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
+        if(prevdist < thisdist) {
+          lastn = nnzcnt - ssizes[m][s-1];
+          rinfo->layer_ptrs[m][currp++] = s-1;
+        } else {
+          lastn = nnzcnt;
+          rinfo->layer_ptrs[m][currp++] = s;
+        }
+
+        /* exit early if we placed the last rank */
+        if(currp == layer_dim) {
+          break;
+        }
+
+        /* adjust target nnz based on what is left */
+        pnnz = (nnz - lastn) / SS_MAX(1, layer_dim - (currp-1));
+      }
+    }
+
+  } /* foreach mode */
+
+  /* store layer bounderies in layer_{starts, ends} */
+  for(idx_t m=0; m < rinfo->nmodes; ++m) {
+    rinfo->layer_starts[m] = rinfo->layer_ptrs[m][rinfo->coords_3d[m]];
+    rinfo->layer_ends[m] = rinfo->layer_ptrs[m][rinfo->coords_3d[m] + 1];
+
+    /* it is possible to have a very small dimension and too many ranks */
+    if(rinfo->dims_3d[m] > 1 &&
+          rinfo->layer_ends[m] - rinfo->layer_starts[m] == dims[m]) {
+      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %"\
+          SPLATT_PF_IDX".\n", rinfo->rank, m+1);
+      rinfo->layer_starts[m] = dims[m];
+      rinfo->layer_ends[m] = dims[m];
+    }
+  }
+}
+
+
+/**
+* @brief Rearrange nonzeros according to a medium-grained decomposition.
+*
+* @param ttbuf The tensor to rearrange.
+* @param ssizes The number of nonzeros found in each index.
+* @param rinfo MPI rank information.
+*
+* @return My owned tensor nonzeros.
+*/
+static sptensor_t * p_rearrange_medium(
+  sptensor_t * const ttbuf,
+  idx_t * * ssizes,
+  rank_info * const rinfo)
+{
+  p_find_layer_boundaries(ssizes, rinfo);
+
+  /* create partitioning */
+  int * parts = splatt_malloc(ttbuf->nnz * sizeof(*parts));
+
+  #pragma omp parallel for schedule(static)
+  for(idx_t n=0; n < ttbuf->nnz; ++n) {
+    parts[n] = p_determine_owner(ttbuf, n, rinfo);
+  }
+
+  sptensor_t * tt = p_rearrange_by_part(ttbuf, parts, rinfo);
+
+  splatt_free(parts);
   return tt;
 }
+
+
+/**
+* @brief Rearrange nonzeros according to a medium-grained decomposition.
+*
+* @param ttbuf The tensor to rearrange.
+* @param pfname The filename containing the partitioning information.
+* @param ssizes The number of nonzeros found in each index.
+* @param rinfo MPI rank information.
+*
+* @return My owned tensor nonzeros.
+*/
+static sptensor_t * p_rearrange_fine(
+  sptensor_t * const ttbuf,
+  char const * const pfname,
+  idx_t * * ssizes,
+  rank_info * const rinfo)
+{
+  /* first distribute partitioning information */
+  int * parts = p_distribute_parts(ttbuf, pfname, rinfo);
+
+  sptensor_t * tt = p_rearrange_by_part(ttbuf, parts, rinfo);
+
+  free(parts);
+  return tt;
+}
+
+
 
 
 /**
@@ -673,46 +654,6 @@ static void p_fill_ssizes(
 
 
 /**
-* @brief Return a list of the prime factors (including multiplicatives) of N.
-*        The returned list is sorted in increasing order.
-*
-* @param N The number to factor.
-* @param nprimes The number of primes found.
-*
-* @return The list of primes. This must be deallocated with free().
-*/
-static int * p_get_primes(
-  int N,
-  int * nprimes)
-{
-  int size = 10;
-  int * p = (int *) splatt_malloc(size * sizeof(int));
-  int np = 0;
-
-  while(N != 1) {
-    int i;
-    for(i=2; i <= N; ++i) {
-      if(N % i == 0) {
-        /* found the next prime */
-        break;
-      }
-    }
-
-    /* realloc if necessary */
-    if(size == np) {
-      p = (int *) realloc(p, size * 2 * sizeof(int));
-    }
-
-    p[np++] = i;
-    N /= i;
-  }
-
-  *nprimes = np;
-  return p;
-}
-
-
-/**
 * @brief Fill in the best MPI dimensions we can find. The truly optimal
 *        solution should involve the tensor's sparsity pattern, but in general
 *        this works as good (but usually better) than the hand-tuned dimensions
@@ -724,7 +665,7 @@ static void p_get_best_mpi_dim(
   rank_info * const rinfo)
 {
   int nprimes = 0;
-  int * primes = p_get_primes(rinfo->npes, &nprimes);
+  int * primes = get_primes(rinfo->npes, &nprimes);
 
   idx_t total_size = 0;
   for(idx_t m=0; m < rinfo->nmodes; ++m) {
@@ -941,7 +882,6 @@ sptensor_t * mpi_tt_read(
   rank_info * const rinfo)
 {
   timer_start(&timers[TIMER_IO]);
-  idx_t nmodes;
 
   /* first just make sure it exists */
   FILE * fin;
@@ -951,16 +891,16 @@ sptensor_t * mpi_tt_read(
     }
     return NULL;
   }
-
-  /* get tensor stats */
-  if(rinfo->rank == 0) {
-    tt_get_dims(fin,  &nmodes, &(rinfo->global_nnz), rinfo->global_dims);
-  }
-  MPI_Bcast(&(rinfo->global_nnz), 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
-  MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
-  MPI_Bcast(rinfo->global_dims, nmodes, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
-  rinfo->nmodes = nmodes;
   fclose(fin);
+
+  /* first naively distribute tensor nonzeros for analysis */
+  sptensor_t * ttbuf = mpi_simple_distribute(ifname, MPI_COMM_WORLD);
+
+  rinfo->nmodes = ttbuf->nmodes;
+  MPI_Allreduce(&(ttbuf->nnz), &(rinfo->global_nnz), 1, SPLATT_MPI_IDX,
+      MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(ttbuf->dims, &(rinfo->global_dims), ttbuf->nmodes,
+      SPLATT_MPI_IDX, MPI_MAX, MPI_COMM_WORLD);
 
   /* first compute MPI dimension if not specified by the user */
   if(rinfo->decomp == DEFAULT_MPI_DISTRIBUTION) {
@@ -970,20 +910,18 @@ sptensor_t * mpi_tt_read(
 
   mpi_setup_comms(rinfo);
 
+  /* count # nonzeros found in each index */
   idx_t * ssizes[MAX_NMODES];
-  for(idx_t m=0; m < nmodes; ++m) {
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
     ssizes[m] = (idx_t *) calloc(rinfo->global_dims[m], sizeof(idx_t));
   }
-
-  /* first naively distribute tensor nonzeros for analysis */
-  sptensor_t * ttbuf = mpi_simple_distribute(ifname, rinfo->comm_3d);
   p_fill_ssizes(ttbuf, ssizes, rinfo);
 
   /* actually parse tensor */
   sptensor_t * tt = NULL;
   switch(rinfo->decomp) {
   case SPLATT_DECOMP_COARSE:
-    tt = p_read_tt_1d(ifname, ssizes, nmodes, rinfo);
+    tt = p_read_tt_1d(ifname, ssizes, ttbuf->nmodes, rinfo);
     /* now fix tt->dims */
     for(idx_t m=0; m < tt->nmodes; ++m) {
       tt->dims[m] = 0;
@@ -994,10 +932,11 @@ sptensor_t * mpi_tt_read(
     break;
 
   case SPLATT_DECOMP_MEDIUM:
-    tt = p_read_tt_3d(ifname, ssizes, nmodes, rinfo);
+    //tt = p_read_tt_3d(ifname, ssizes, ttbuf->nmodes, rinfo);
+    tt = p_rearrange_medium(ttbuf, ssizes, rinfo);
+
     /* now map tensor indices to local (layer) coordinates and fill in dims */
-    for(idx_t m=0; m < nmodes; ++m) {
-      free(ssizes[m]);
+    for(idx_t m=0; m < ttbuf->nmodes; ++m) {
       tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
       for(idx_t n=0; n < tt->nnz; ++n) {
         assert(tt->ind[m][n] >= rinfo->layer_starts[m]);
@@ -1015,6 +954,10 @@ sptensor_t * mpi_tt_read(
       rinfo->layer_ends[m] = tt->dims[m];
     }
     break;
+  }
+
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+    free(ssizes[m]);
   }
 
   tt_free(ttbuf);
@@ -1256,6 +1199,18 @@ sptensor_t * mpi_simple_distribute(
   if(rank == 0) {
     fclose(fin);
   }
+
+  /* set dims info */
+  #pragma omp parallel for schedule(static, 1)
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    idx_t const * const inds = tt->ind[m];
+    idx_t dim = 1 +inds[0];
+    for(idx_t n=1; n < tt->nnz; ++n) {
+      dim = SS_MAX(dim, 1 + inds[n]);
+    }
+    tt->dims[m] = dim;
+  }
+
 
   return tt;
 }
