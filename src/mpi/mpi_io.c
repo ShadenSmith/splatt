@@ -181,10 +181,6 @@ static int p_determine_owner(
   /* translate that to an MPI rank */
   int owner;
   MPI_Cart_rank(rinfo->comm_3d, coords, &owner);
-
-  if(rinfo->rank == 0) {
-    //printf("(%d %d %d) -> %d\n", coords[0], coords[1], coords[2], owner);
-  }
   return owner;
 }
 
@@ -502,7 +498,7 @@ static void p_find_layer_boundaries(
   idx_t const nnz = rinfo->global_nnz;
 
   /* find start/end slices for my partition */
-  #pragma omp parallel for schedule(static, 1)
+  //#pragma omp parallel for schedule(static, 1)
   for(idx_t m=0; m < rinfo->nmodes; ++m) {
     int const layer_dim = rinfo->dims_3d[m];
     idx_t pnnz = nnz / layer_dim; /* nnz in a layer */
@@ -524,8 +520,6 @@ static void p_find_layer_boundaries(
 
     /* foreach slice */
     for(idx_t s=1; s < dims[m]; ++s) {
-      nnzcnt += ssizes[m][s];
-
       /* if we have passed the next layer boundary */
       if(nnzcnt >= lastn + pnnz) {
 
@@ -534,11 +528,16 @@ static void p_find_layer_boundaries(
         idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
         if(prevdist < thisdist) {
           lastn = nnzcnt - ssizes[m][s-1];
-          rinfo->layer_ptrs[m][currp++] = s-1;
+          /* see below comment */
+          //rinfo->layer_ptrs[m][currp++] = s-1;
         } else {
           lastn = nnzcnt;
-          rinfo->layer_ptrs[m][currp++] = s;
+          //rinfo->layer_ptrs[m][currp++] = s;
         }
+
+        /* Always choosing s but marking lastn with s-1 leads to better balance
+         * and communication volume. This is totally a heuristic. */
+        rinfo->layer_ptrs[m][currp++] = s;
 
         /* exit early if we placed the last rank */
         if(currp == layer_dim) {
@@ -548,6 +547,7 @@ static void p_find_layer_boundaries(
         /* adjust target nnz based on what is left */
         pnnz = (nnz - lastn) / SS_MAX(1, layer_dim - (currp-1));
       }
+      nnzcnt += ssizes[m][s];
     }
 
   } /* foreach mode */
