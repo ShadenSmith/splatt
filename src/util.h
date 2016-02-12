@@ -91,4 +91,19 @@ idx_t argmin_elem(
   idx_t const * const arr,
   idx_t const N);
 
+
+#define get_primes splatt_get_primes
+/**
+* @brief Return a list of the prime factors (including multiplicatives) of N.
+*        The returned list is sorted in non-decreasing order.
+*
+* @param N The number to factor.
+* @param nprimes The number of primes found.
+*
+* @return The list of primes. This must be deallocated with free().
+*/
+int * get_primes(
+  int N,
+  int * nprimes);
+
 #endif

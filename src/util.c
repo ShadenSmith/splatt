@@ -85,3 +85,35 @@ idx_t argmin_elem(
   return mkr;
 }
 
+
+int * get_primes(
+  int N,
+  int * nprimes)
+{
+  int size = 10;
+  int * p = (int *) splatt_malloc(size * sizeof(int));
+  int np = 0;
+
+  while(N != 1) {
+    int i;
+    for(i=2; i <= N; ++i) {
+      if(N % i == 0) {
+        /* found the next prime */
+        break;
+      }
+    }
+
+    /* realloc if necessary */
+    if(size == np) {
+      p = (int *) realloc(p, size * 2 * sizeof(int));
+    }
+
+    p[np++] = i;
+    N /= i;
+  }
+
+  *nprimes = np;
+  return p;
+}
+
+

@@ -102,6 +102,7 @@ static error_t parse_cpd_opt(
     break;
   case 'v':
     args->opts[SPLATT_OPTION_VERBOSITY] += 1;
+    timer_inc_verbose();
     break;
   case TT_TILE:
     args->opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
