@@ -102,6 +102,7 @@ static error_t parse_cpd_opt(
     break;
   case 'v':
     args->opts[SPLATT_OPTION_VERBOSITY] += 1;
+    timer_inc_verbose();
     break;
   case TT_TILE:
     args->opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
@@ -161,7 +162,7 @@ static struct argp cpd_argp =
  * SPLATT-CPD
  *****************************************************************************/
 
-void splatt_mpi_cpd_cmd(
+int splatt_mpi_cpd_cmd(
   int argc,
   char ** argv)
 {
@@ -188,7 +189,7 @@ void splatt_mpi_cpd_cmd(
 
   tt = mpi_tt_read(args.ifname, args.pfname, &rinfo);
   if(tt == NULL) {
-    return;
+    return SPLATT_ERROR_BADINPUT;
   }
 
   /* In the default setting, mpi_tt_read will set rinfo distribution.
@@ -321,6 +322,7 @@ void splatt_mpi_cpd_cmd(
 
   perm_free(perm);
   rank_free(rinfo, nmodes);
+  return EXIT_SUCCESS;
 }
 
 #endif

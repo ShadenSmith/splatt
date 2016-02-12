@@ -195,7 +195,7 @@ static idx_t * p_mkthreads(
   return tsizes;
 }
 
-void splatt_bench(
+int splatt_bench(
   int argc,
   char ** argv)
 {
@@ -220,15 +220,14 @@ void splatt_bench(
   if(args.which[ALG_ERR]) {
     fprintf(stderr, "SPLATT: algorithm '%s' is not recognized.\n"
                     "Run with '--help' for assistance.\n", args.algerr);
-    exit(EXIT_FAILURE);
+    return SPLATT_ERROR_BADINPUT;
   }
-
 
   print_header();
 
   sptensor_t * tt = tt_read(args.ifname);
   if(tt == NULL) {
-    return;
+    return SPLATT_ERROR_BADINPUT;
   }
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
@@ -242,7 +241,7 @@ void splatt_bench(
     if(args.rtype == PERM_ERROR) {
       fprintf(stderr, "SPLATT: reordering algorithm '%s' is not recognized.\n"
                       "Run with '--help' for assistance.\n", args.permerr);
-      exit(EXIT_FAILURE);
+      return SPLATT_ERROR_BADINPUT;
     }
 
     printf("Reordering ------------------------------------------------------\n");
@@ -282,6 +281,8 @@ void splatt_bench(
   }
   mat_free(mats[MAX_NMODES]);
   tt_free(tt);
+
+  return EXIT_SUCCESS;
 }
 
 

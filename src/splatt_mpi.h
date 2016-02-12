@@ -50,6 +50,7 @@ typedef struct
 
   /* start/end idxs for each process */
   idx_t * mat_ptrs[MAX_NMODES];
+  idx_t * layer_ptrs[MAX_NMODES];
 
   /* same as cpd_args distribution. */
   splatt_decomp_type decomp;

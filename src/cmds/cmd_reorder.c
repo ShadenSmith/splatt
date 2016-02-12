@@ -91,7 +91,7 @@ static error_t parse_perm_opt(
 static struct argp perm_argp =
   {perm_options, parse_perm_opt, perm_args_doc, perm_doc};
 
-void splatt_reorder(
+int splatt_reorder(
   int argc,
   char ** argv)
 {
@@ -106,14 +106,14 @@ void splatt_reorder(
   if(args.type == PERM_ERROR) {
     fprintf(stderr, "SPLATT: '%s' is an unrecognized permutation type.\n",
       args.typestr);
-    exit(EXIT_FAILURE);
+    return SPLATT_ERROR_BADINPUT;
   }
 
   print_header();
 
   sptensor_t * tt = tt_read(args.ifname);
   if(tt == NULL) {
-    return;
+    return SPLATT_ERROR_BADINPUT;
   }
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
@@ -137,6 +137,8 @@ void splatt_reorder(
 
   perm_free(perm);
   tt_free(tt);
+
+  return EXIT_SUCCESS;
 }
 
 

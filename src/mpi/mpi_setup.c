@@ -191,6 +191,7 @@ static void p_setup_fine(
   }
 }
 
+
 /**
 * @brief Setup communicatory info for a 3D distribution.
 *
@@ -302,6 +303,7 @@ void rank_free(
     for(idx_t m=0; m < nmodes; ++m) {
       MPI_Comm_free(&rinfo.layer_comm[m]);
       free(rinfo.mat_ptrs[m]);
+      free(rinfo.layer_ptrs[m]);
 
       /* send/recv structures */
       free(rinfo.nbr2globs_inds[m]);
