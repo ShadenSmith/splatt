@@ -498,7 +498,7 @@ static void p_find_layer_boundaries(
   idx_t const nnz = rinfo->global_nnz;
 
   /* find start/end slices for my partition */
-  //#pragma omp parallel for schedule(static, 1)
+  #pragma omp parallel for schedule(static, 1)
   for(idx_t m=0; m < rinfo->nmodes; ++m) {
     int const layer_dim = rinfo->dims_3d[m];
     idx_t pnnz = nnz / layer_dim; /* nnz in a layer */
