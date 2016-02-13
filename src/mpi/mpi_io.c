@@ -484,87 +484,86 @@ static sptensor_t * p_read_tt_1d(
 
 
 /**
-* @brief Find the boundaries for each process layer.
+* @brief Find the boundaries for a process layer.
 *
 * @param ssizes The number of nonzeros found in each index (of each mode).
 *               ssizes[1][5] is the number of nonzeros in X(:,5,:).
+* @param mode Which mode to work on.
 * @param rinfo MPI rank information.
 */
 static void p_find_layer_boundaries(
   idx_t ** const ssizes,
+  idx_t const mode,
   rank_info * const rinfo)
 {
   idx_t const * const dims = rinfo->global_dims;
   idx_t const nnz = rinfo->global_nnz;
+  idx_t const m = mode;
 
   /* find start/end slices for my partition */
-  #pragma omp parallel for schedule(static, 1)
-  for(idx_t m=0; m < rinfo->nmodes; ++m) {
-    int const layer_dim = rinfo->dims_3d[m];
-    idx_t pnnz = nnz / layer_dim; /* nnz in a layer */
+  int const layer_dim = rinfo->dims_3d[m];
+  idx_t pnnz = nnz / layer_dim; /* nnz in a layer */
 
-    /* current processor */
-    int currp  = 0;
-    idx_t lastn = 0;
-    idx_t nnzcnt = ssizes[m][0];
+  /* current processor */
+  int currp  = 0;
+  idx_t lastn = 0;
+  idx_t nnzcnt = ssizes[m][0];
 
-    /* initialize layer_ptrs */
-    rinfo->layer_ptrs[m]
-        = splatt_malloc((layer_dim+1) * sizeof(**(rinfo->layer_ptrs)));
-    rinfo->layer_ptrs[m][currp++] = 0;
-    rinfo->layer_ptrs[m][layer_dim] = dims[m];
+  /* initialize layer_ptrs */
+  rinfo->layer_ptrs[m]
+      = splatt_malloc((layer_dim+1) * sizeof(**(rinfo->layer_ptrs)));
+  rinfo->layer_ptrs[m][currp++] = 0;
+  rinfo->layer_ptrs[m][layer_dim] = dims[m];
 
-    if(layer_dim == 1) {
-      continue;
-    }
+  if(layer_dim == 1) {
+    goto CLEANUP;
+    return;
+  }
 
-    /* foreach slice */
-    for(idx_t s=1; s < dims[m]; ++s) {
-      /* if we have passed the next layer boundary */
-      if(nnzcnt >= lastn + pnnz) {
+  /* foreach slice */
+  for(idx_t s=1; s < dims[m]; ++s) {
+    /* if we have passed the next layer boundary */
+    if(nnzcnt >= lastn + pnnz) {
 
-        /* choose this slice or the previous, whichever is closer */
-        idx_t const thisdist = nnzcnt - (lastn + pnnz);
-        idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
-        if(prevdist < thisdist) {
-          lastn = nnzcnt - ssizes[m][s-1];
-          /* see below comment */
-          //rinfo->layer_ptrs[m][currp++] = s-1;
-        } else {
-          lastn = nnzcnt;
-          //rinfo->layer_ptrs[m][currp++] = s;
-        }
-
-        /* Always choosing s but marking lastn with s-1 leads to better balance
-         * and communication volume. This is totally a heuristic. */
-        rinfo->layer_ptrs[m][currp++] = s;
-
-        /* exit early if we placed the last rank */
-        if(currp == layer_dim) {
-          break;
-        }
-
-        /* adjust target nnz based on what is left */
-        pnnz = (nnz - lastn) / SS_MAX(1, layer_dim - (currp-1));
+      /* choose this slice or the previous, whichever is closer */
+      idx_t const thisdist = nnzcnt - (lastn + pnnz);
+      idx_t const prevdist = (lastn + pnnz) - (nnzcnt - ssizes[m][s-1]);
+      if(prevdist < thisdist) {
+        lastn = nnzcnt - ssizes[m][s-1];
+        /* see below comment */
+        //rinfo->layer_ptrs[m][currp++] = s-1;
+      } else {
+        lastn = nnzcnt;
+        //rinfo->layer_ptrs[m][currp++] = s;
       }
-      nnzcnt += ssizes[m][s];
+
+      /* Always choosing s but marking lastn with s-1 leads to better balance
+       * and communication volume. This is totally a heuristic. */
+      rinfo->layer_ptrs[m][currp++] = s;
+
+      /* exit early if we placed the last rank */
+      if(currp == layer_dim) {
+        break;
+      }
+
+      /* adjust target nnz based on what is left */
+      pnnz = (nnz - lastn) / SS_MAX(1, layer_dim - (currp-1));
     }
+    nnzcnt += ssizes[m][s];
+  }
 
-  } /* foreach mode */
-
+  CLEANUP:
   /* store layer bounderies in layer_{starts, ends} */
-  for(idx_t m=0; m < rinfo->nmodes; ++m) {
-    rinfo->layer_starts[m] = rinfo->layer_ptrs[m][rinfo->coords_3d[m]];
-    rinfo->layer_ends[m] = rinfo->layer_ptrs[m][rinfo->coords_3d[m] + 1];
+  rinfo->layer_starts[m] = rinfo->layer_ptrs[m][rinfo->coords_3d[m]];
+  rinfo->layer_ends[m] = rinfo->layer_ptrs[m][rinfo->coords_3d[m] + 1];
 
-    /* it is possible to have a very small dimension and too many ranks */
-    if(rinfo->dims_3d[m] > 1 &&
-          rinfo->layer_ends[m] - rinfo->layer_starts[m] == dims[m]) {
-      fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %"\
-          SPLATT_PF_IDX".\n", rinfo->rank, m+1);
-      rinfo->layer_starts[m] = dims[m];
-      rinfo->layer_ends[m] = dims[m];
-    }
+  /* it is possible to have a very small dimension and too many ranks */
+  if(rinfo->dims_3d[m] > 1 &&
+        rinfo->layer_ends[m] - rinfo->layer_starts[m] == dims[m]) {
+    fprintf(stderr, "SPLATT: rank: %d too many MPI ranks for mode %"\
+        SPLATT_PF_IDX".\n", rinfo->rank, m+1);
+    rinfo->layer_starts[m] = dims[m];
+    rinfo->layer_ends[m] = dims[m];
   }
 }
 
@@ -583,7 +582,10 @@ static sptensor_t * p_rearrange_medium(
   idx_t * * ssizes,
   rank_info * const rinfo)
 {
-  p_find_layer_boundaries(ssizes, rinfo);
+  #pragma omp parallel for schedule(static, 1)
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+    p_find_layer_boundaries(ssizes, m, rinfo);
+  }
 
   /* create partitioning */
   int * parts = splatt_malloc(ttbuf->nnz * sizeof(*parts));
@@ -1188,12 +1190,12 @@ sptensor_t * mpi_simple_distribute(
   }
 
   switch(get_file_type(ifname)) {
-    case SPLATT_FILE_TEXT_COORD:
-      tt = p_tt_mpi_read_file(fin, comm);
-      break;
-    case SPLATT_FILE_BIN_COORD:
-      tt = p_tt_mpi_read_binary_file(fin, comm);
-      break;
+  case SPLATT_FILE_TEXT_COORD:
+    tt = p_tt_mpi_read_file(fin, comm);
+    break;
+  case SPLATT_FILE_BIN_COORD:
+    tt = p_tt_mpi_read_binary_file(fin, comm);
+    break;
   }
 
   if(rank == 0) {
