@@ -17,8 +17,8 @@ int splatt_sgd_cmd(
   int argc,
   char ** argv)
 {
-  if(argc == 1) {
-    fprintf(stderr, "splatt-sgd needs tensor\n");
+  if(argc < 4) {
+    fprintf(stderr, "splatt-sgd <train> <validate> <test>\n");
     return SPLATT_ERROR_BADINPUT;
   }
 
@@ -30,7 +30,8 @@ int splatt_sgd_cmd(
   /* print basic tensor stats? */
   stats_tt(train, argv[1], STATS_BASIC, 0, NULL);
 
-  idx_t const nfactors = 50;
+  idx_t const nmodes = train->nmodes;
+  idx_t const nfactors = 10;
 
   splatt_kruskal model;
   model.rank = nfactors;
@@ -47,16 +48,46 @@ int splatt_sgd_cmd(
     free(tmp);
   }
 
-  splatt_sgd(train, &model);
+  val_t * regs = splatt_malloc(train->nmodes * sizeof(*regs));
+  for(idx_t m=0; m < train->nmodes; ++m) {
+    regs[m] = 0.02;
+  }
 
+  sptensor_t * validate = tt_read(argv[2]);
+  if(validate == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
+  printf("validate nnz: %"SPLATT_PF_IDX"\n\n", validate->nnz);
+
+  splatt_sgd(train, validate, &model, 100, 0.0005, regs);
+
+
+  splatt_free(regs);
+
+  tt_free(validate);
   tt_free(train);
 
   /* test rmse */
-  sptensor_t * test = tt_read(argv[2]);
-  stats_tt(test, argv[2], STATS_BASIC, 0, NULL);
-
-
+  sptensor_t * test = tt_read(argv[3]);
+  printf("test nnz: %"SPLATT_PF_IDX"\n", test->nnz);
   printf("TEST RMSE: %0.5f\n", kruskal_rmse(test, &model));
+
+  vec_write(model.lambda, nfactors, "lambda.mat");
+
+  /* write output */
+  for(idx_t m=0; m < nmodes; ++m) {
+    char * matfname = NULL;
+    asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+
+    matrix_t tmpmat;
+    tmpmat.rowmajor = 1;
+    tmpmat.I = model.dims[m];
+    tmpmat.J = nfactors;
+    tmpmat.vals = model.factors[m];
+
+    mat_write(&tmpmat, matfname);
+    free(matfname);
+  }
 
   tt_free(test);
   splatt_free_kruskal(&model);

@@ -6,7 +6,10 @@
 
 void splatt_sgd(
     sptensor_t const * const train,
-    splatt_kruskal * const model);
-
+    sptensor_t const * const validate,
+    splatt_kruskal * const model,
+    idx_t const max_epochs,
+    val_t learn_rate,
+    val_t const * const regularization);
 
 #endif

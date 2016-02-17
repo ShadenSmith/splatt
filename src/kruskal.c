@@ -21,8 +21,7 @@ val_t predict_val(
   /* initialize accumulation of each latent factor with lambda(r) */
   idx_t const nfactors = factored->rank;
   for(idx_t f=0; f < nfactors; ++f) {
-    //accum[f] = factored->lambda[f];
-    accum[f] = 1.;
+    accum[f] = factored->lambda[f];
   }
 
   /* now multiply each factor by A(i,:), B(j,:) ... */
@@ -31,10 +30,8 @@ val_t predict_val(
     idx_t const row_id = tt->ind[m][index];
     val_t const * const row = factored->factors[m] + (row_id * nfactors);
     for(idx_t f=0; f < nfactors; ++f) {
-      //printf("%0.2f ", row[f]);
       accum[f] *= row[f];
     }
-    //printf("\n");
   }
 
   /* finally, sum the factors to form the final estimated value */
