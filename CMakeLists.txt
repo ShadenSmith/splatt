@@ -34,6 +34,26 @@ else()
   set(MPI_SOURCES "")
 endif()
 
+
+
+# find BLAS / LAPACK
+find_package(BLAS)
+if( BLAS_FOUND )
+  add_definitions(-DSPLATT_USE_BLAS=1)
+  include_directories(${BLAS_INCLUDE_DIR})
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${BLAS_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
+  message("USING BLAS LIBS: " ${BLAS_LIBRARIES})
+endif()
+find_package(LAPACK)
+if( LAPACK_FOUND )
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
+  message("USING LAPACK LIBS: " ${LAPACK_LIBRARIES})
+endif()
+
+
+
 # check for debug mode
 if (DEFINED DEBUG)
   message("Building in DEBUG mode. Assertions enabled.")

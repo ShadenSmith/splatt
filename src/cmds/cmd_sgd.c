@@ -31,7 +31,7 @@ int splatt_sgd_cmd(
   stats_tt(train, argv[1], STATS_BASIC, 0, NULL);
 
   idx_t const nmodes = train->nmodes;
-  idx_t const nfactors = 10;
+  idx_t const nfactors = 32;
 
   splatt_kruskal model;
   model.rank = nfactors;
@@ -50,16 +50,17 @@ int splatt_sgd_cmd(
 
   val_t * regs = splatt_malloc(train->nmodes * sizeof(*regs));
   for(idx_t m=0; m < train->nmodes; ++m) {
-    regs[m] = 0.05;
+    regs[m] = 0.02;
   }
 
   sptensor_t * validate = tt_read(argv[2]);
   if(validate == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
-  printf("validate nnz: %"SPLATT_PF_IDX"\n\n", validate->nnz);
+  printf("validate nnz: %"SPLATT_PF_IDX" (%0.1f%%)\n\n",
+      validate->nnz, 100. * (double)validate->nnz / (double)train->nnz);
 
-  splatt_sgd(train, validate, &model, 100, 0.002, regs);
+  splatt_sgd(train, validate, &model, 1000, 0.002, regs);
 
 
   splatt_free(regs);
