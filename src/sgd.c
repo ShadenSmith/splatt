@@ -16,27 +16,27 @@ static val_t p_calc_obj(
 
   val_t reg_obj = 0.;
   val_t loss_obj = 0.;
-  #pragma omp parallel reduction(+:reg_obj,loss_obj)
+  //#pragma omp parallel reduction(+:reg_obj,loss_obj)
   {
     for(idx_t m=0; m < nmodes; ++m) {
       val_t accum = 0;
       val_t const * const restrict mat = model->factors[m];
-      #pragma omp for schedule(static) nowait
+      //#pragma omp for schedule(static) nowait
       for(idx_t x=0; x < model->dims[m] * nfactors; ++x) {
         accum += mat[x] * mat[x];
       }
-
       reg_obj += regularization[m] * accum;
     }
 
     val_t const * const restrict train_vals = train->vals;
-    #pragma omp for schedule(static) nowait
+    //#pragma omp for schedule(static) nowait
     for(idx_t x=0; x < train->nnz; ++x) {
       val_t const err = train_vals[x] - predict_val(model, train, x, buffer);
       loss_obj += err * err;
     }
   }
 
+  printf("loss: %0.5e reg: %0.5e\n", loss_obj, reg_obj);
   return loss_obj + reg_obj;
 }
 

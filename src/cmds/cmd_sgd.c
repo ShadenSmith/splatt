@@ -50,7 +50,7 @@ int splatt_sgd_cmd(
 
   val_t * regs = splatt_malloc(train->nmodes * sizeof(*regs));
   for(idx_t m=0; m < train->nmodes; ++m) {
-    regs[m] = 0.02;
+    regs[m] = 0.05;
   }
 
   sptensor_t * validate = tt_read(argv[2]);
@@ -59,7 +59,7 @@ int splatt_sgd_cmd(
   }
   printf("validate nnz: %"SPLATT_PF_IDX"\n\n", validate->nnz);
 
-  splatt_sgd(train, validate, &model, 100, 0.0005, regs);
+  splatt_sgd(train, validate, &model, 100, 0.002, regs);
 
 
   splatt_free(regs);

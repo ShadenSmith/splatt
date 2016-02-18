@@ -13,7 +13,7 @@
 val_t rand_val(void)
 {
   /* TODO: modify this to work based on the size of idx_t */
-  val_t v =  3.0 * ((val_t) rand() / (val_t) RAND_MAX);
+  val_t v =  1.0 * ((val_t) rand() / (val_t) RAND_MAX);
   if(rand() % 2 == 0) {
     v *= -1;
   }
