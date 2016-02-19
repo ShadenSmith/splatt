@@ -17,6 +17,7 @@ static char cmd_doc[] =
   "splatt -- the Surprisingly ParalleL spArse Tensor Toolkit\n\n"
   "The available commands are:\n"
   "  cpd\t\tCompute the Canonical Polyadic Decomposition.\n"
+  "  complete\tComplete a tensor with missing entries.\n"
   "  bench\t\tBenchmark MTTKRP algorithms.\n"
   "  check\t\tCheck a tensor file for correctness.\n"
   "  convert\tConvert a tensor to different formats.\n"
@@ -59,7 +60,7 @@ int splatt_convert(int argc, char ** argv);
 int splatt_reorder(int argc, char ** argv);
 int splatt_stats(int argc, char ** argv);
 
-int splatt_sgd_cmd(int argc, char ** argv);
+int splatt_tc_cmd(int argc, char ** argv);
 
 
 
@@ -82,14 +83,13 @@ static cmd_struct const splatt_cmds[] = {
   { "cpd", splatt_cpd_cmd },
 #endif
 
+  { "complete", splatt_tc_cmd },
   { "bench", splatt_bench },
   { "check", splatt_check },
   { "convert", splatt_convert },
   { "reorder", splatt_reorder },
   { "stats", splatt_stats },
   { "help", NULL},
-
-  { "sgd", splatt_sgd_cmd },
 
   { NULL, NULL }
 };

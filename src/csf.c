@@ -312,7 +312,7 @@ static void p_mk_outerptr(
   csf_sparsity * const pt = ct->pt + tile_id;
 
   pt->fptr[0] = splatt_malloc((nfibs+1) * sizeof(**(pt->fptr)));
-  if(ct->ntiles > 1) {
+  if(ct->ntiles > 1 || nfibs != ct->dims[ct->dim_perm[0]]) {
     pt->fids[0] = splatt_malloc(nfibs * sizeof(**(pt->fids)));
   } else {
     pt->fids[0] = NULL;

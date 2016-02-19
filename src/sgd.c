@@ -4,7 +4,7 @@
  * INCLUDES
  *****************************************************************************/
 
-#include "sgd.h"
+#include "completion.h"
 #include "reorder.h"
 #include "timer.h"
 #include "util.h"
@@ -83,8 +83,8 @@ static void p_update_model(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-void splatt_sgd(
-    sptensor_t const * const train,
+void splatt_tc_sgd(
+    sptensor_t * train,
     sptensor_t const * const validate,
     tc_model * const model,
     tc_ws * const ws)

@@ -63,7 +63,6 @@ val_t tc_frob_sq(
     tc_model const * const model,
     tc_ws const * const ws)
 {
-  assert(model->nmodes == test->nmodes);
   idx_t const nfactors = model->rank;
 
   val_t reg_obj = 0.;
@@ -182,7 +181,13 @@ tc_ws * tc_ws_alloc(
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_ALS:
-    ws->thds = thd_init(nthreads, 1, rank * rank * sizeof(val_t));
+    ws->thds = thd_init(nthreads, 2,
+        rank * sizeof(val_t),           /* prediction buffer */
+        rank * rank * sizeof(val_t));   /* normal equations */
+    break;
+  case SPLATT_TC_NALGS:
+    ws->thds = NULL;
+    fprintf(stderr, "SPLATT: completion algorithm not recognized.\n");
     break;
   }
 

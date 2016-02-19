@@ -20,7 +20,8 @@
 typedef enum
 {
   SPLATT_TC_SGD,
-  SPLATT_TC_ALS
+  SPLATT_TC_ALS,
+  SPLATT_TC_NALGS
 } splatt_tc_type;
 
 
@@ -45,6 +46,28 @@ typedef struct
   idx_t nthreads;
   thd_info * thds;
 } tc_ws;
+
+
+
+
+
+
+/******************************************************************************
+ * TENSOR COMPLETION FUNCTIONS
+ *****************************************************************************/
+
+void splatt_tc_sgd(
+    sptensor_t * train,
+    sptensor_t const * const validate,
+    tc_model * const model,
+    tc_ws * const ws);
+
+
+void splatt_tc_als(
+    sptensor_t * train,
+    sptensor_t const * const validate,
+    tc_model * const model,
+    tc_ws * const ws);
 
 
 

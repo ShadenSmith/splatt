@@ -1,27 +1,40 @@
 
-#if 0
-#include "sgd.h"
+#include "completion.h"
 
+#include "csf.h"
 
-void splatt_als(
-    sptensor_t const * const train,
+void splatt_tc_als(
+    sptensor_t * train,
     sptensor_t const * const validate,
-    splatt_kruskal * const model,
-    idx_t const max_epochs,
-    val_t learn_rate,
-    val_t const * const regularization)
+    tc_model * const model,
+    tc_ws * const ws)
 {
-  idx_t const nfactors = model->rank;
+  /* convert training data to CSF-ALLMODE */
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+  opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+  splatt_csf * csf = csf_alloc(train, opts);
+  assert(csf->ntiles == 1);
 
-  printf("ALS\n");
+  #pragma omp parallel
+  {
+    for(idx_t e=0; e < ws->max_its; ++e) {
+      for(idx_t m=0; m < train->nmodes; ++m) {
 
-  /* outer iterations */
-  for(idx_t e=0; e < max_epochs; ++e) {
-    for(idx_t m=0; m < train->nmodes; ++m) {
+        csf_sparsity const * const pt = csf[m].pt;
 
+        /* update each row in parallel */
+        /* TODO: use CCP to statically schedule */
+        #pragma omp for schedule(dynamic, 16)
+        for(idx_t i=0; i < pt->nfibs[0]; ++i) {
+          idx_t const fid = (sids == NULL) ? s : sids[s];
+
+        }
+      }
     }
-  }
-}
-#endif
 
+  } /* end omp parallel */
+
+  csf_free(csf, opts);
+}
 
