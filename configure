@@ -92,6 +92,10 @@ for i in "${@}"; do
     --cc=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=${i#*=}"
     ;;
+    # cxx
+    --cxx=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=${i#*=}"
+    ;;
     # debug
     --debug)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"
