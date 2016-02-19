@@ -15,27 +15,6 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-#define kruskal_rmse splatt_kruskal_rmse
-/**
-* @brief Compute the RMSE against of a factorization against a test tensor.
-*        RMSE is defined as: sqrt( (1/nnz) * sum((observed-predicted)^2)).
-*
-* @param test The tensor to test against.
-* @param factored The factorization the evaluate.
-*
-* @return The RMSE.
-*/
-val_t kruskal_rmse(
-    sptensor_t const * const test,
-    splatt_kruskal const * const factored);
-
-
-val_t predict_val(
-    splatt_kruskal const * const factored,
-    sptensor_t const * const tt,
-    idx_t const index,
-    val_t * const restrict accum);
-
 
 #define kruskal_norm splatt_kruskal_norm
 /**

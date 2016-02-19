@@ -218,27 +218,33 @@ val_t kruskal_norm(
 }
 
 
+val_t kruskal_loss(
+    sptensor_t const * const test,
+    splatt_kruskal const * const factored)
+{
+  val_t loss = 0;
+  #pragma omp parallel reduction(+:loss)
+  {
+    val_t * loss_buffer = splatt_malloc(factored->rank * sizeof(*loss_buffer));
+    val_t const * const restrict vals = test->vals;
+
+    #pragma omp for schedule(static)
+    for(idx_t x=0; x < test->nnz; ++x) {
+      val_t const est = predict_val(factored, test, x, loss_buffer);
+      loss += (vals[x] - est) * (vals[x] - est);
+    }
+    splatt_free(loss_buffer);
+  }
+
+  return loss;
+}
+
 
 val_t kruskal_rmse(
     sptensor_t const * const test,
     splatt_kruskal const * const factored)
 {
-  val_t rmse = 0;
-  #pragma omp parallel reduction(+:rmse)
-  {
-    val_t * rmse_buffer = splatt_malloc(factored->rank * sizeof(*rmse_buffer));
-    val_t const * const restrict vals = test->vals;
-
-    #pragma omp for schedule(static)
-    for(idx_t x=0; x < test->nnz; ++x) {
-      val_t const est = predict_val(factored, test, x, rmse_buffer);
-      rmse += (vals[x] - est) * (vals[x] - est);
-    }
-    splatt_free(rmse_buffer);
-  }
-
-  rmse = sqrt(rmse / test->nnz);
-  return rmse;
+  return sqrt(kruskal_loss(test, factored) / test->nnz);
 }
 
 

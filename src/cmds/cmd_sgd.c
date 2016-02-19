@@ -31,7 +31,7 @@ int splatt_sgd_cmd(
   stats_tt(train, argv[1], STATS_BASIC, 0, NULL);
 
   idx_t const nmodes = train->nmodes;
-  idx_t const nfactors = 32;
+  idx_t const nfactors = 10;
 
   splatt_kruskal model;
   model.rank = nfactors;

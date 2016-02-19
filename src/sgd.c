@@ -9,8 +9,7 @@
 
 /**
 * @brief Compute the value of the objective function:
-*        \sum_{nnz \in train} (train(x) - predict(x))^2  +
-*        \sum_{m=1}^{nmodes} reg[m] ||factors[m]||_F^2
+*        (train(:) - predict(:))^2 + (reg[:] * normsq(:))
 *
 * @param train The training data used to compute loss.
 * @param model The model we are evaluating.
@@ -150,7 +149,8 @@ void splatt_sgd(
     val_t const obj = p_calc_obj(train, model, regularization);
     val_t const train_rmse = kruskal_rmse(train, model);
     val_t const val_rmse = kruskal_rmse(validate, model);
-    printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   tr-rmse: %0.5e   v-rmse: %0.5e\n",
+    printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
+        "RMSE-tr: %0.5e   RMSE-vl: %0.5e\n",
         e+1, obj, train_rmse, val_rmse);
 
     if(e > 0) {
