@@ -1,4 +1,5 @@
 
+#if 0
 #include "sgd.h"
 
 
@@ -21,5 +22,6 @@ void splatt_als(
     }
   }
 }
+#endif
 
 

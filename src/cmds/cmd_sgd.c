@@ -5,9 +5,11 @@
 #include "splatt_cmds.h"
 #include "../io.h"
 #include "../sptensor.h"
-#include "../kruskal.h"
+#include "../completion.h"
 #include "../sgd.h"
 #include "../stats.h"
+
+#include <omp.h>
 
 
 /******************************************************************************
@@ -33,37 +35,20 @@ int splatt_sgd_cmd(
   idx_t const nmodes = train->nmodes;
   idx_t const nfactors = 10;
 
-  splatt_kruskal model;
-  model.rank = nfactors;
-  model.nmodes = train->nmodes;
-  model.lambda = splatt_malloc(nfactors * sizeof(*model.lambda));
-
-  /* allocate */
-  for(idx_t m=0; m < train->nmodes; ++m) {
-    matrix_t * tmp = mat_rand(train->dims[m], nfactors);
-    model.dims[m] = train->dims[m];
-    model.factors[m] = tmp->vals;
-
-    /* clean up */
-    free(tmp);
-  }
-
-  val_t * regs = splatt_malloc(train->nmodes * sizeof(*regs));
-  for(idx_t m=0; m < train->nmodes; ++m) {
-    regs[m] = 0.02;
-  }
+  tc_model * model = tc_model_alloc(train, nfactors, SPLATT_TC_SGD);
 
   sptensor_t * validate = tt_read(argv[2]);
   if(validate == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
-  printf("validate nnz: %"SPLATT_PF_IDX" (%0.1f%%)\n\n",
-      validate->nnz, 100. * (double)validate->nnz / (double)train->nnz);
+  printf("validate nnz: %"SPLATT_PF_IDX"\n\n", validate->nnz);
 
-  splatt_sgd(train, validate, &model, 1000, 0.002, regs);
+  idx_t nthreads = omp_get_max_threads();
+  tc_ws * ws = tc_ws_alloc(model, nthreads);
 
+  printf("lrn: %0.3e  reg: %0.3e\n\n", ws->learn_rate, ws->regularization[0]);
 
-  splatt_free(regs);
+  splatt_sgd(train, validate, model, ws);
 
   tt_free(validate);
   tt_free(train);
@@ -71,9 +56,7 @@ int splatt_sgd_cmd(
   /* test rmse */
   sptensor_t * test = tt_read(argv[3]);
   printf("test nnz: %"SPLATT_PF_IDX"\n", test->nnz);
-  printf("TEST RMSE: %0.5f\n", kruskal_rmse(test, &model));
-
-  vec_write(model.lambda, nfactors, "lambda.mat");
+  printf("TEST RMSE: %0.5f\n", tc_rmse(test, model, ws));
 
   /* write output */
   for(idx_t m=0; m < nmodes; ++m) {
@@ -82,16 +65,17 @@ int splatt_sgd_cmd(
 
     matrix_t tmpmat;
     tmpmat.rowmajor = 1;
-    tmpmat.I = model.dims[m];
+    tmpmat.I = model->dims[m];
     tmpmat.J = nfactors;
-    tmpmat.vals = model.factors[m];
+    tmpmat.vals = model->factors[m];
 
     mat_write(&tmpmat, matfname);
     free(matfname);
   }
 
   tt_free(test);
-  splatt_free_kruskal(&model);
+  tc_model_free(model);
+  tc_ws_free(ws);
 
   return EXIT_SUCCESS;
 }

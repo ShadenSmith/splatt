@@ -2,22 +2,23 @@
 #define SPLATT_SGD_H
 
 #include "sptensor.h"
-#include "kruskal.h"
+#include "completion.h"
 
 void splatt_sgd(
     sptensor_t const * const train,
     sptensor_t const * const validate,
-    splatt_kruskal * const model,
-    idx_t const max_epochs,
-    val_t learn_rate,
-    val_t const * const regularization);
+    tc_model * const model,
+    tc_ws * const ws);
 
+
+#if 0
 void splatt_als(
     sptensor_t const * const train,
     sptensor_t const * const validate,
-    splatt_kruskal * const model,
+    tc_model * const model,
     idx_t const max_epochs,
     val_t learn_rate,
     val_t const * const regularization);
+#endif
 
 #endif

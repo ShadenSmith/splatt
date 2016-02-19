@@ -12,36 +12,6 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-val_t predict_val(
-    splatt_kruskal const * const factored,
-    sptensor_t const * const tt,
-    idx_t const index,
-    val_t * const restrict accum)
-{
-  /* initialize accumulation of each latent factor with lambda(r) */
-  idx_t const nfactors = factored->rank;
-  for(idx_t f=0; f < nfactors; ++f) {
-    accum[f] = factored->lambda[f];
-  }
-
-  /* now multiply each factor by A(i,:), B(j,:) ... */
-  idx_t const nmodes = factored->nmodes;
-  for(idx_t m=0; m < nmodes; ++m) {
-    idx_t const row_id = tt->ind[m][index];
-    val_t const * const row = factored->factors[m] + (row_id * nfactors);
-    for(idx_t f=0; f < nfactors; ++f) {
-      accum[f] *= row[f];
-    }
-  }
-
-  /* finally, sum the factors to form the final estimated value */
-  val_t est = 0;
-  for(idx_t f=0; f < nfactors; ++f) {
-    est += accum[f];
-  }
-  return est;
-}
-
 
 
 /******************************************************************************
@@ -215,36 +185,6 @@ val_t kruskal_norm(
   }
 
   return fabs(norm_mats);
-}
-
-
-val_t kruskal_loss(
-    sptensor_t const * const test,
-    splatt_kruskal const * const factored)
-{
-  val_t loss = 0;
-  #pragma omp parallel reduction(+:loss)
-  {
-    val_t * loss_buffer = splatt_malloc(factored->rank * sizeof(*loss_buffer));
-    val_t const * const restrict vals = test->vals;
-
-    #pragma omp for schedule(static)
-    for(idx_t x=0; x < test->nnz; ++x) {
-      val_t const est = predict_val(factored, test, x, loss_buffer);
-      loss += (vals[x] - est) * (vals[x] - est);
-    }
-    splatt_free(loss_buffer);
-  }
-
-  return loss;
-}
-
-
-val_t kruskal_rmse(
-    sptensor_t const * const test,
-    splatt_kruskal const * const factored)
-{
-  return sqrt(kruskal_loss(test, factored) / test->nnz);
 }
 
 
