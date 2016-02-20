@@ -242,7 +242,7 @@ void ften_alloc(
   for(idx_t m=0; m < tt->nmodes; ++m) {
     ft->dims[m] = tt->dims[m];
   }
-  ft->tiled = tt->tiled;
+  ft->tiled = (splatt_tile_type)tt->tiled;
 
   /* compute permutation of modes */
   fib_mode_order(tt->dims, tt->nmodes, mode, ft->dim_perm);
@@ -253,7 +253,7 @@ void ften_alloc(
 
   tt_sort(tt, mode, ft->dim_perm);
   if(tile != SPLATT_NOTILE) {
-    ft->tiled = 1;
+    ft->tiled = (splatt_tile_type)1;
     tt_tile(tt, ft->dim_perm);
   }
 
