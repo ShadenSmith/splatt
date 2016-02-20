@@ -108,7 +108,7 @@ static void default_tc_opts(
   }
 
   args->which_alg = SPLATT_TC_SGD;
-  args->write = true;
+  args->write = false;
   args->nfactors = 10;
   args->learn_rate = -1.;
   args->reg = -1.;
@@ -210,7 +210,7 @@ int splatt_tc_cmd(
   printf("validate nnz: %"SPLATT_PF_IDX"\n\n", validate->nnz);
 
   /* allocate model + workspace */
-  tc_model * model = tc_model_alloc(train, args.nfactors, SPLATT_TC_SGD);
+  tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
   tc_ws * ws = tc_ws_alloc(model, args.nthreads);
 
   /* check for non-default vals */

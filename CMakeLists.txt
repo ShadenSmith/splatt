@@ -19,8 +19,12 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
+
+# to find BLAS/LAPACK
+enable_language(Fortran)
+
 # ALL LIBRARIES -- will concatenate to this
-set(SPLATT_LIBS splatt m rt)
+set(SPLATT_LIBS splatt m rt gfortran)
 
 # check for MPI mode
 if (DEFINED USE_MPI)
@@ -33,7 +37,6 @@ if (DEFINED USE_MPI)
 else()
   set(MPI_SOURCES "")
 endif()
-
 
 
 # find BLAS / LAPACK
