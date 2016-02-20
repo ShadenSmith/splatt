@@ -6,9 +6,9 @@
  * INCLUDES
  *****************************************************************************/
 
-#include "base.h"
-#include "matrix.h"
-#include "sptensor.h"
+#include "../base.h"
+#include "../matrix.h"
+#include "../sptensor.h"
 
 
 

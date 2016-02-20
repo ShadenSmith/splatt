@@ -1,10 +1,34 @@
 
 #include "completion.h"
-#include "csf.h"
+#include "../csf.h"
 
 #include <math.h>
 #include <omp.h>
 
+
+
+
+/******************************************************************************
+ * LAPACK PROTOTYPES
+ *****************************************************************************/
+
+/*
+ * TODO: Can this be done in a better way?
+ */
+
+#if   SPLATT_VAL_TYPEWIDTH == 32
+  void spotrf_(char *, int *, float *, int *, int *);
+  void spotrs_(char *, int *, int *, float *, int *, float *, int *, int *);
+
+  #define LAPACK_DPOTRF spotrf_
+  #define LAPACK_DPOTRS spotrs_
+#else
+  void dpotrf_(char *, int *, double *, int *, int *);
+  void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
+
+  #define LAPACK_DPOTRF dpotrf_
+  #define LAPACK_DPOTRS dpotrs_
+#endif
 
 
 
@@ -29,14 +53,14 @@ static inline void p_invert_row(
   int order = (int) N;
   int lda = (int) N;
   int info;
-  dpotrf_(&uplo, &order, neqs, &lda, &info);
+  LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
 
   int nrhs = 1;
   int ldb = (int) N;
-  dpotrs_(&uplo, &order, &nrhs, neqs, &lda, out_row, &ldb, &info);
+  LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, out_row, &ldb, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
@@ -71,7 +95,7 @@ static inline void p_onevec_oprod(
 static inline void p_update_row(
     splatt_csf const * const csf,
     idx_t const i,
-    idx_t const mode,
+    val_t const reg,
     tc_model * const model,
     tc_ws * const ws,
     int const tid)
@@ -143,7 +167,6 @@ static inline void p_update_row(
   }
 
   /* add regularization to the diagonal */
-  val_t const reg = ws->regularization[mode];
   for(idx_t f=0; f < nfactors; ++f) {
     neqs[f + (f * nfactors)] += reg;
   }
@@ -195,7 +218,7 @@ void splatt_tc_als(
         /* TODO: use CCP to statically schedule */
         #pragma omp for schedule(dynamic, 4)
         for(idx_t i=0; i < nslices; ++i) {
-          p_update_row(csf+m, i, m, model, ws, tid);
+          p_update_row(csf+m, i, ws->regularization[m], model, ws, tid);
         }
       }
 

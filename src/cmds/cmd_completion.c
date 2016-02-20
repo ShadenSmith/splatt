@@ -5,7 +5,7 @@
 #include "splatt_cmds.h"
 #include "../io.h"
 #include "../sptensor.h"
-#include "../completion.h"
+#include "../completion/completion.h"
 #include "../stats.h"
 #include <omp.h>
 

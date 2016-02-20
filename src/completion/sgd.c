@@ -5,9 +5,9 @@
  *****************************************************************************/
 
 #include "completion.h"
-#include "reorder.h"
-#include "timer.h"
-#include "util.h"
+#include "../reorder.h"
+#include "../timer.h"
+#include "../util.h"
 
 #include <math.h>
 #include <omp.h>

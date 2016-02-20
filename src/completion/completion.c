@@ -4,10 +4,8 @@
  * INCLUDES
  *****************************************************************************/
 #include "completion.h"
-#include "util.h"
-
-#include "io.h"
-
+#include "../io.h"
+#include "../util.h"
 
 #include <math.h>
 #include <omp.h>
