@@ -196,6 +196,13 @@ void splatt_tc_als(
   splatt_csf * csf = csf_alloc(train, opts);
   assert(csf->ntiles == 1);
 
+  idx_t const nmodes = train->nmodes;
+
+  /* partition each mode for threads */
+  idx_t * parts[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    parts[m] = csf_partition_1d(csf+m, 0, ws->nthreads);
+  }
 
   val_t prev_val_rmse = 0;
 
@@ -210,18 +217,16 @@ void splatt_tc_als(
     {
       int const tid = omp_get_thread_num();
 
-      for(idx_t m=0; m < train->nmodes; ++m) {
+      for(idx_t m=0; m < nmodes; ++m) {
 
         idx_t const nslices = csf[m].pt[0].nfibs[0];
 
         /* update each row in parallel */
-        /* TODO: use CCP to statically schedule */
-        #pragma omp for schedule(dynamic, 4)
-        for(idx_t i=0; i < nslices; ++i) {
+        for(idx_t i=parts[m][tid]; i < parts[m][tid+1]; ++i) {
           p_update_row(csf+m, i, ws->regularization[m], model, ws, tid);
         }
+        #pragma omp barrier
       }
-
     } /* end omp parallel */
 
     /* compute RMSE */
@@ -248,6 +253,10 @@ void splatt_tc_als(
 
   } /* foreach iteration */
   csf_free(csf, opts);
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    splatt_free(parts[m]);
+  }
 }
 
 

@@ -162,4 +162,38 @@ static inline idx_t csf_mode_depth(
   return MAX_NMODES;
 }
 
+
+#define csf_partition_1d splatt_csf_partition_1d
+/**
+* @brief Split the root nodes of a CSF tensor into 'nparts' partitions.
+*
+* @param csf The CSF tensor to partition.
+* @param nparts The number of partitions.
+*
+* @return An array of length (nparts+1) specifying the starts of each part.
+*/
+idx_t * csf_partition_1d(
+    splatt_csf const * const csf,
+    idx_t const tile_id,
+    idx_t const nparts);
+
+
+#define csf_count_nnz splatt_csf_count_nnz
+/**
+* @brief Count the nonzeros below a given node in a CSF tensor.
+*
+* @param fptr The adjacency pointer of the CSF tensor.
+* @param nmodes The number of modes in the tensor.
+* @param depth The depth of the node
+* @param fiber The id of the node.
+*
+* @return The nonzeros below fptr[depth][fiber].
+*/
+idx_t csf_count_nnz(
+    idx_t * * fptr,
+    idx_t const nmodes,
+    idx_t depth,
+    idx_t const fiber);
+
+
 #endif

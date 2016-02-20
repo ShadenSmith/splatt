@@ -200,39 +200,6 @@ static idx_t p_calc_offset(
 
 
 /**
-* @brief Count the nonzeros below a given node in a CSF tensor.
-*
-* @param fptr The adjacency pointer of the CSF tensor.
-* @param nmodes The number of modes in the tensor.
-* @param depth The depth of the node
-* @param fiber The id of the node.
-*
-* @return The nonzeros below fptr[depth][fiber].
-*/
-static wgt_t p_count_nnz(
-    idx_t * * fptr,
-    idx_t const nmodes,
-    idx_t depth,
-    idx_t const fiber)
-{
-  if(depth == nmodes-1) {
-    return 1;
-  }
-
-  idx_t left = fptr[depth][fiber];
-  idx_t right = fptr[depth][fiber+1];
-  ++depth;
-
-  for(; depth < nmodes-1; ++depth) {
-    left = fptr[depth][left];
-    right = fptr[depth][right];
-  }
-
-  return right - left;
-}
-
-
-/**
 * @brief Fill the contents of a splatt_graph. The graph must already be
 *        allocated!
 *
@@ -269,7 +236,7 @@ static void p_fill_ijk_graph(
       /* compute adjacency info */
       idx_t const * const fids = pt->fids[d];
       for(idx_t f=start; f < end; ++f) {
-        p_set_update(&set, fids[f], p_count_nnz(pt->fptr, csf->nmodes, d, f));
+        p_set_update(&set, fids[f], csf_count_nnz(pt->fptr, csf->nmodes, d,f));
       }
 
       /* things break if vtx size isn't our sorting size... */

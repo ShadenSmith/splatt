@@ -42,6 +42,7 @@ typedef enum
   TIMER_ATA,
   TIMER_MATNORM,
   TIMER_IO,
+  TIMER_PART,
   TIMER_LVL2,   /* LEVEL 2 */
 #ifdef SPLATT_USE_MPI
   TIMER_MPI,

@@ -126,7 +126,7 @@ endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-file(GLOB SPLATT_SOURCES src/*.c src/completion/*.c ${MPI_SOURCES})
+file(GLOB SPLATT_SOURCES src/*.c src/ccp/*.c src/completion/*.c ${MPI_SOURCES})
 
 # Generate splatt library
 add_subdirectory(lib)

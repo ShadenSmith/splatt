@@ -5,6 +5,7 @@
 #include "csf.h"
 #include "sort.h"
 #include "tile.h"
+#include "ccp/ccp.h"
 
 #include "io.h"
 
@@ -786,4 +787,51 @@ val_t csf_frobsq(
 
   return norm;
 }
+
+
+idx_t * csf_partition_1d(
+    splatt_csf const * const csf,
+    idx_t const tile_id,
+    idx_t const nparts)
+{
+  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
+
+  idx_t const nslices = csf->pt[tile_id].nfibs[0];
+  idx_t * weights = splatt_malloc(nslices * sizeof(*weights));
+
+  #pragma omp parallel for
+  for(idx_t i=0; i < nslices; ++i) {
+    weights[i] = csf_count_nnz(csf->pt[tile_id].fptr, csf->nmodes, 0, i);
+  }
+
+  partition_1d(weights, nslices, parts, nparts);
+  splatt_free(weights);
+
+  return parts;
+}
+
+
+
+idx_t csf_count_nnz(
+    idx_t * * fptr,
+    idx_t const nmodes,
+    idx_t depth,
+    idx_t const fiber)
+{
+  if(depth == nmodes-1) {
+    return 1;
+  }
+
+  idx_t left = fptr[depth][fiber];
+  idx_t right = fptr[depth][fiber+1];
+  ++depth;
+
+  for(; depth < nmodes-1; ++depth) {
+    left = fptr[depth][left];
+    right = fptr[depth][right];
+  }
+
+  return right - left;
+}
+
 
