@@ -13,6 +13,10 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define tt_sort splatt_tt_sort
 /**
 * @brief Sort a tensor using a permutation of its modes. Sorting uses dim_perm
@@ -73,5 +77,9 @@ void insertion_sort(
 void quicksort(
   idx_t * const a,
   idx_t const n);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

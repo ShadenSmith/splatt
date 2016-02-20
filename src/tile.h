@@ -26,6 +26,10 @@ static idx_t const TILE_SIZES[] = { 32, 1024, 1024 };
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /******************************************************************************
  * TILE TRAVERSAL
@@ -128,5 +132,9 @@ idx_t * tt_densetile(
 void tt_tile(
   sptensor_t * const tt,
   idx_t * dim_perm);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

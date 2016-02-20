@@ -41,6 +41,10 @@ typedef enum
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define thd_reduce splatt_thd_reduce
 /**
 * @brief Perform a parallel reduction on thds->scratch[scratchid].
@@ -106,5 +110,9 @@ thd_info * thd_init(
 void thd_free(
   thd_info * thds,
   idx_t const nthreads);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

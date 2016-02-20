@@ -16,6 +16,10 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define mttkrp_csf splatt_mttkrp_csf
 /**
 * @brief Matricized Tensor Times Khatri-Rao Product (MTTKRP) with a CSF tensor.
@@ -80,5 +84,9 @@ void mttkrp_stream(
   sptensor_t const * const tt,
   matrix_t ** mats,
   idx_t const mode);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
