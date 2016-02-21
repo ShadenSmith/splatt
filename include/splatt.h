@@ -14,6 +14,7 @@
 #include <mpi.h>
 #endif
 
+#include <stdlib.h>
 
 
 
@@ -161,6 +162,8 @@ typedef enum
   SPLATT_CSF_ONEMODE, /** Only allocate one CSF for factorization. */
   SPLATT_CSF_TWOMODE, /** Allocate one for the smallest and largest modes. */
   SPLATT_CSF_ALLMODE, /** Allocate one CSF for every mode. */
+  SPLATT_CSF_ALLMODE_ROUND_ROBIN, /** Allocate one CSF for every mode. */
+  SPLATT_CSF_ALLPERMUTE, /** Allocate one CSF for all possible permutation. */
 } splatt_csf_type;
 
 
@@ -283,6 +286,9 @@ typedef struct splatt_csf
 
   /** @brief Sparsity structures -- one for each tile. */
   csf_sparsity * pt;
+
+  /** @brief Storage size in bytes -- lazy initialized */
+  size_t storage;
 } splatt_csf;
 
 
