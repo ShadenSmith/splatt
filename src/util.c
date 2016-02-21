@@ -3,6 +3,7 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
+#include <omp.h>
 #include "base.h"
 #include "util.h"
 
@@ -117,3 +118,33 @@ int * get_primes(
 }
 
 
+void par_memcpy(void *dst, const void *src, size_t n)
+{
+#pragma omp parallel
+  {
+    int nthreads = omp_get_num_threads();
+    int tid = omp_get_thread_num();
+
+    size_t n_per_thread = (n + nthreads - 1)/nthreads;
+    size_t n_begin = SS_MIN(n_per_thread*tid, n);
+    size_t n_end = SS_MIN(n_begin + n_per_thread, n);
+
+    memcpy((char *)dst + n_begin, (char *)src + n_begin, n_end - n_begin);
+  }
+}
+
+
+void par_memset(void *ptr, int c, size_t n)
+{
+#pragma omp parallel
+  {
+    int nthreads = omp_get_num_threads();
+    int tid = omp_get_thread_num();
+
+    size_t n_per_thread = (n + nthreads - 1)/nthreads;
+    size_t n_begin = SS_MIN(n_per_thread*tid, n);
+    size_t n_end = SS_MIN(n_begin + n_per_thread, n);
+
+    memset((char *)ptr + n_begin, c, n_end - n_begin);
+  }
+}

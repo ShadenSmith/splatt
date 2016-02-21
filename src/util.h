@@ -22,6 +22,10 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define rand_val splatt_rand_val
 /**
 * @brief Generate a random val_t in the range [0, 1].
@@ -105,5 +109,12 @@ idx_t argmin_elem(
 int * get_primes(
   int N,
   int * nprimes);
+
+void par_memcpy(void *dst, const void *src, size_t n);
+void par_memset(void *ptr, int c, size_t n);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
