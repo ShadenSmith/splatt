@@ -3,8 +3,11 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
+#include <omp.h>
+
 #include "sort.h"
 #include "timer.h"
+#include "util.h"
 
 
 
@@ -96,6 +99,67 @@ static inline int p_ttcmp3(
   }
   return 0;
 }
+/**
+* @brief Compares ind*[i] and j[*] for two-mode tensors.
+*
+* @param ind0 The primary mode to compare. Defer tie-breaks to ind1.
+* @param ind1 The secondary mode to compare.
+* @param i The index into ind*[]
+* @param j[2] The indices we are comparing i against.
+*
+* @return Returns -1 if ind[i] < j, 1 if ind[i] > j, and 0 if they are equal.
+*/
+static inline int p_ttqcmp2(
+  idx_t const * const ind0,
+  idx_t const * const ind1,
+  idx_t const i,
+  idx_t const j[2])
+{
+  if(ind0[i] < j[0]) {
+    return -1;
+  } else if(j[0] < ind0[i]) {
+    return 1;
+  }
+  if(ind1[i] < j[1]) {
+    return -1;
+  } else if(j[1] < ind1[i]) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
+/**
+* @brief Compares ind*[i] and ind*[j] for two-mode tensors.
+*
+* @param ind0 The primary mode to compare. Defer tie-breaks to ind1.
+* @param ind1 The secondary mode to compare.
+* @param i The index into ind*.
+* @param j The second index into ind*.
+*
+* @return Returns -1 if ind[i] < ind[j], 1 if ind[i] > ind[j], and 0 if they
+*         are equal.
+*/
+static inline int p_ttcmp2(
+  idx_t const * const ind0,
+  idx_t const * const ind1,
+  idx_t const i,
+  idx_t const j)
+{
+  if(ind0[i] < ind0[j]) {
+    return -1;
+  } else if(ind0[j] < ind0[i]) {
+    return 1;
+  }
+  if(ind1[i] < ind1[j]) {
+    return -1;
+  } else if(ind1[j] < ind1[i]) {
+    return 1;
+  }
+  return 0;
+}
+
 
 
 /**
@@ -202,7 +266,7 @@ static void p_tt_insertionsort3(
 
   for(size_t i=start+1; i < end; ++i) {
     size_t j = i;
-    while (j > 0 && p_ttcmp3(ind0, ind1, ind2, i, j-1) < 0) {
+    while (j > start && p_ttcmp3(ind0, ind1, ind2, i, j-1) < 0) {
       --j;
     }
 
@@ -223,6 +287,46 @@ static void p_tt_insertionsort3(
   }
 }
 
+/**
+* @brief Perform insertion sort on a 2-mode tensor between start and end,
+*
+* @param tt The tensor to sort.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+* @param start The first nonzero to sort.
+* @param end The last nonzero to sort.
+*/
+static void p_tt_insertionsort2(
+  sptensor_t * const tt,
+  idx_t const * const cmplt,
+  idx_t const start,
+  idx_t const end)
+{
+  idx_t * const ind0 = tt->ind[cmplt[0]];
+  idx_t * const ind1 = tt->ind[cmplt[1]];
+  val_t * const vals = tt->vals;
+
+  val_t vbuf;
+  idx_t ibuf;
+
+  for(size_t i=start+1; i < end; ++i) {
+    size_t j = i;
+    while (j > start && p_ttcmp2(ind0, ind1, i, j-1) < 0) {
+      --j;
+    }
+
+    vbuf = vals[i];
+
+    /* shift all data */
+    memmove(vals+j+1, vals+j, (i-j)*sizeof(val_t));
+    vals[j] = vbuf;
+    ibuf = ind0[i];
+    memmove(ind0+j+1, ind0+j, (i-j)*sizeof(idx_t));
+    ind0[j] = ibuf;
+    ibuf = ind1[i];
+    memmove(ind1+j+1, ind1+j, (i-j)*sizeof(idx_t));
+    ind1[j] = ibuf;
+  }
+}
 
 /**
 * @brief Perform insertion sort on an n-mode tensor between start and end.
@@ -247,7 +351,7 @@ static void p_tt_insertionsort(
 
   for(size_t i=start+1; i < end; ++i) {
     size_t j = i;
-    while (j > 0 && p_ttcmp(tt, cmplt, i, j-1) < 0) {
+    while (j > start && p_ttcmp(tt, cmplt, i, j-1) < 0) {
       --j;
     }
 
@@ -280,6 +384,8 @@ static void p_tt_quicksort3(
   idx_t const start,
   idx_t const end)
 {
+  assert(start <= end);
+
   val_t vmid;
   idx_t imid[3];
 
@@ -352,13 +458,255 @@ static void p_tt_quicksort3(
       p_tt_quicksort3(tt, cmplt, start, i);
     }
     ++i; /* skip the pivot element */
-    if(end - i > 1) {
+    if(end > i + 1) {
       #pragma omp task
       p_tt_quicksort3(tt, cmplt, i, end);
     }
   }
 }
 
+/**
+* @brief Perform quicksort on a 2-mode tensor between start and end.
+*
+* @param tt The tensor to sort.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+* @param start The first nonzero to sort.
+* @param end The last nonzero to sort.
+*/
+static void p_tt_quicksort2(
+  sptensor_t * const tt,
+  idx_t const * const cmplt,
+  idx_t const start,
+  idx_t const end)
+{
+  val_t vmid;
+  idx_t imid[2];
+
+  idx_t * const ind0 = tt->ind[cmplt[0]];
+  idx_t * const ind1 = tt->ind[cmplt[1]];
+  val_t * const vals = tt->vals;
+
+  if((end-start) <= MIN_QUICKSORT_SIZE) {
+    p_tt_insertionsort2(tt, cmplt, start, end);
+  } else {
+    size_t i = start+1;
+    size_t j = end-1;
+    size_t k = start + ((end - start) / 2);
+
+    /* grab pivot */
+    vmid = vals[k];
+    vals[k] = vals[start];
+    imid[0] = ind0[k];
+    imid[1] = ind1[k];
+    ind0[k] = ind0[start];
+    ind1[k] = ind1[start];
+
+    while(i < j) {
+      /* if tt[i] > mid  -> tt[i] is on wrong side */
+      if(p_ttqcmp2(ind0,ind1,i,imid) == 1) {
+        /* if tt[j] <= mid  -> swap tt[i] and tt[j] */
+        if(p_ttqcmp2(ind0,ind1,j,imid) < 1) {
+          val_t vtmp = vals[i];
+          vals[i] = vals[j];
+          vals[j] = vtmp;
+          idx_t itmp = ind0[i];
+          ind0[i] = ind0[j];
+          ind0[j] = itmp;
+          itmp = ind1[i];
+          ind1[i] = ind1[j];
+          ind1[j] = itmp;
+          ++i;
+        }
+        --j;
+      } else {
+        /* if tt[j] > mid  -> tt[j] is on right side */
+        if(p_ttqcmp2(ind0,ind1,j,imid) == 1) {
+          --j;
+        }
+        ++i;
+      }
+    }
+
+    /* if tt[i] > mid */
+    if(p_ttqcmp2(ind0,ind1,i,imid) == 1) {
+      --i;
+    }
+    vals[start] = vals[i];
+    vals[i] = vmid;
+    ind0[start] = ind0[i];
+    ind1[start] = ind1[i];
+    ind0[i] = imid[0];
+    ind1[i] = imid[1];
+
+    if(i > start + 1) {
+      p_tt_quicksort2(tt, cmplt, start, i);
+    }
+    ++i; /* skip the pivot element */
+    if(end - i > 1) {
+      p_tt_quicksort2(tt, cmplt, i, end);
+    }
+  }
+}
+
+/**
+ * idx = idx2*dim1 + idx1
+ * -> ret = idx1*dim2 + idx2
+ *        = (idx%dim1)*dim2 + idx/dim1
+ */
+static inline idx_t transpose_idx(idx_t idx, idx_t dim1, idx_t dim2)
+{
+  return idx%dim1*dim2 + idx/dim1;
+}
+
+/**
+ * counting sort on the msb and comparison-based sort for
+ * the remaining
+ */
+void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
+{
+  idx_t m = cmplt[0];
+  idx_t nslices = tt->dims[m];
+
+  idx_t **new_ind = splatt_malloc(tt->nmodes*sizeof(idx_t *));
+  for(idx_t i = 0; i < tt->nmodes; ++i) {
+    if(i != m) new_ind[i] = splatt_malloc(tt->nnz*sizeof(idx_t));
+  }
+  val_t *new_vals = splatt_malloc(tt->nnz*sizeof(val_t));
+
+  idx_t *histogram_array = splatt_malloc((nslices*omp_get_max_threads() + 1)*sizeof(idx_t));
+
+#pragma omp parallel
+  {
+    double t = omp_get_wtime();
+
+    int nthreads = omp_get_num_threads();
+    int tid = omp_get_thread_num();
+
+    idx_t *histogram = histogram_array + nslices*tid;
+    memset(histogram, 0, nslices * sizeof(idx_t));
+
+    idx_t j_per_thread = (tt->nnz + nthreads - 1)/nthreads;
+    idx_t jbegin = SS_MIN(j_per_thread*tid, tt->nnz);
+    idx_t jend = SS_MIN(jbegin + j_per_thread, tt->nnz);
+
+    /* count */
+    for (idx_t j = jbegin; j < jend; ++j) {
+      idx_t idx = tt->ind[m][j];
+      ++histogram[idx];
+    }
+
+#pragma omp barrier
+
+    /* prefix sum */
+    for (idx_t j = tid*nslices + 1; j < (tid + 1)*nslices; ++j) {
+      idx_t transpose_j = transpose_idx(j, nthreads, nslices);
+      idx_t transpose_j_minus_1 = transpose_idx(j - 1, nthreads, nslices);
+      
+      histogram_array[transpose_j] += histogram_array[transpose_j_minus_1];
+    }
+
+#pragma omp barrier
+#pragma omp master
+    {
+      //printf("\tgather takes %f\n", omp_get_wtime() - t);
+      t = omp_get_wtime();
+
+      for (idx_t t = 1; t < nthreads; ++t) {
+        idx_t j0 = nslices*t - 1, j1 = nslices*(t + 1) - 1;
+        idx_t transpose_j0 = transpose_idx(j0, nthreads, nslices);
+        idx_t transpose_j1 = transpose_idx(j1, nthreads, nslices);
+
+        histogram_array[transpose_j1] += histogram_array[transpose_j0];
+      }
+    }
+#pragma omp barrier
+
+    if (tid > 0) {
+      idx_t transpose_j0 = transpose_idx(nslices*tid - 1, nthreads, nslices);
+
+      for (idx_t j = tid*nslices; j < (tid + 1)*nslices - 1; ++j) {
+        idx_t transpose_j = transpose_idx(j, nthreads, nslices);
+
+        histogram_array[transpose_j] += histogram_array[transpose_j0];
+      }
+    }
+
+#pragma omp barrier
+
+    /* scatter */
+    if(0 == m) {
+      for(idx_t j = jend - 1; ; --j) {
+        idx_t idx = tt->ind[m][j];
+        --histogram[idx];
+
+        idx_t offset = histogram[idx];
+
+        new_vals[offset] = tt->vals[j];
+        new_ind[1][offset] = tt->ind[1][j];
+        new_ind[2][offset] = tt->ind[2][j];
+
+        if (j == jbegin) break;
+      }
+    }
+    else if (1 == m) {
+      for(idx_t j = jend - 1; ; --j) {
+        idx_t idx = tt->ind[m][j];
+        --histogram[idx];
+
+        idx_t offset = histogram[idx];
+
+        new_vals[offset] = tt->vals[j];
+        new_ind[0][offset] = tt->ind[0][j];
+        new_ind[2][offset] = tt->ind[2][j];
+
+        if (j == jbegin) break;
+      }
+    }
+    else {
+      for(idx_t j = jend - 1; ; --j) {
+        idx_t idx = tt->ind[m][j];
+        --histogram[idx];
+
+        idx_t offset = histogram[idx];
+
+        new_vals[offset] = tt->vals[j];
+        new_ind[0][offset] = tt->ind[0][j];
+        new_ind[1][offset] = tt->ind[1][j];
+
+        if (j == jbegin) break;
+      }
+    }
+
+    if (0 == tid) {
+      //printf("\tscatter takes %f\n", omp_get_wtime() - t);
+    }
+  } /* omp parallel */
+
+  double t = omp_get_wtime();
+
+  for(idx_t i = 0; i < tt->nmodes; ++i) {
+    if(i != m) {
+      splatt_free(tt->ind[i]);
+      tt->ind[i] = new_ind[i];
+    }
+  }
+  splatt_free(new_ind);
+  splatt_free(tt->vals);
+  tt->vals = new_vals;
+
+  histogram_array[nslices] = tt->nnz;
+#pragma omp parallel for schedule(dynamic)
+  for(idx_t i = 0; i < nslices; ++i) {
+    p_tt_quicksort2(tt, cmplt + 1, histogram_array[i], histogram_array[i + 1]);
+    for(idx_t j = histogram_array[i]; j < histogram_array[i + 1]; ++j) {
+      tt->ind[m][j] = i;
+    }
+  }
+
+  splatt_free(histogram_array);
+
+  //printf("\tqsort takes %f\n", omp_get_wtime() - t);
+}
 
 /**
 * @brief Perform quicksort on a n-mode tensor between start and end.
@@ -525,19 +873,20 @@ void tt_sort_range(
   }
 
   timer_start(&timers[TIMER_SORT]);
-  #pragma omp parallel
-  {
-    switch(tt->type) {
-    case SPLATT_NMODE:
-      #pragma omp single
-      p_tt_quicksort(tt, cmplt, start, end);
-      break;
-    case SPLATT_3MODE:
-      #pragma omp single
-      p_tt_quicksort3(tt, cmplt, start, end);
-      break;
-    }
+  switch(tt->type) {
+  case SPLATT_NMODE:
+#pragma omp parallel
+    {
+    #pragma omp single
+    p_tt_quicksort(tt, cmplt, start, end);
     #pragma omp taskwait
+    }
+    break;
+  case SPLATT_3MODE:
+    counting_sort_hybrid(tt, cmplt);
+    //#pragma omp single
+    //p_tt_quicksort3(tt, cmplt, start, end);
+    break;
   }
 
   if(dim_perm == NULL) {
