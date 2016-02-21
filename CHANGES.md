@@ -5,6 +5,7 @@
 * Better handled missing input files.
 * Added CREDITS.md
 
+
 1.1.1
 =====
 * Updated README.md to include MPI instructions.

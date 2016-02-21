@@ -4,10 +4,8 @@
  * INCLUDES
  *****************************************************************************/
 #include "completion.h"
-#include "util.h"
-
-#include "io.h"
-
+#include "../io.h"
+#include "../util.h"
 
 #include <math.h>
 #include <omp.h>
@@ -181,8 +179,9 @@ tc_ws * tc_ws_alloc(
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_ALS:
-    ws->thds = thd_init(nthreads, 2,
+    ws->thds = thd_init(nthreads, 3,
         rank * sizeof(val_t),           /* prediction buffer */
+        rank * sizeof(val_t),           /* MTTKRP buffer */
         rank * rank * sizeof(val_t));   /* normal equations */
     break;
   case SPLATT_TC_NALGS:
