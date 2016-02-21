@@ -163,18 +163,34 @@ tc_ws * tc_ws_alloc(
 {
   tc_ws * ws = splatt_malloc(sizeof(*ws));
 
+  idx_t const nmodes = model->nmodes;
+  ws->nmodes = nmodes;
+
   /* some reasonable defaults */
   ws->learn_rate = 0.001;
   ws->max_its = 1000;
-  for(idx_t m=0; m < model->nmodes; ++m) {
+  for(idx_t m=0; m < nmodes; ++m) {
     ws->regularization[m] = 0.02;
   }
 
   idx_t const rank = model->rank;
 
+  /* allocate gradients */
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(model->which == SPLATT_TC_GD) {
+      ws->gradients[m] = splatt_malloc(model->dims[m] * rank *
+          sizeof(**(ws->gradients)));
+    } else {
+      ws->gradients[m] = NULL;
+    }
+  }
+
   /* allocate thread structures */
   ws->nthreads = nthreads;
   switch(model->which) {
+  case SPLATT_TC_GD:
+    ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
+    break;
   case SPLATT_TC_SGD:
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
@@ -182,7 +198,7 @@ tc_ws * tc_ws_alloc(
     ws->thds = thd_init(nthreads, 3,
         rank * sizeof(val_t),           /* prediction buffer */
         rank * sizeof(val_t),           /* MTTKRP buffer */
-        rank * rank * sizeof(val_t));   /* normal equations */
+        rank * nmodes * sizeof(val_t)); /* normal equations */
     break;
   case SPLATT_TC_NALGS:
     ws->thds = NULL;
@@ -198,6 +214,9 @@ void tc_ws_free(
     tc_ws * ws)
 {
   thd_free(ws->thds, ws->nthreads);
+  for(idx_t m=0; m < ws->nmodes; ++m) {
+    splatt_free(ws->gradients[m]);
+  }
   splatt_free(ws);
 }
 

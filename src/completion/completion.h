@@ -9,6 +9,7 @@
 #include "../base.h"
 #include "../matrix.h"
 #include "../sptensor.h"
+#include "../timer.h"
 
 
 
@@ -20,6 +21,7 @@
 typedef enum
 {
   SPLATT_TC_SGD,
+  SPLATT_TC_GD,
   SPLATT_TC_ALS,
   SPLATT_TC_NALGS
 } splatt_tc_type;
@@ -39,12 +41,18 @@ typedef struct
 
 typedef struct
 {
+  idx_t nmodes;
   val_t learn_rate;
   idx_t max_its;
   val_t regularization[MAX_NMODES];
 
+  val_t * gradients[MAX_NMODES];
+
   idx_t nthreads;
   thd_info * thds;
+
+  sp_timer_t train_time;
+  sp_timer_t test_time;
 } tc_ws;
 
 
@@ -69,6 +77,12 @@ void splatt_tc_als(
     tc_model * const model,
     tc_ws * const ws);
 
+
+void splatt_tc_gd(
+    sptensor_t * train,
+    sptensor_t const * const validate,
+    tc_model * const model,
+    tc_ws * const ws);
 
 
 /******************************************************************************

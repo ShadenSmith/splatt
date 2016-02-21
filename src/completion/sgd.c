@@ -6,7 +6,6 @@
 
 #include "completion.h"
 #include "../reorder.h"
-#include "../timer.h"
 #include "../util.h"
 
 #include <math.h>
@@ -94,10 +93,8 @@ void splatt_tc_sgd(
 
   idx_t * perm = splatt_malloc(train->nnz * sizeof(*perm));
 
-  sp_timer_t train_time;
-  sp_timer_t test_time;
-  timer_reset(&train_time);
-  timer_reset(&test_time);
+  timer_reset(&ws->train_time);
+  timer_reset(&ws->test_time);
 
   /* init perm */
   for(idx_t n=0; n < train->nnz; ++n) {
@@ -109,7 +106,7 @@ void splatt_tc_sgd(
 
   /* foreach epoch */
   for(idx_t e=0; e < ws->max_its; ++e) {
-    timer_start(&train_time);
+    timer_start(&ws->train_time);
 
     /* new nnz ordering */
     shuffle_idx(perm, train->nnz);
@@ -118,20 +115,21 @@ void splatt_tc_sgd(
     for(idx_t n=0; n < train->nnz; ++n) {
       p_update_model(train, perm[n], model, ws);
     }
-    timer_stop(&train_time);
+    timer_stop(&ws->train_time);
 
     /* compute RMSE and adjust learning rate */
-    timer_start(&test_time);
+    timer_start(&ws->test_time);
     val_t const loss = tc_loss_sq(train, model, ws);
     val_t const frobsq = tc_frob_sq(model, ws);
     val_t const obj = loss + frobsq;
     val_t const train_rmse = sqrt(loss / train->nnz);
     val_t const val_rmse = tc_rmse(validate, model, ws);
-    timer_stop(&test_time);
+    timer_stop(&ws->test_time);
 
     printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
         "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
-        e+1, obj, train_rmse, val_rmse, train_time.seconds, test_time.seconds);
+        e+1, obj, train_rmse, val_rmse,
+        ws->train_time.seconds, ws->test_time.seconds);
 
     if(e > 0) {
       if(obj < prev_obj) {

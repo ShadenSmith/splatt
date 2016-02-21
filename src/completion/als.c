@@ -92,6 +92,17 @@ static inline void p_onevec_oprod(
 
 
 
+/**
+* @brief Compute the i-ith row of the MTTKRP, form the normal equations, and
+*        store the new row.
+*
+* @param csf The tensor of training data.
+* @param i The row to update.
+* @param reg Regularization parameter for the i-th row.
+* @param model The model to update
+* @param ws Workspace.
+* @param tid OpenMP thread id.
+*/
 static inline void p_update_row(
     splatt_csf const * const csf,
     idx_t const i,
@@ -206,21 +217,16 @@ void splatt_tc_als(
 
   val_t prev_val_rmse = 0;
 
-  sp_timer_t train_time;
-  sp_timer_t test_time;
-  timer_reset(&train_time);
-  timer_reset(&test_time);
+  timer_reset(&ws->train_time);
+  timer_reset(&ws->test_time);
 
   for(idx_t e=0; e < ws->max_its; ++e) {
-    timer_start(&train_time);
+    timer_start(&(ws->train_time));
     #pragma omp parallel
     {
       int const tid = omp_get_thread_num();
 
       for(idx_t m=0; m < nmodes; ++m) {
-
-        idx_t const nslices = csf[m].pt[0].nfibs[0];
-
         /* update each row in parallel */
         for(idx_t i=parts[m][tid]; i < parts[m][tid+1]; ++i) {
           p_update_row(csf+m, i, ws->regularization[m], model, ws, tid);
@@ -230,18 +236,19 @@ void splatt_tc_als(
     } /* end omp parallel */
 
     /* compute RMSE */
-    timer_stop(&train_time);
-    timer_start(&test_time);
+    timer_stop(&ws->train_time);
+    timer_start(&ws->test_time);
     val_t const loss = tc_loss_sq(train, model, ws);
     val_t const frobsq = tc_frob_sq(model, ws);
     val_t const obj = loss + frobsq;
     val_t const train_rmse = sqrt(loss / train->nnz);
     val_t const val_rmse = tc_rmse(validate, model, ws);
-    timer_stop(&test_time);
+    timer_stop(&ws->test_time);
 
     printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
         "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
-        e+1, obj, train_rmse, val_rmse, train_time.seconds, test_time.seconds);
+        e+1, obj, train_rmse, val_rmse,
+        ws->train_time.seconds, ws->test_time.seconds);
 
     if(e > 0) {
       /* check convergence */
