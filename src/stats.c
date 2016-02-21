@@ -11,6 +11,8 @@
 #include "reorder.h"
 #include "util.h"
 
+#include <limits.h>
+#include <math.h>
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
@@ -192,7 +194,7 @@ void stats_tt(
 
 
 void stats_csf(
-  splatt_csf const * const ct)
+  splatt_csf const *ct, int ncopies)
 {
   printf("nmodes: %"SPLATT_PF_IDX" nnz: %"SPLATT_PF_IDX"\n", ct->nmodes,
       ct->nnz);
@@ -200,26 +202,116 @@ void stats_csf(
   for(idx_t m=1; m < ct->nmodes; ++m) {
     printf("x%"SPLATT_PF_IDX"", ct->dims[m]);
   }
-  printf(" (%"SPLATT_PF_IDX"", ct->dim_perm[0]);
-  for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("->%"SPLATT_PF_IDX"", ct->dim_perm[m]);
-  }
-  printf(")\n");
-  printf("ntiles: %"SPLATT_PF_IDX" tile dims: %"SPLATT_PF_IDX"", ct->ntiles,
-      ct->tile_dims[0]);
-  for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("x%"SPLATT_PF_IDX"", ct->tile_dims[m]);
-  }
-
-  idx_t empty = 0;
-  for(idx_t t=0; t < ct->ntiles; ++t) {
-    if(ct->pt[t].vals == NULL) {
-      ++empty;
+  for (idx_t k=0; k < ncopies; ++k, ++ct) {
+    printf(" (%"SPLATT_PF_IDX"", ct->dim_perm[0]);
+    for(idx_t m=1; m < ct->nmodes; ++m) {
+      printf("->%"SPLATT_PF_IDX"", ct->dim_perm[m]);
     }
-  }
+    printf(")\n");
+    /*printf("ntiles: %"SPLATT_PF_IDX" tile dims: %"SPLATT_PF_IDX"", ct->ntiles,
+        ct->tile_dims[0]);
+    for(idx_t m=1; m < ct->nmodes; ++m) {
+      printf("x%"SPLATT_PF_IDX"", ct->tile_dims[m]);
+    }
 
-  printf("  empty: %"SPLATT_PF_IDX" (%0.1f%%)\n", empty,
-      100. * (double)empty/ (double)ct->ntiles);
+    idx_t empty = 0;
+    for(idx_t t=0; t < ct->ntiles; ++t) {
+      if(ct->pt[t].vals == NULL) {
+        ++empty;
+      }
+    }
+
+    printf("  empty: %"SPLATT_PF_IDX" (%0.1f%%)\n", empty,
+        100. * (double)empty/ (double)ct->ntiles);*/
+
+    unsigned long long total_width = 0;
+    int max_width = 0;
+
+    idx_t const * const restrict sptr = ct->pt[0].fptr[0];
+    idx_t const * const restrict fptr = ct->pt[0].fptr[1];
+
+    idx_t const * const restrict sids = ct->pt[0].fids[0];
+    idx_t const * const restrict fids = ct->pt[0].fids[1];
+    idx_t const * const restrict inds = ct->pt[0].fids[2];
+
+    idx_t const nslices = ct->pt[0].nfibs[0];
+
+    idx_t nfibers = sptr[nslices];
+    printf("  nslices: %"SPLATT_PF_IDX" nfibers: %"SPLATT_PF_IDX"\n", nslices, nfibers);
+
+    idx_t min_slice_nnz = INT_MAX;
+    idx_t max_slice_nnz = 0;
+    double sq_sum_slice_nnz = 0;
+
+    idx_t min_fiber_nnz = INT_MAX;
+    idx_t max_fiber_nnz = 0;
+    double sq_sum_fiber_nnz = 0;
+
+#ifdef SPLATT_WRITE_NNZ_HIST
+    FILE *fp_slice, *fp_fiber;
+    if (k == 0) {
+      fp_slice = fopen("slice0.hist", "w");
+      fp_fiber = fopen("fiber0.hist", "w");
+    }
+    else {
+      fp_slice = fopen("slice1.hist", "w");
+      fp_fiber = fopen("fiber1.hist", "w");
+    }
+#endif
+
+#pragma omp parallel for reduction(min:min_slice_nnz,min_fiber_nnz) reduction(max:max_slice_nnz,max_fiber_nnz,max_width) reduction(+:sq_sum_slice_nnz,sq_sum_fiber_nnz,total_width)
+    for(idx_t s=0; s < nslices; ++s) {
+      idx_t const fid = (sids == NULL) ? s : sids[s];
+
+      idx_t slice_nnz = fptr[sptr[s+1]] - fptr[sptr[s]];
+      min_slice_nnz = SS_MIN(min_slice_nnz, slice_nnz);
+      max_slice_nnz = SS_MAX(max_slice_nnz, slice_nnz);
+      sq_sum_slice_nnz += slice_nnz*slice_nnz;
+
+#ifdef SPLATT_WRITE_NNZ_HIST
+      fprintf(fp_slice, "%ld\n", slice_nnz);
+#endif
+
+      for(idx_t f=sptr[s]; f < sptr[s+1]; ++f) {
+        idx_t fiber_nnz = fptr[f+1] - fptr[f];
+        min_fiber_nnz = SS_MIN(min_fiber_nnz, fiber_nnz);
+        max_fiber_nnz = SS_MAX(max_fiber_nnz, fiber_nnz);
+        sq_sum_fiber_nnz += fiber_nnz*fiber_nnz;
+
+        idx_t min_ind = INT_MAX, max_ind = 0;
+        for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
+          min_ind = SS_MIN(inds[jj], min_ind);
+          max_ind = SS_MAX(inds[jj], max_ind);
+        }
+        if (fptr[f+1] > fptr[f]) {
+          int width = max_ind - min_ind;
+          total_width += width;
+          max_width = SS_MAX(width, max_width);
+        }
+
+#ifdef SPLATT_WRITE_NNZ_HIST
+        fprintf(fp_fiber, "%ld\n", fiber_nnz);
+#endif
+      }
+    }
+
+    double avg_width = (float)total_width/nfibers;
+    printf("  avg_width = %f max_width = %d\n", avg_width, max_width);
+
+#ifdef SPLATT_WRITE_NNZ_HIST
+    fclose(fp_slice);
+    fclose(fp_fiber);
+#endif
+
+    double avg_slice_nnz = (double)ct->nnz/nslices;
+    double stddev_slice_nnz = sqrt(sq_sum_slice_nnz/nslices - avg_slice_nnz*avg_slice_nnz);
+
+    double avg_fiber_nnz = (double)ct->nnz/nfibers;
+    double stddev_fiber_nnz = sqrt(sq_sum_fiber_nnz/nfibers - avg_fiber_nnz*avg_fiber_nnz);
+
+    printf("  slice_nnz (min,max,avg,stddev): %ld %ld %f %f\n", min_slice_nnz, max_slice_nnz, avg_slice_nnz, stddev_slice_nnz);
+    printf("  fiber_nnz (min,max,avg,stddev): %ld %ld %f %f\n", min_fiber_nnz, max_fiber_nnz, avg_fiber_nnz, stddev_fiber_nnz);
+  }
 }
 
 
@@ -248,7 +340,7 @@ void cpd_stats(
 
   /* CSF allocation */
   printf("CSF-ALLOC=");
-  splatt_csf_type which_csf = opts[SPLATT_OPTION_CSF_ALLOC];
+  splatt_csf_type which_csf = (splatt_csf_type)opts[SPLATT_OPTION_CSF_ALLOC];
   switch(which_csf) {
   case SPLATT_CSF_ONEMODE:
     printf("ONEMODE");
@@ -264,7 +356,7 @@ void cpd_stats(
 
   /* tiling info */
   printf("TILE=");
-  splatt_tile_type which_tile = opts[SPLATT_OPTION_TILE];
+  splatt_tile_type which_tile = (splatt_tile_type)opts[SPLATT_OPTION_TILE];
   switch(which_tile) {
   case SPLATT_NOTILE:
     printf("NO");
@@ -334,7 +426,7 @@ void mpi_cpd_stats(
 
   /* CSF allocation */
   printf("CSF-ALLOC=");
-  splatt_csf_type which_csf = opts[SPLATT_OPTION_CSF_ALLOC];
+  splatt_csf_type which_csf = (splatt_csf_type)opts[SPLATT_OPTION_CSF_ALLOC];
   switch(which_csf) {
   case SPLATT_CSF_ONEMODE:
     printf("ONEMODE");
@@ -350,7 +442,7 @@ void mpi_cpd_stats(
 
   /* tiling info */
   printf("TILE=");
-  splatt_tile_type which_tile = opts[SPLATT_OPTION_TILE];
+  splatt_tile_type which_tile = (splatt_tile_type)opts[SPLATT_OPTION_TILE];
   switch(which_tile) {
   case SPLATT_NOTILE:
     printf("NO");

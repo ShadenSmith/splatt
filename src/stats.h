@@ -32,6 +32,12 @@ typedef enum
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #define stats_tt splatt_stats_tt
 /**
 * @brief Output statistics about a sparse tensor.
@@ -57,7 +63,7 @@ void stats_tt(
 * @param ct The CSF tensor to analyze.
 */
 void stats_csf(
-  splatt_csf const * const ct);
+  splatt_csf const *ct, int ncopies);
 
 
 #define cpd_stats splatt_cpd_stats
@@ -124,5 +130,9 @@ void mpi_rank_stats(
   rank_info const * const rinfo);
 
 #endif /* endif SPLATT_USE_MPI */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
