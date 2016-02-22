@@ -10,6 +10,7 @@
 
 #include <math.h>
 #include <omp.h>
+#include <mkl_cblas.h>
 
 
 /******************************************************************************
@@ -365,42 +366,9 @@ void mat_aTa(
   assert(A->rowmajor);
   assert(ret->rowmajor);
 
-  idx_t const I = A->I;
-  idx_t const F = A->J;
-  val_t const * const restrict Av = A->vals;
-
-  omp_set_num_threads(nthreads);
-
-  #pragma omp parallel
-  {
-    int const tid = omp_get_thread_num();
-    val_t * const accum = (val_t *) thds[tid].scratch[0];
-
-    /* compute upper triangular portion */
-    memset(accum, 0, F * F * sizeof(val_t));
-
-    /* compute each thread's partial matrix product */
-    #pragma omp for schedule(static)
-    for(idx_t i=0; i < I; ++i) {
-      for(idx_t mi=0; mi < F; ++mi) {
-        for(idx_t mj=mi; mj < F; ++mj) {
-          accum[mj + (mi*F)] += Av[mi + (i*F)] * Av[mj + (i*F)];
-        }
-      }
-    }
-
-    /* parallel reduction on accum */
-    thd_reduce(thds, 0, F * F, REDUCE_SUM);
-
-    /* copy to lower triangular matrix */
-    #pragma omp master
-    for(idx_t i=1; i < F; ++i) {
-      for(idx_t j=0; j < i; ++j) {
-        accum[j + (i*F)] = accum[i + (j*F)];
-      }
-    }
-  }
-
+  cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, A->J, A->J, A->I, 1, A->vals, A->J, A->vals, A->J, 0, ret->vals, ret->J);
+  // can use dsyrk?
+  
 #ifdef SPLATT_USE_MPI
   timer_start(&timers[TIMER_MPI_ATA]);
   timer_start(&timers[TIMER_MPI_IDLE]);
@@ -408,12 +376,10 @@ void mat_aTa(
   timer_stop(&timers[TIMER_MPI_IDLE]);
 
   timer_start(&timers[TIMER_MPI_COMM]);
-  MPI_Allreduce(thds[0].scratch[0], ret->vals, F * F, SPLATT_MPI_VAL, MPI_SUM,
+  MPI_Allreduce(MPI_IN_PLACE, ret->vals, F * F, SPLATT_MPI_VAL, MPI_SUM,
       rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_COMM]);
   timer_stop(&timers[TIMER_MPI_ATA]);
-#else
-  memcpy(ret->vals, (val_t *) thds[0].scratch[0], F * F * sizeof(val_t));
 #endif
 
   timer_stop(&timers[TIMER_ATA]);
@@ -430,32 +396,7 @@ void mat_matmul(
   assert(C->I == A->I);
   assert(C->J == B->J);
 
-  val_t const * const restrict av = A->vals;
-  val_t const * const restrict bv = B->vals;
-  val_t       * const restrict cv = C->vals;
-
-  idx_t const M  = A->I;
-  idx_t const N  = B->J;
-  idx_t const Na = A->J;
-
-  /* tiled matrix multiplication */
-  idx_t const TILE = 16;
-  #pragma omp parallel for schedule(static)
-  for(idx_t i=0; i < M; ++i) {
-    for(idx_t jt=0; jt < N; jt += TILE) {
-      for(idx_t kt=0; kt < Na; kt += TILE) {
-        idx_t const JSTOP = SS_MIN(jt+TILE, N);
-        for(idx_t j=jt; j < JSTOP; ++j) {
-          val_t accum = 0;
-          idx_t const KSTOP = SS_MIN(kt+TILE, Na);
-          for(idx_t k=kt; k < KSTOP; ++k) {
-            accum += av[k + (i*Na)] * bv[j + (k*N)];
-          }
-          cv[j + (i*N)] += accum;
-        }
-      }
-    }
-  }
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, A->I, B->J, A->J, 1, A->vals, A->J, B->vals, B->J, 0, C->vals, C->J);
 
   timer_stop(&timers[TIMER_MATMUL]);
 }
