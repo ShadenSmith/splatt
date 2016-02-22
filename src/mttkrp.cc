@@ -129,6 +129,18 @@ int splatt_mttkrp(
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+
+static void p_init_locks()
+{
+  if (!locks_initialized) {
+    for(int i=0; i < NLOCKS; ++i) {
+      omp_init_lock(locks + i);
+    }
+    locks_initialized = 1;
+  }
+}
+
+
 static inline void p_add_hada(
   val_t * const restrict out,
   val_t const * const restrict a,
