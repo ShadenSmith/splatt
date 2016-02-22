@@ -27,7 +27,7 @@ static struct ftype file_extensions[] = {
   { ".tns", SPLATT_FILE_TEXT_COORD },
   { ".coo", SPLATT_FILE_TEXT_COORD },
   { ".bin", SPLATT_FILE_BIN_COORD  },
-  { NULL, 0}
+  { NULL, (splatt_file_type)0}
 };
 
 
