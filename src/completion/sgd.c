@@ -17,6 +17,53 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+
+
+/**
+* @brief Update a three-mode model based on a given observation.
+*
+* @param train The training data.
+* @param nnz_index The index of the observation to update from.
+* @param model The model to update.
+* @param ws Workspace to use.
+*/
+static inline void p_update_model3(
+    sptensor_t const * const train,
+    idx_t const nnz_index,
+    tc_model * const model,
+    tc_ws * const ws)
+{
+  idx_t const nfactors = model->rank;
+  idx_t const x = nnz_index;
+
+  assert(train->nmodes == 3);
+
+  idx_t * * const ind = train->ind;
+  val_t * const restrict arow = model->factors[0] + (ind[0][x] * nfactors);
+  val_t * const restrict brow = model->factors[1] + (ind[1][x] * nfactors);
+  val_t * const restrict crow = model->factors[2] + (ind[2][x] * nfactors);
+
+  /* predict value */
+  val_t predicted = 0;
+  for(idx_t f=0; f < nfactors; ++f) {
+    predicted += arow[f] * brow[f] * crow[f];
+  }
+  val_t const err = train->vals[x] - predicted;
+
+  val_t const rate = ws->learn_rate;
+  val_t const * const restrict reg = ws->regularization;
+
+  /* update rows */
+  for(idx_t f=0; f < nfactors; ++f) {
+    arow[f] += rate * ((err * brow[f] * crow[f]) - (reg[0] * arow[f]));
+    brow[f] += rate * ((err * arow[f] * crow[f]) - (reg[1] * brow[f]));
+    crow[f] += rate * ((err * arow[f] * brow[f]) - (reg[2] * crow[f]));
+  }
+}
+
+
+
+
 /**
 * @brief Update a model based on a given observation.
 *
@@ -31,8 +78,13 @@ static void p_update_model(
     tc_model * const model,
     tc_ws * const ws)
 {
-  idx_t const nfactors = model->rank;
   idx_t const nmodes = train->nmodes;
+  if(nmodes == 3) {
+    p_update_model3(train, nnz_index, model, ws);
+    return;
+  }
+
+  idx_t const nfactors = model->rank;
   idx_t const x = nnz_index;
 
   val_t * const restrict buffer = ws->thds[omp_get_thread_num()].scratch[0];

@@ -15,6 +15,40 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+/**
+* @brief Predict a value for a three-way tensor.
+*
+* @param model The model to use for the prediction.
+* @param test The test tensor which gives us the model rows.
+* @param index The nonzero to draw the row indices from. test[0][index] ...
+*
+* @return The predicted value.
+*/
+static inline val_t p_predict_val3(
+    tc_model const * const model,
+    sptensor_t const * const test,
+    idx_t const index)
+{
+  val_t est = 0;
+  idx_t const nfactors = model->rank;
+
+  assert(test->nmodes == 0);
+
+  idx_t const i = test->ind[0][index];
+  idx_t const j = test->ind[1][index];
+  idx_t const k = test->ind[2][index];
+
+  val_t const * const restrict A = model->factors[0] + (i * nfactors);
+  val_t const * const restrict B = model->factors[1] + (j * nfactors);
+  val_t const * const restrict C = model->factors[2] + (k * nfactors);
+
+  for(idx_t f=0; f < nfactors; ++f) {
+    est += A[f] * B[f] * C[f];
+  }
+
+  return est;
+}
+
 
 
 /******************************************************************************
@@ -93,6 +127,10 @@ val_t tc_predict_val(
 {
   idx_t const nfactors = model->rank;
 
+  if(test->nmodes == 3) {
+    return p_predict_val3(model, test, index);
+  }
+
   /* initialize accumulation of each latent factor with the first row */
   idx_t const row_id = test->ind[0][index];
   val_t const * const init_row = model->factors[0] + (row_id * nfactors);
@@ -115,6 +153,7 @@ val_t tc_predict_val(
   for(idx_t f=0; f < nfactors; ++f) {
     est += buffer[f];
   }
+
   return est;
 }
 
@@ -168,6 +207,12 @@ tc_ws * tc_ws_alloc(
 
   /* some reasonable defaults */
   ws->learn_rate = 0.001;
+
+  /* experimentally found this to work ok for ml20m */
+  if(model->which == SPLATT_TC_GD) {
+    ws->learn_rate = 5e-5;
+  }
+
   ws->max_its = 1000;
   for(idx_t m=0; m < nmodes; ++m) {
     ws->regularization[m] = 0.02;
