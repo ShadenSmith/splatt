@@ -19,7 +19,7 @@ static char tc_args_doc[] = "<train> <validate> [test]";
 static char tc_doc[] =
   "splatt-complete -- Complete a tensor with missing entries.\n"
   "Available tensor completion algorithms are:\n"
-  " sgd\t\tgradient descent\n"
+  "  gd\t\tgradient descent\n"
   "  sgd\t\tstochastic gradient descent\n"
   "  als\t\talternating least squares\n";
 

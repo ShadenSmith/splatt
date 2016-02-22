@@ -198,7 +198,7 @@ tc_ws * tc_ws_alloc(
     ws->thds = thd_init(nthreads, 3,
         rank * sizeof(val_t),           /* prediction buffer */
         rank * sizeof(val_t),           /* MTTKRP buffer */
-        rank * nmodes * sizeof(val_t)); /* normal equations */
+        rank * rank * sizeof(val_t)); /* normal equations */
     break;
   case SPLATT_TC_NALGS:
     ws->thds = NULL;
