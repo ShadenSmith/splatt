@@ -93,8 +93,8 @@ typedef struct
   int rank;
   int npes;
   int rank_3d;
-  int dims_3d[MAX_NMODES];
-  int coords_3d[MAX_NMODES];
+  int dims_3d[MAX_NMODES]; /* processor grid */
+  int coords_3d[MAX_NMODES]; /* coord in processor grid (obtained by MPI_Cart_coords */
   int layer_rank[MAX_NMODES];
   int layer_size[MAX_NMODES];
 
