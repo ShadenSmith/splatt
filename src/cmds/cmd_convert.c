@@ -19,6 +19,7 @@ static char convert_doc[] =
   "Mode-independent conversion types are:\n"
   "  graph\t\tTri-partite graph model\n"
   "  coo\t\tDefault coordinate format\n"
+  "  csf\t\tCompressed sparse fiber format\n"
   "  bin\t\tBinary coordinate format\n";
 
 typedef struct
@@ -61,6 +62,8 @@ static error_t parse_convert_opt(
       args->type = CNV_BINARY;
     } else if(strcmp(arg, "coo") == 0) {
       args->type = CNV_COORD;
+    } else if(strcmp(arg, "csf") == 0) {
+      args->type = CNV_CSF;
     }
     break;
 
