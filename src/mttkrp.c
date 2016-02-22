@@ -11,6 +11,7 @@
 
 
 #define NLOCKS 1024
+static int locks_initialized = 0;
 static omp_lock_t locks[NLOCKS];
 
 
@@ -68,6 +69,18 @@ int splatt_mttkrp(
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+
+static void p_init_locks()
+{
+  if (!locks_initialized) {
+    for(int i=0; i < NLOCKS; ++i) {
+      omp_init_lock(locks + i);
+    }
+    locks_initialized = 1;
+  }
+}
+
 
 static inline void p_add_hada(
   val_t * const restrict out,
@@ -1210,6 +1223,8 @@ void mttkrp_csf(
   thd_info * const thds,
   double const * const opts)
 {
+  p_init_locks();
+
   /* clear output matrix */
   matrix_t * const M = mats[MAX_NMODES];
   M->I = tensors[0].dims[mode];
