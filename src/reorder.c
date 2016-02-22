@@ -276,7 +276,7 @@ permutation_t * tt_perm(
 {
   timer_start(&timers[TIMER_REORDER]);
 
-  if(type != PERM_RAND && pfile == NULL) {
+  if(type != PERM_RAND && type != PERM_BFS && type != PERM_RCM && type != PERM_MATCHING && pfile == NULL) {
     fprintf(stderr, "SPLATT: permutation file must be supplied for now.\n");
     exit(1);
   }
@@ -305,6 +305,19 @@ permutation_t * tt_perm(
     perm = perm_hgraph(tt, &ft, parts, nparts, mode);
     ften_free(&ft);
     break;
+
+  case PERM_BFS:
+    perm = perm_bfs(tt);
+    break;
+
+  case PERM_RCM:
+    perm = perm_rcm(tt);
+    break;
+
+  case PERM_MATCHING:
+    perm = perm_matching(tt);
+    break;
+
   default:
     break;
   }
@@ -355,6 +368,7 @@ void perm_apply(
   for(idx_t m=0; m < tt->nmodes; ++m) {
     idx_t * const ind = tt->ind[m];
     idx_t const * const p = perm[m];
+#pragma omp parallel for
     for(idx_t n=0; n < nnz; ++n) {
       ind[n] = p[ind[n]];
     }
@@ -468,6 +482,7 @@ permutation_t * perm_identity(
 {
   permutation_t * perm = perm_alloc(dims, nmodes);
   for(idx_t m=0; m < nmodes; ++m) {
+#pragma omp parallel for
     for(idx_t i=0; i < dims[m]; ++i) {
       perm->perms[m][i] = i;
       perm->iperms[m][i] = i;

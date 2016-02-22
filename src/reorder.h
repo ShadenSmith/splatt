@@ -3,6 +3,9 @@
 
 #include "base.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 
 /******************************************************************************
@@ -17,6 +20,9 @@ typedef enum
   PERM_RAND,
   PERM_GRAPH,       /** Reordering based on an n-partite graph partitioning. */
   PERM_HGRAPH,      /** Reordering based on an hypergraph partitioning. */
+  PERM_BFS,         /** Breadth-first reordering. */
+  PERM_RCM,         /** Reverse Cuthill-Mckee reordering. */
+  PERM_MATCHING,
   PERM_FIBSCHED,    /** Not done. */
   PERM_ERROR,
 } splatt_perm_type;
@@ -121,6 +127,15 @@ void perm_apply(
 permutation_t * perm_rand(
   sptensor_t * const tt);
 
+permutation_t * perm_bfs(
+  sptensor_t * const tt);
+
+permutation_t * perm_rcm(
+  sptensor_t * const tt);
+
+permutation_t * perm_matching(
+  sptensor_t * const tt);
+
 
 #define perm_hgraph splatt_perm_hgraph
 permutation_t * perm_hgraph(
@@ -164,5 +179,8 @@ matrix_t * perm_matrix(
   idx_t const * const perm,
   matrix_t * retmat);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
