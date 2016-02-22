@@ -8,6 +8,7 @@
 #include "../timer.h"
 #include "../thd_info.h"
 #include "../tile.h"
+#include "../util.h"
 
 #include <math.h>
 #include <omp.h>
@@ -489,7 +490,7 @@ double mpi_cpd_als_iterate(
   /* Exchange initial matrices */
   for(idx_t m=1; m < nmodes; ++m) {
     mpi_update_rows(rinfo->indmap[m], nbr2globs_buf, local2nbr_buf, mats[m],
-        globmats[m], rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
+        globmats[m], rinfo, nfactors, m, (splatt_comm_type)opts[SPLATT_OPTION_COMM]);
   }
 
   matrix_t * m1ptr = m1; /* for restoring m1 */
@@ -529,19 +530,20 @@ double mpi_cpd_als_iterate(
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
       mttkrp_csf(tensors, mats, m, thds, opts);
+        /* JSP: can we overlap mpi_update_row with mttkrp_csf by separating boundary rows? */
       timer_stop(&timers[TIMER_MTTKRP]);
 
       m1->I = globmats[m]->I;
       m1ptr->I = globmats[m]->I;
 
-    if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
+      if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
         mpi_add_my_partials(rinfo->indmap[m], mats[MAX_NMODES], m1, rinfo,
             nfactors, m);
         /* incorporate neighbors' partials */
         mpi_reduce_rows(local2nbr_buf, nbr2globs_buf, mats[MAX_NMODES], m1,
-            rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
+            rinfo, nfactors, m, (splatt_comm_type)opts[SPLATT_OPTION_COMM]);
       } else {
         /* skip the whole process */
         m1 = mats[MAX_NMODES];
@@ -551,7 +553,6 @@ double mpi_cpd_als_iterate(
       calc_gram_inv(m, nmodes, aTa);
 
       /* A = M1 * M2 */
-      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
       mat_matmul(m1, aTa[MAX_NMODES], globmats[m]);
 
       /* normalize columns and extract lambda */
@@ -563,7 +564,7 @@ double mpi_cpd_als_iterate(
 
       /* send updated rows to neighbors */
       mpi_update_rows(rinfo->indmap[m], nbr2globs_buf, local2nbr_buf, mats[m],
-          globmats[m], rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
+          globmats[m], rinfo, nfactors, m, (splatt_comm_type)opts[SPLATT_OPTION_COMM]);
 
       /* update A^T*A */
       mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
@@ -701,12 +702,12 @@ void mpi_add_my_partials(
   idx_t const start = rinfo->ownstart[m];
   idx_t const nowned = rinfo->nowned[m];
 
-  memset(globmat->vals, 0, globmat->I * nfactors * sizeof(val_t));
+  par_memset(globmat->vals, 0, globmat->I * nfactors * sizeof(val_t));
 
   idx_t const goffset = (indmap == NULL) ?
       start - mat_start : indmap[start] - mat_start;
 
-  memcpy(globmat->vals + (goffset * nfactors),
+  par_memcpy(globmat->vals + (goffset * nfactors),
          localmat->vals + (start * nfactors),
          nowned * nfactors * sizeof(val_t));
   timer_stop(&timers[TIMER_MPI_PARTIALS]);
