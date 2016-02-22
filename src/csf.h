@@ -14,7 +14,9 @@ typedef enum
   CSF_SORTED_SMALLFIRST, /** sort the modes in non-decreasing order */
   CSF_SORTED_BIGFIRST,   /** sort the modes in non-increasing order */
   CSF_INORDER_MINUSONE,  /** one mode is placed first, rest naturally ordered*/
-  CSF_SORTED_MINUSONE    /** one mode is placed first, rest sorted by size */
+  CSF_SORTED_MINUSONE,   /** one mode is placed first, rest sorted by size */
+  CSF_ROUND_ROBIN,
+  CSF_ALLPERMUTE,
 } csf_mode_type;
 
 
@@ -28,6 +30,10 @@ typedef enum
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define csf_alloc splatt_csf_alloc
 /**
@@ -44,6 +50,25 @@ splatt_csf * csf_alloc(
   sptensor_t * const tt,
   double const * const opts);
 
+void
+splatt_csf_write_file(
+  splatt_csf const * const ct,
+  FILE * fout);
+
+void splatt_csf_read_file(
+  splatt_csf *ct, FILE * fin);
+
+void
+splatt_csf_write(
+  splatt_csf const * const ct,
+  char const * const ofname,
+  int ncopies);
+
+void
+splatt_csf_read(
+  splatt_csf *ct,
+  char const * const ifname,
+  int ncopies);
 
 #define csf_alloc_mode splatt_csf_alloc_mode
 /**
@@ -102,6 +127,9 @@ size_t csf_storage(
   splatt_csf const * const tensors,
   double const * const opts);
 
+void csf_stats(
+  splatt_csf const * const tensors,
+  double const * const opts);
 
 #define csf_frobsq splatt_csf_frobsq
 /**
@@ -195,5 +223,10 @@ idx_t csf_count_nnz(
     idx_t depth,
     idx_t const fiber);
 
+int csf_get_ncopies(double *opts, int nmodes);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

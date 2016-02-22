@@ -2,9 +2,13 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
+
+#include <omp.h>
+
 #include "csf.h"
 #include "sort.h"
 #include "tile.h"
+#include "util.h"
 #include "ccp/ccp.h"
 
 #include "io.h"
@@ -130,6 +134,50 @@ static void p_order_dims_inorder(
   }
 }
 
+static void p_order_dims_round_robin(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t const custom_mode,
+  idx_t * const perm_dims)
+{
+  for(idx_t m=0; m < nmodes; ++m) {
+    perm_dims[m] = (custom_mode + m)%nmodes;
+  }
+}
+
+static void p_order_dims_all_permute(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t const custom_mode,
+  idx_t * const perm_dims)
+{
+  if (custom_mode == 0) {
+    perm_dims[0] = 0;
+    perm_dims[1] = 1;
+    perm_dims[2] = 2;
+  } else if (custom_mode == 1) {
+    perm_dims[0] = 0;
+    perm_dims[1] = 2;
+    perm_dims[2] = 1;
+  } else if (custom_mode == 2) {
+    perm_dims[0] = 1;
+    perm_dims[1] = 0;
+    perm_dims[2] = 2;
+  } else if (custom_mode == 3) {
+    perm_dims[0] = 1;
+    perm_dims[1] = 2;
+    perm_dims[2] = 0;
+  } else if (custom_mode == 4) {
+    perm_dims[0] = 2;
+    perm_dims[1] = 0;
+    perm_dims[2] = 1;
+  } else if (custom_mode == 5) {
+    perm_dims[0] = 2;
+    perm_dims[1] = 1;
+    perm_dims[2] = 0;
+  }
+  else { assert(0); }
+}
 
 /**
 * @brief Find a permutation of modes such that the first mode is 'custom-mode'
@@ -200,6 +248,161 @@ static void p_order_dims_large(
   }
 
 }
+
+
+void
+splatt_csf_write_file(
+  splatt_csf const * const ct,
+  FILE * fout)
+{
+  fwrite(&ct->nnz, sizeof(ct->nnz), 1, fout);
+  fwrite(&ct->nmodes, sizeof(ct->nmodes), 1, fout);
+  fwrite(ct->dims, sizeof(*ct->dims), ct->nmodes, fout);
+  fwrite(ct->dim_perm, sizeof(*ct->dim_perm), ct->nmodes, fout);
+  fwrite(&ct->which_tile, sizeof(ct->which_tile), 1, fout);
+  fwrite(&ct->ntiles, sizeof(ct->ntiles), 1, fout);
+  fwrite(ct->tile_dims, sizeof(*ct->tile_dims), ct->nmodes, fout);
+
+  for(idx_t t=0; t < ct->ntiles; ++t) {
+    csf_sparsity const * const ft = ct->pt + t;
+
+    fwrite(ft->nfibs, sizeof(*ft->nfibs), ct->nmodes, fout);
+
+    for(idx_t m=0; m < ct->nmodes-1; ++m) {
+      fwrite(ft->fptr[m], sizeof(*ft->fptr[m]), ft->nfibs[m] + 1, fout);
+      if (m != 0) { // FIXME
+        fwrite(ft->fids[m], sizeof(*ft->fids[m]), ft->nfibs[m], fout);
+      }
+    }
+
+    fwrite(ft->fids[ct->nmodes - 1], sizeof(*ft->fids[ct->nmodes - 1]), ft->nfibs[ct->nmodes-1], fout);
+    fwrite(ft->vals, sizeof(*ft->vals), ft->nfibs[ct->nmodes-1], fout);
+  }
+}
+
+void
+splatt_csf_write(
+  splatt_csf const * const ct,
+  char const * const ofname,
+  int ncopies)
+{
+  FILE * fout = fopen(ofname,"w");
+  if (fout == NULL) {
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", ofname);
+    return;
+  }
+
+  timer_start(&timers[TIMER_IO]);
+  fwrite(&ncopies, sizeof(ncopies), 1, fout);
+  for (int i = 0; i < ncopies; ++i) {
+    splatt_csf_write_file(ct + i, fout);
+  }
+  timer_stop(&timers[TIMER_IO]);
+
+  fclose(fout);
+}
+
+
+void splatt_csf_read_file(
+  splatt_csf *ct, FILE * fin)
+{
+  fread(&ct->nnz, sizeof(ct->nnz), 1, fin);
+  fread(&ct->nmodes, sizeof(ct->nmodes), 1, fin);
+  fread(ct->dims, sizeof(*ct->dims), ct->nmodes, fin);
+  fread(ct->dim_perm, sizeof(*ct->dim_perm), ct->nmodes, fin);
+  fread(&ct->which_tile, sizeof(ct->which_tile), 1, fin);
+  fread(&ct->ntiles, sizeof(ct->ntiles), 1, fin);
+  fread(&ct->tile_dims, sizeof(*ct->tile_dims), ct->nmodes, fin);
+
+  ct->pt = splatt_malloc(sizeof(*(ct->pt))*ct->ntiles);
+
+  for(idx_t t=0; t < ct->ntiles; ++t) {
+    csf_sparsity * ft = ct->pt + t;
+
+    fread(ft->nfibs, sizeof(*ft->nfibs), ct->nmodes, fin);
+
+    for(idx_t m=0; m < ct->nmodes-1; ++m) {
+      ft->fptr[m] = splatt_malloc((ft->nfibs[m]+1) * sizeof(**(ft->fptr)));
+      fread(ft->fptr[m], sizeof(*ft->fptr[m]), ft->nfibs[m]+1, fin);
+      if (m != 0) { // FIXME
+        ft->fids[m] = splatt_malloc(ft->nfibs[m] * sizeof(**(ft->fids)));
+        fread(ft->fids[m], sizeof(*ft->fids[m]), ft->nfibs[m], fin);
+      }
+      else {
+        ft->fids[m] = NULL;
+      }
+    }
+
+    ft->fids[ct->nmodes-1] = splatt_malloc(ft->nfibs[ct->nmodes-1] * sizeof(**(ft->fids)));
+    ft->vals               = splatt_malloc(ft->nfibs[ct->nmodes-1] * sizeof(*(ft->vals)));
+
+    fread(ft->fids[ct->nmodes-1], sizeof(*ft->fids[ct->nmodes-1]), ft->nfibs[ct->nmodes-1], fin);
+    fread(ft->vals, sizeof(*ft->vals), ft->nfibs[ct->nmodes-1], fin);
+  }
+}
+
+int splatt_csf_equals(splatt_csf *ct1, splatt_csf *ct2)
+{
+  if (ct1->nnz != ct2->nnz) return 0;
+  if (ct1->nmodes != ct2->nmodes) return 0;
+  if (memcmp(ct1->dims, ct2->dims, sizeof(*ct1->dims)*ct1->nmodes)) return 0;
+  if (memcmp(ct1->dim_perm, ct2->dim_perm, sizeof(*ct1->dim_perm)*ct1->nmodes)) return 0;
+  if (ct1->which_tile != ct2->which_tile) return 0;
+  if (ct1->ntiles != ct2->ntiles) return 0;
+  if (memcmp(ct1->tile_dims, ct2->tile_dims, sizeof(*ct1->tile_dims)*ct1->nmodes)) return 0;
+  
+  for(idx_t t=0; t < ct1->ntiles; ++t) {
+    csf_sparsity const * const ft1 = ct1->pt + t;
+    csf_sparsity const * const ft2 = ct2->pt + t;
+
+    if (memcmp(ft1->nfibs, ft2->nfibs, sizeof(*ft1->nfibs)*ct1->nmodes)) return 0;
+    for(idx_t m=0; m < ct1->nmodes-1; ++m) {
+      if (memcmp(ft1->fptr[m], ft2->fptr[m], sizeof(*ft1->fptr[m])*(ft1->nfibs[m] + 1))) return 0;
+      if (m != 0 && memcmp(ft1->fids[m], ft2->fids[m], sizeof(*ft1->fids[m])*ft1->nfibs[m])) return 0;
+    }
+
+    if (memcmp(ft1->fids[ct1->nmodes - 1], ft2->fids[ct2->nmodes - 1], sizeof(*ft1->fids[ct1->nmodes - 1])*ft1->nfibs[ct1->nmodes-1])) return 0;
+    if (memcmp(ft1->vals, ft2->vals, sizeof(*ft1->vals)*ft1->nfibs[ct1->nmodes-1])) return 0;
+  }
+
+  return 1;
+}
+
+void
+splatt_csf_read(
+  splatt_csf *ct,
+  char const * const ifname,
+  int ncopies)
+{
+  FILE * fin = fopen(ifname,"r");
+  if (fin == NULL) {
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", ifname);
+    return;
+  }
+
+  timer_start(&timers[TIMER_IO]);
+  int file_ncopies = 2;
+  fread(&file_ncopies, sizeof(file_ncopies), 1, fin);
+  if (ncopies == -1) {
+    splatt_csf_read_file(ct, fin);
+    ncopies = ct->nmodes;
+    for (int i = 1; i < ncopies; ++i) {
+      splatt_csf_read_file(ct + i, fin);
+    }
+  }
+  else {
+    if (file_ncopies < ncopies) {
+      fprintf(stderr, "SPLATT ERROR: %d copies are required but %s has only %d\n", ncopies, ifname, file_ncopies);
+    }
+    for (int i = 0; i < ncopies; ++i) {
+      splatt_csf_read_file(ct + i, fin);
+    }
+  }
+  timer_stop(&timers[TIMER_IO]);
+
+  fclose(fin);
+}
+
 
 
 /**
@@ -452,9 +655,9 @@ static void p_csf_alloc_untiled(
   pt->nfibs[nmodes-1] = ct->nnz;
   pt->fids[nmodes-1] = splatt_malloc(ct->nnz * sizeof(**(pt->fids)));
   pt->vals           = splatt_malloc(ct->nnz * sizeof(*(pt->vals)));
-  memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]],
+  par_memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]],
       ct->nnz * sizeof(**(pt->fids)));
-  memcpy(pt->vals, tt->vals, ct->nnz * sizeof(*(pt->vals)));
+  par_memcpy(pt->vals, tt->vals, ct->nnz * sizeof(*(pt->vals)));
 
   /* setup a basic tile ptr for one tile */
   idx_t nnz_ptr[2];
@@ -570,7 +773,7 @@ static void p_mk_csf(
   /* get the indices in order */
   csf_find_mode_order(tt->dims, tt->nmodes, mode_type, mode, ct->dim_perm);
 
-  ct->which_tile = splatt_opts[SPLATT_OPTION_TILE];
+  ct->which_tile = (splatt_tile_type)splatt_opts[SPLATT_OPTION_TILE];
   switch(ct->which_tile) {
   case SPLATT_NOTILE:
     p_csf_alloc_untiled(ct, tt);
@@ -595,7 +798,7 @@ void csf_free(
   double const * const opts)
 {
   idx_t ntensors = 0;
-  splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
+  splatt_csf_type which = (splatt_csf_type)opts[SPLATT_OPTION_CSF_ALLOC];
   switch(which) {
   case SPLATT_CSF_ONEMODE:
     ntensors = 1;
@@ -657,6 +860,14 @@ void csf_find_mode_order(
     p_order_dims_minusone(dims, nmodes, mode, perm_dims);
     break;
 
+  case CSF_ROUND_ROBIN:
+    p_order_dims_round_robin(dims, nmodes, mode, perm_dims);
+    break;
+
+  case CSF_ALLPERMUTE:
+    p_order_dims_all_permute(dims, nmodes, mode, perm_dims);
+    break;
+
   default:
     fprintf(stderr, "SPLATT: csf_mode_type '%d' not recognized.\n", which);
     break;
@@ -669,7 +880,7 @@ size_t csf_storage(
   double const * const opts)
 {
   idx_t ntensors = 0;
-  splatt_csf_type which_alloc = opts[SPLATT_OPTION_CSF_ALLOC];
+  splatt_csf_type which_alloc = (splatt_csf_type)opts[SPLATT_OPTION_CSF_ALLOC];
   switch(which_alloc) {
   case SPLATT_CSF_ONEMODE:
     ntensors = 1;
@@ -682,9 +893,11 @@ size_t csf_storage(
     break;
   }
 
-  size_t bytes = 0;
+  size_t total_bytes = 0;
   for(idx_t m=0; m < ntensors; ++m) {
-    splatt_csf const * const ct = tensors + m;
+    size_t bytes = 0;
+
+    splatt_csf * const ct = (splatt_csf *)(tensors + m);
     bytes += ct->nnz * sizeof(*(ct->pt->vals)); /* vals */
     bytes += ct->nnz * sizeof(**(ct->pt->fids)); /* fids[nmodes] */
     bytes += ct->ntiles * sizeof(*(ct->pt)); /* pt */
@@ -699,9 +912,12 @@ size_t csf_storage(
         }
       }
     }
+
+    ct->storage = bytes;
+    total_bytes += bytes;
   }
 
-  return bytes;
+  return total_bytes;
 }
 
 
@@ -746,6 +962,21 @@ splatt_csf * csf_alloc(
       p_mk_csf(ret + m, tt, CSF_SORTED_MINUSONE, m, opts);
     }
     break;
+
+  case SPLATT_CSF_ALLMODE_ROUND_ROBIN:
+    ret = splatt_malloc(tt->nmodes * sizeof(*ret));
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      p_mk_csf(ret + m, tt, CSF_ROUND_ROBIN, m, opts);
+    }
+    break;
+
+  case SPLATT_CSF_ALLPERMUTE:
+    assert(tt->nmodes == 3);
+    ret = splatt_malloc(6 * sizeof(*ret));
+    for(idx_t m=0; m < 6; ++m) {
+      p_mk_csf(ret + m, tt, CSF_ALLPERMUTE, m, opts);
+    }
+    break;
   }
 
   return ret;
@@ -786,6 +1017,26 @@ val_t csf_frobsq(
   }
 
   return norm;
+}
+
+
+int csf_get_ncopies(double *opts, int nmodes)
+{
+  int ncopies = -1;
+  splatt_csf_type which_csf = (splatt_csf_type)opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which_csf) {
+  case SPLATT_CSF_ONEMODE:
+    ncopies = 1;
+    break;
+  case SPLATT_CSF_TWOMODE:
+    ncopies = 2;
+    break;
+  case SPLATT_CSF_ALLMODE:
+    ncopies = nmodes;
+    break;
+  }
+
+  return ncopies;
 }
 
 
