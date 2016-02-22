@@ -79,6 +79,7 @@ idx_t * tt_get_slices(
   idx_t const * const inds = tt->ind[m];
 
   /* find maximum number of uniques */
+#pragma omp parallel for reduction(min:minidx), reduction(max:maxidx)
   for(idx_t n=0; n < nnz; ++n) {
     minidx = SS_MIN(minidx, inds[n]);
     maxidx = SS_MAX(maxidx, inds[n]);
@@ -89,11 +90,11 @@ idx_t * tt_get_slices(
   /* mark slices which are present and count uniques */
   idx_t * slice_mkrs = (idx_t *) calloc(maxrange, sizeof(idx_t));
   idx_t found = 0;
+#pragma omp parallel for reduction(+:found)
   for(idx_t n=0; n < nnz; ++n) {
     assert(inds[n] >= minidx);
     idx_t const idx = inds[n] - minidx;
-    if(slice_mkrs[idx] == 0) {
-      slice_mkrs[idx] = 1;
+    if(__sync_bool_compare_and_swap(slice_mkrs + idx, 0, 1)) {
       ++found;
     }
   }
@@ -194,6 +195,7 @@ idx_t tt_remove_empty(
 
     /* relabel all indices in mode m */
     tt->dims[m] = dim_sizes[m];
+#pragma omp parallel for
     for(idx_t n=0; n < tt->nnz; ++n) {
       idx_t const global = tt->ind[m][n];
       idx_t const local = scounts[global];
