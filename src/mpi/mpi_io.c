@@ -2,9 +2,12 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
+#include <omp.h>
+
 #include "../splatt_mpi.h"
 #include "../io.h"
 #include "../timer.h"
+#include "../csf.h"
 #include "../util.h"
 
 
@@ -199,8 +202,8 @@ static sptensor_t * p_rearrange_by_part(
   rank_info * const rinfo)
 {
   /* count how many to send to each process */
-  int * nsend = calloc(rinfo->npes, sizeof(*nsend));
-  int * nrecv = calloc(rinfo->npes, sizeof(*nrecv));
+  int * nsend = (int *) calloc(rinfo->npes, sizeof(*nsend));
+  int * nrecv = (int *) calloc(rinfo->npes, sizeof(*nrecv));
   for(idx_t n=0; n < ttbuf->nnz; ++n) {
     nsend[parts[n]] += 1;
   }
@@ -640,7 +643,9 @@ static void p_fill_ssizes(
 {
   for(idx_t m=0; m < tt->nmodes; ++m) {
     idx_t const * const ind = tt->ind[m];
+#pragma omp parallel for
     for(idx_t n=0; n < tt->nnz; ++n) {
+#pragma omp atomic
       ssizes[m][ind[n]] += 1;
     }
 
