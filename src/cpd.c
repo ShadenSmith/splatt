@@ -133,7 +133,6 @@ double cpd_als_iterate(
       calc_gram_inv(m, nmodes, aTa);
 
       /* A = M1 * M2 */
-      memset(mats[m]->vals, 0, mats[m]->I * nfactors * sizeof(val_t));
       mat_matmul(m1, aTa[MAX_NMODES], mats[m]);
 
       /* normalize columns and extract lambda */
