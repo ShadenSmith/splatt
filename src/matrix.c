@@ -370,6 +370,8 @@ void mat_aTa(
   // can use dsyrk?
   
 #ifdef SPLATT_USE_MPI
+  idx_t const F = A->J;
+
   timer_start(&timers[TIMER_MPI_ATA]);
   timer_start(&timers[TIMER_MPI_IDLE]);
   MPI_Barrier(rinfo->comm_3d);
