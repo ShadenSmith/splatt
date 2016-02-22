@@ -68,7 +68,7 @@ static void default_cpd_opts(
   args->write     = DEFAULT_WRITE;
   args->nfactors  = DEFAULT_NFACTORS;
 
-  args->decomp = DEFAULT_MPI_DISTRIBUTION;
+  args->decomp = (splatt_decomp_type)DEFAULT_MPI_DISTRIBUTION;
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     args->mpi_dims[m] = 1;
   }
@@ -230,7 +230,7 @@ int splatt_mpi_cpd_cmd(
       mpi_cpy_indmap(tt_filtered, &rinfo, m);
 
       mpi_find_owned(tt, m, &rinfo);
-      mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 1);
+      mpi_compute_ineed(&rinfo, tt, m, args.nfactors, (splatt_decomp_type)1);
 
       /* fill csf[m] */
       csf_alloc_mode(tt_filtered, CSF_SORTED_MINUSONE, m, csf+m, args.opts);
@@ -261,7 +261,7 @@ int splatt_mpi_cpd_cmd(
       /* index into local tensor to grab owned rows */
       mpi_find_owned(tt, m, &rinfo);
       /* determine isend and ineed lists */
-      mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 3);
+      mpi_compute_ineed(&rinfo, tt, m, args.nfactors, (splatt_decomp_type)3);
     }
   } /* end 3D distribution */
 
