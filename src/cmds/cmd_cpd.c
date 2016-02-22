@@ -23,7 +23,7 @@ static char cpd_doc[] =
 static struct argp_option cpd_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
   {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
-  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
+  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 16)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file"},
@@ -119,6 +119,9 @@ static struct argp cpd_argp =
 /******************************************************************************
  * SPLATT-CPD
  *****************************************************************************/
+
+extern int splatt_csf_equals(splatt_csf *ct1, splatt_csf *ct2);
+
 int splatt_cpd_cmd(
   int argc,
   char ** argv)
@@ -128,28 +131,38 @@ int splatt_cpd_cmd(
   default_cpd_opts(&args);
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
-  sptensor_t * tt = NULL;
-
   print_header();
 
-  tt = tt_read(args.ifname);
-  if(tt == NULL) {
-    return SPLATT_ERROR_BADINPUT;
+  splatt_verbosity_type which_verb = (splatt_verbosity_type)args.opts[SPLATT_OPTION_VERBOSITY];
+  splatt_csf * csf = NULL;
+  idx_t nmodes;
+
+  int l = strlen(args.ifname);
+  if (l > 4 && !strcmp(args.ifname + l - 4, ".csf")) {
+    csf = malloc(sizeof(*csf)*3);
+    splatt_csf_read(csf, args.ifname, csf_get_ncopies(args.opts, -1));
+    nmodes = csf[0].nmodes;
   }
+  else {
+    sptensor_t * tt = tt_read(args.ifname);
+    if(tt == NULL) {
+      return SPLATT_ERROR_BADINPUT;
+    }
 
-  /* print basic tensor stats? */
-  splatt_verbosity_type which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
-  if(which_verb >= SPLATT_VERBOSITY_LOW) {
-    stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+    /* print basic tensor stats? */
+    if(which_verb >= SPLATT_VERBOSITY_LOW) {
+      stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
+    }
+
+    csf = splatt_csf_alloc(tt, args.opts);
+
+    nmodes = tt->nmodes;
+    tt_free(tt);
   }
-
-  splatt_csf * csf = splatt_csf_alloc(tt, args.opts);
-
-  idx_t nmodes = tt->nmodes;
-  tt_free(tt);
 
   /* print CPD stats? */
   if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    stats_csf(csf, csf_get_ncopies(args.opts, csf->nmodes));
     cpd_stats(csf, args.nfactors, args.opts);
   }
 
