@@ -454,12 +454,12 @@ static void p_tt_quicksort3(
     ind2[i] = imid[2];
 
     if(i > start + 1) {
-      #pragma omp task
+      //#pragma omp task
       p_tt_quicksort3(tt, cmplt, start, i);
     }
     ++i; /* skip the pivot element */
     if(end > i + 1) {
-      #pragma omp task
+      //#pragma omp task
       p_tt_quicksort3(tt, cmplt, i, end);
     }
   }
@@ -564,6 +564,8 @@ static inline idx_t transpose_idx(idx_t idx, idx_t dim1, idx_t dim2)
  */
 void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
 {
+  if (tt->nnz == 0) return;
+
   idx_t m = cmplt[0];
   idx_t nslices = tt->dims[m];
 
@@ -645,7 +647,7 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
         new_ind[1][offset] = tt->ind[1][j];
         new_ind[2][offset] = tt->ind[2][j];
 
-        if (j == jbegin) break;
+        if (j <= jbegin) break;
       }
     }
     else if (1 == m) {
@@ -659,7 +661,7 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
         new_ind[0][offset] = tt->ind[0][j];
         new_ind[2][offset] = tt->ind[2][j];
 
-        if (j == jbegin) break;
+        if (j <= jbegin) break;
       }
     }
     else {
@@ -673,7 +675,7 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
         new_ind[0][offset] = tt->ind[0][j];
         new_ind[1][offset] = tt->ind[1][j];
 
-        if (j == jbegin) break;
+        if (j <= jbegin) break;
       }
     }
 
@@ -776,12 +778,12 @@ static void p_tt_quicksort(
     }
 
     if(i > start + 1) {
-      #pragma omp task
+      //#pragma omp task
       p_tt_quicksort(tt, cmplt, start, i);
     }
     ++i; /* skip the pivot element */
     if(end - i > 1) {
-      #pragma omp task
+      //#pragma omp task
       p_tt_quicksort(tt, cmplt, i, end);
     }
   }
@@ -830,12 +832,12 @@ static void p_par_quicksort(
     a[i] = mid;
 
     if(i > 1) {
-      #pragma omp task
+      //#pragma omp task
       p_par_quicksort(a,i);
     }
     ++i; /* skip the pivot element */
     if(n-i > 1) {
-      #pragma omp task
+      //#pragma omp task
       p_par_quicksort(a+i, n-i);
     }
   }
@@ -875,17 +877,25 @@ void tt_sort_range(
   timer_start(&timers[TIMER_SORT]);
   switch(tt->type) {
   case SPLATT_NMODE:
-#pragma omp parallel
+//#pragma omp parallel
     {
-    #pragma omp single
+    //#pragma omp single
     p_tt_quicksort(tt, cmplt, start, end);
-    #pragma omp taskwait
+    //#pragma omp taskwait
     }
     break;
   case SPLATT_3MODE:
-    counting_sort_hybrid(tt, cmplt);
+    if (start == 0 && end == tt->nnz) {
+      counting_sort_hybrid(tt, cmplt);
+    }
+    else {
+//#pragma omp parallel
+    {
     //#pragma omp single
-    //p_tt_quicksort3(tt, cmplt, start, end);
+    p_tt_quicksort3(tt, cmplt, start, end);
+    //#pragma omp taskwait
+    }
+    }
     break;
   }
 
@@ -922,10 +932,10 @@ void quicksort(
   if(n < SMALL_SORT_SIZE) {
     p_par_quicksort(a,n);
   } else {
-    #pragma omp parallel
+    //#pragma omp parallel
     {
       /* single call at the beginning, then omp tasks use more threads */
-      #pragma omp single
+      //#pragma omp single
       p_par_quicksort(a,n);
     }
   }
