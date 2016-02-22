@@ -19,7 +19,9 @@ static char perm_doc[] =
   "  rand\t\t\tCreate a random permutation of a tensor\n"
   "  graph\t\t\tReorder based on the partitioning of a mode-independent graph\n"
   "Mode-dependent types are:\n"
-  "  hgraph\t\tReorder based on the partitioning of a fiber hyper-graph\n";
+  "  hgraph\t\tReorder based on the partitioning of a fiber hyper-graph\n"
+  "  bfs\t\t\tReorder based on breadth-first order\n"
+  "  matching\t\t\tReorder based on matching\n";
 
 static struct argp_option perm_options[] = {
   { "type", 't', "TYPE", 0, "type of reordering" },
@@ -62,6 +64,12 @@ static error_t parse_perm_opt(
       args->type = PERM_GRAPH;
     } else if(strcmp(arg, "hgraph") == 0) {
       args->type = PERM_HGRAPH;
+    } else if(strcmp(arg, "bfs") == 0) {
+      args->type = PERM_BFS;
+    } else if(strcmp(arg, "rcm") == 0) {
+      args->type = PERM_RCM;
+    } else if(strcmp(arg, "matching") == 0) {
+      args->type = PERM_MATCHING;
     } else {
       args->typestr = arg;
       args->type = PERM_ERROR;
@@ -111,6 +119,7 @@ int splatt_reorder(
 
   print_header();
 
+  //sptensor_t * tt = malloc(sizeof(sptensor_t));
   sptensor_t * tt = tt_read(args.ifname);
   if(tt == NULL) {
     return SPLATT_ERROR_BADINPUT;
