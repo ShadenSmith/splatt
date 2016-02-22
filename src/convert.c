@@ -140,6 +140,13 @@ void tt_convert(
   case CNV_COORD:
     tt_write(tt, ofname);
     break;
+  case CNV_CSF:
+    {
+      double * opts = splatt_default_opts();
+      splatt_csf *csf = splatt_csf_alloc(tt, opts);
+      splatt_csf_write(csf, ofname, csf_get_ncopies(opts, csf->nmodes));
+    }
+    break;
   default:
     fprintf(stderr, "SPLATT ERROR: convert type not implemented.\n");
     exit(1);

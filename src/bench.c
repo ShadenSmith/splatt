@@ -149,7 +149,7 @@ void bench_csf(
   sp_timer_t modetime;
 
   double * cpd_opts = splatt_default_opts();
-  cpd_opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
+  //cpd_opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
   cpd_opts[SPLATT_OPTION_NTHREADS] = threads[nruns-1];
 
   idx_t const nfactors = mats[0]->J;
@@ -161,14 +161,14 @@ void bench_csf(
 
   splatt_csf * cs = splatt_csf_alloc(tt, cpd_opts);
 
-#if 0
+#if 1
   printf("** CSF **\n");
-  unsigned long cs_bytes = csf_storage(cs);
+  unsigned long cs_bytes = csf_storage(cs, cpd_opts);
   char * bstr = bytes_str(cs_bytes);
   printf("CSF-STORAGE: %s\n\n", bstr);
   free(bstr);
 
-  stats_csf(&cs);
+  stats_csf(cs, csf_get_ncopies(cpd_opts, cs->nmodes));
   printf("\n");
 
   timer_start(&timers[TIMER_MISC]);
@@ -186,7 +186,7 @@ void bench_csf(
       /* time each mode */
       for(idx_t m=0; m < tt->nmodes; ++m) {
         timer_fstart(&modetime);
-        mttkrp_csf(&cs, mats, m, thds, nthreads);
+        mttkrp_csf(cs, mats, m, thds, cpd_opts);
         timer_stop(&modetime);
         printf("  mode %" SPLATT_PF_IDX " %0.3fs\n", m+1, modetime.seconds);
         if(opts->write && t == nruns-1 && i == 0) {
@@ -211,7 +211,7 @@ void bench_csf(
   timer_stop(&timers[TIMER_MISC]);
 
   /* clean up */
-  csf_free(&cs, cpd_opts);
+  csf_free(cs, cpd_opts);
   thd_free(thds, threads[nruns-1]);
   free(cpd_opts);
 

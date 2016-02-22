@@ -22,6 +22,7 @@ typedef enum
   CNV_NNZ_HGRAPH, /** Convert to a hypergraph whose nodes are nonzeros. */
   CNV_BINARY,     /** Convert to a binary (coordinate) format. */
   CNV_COORD,     /** Convert to the default (coordinate) format. */
+  CNV_CSF,        /** Convert to a compressed sparse fiber format. */
   CNV_ERROR,
 } splatt_convert_type;
 
