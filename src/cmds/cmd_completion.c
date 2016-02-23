@@ -228,16 +228,20 @@ int splatt_tc_cmd(
     ws->max_its = args.max_its;
   }
 
-  printf("lrn: %0.3e  reg: %0.3e\n\n", ws->learn_rate, ws->regularization[0]);
+  printf("rank: %"SPLATT_PF_IDX" lrn: %0.3e  reg: %0.3e\n\n",
+      model->rank, ws->learn_rate, ws->regularization[0]);
 
   switch(args.which_alg) {
   case SPLATT_TC_GD:
+    printf("\nGD\n");
     splatt_tc_gd(train, validate, model, ws);
     break;
   case SPLATT_TC_SGD:
+    printf("\nSGD\n");
     splatt_tc_sgd(train, validate, model, ws);
     break;
   case SPLATT_TC_ALS:
+    printf("\nALS\n");
     splatt_tc_als(train, validate, model, ws);
     break;
   default:
@@ -251,7 +255,7 @@ int splatt_tc_cmd(
 
   /* test rmse */
   if(args.ifnames[2] != NULL) {
-    sptensor_t * test = tt_read(argv[3]);
+    sptensor_t * test = tt_read(args.ifnames[2]);
     if(test == NULL) {
       return SPLATT_ERROR_BADINPUT;
     }
