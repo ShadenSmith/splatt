@@ -53,6 +53,10 @@ typedef struct
 
   sp_timer_t train_time;
   sp_timer_t test_time;
+
+  /* GD */
+  sp_timer_t grad_time;
+  sp_timer_t line_time;
 } tc_ws;
 
 

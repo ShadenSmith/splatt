@@ -15,6 +15,96 @@
 
 
 /**
+* @brief Update the TC model using ws->gradients and learn_rate. Also reverses
+*        a previous step of size prev_rate. This lets us just use one update
+*        during a line search.
+*
+* @param model The TC model to update.
+* @param ws Workspace storing gradients.
+* @param prev_rate Previous step to reverse. 0 is safe to use.
+* @param learn_rate The new step size.
+*/
+static void p_update_model(
+    tc_model * const model,
+    tc_ws * const ws,
+    val_t const prev_rate,
+    val_t const learn_rate)
+{
+  val_t const new_rate = learn_rate - prev_rate;
+
+  #pragma omp parallel
+  {
+    for(idx_t m=0; m < model->nmodes; ++m) {
+      val_t * const restrict mat = model->factors[m];
+      val_t const * const restrict grad = ws->gradients[m];
+      val_t const reg = ws->regularization[m];
+
+      #pragma omp for schedule(static) nowait
+      for(idx_t x=0; x < (model->dims[m] * model->rank); ++x) {
+        mat[x] += new_rate * grad[x];
+      }
+    }
+  } /* end omp parallel */
+}
+
+
+
+/**
+* @brief Perform a simple backtracking line search to find a new step size that
+*        reduces the objective function.
+*
+* @param train The training data for evaluating objective.
+* @param model The model to update.
+* @param ws Workspace storing gradients.
+* @param prev_obj The previous objective value.
+* @param[out] ret_loss On exit, stores the new loss value.
+* @param[out] ret_frobsq On exit, stores the new \sum \lambda||A||_F^2 penalty.
+*/
+static void p_line_search(
+    sptensor_t const * const train,
+    tc_model * const model,
+    tc_ws * const ws,
+    val_t const prev_obj,
+    val_t * ret_loss,
+    val_t * ret_frobsq)
+{
+  val_t learn_rate = 5e-4;
+  val_t loss;
+  val_t frobsq;
+  idx_t neval = 1;
+
+  /* update model */
+  p_update_model(model, ws, 0, learn_rate);
+
+  while(true) {
+    /* compute new objective */
+    loss = tc_loss_sq(train, model, ws);
+    frobsq = tc_frob_sq(model, ws);
+    val_t const obj = loss + frobsq;
+
+    if(obj < prev_obj) {
+#if 0
+      printf("  %0.5f -> %0.5f (neval: %lu learn: %0.3e)\n",
+          prev_obj, obj, neval, learn_rate);
+#endif
+      break;
+    }
+
+    /* change learning rate and update model (while undoing last step) */
+    p_update_model(model, ws, learn_rate, learn_rate * 0.5);
+    learn_rate *= 0.50;
+
+    ++neval;
+  }
+
+  *ret_loss = loss;
+  *ret_frobsq = frobsq;
+}
+
+
+
+
+/**
 * @brief Update all gradient matrices based on the observations in tree i.
 *
 * @param csf The training data.
@@ -117,63 +207,70 @@ void splatt_tc_gd(
   idx_t const nmodes = train->nmodes;
 
   val_t learn_rate = ws->learn_rate;
-  val_t prev_obj = 0;
   val_t prev_val_rmse = 0;
+  val_t loss = tc_loss_sq(train, model, ws);
+  val_t frobsq = tc_frob_sq(model, ws);
+  val_t prev_obj = loss + frobsq;
 
   timer_reset(&ws->train_time);
   timer_reset(&ws->test_time);
+  timer_reset(&ws->grad_time);
+  timer_reset(&ws->line_time);
+
+  printf("epoch:%4d   obj: %0.5e   "
+      "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
+      0, prev_obj, sqrt(loss / train->nnz), tc_rmse(validate, model, ws),
+      ws->train_time.seconds, ws->test_time.seconds);
 
   /* foreach epoch */
   for(idx_t e=0; e < ws->max_its; ++e) {
     timer_start(&ws->train_time);
 
-    /* reset gradients */
-    for(idx_t m=0; m < nmodes; ++m) {
-      memset(ws->gradients[m], 0,
-          train->dims[m] * model->rank * sizeof(**(ws->gradients)));
+    timer_start(&ws->grad_time);
+    #pragma omp parallel
+    {
+      /* reset gradients - initialize with negative regularization */
+      for(idx_t m=0; m < nmodes; ++m) {
+        val_t const * const restrict mat = model->factors[m];
+        val_t * const restrict grad = ws->gradients[m];
+        val_t const reg = ws->regularization[m];
+
+        #pragma omp for schedule(static) nowait
+        for(idx_t x=0; x < (train->dims[m] * model->rank); ++x) {
+          grad[x] = -(reg * mat[x]);
+        }
+      }
     }
 
     /* gradient computation -- process each slice */
     for(idx_t i=0; i < csf->pt->nfibs[0]; ++i) {
       p_process_tree3(csf, i, model, ws);
     }
+    timer_stop(&ws->grad_time);
 
-    /* now update model */
-    for(idx_t m=0; m < nmodes; ++m) {
-      val_t * const restrict mat = model->factors[m];
-      val_t const * const restrict grad = ws->gradients[m];
-      val_t const reg = ws->regularization[m];
-
-      for(idx_t x=0; x < (train->dims[m] * model->rank); ++x) {
-        mat[x] += learn_rate * (grad[x] - (reg * mat[x]));
-      }
-    }
+    timer_start(&ws->line_time);
+    p_line_search(train, model, ws, prev_obj, &loss, &frobsq);
+    timer_stop(&ws->line_time);
 
     timer_stop(&ws->train_time);
 
     /* compute RMSE and adjust learning rate */
     timer_start(&ws->test_time);
-    val_t const loss = tc_loss_sq(train, model, ws);
-    val_t const frobsq = tc_frob_sq(model, ws);
     val_t const obj = loss + frobsq;
     val_t const train_rmse = sqrt(loss / train->nnz);
     val_t const val_rmse = tc_rmse(validate, model, ws);
     timer_stop(&ws->test_time);
+
+    printf("  time-grad: %0.3fs  time-line: %0.3fs\n",
+        ws->grad_time.seconds, ws->line_time.seconds);
 
     printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
         "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
         e+1, obj, train_rmse, val_rmse,
         ws->train_time.seconds, ws->test_time.seconds);
 
-    /* adjust learning rate */
+    /* check convergence */
     if(e > 0) {
-      if(obj < prev_obj) {
-        learn_rate *= 1.05;
-      } else {
-        learn_rate *= 0.50;
-      }
-
-      /* check convergence */
       if(fabs(val_rmse - prev_val_rmse) < 1e-8) {
         break;
       }
