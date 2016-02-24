@@ -253,11 +253,6 @@ tc_ws * tc_ws_alloc(
   /* some reasonable defaults */
   ws->learn_rate = 0.001;
 
-  /* experimentally found this to work ok for ml20m */
-  if(model->which == SPLATT_TC_GD) {
-    ws->learn_rate = 5e-5;
-  }
-
   ws->max_its = 1000;
   for(idx_t m=0; m < nmodes; ++m) {
     ws->regularization[m] = 0.02;

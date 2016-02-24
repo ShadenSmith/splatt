@@ -233,19 +233,19 @@ int splatt_tc_cmd(
 
   switch(args.which_alg) {
   case SPLATT_TC_GD:
-    printf("GD\n");
+    printf("\nGD\n");
     splatt_tc_gd(train, validate, model, ws);
     break;
   case SPLATT_TC_SGD:
-    printf("SGD\n");
+    printf("\nSGD\n");
     splatt_tc_sgd(train, validate, model, ws);
     break;
   case SPLATT_TC_CCD:
-    printf("CCD\n");
+    printf("\nCCD\n");
     splatt_tc_ccd(train, validate, model, ws);
     break;
   case SPLATT_TC_ALS:
-    printf("ALS\n");
+    printf("\nALS\n");
     splatt_tc_als(train, validate, model, ws);
     break;
   default:
@@ -264,7 +264,7 @@ int splatt_tc_cmd(
 
   /* test rmse on best model found */
   if(args.ifnames[2] != NULL) {
-    sptensor_t * test = tt_read(argv[3]);
+    sptensor_t * test = tt_read(args.ifnames[2]);
     if(test == NULL) {
       return SPLATT_ERROR_BADINPUT;
     }
