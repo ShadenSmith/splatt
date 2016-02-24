@@ -206,24 +206,21 @@ void splatt_tc_gd(
 
   idx_t const nmodes = train->nmodes;
 
-  val_t learn_rate = ws->learn_rate;
-  val_t prev_val_rmse = 0;
-  val_t loss = tc_loss_sq(train, model, ws);
-  val_t frobsq = tc_frob_sq(model, ws);
-  val_t prev_obj = loss + frobsq;
 
   timer_reset(&ws->train_time);
   timer_reset(&ws->test_time);
   timer_reset(&ws->grad_time);
   timer_reset(&ws->line_time);
 
-  printf("epoch:%4d   obj: %0.5e   "
-      "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
-      0, prev_obj, sqrt(loss / train->nnz), tc_rmse(validate, model, ws),
-      ws->train_time.seconds, ws->test_time.seconds);
+  val_t learn_rate = ws->learn_rate;
+
+  val_t loss = tc_loss_sq(train, model, ws);
+  val_t frobsq = tc_frob_sq(model, ws);
+  val_t prev_obj = loss + frobsq;
+  tc_converge(train, validate, model, loss, frobsq, 0, ws);
 
   /* foreach epoch */
-  for(idx_t e=0; e < ws->max_its; ++e) {
+  for(idx_t e=1; e < ws->max_its+1; ++e) {
     timer_start(&ws->train_time);
 
     timer_start(&ws->grad_time);
@@ -252,32 +249,15 @@ void splatt_tc_gd(
     p_line_search(train, model, ws, prev_obj, &loss, &frobsq);
     timer_stop(&ws->line_time);
 
-    timer_stop(&ws->train_time);
+    prev_obj = loss + frobsq;
 
-    /* compute RMSE and adjust learning rate */
-    timer_start(&ws->test_time);
-    val_t const obj = loss + frobsq;
-    val_t const train_rmse = sqrt(loss / train->nnz);
-    val_t const val_rmse = tc_rmse(validate, model, ws);
-    timer_stop(&ws->test_time);
+    timer_stop(&ws->train_time);
 
     printf("  time-grad: %0.3fs  time-line: %0.3fs\n",
         ws->grad_time.seconds, ws->line_time.seconds);
-
-    printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
-        "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
-        e+1, obj, train_rmse, val_rmse,
-        ws->train_time.seconds, ws->test_time.seconds);
-
-    /* check convergence */
-    if(e > 0) {
-      if(fabs(val_rmse - prev_val_rmse) < 1e-8) {
-        break;
-      }
+    if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
+      break;
     }
-
-    prev_obj = obj;
-    prev_val_rmse = val_rmse;
   }
 
   /* save any changes */

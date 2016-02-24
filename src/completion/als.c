@@ -220,7 +220,11 @@ void splatt_tc_als(
   timer_reset(&ws->train_time);
   timer_reset(&ws->test_time);
 
-  for(idx_t e=0; e < ws->max_its; ++e) {
+  val_t const loss = tc_loss_sq(train, model, ws);
+  val_t const frobsq = tc_frob_sq(model, ws);
+  tc_converge(train, validate, model, loss, frobsq, 0, ws);
+
+  for(idx_t e=1; e < ws->max_its+1; ++e) {
     timer_start(&(ws->train_time));
     #pragma omp parallel
     {
@@ -235,32 +239,21 @@ void splatt_tc_als(
       }
     } /* end omp parallel */
 
-    /* compute RMSE */
     timer_stop(&ws->train_time);
+
+    /* compute new obj value, print stats, and exit if converged */
     timer_start(&ws->test_time);
     val_t const loss = tc_loss_sq(train, model, ws);
     val_t const frobsq = tc_frob_sq(model, ws);
-    val_t const obj = loss + frobsq;
-    val_t const train_rmse = sqrt(loss / train->nnz);
-    val_t const val_rmse = tc_rmse(validate, model, ws);
     timer_stop(&ws->test_time);
-
-    printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
-        "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
-        e+1, obj, train_rmse, val_rmse,
-        ws->train_time.seconds, ws->test_time.seconds);
-
-    if(e > 0) {
-      /* check convergence */
-      if(fabs(val_rmse - prev_val_rmse) < 1e-8) {
-        break;
-      }
+    if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
+      break;
     }
-    prev_val_rmse = val_rmse;
 
   } /* foreach iteration */
-  csf_free(csf, opts);
 
+  /* cleanup */
+  csf_free(csf, opts);
   for(idx_t m=0; m < nmodes; ++m) {
     splatt_free(parts[m]);
   }

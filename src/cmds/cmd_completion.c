@@ -21,6 +21,7 @@ static char tc_doc[] =
   "Available tensor completion algorithms are:\n"
   "  gd\t\tgradient descent\n"
   "  sgd\t\tstochastic gradient descent\n"
+  "  ccd\t\tcoordinate descent\n"
   "  als\t\talternating least squares\n";
 
 
@@ -49,6 +50,7 @@ static tc_alg_map maps[] = {
   { "gd", SPLATT_TC_GD },
   { "sgd", SPLATT_TC_SGD },
   { "als", SPLATT_TC_ALS },
+  { "ccd", SPLATT_TC_CCD },
   { NULL,  SPLATT_TC_NALGS }
 };
 
@@ -209,8 +211,6 @@ int splatt_tc_cmd(
   /* print basic tensor stats */
   stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
 
-  printf("validate nnz: %"SPLATT_PF_IDX"\n\n", validate->nnz);
-
   /* allocate model + workspace */
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
   tc_ws * ws = tc_ws_alloc(model, args.nthreads);
@@ -228,16 +228,24 @@ int splatt_tc_cmd(
     ws->max_its = args.max_its;
   }
 
-  printf("lrn: %0.3e  reg: %0.3e\n\n", ws->learn_rate, ws->regularization[0]);
+  printf("rank: %"SPLATT_PF_IDX" lrn: %0.3e  reg: %0.3e\n\n",
+      model->rank, ws->learn_rate, ws->regularization[0]);
 
   switch(args.which_alg) {
   case SPLATT_TC_GD:
+    printf("GD\n");
     splatt_tc_gd(train, validate, model, ws);
     break;
   case SPLATT_TC_SGD:
+    printf("SGD\n");
     splatt_tc_sgd(train, validate, model, ws);
     break;
+  case SPLATT_TC_CCD:
+    printf("CCD\n");
+    splatt_tc_ccd(train, validate, model, ws);
+    break;
   case SPLATT_TC_ALS:
+    printf("ALS\n");
     splatt_tc_als(train, validate, model, ws);
     break;
   default:
@@ -246,21 +254,26 @@ int splatt_tc_cmd(
     return SPLATT_ERROR_BADINPUT;
   }
 
+  printf("\nvalidate nnz: %"SPLATT_PF_IDX"\n\n", validate->nnz);
+  printf("BEST VALIDATION RMSE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
+      ws->best_rmse, ws->best_epoch);
+
   tt_free(validate);
   tt_free(train);
+  tc_model_free(model);
 
-  /* test rmse */
+  /* test rmse on best model found */
   if(args.ifnames[2] != NULL) {
     sptensor_t * test = tt_read(argv[3]);
     if(test == NULL) {
       return SPLATT_ERROR_BADINPUT;
     }
     printf("test nnz: %"SPLATT_PF_IDX"\n", test->nnz);
-    printf("TEST RMSE: %0.5f\n", tc_rmse(test, model, ws));
+    printf("TEST RMSE: %0.5f\n", tc_rmse(test, ws->best_model, ws));
     tt_free(test);
   }
 
-  /* write output */
+  /* write the best model */
   if(args.write) {
     for(idx_t m=0; m < nmodes; ++m) {
       char * matfname = NULL;
@@ -268,16 +281,15 @@ int splatt_tc_cmd(
 
       matrix_t tmpmat;
       tmpmat.rowmajor = 1;
-      tmpmat.I = model->dims[m];
+      tmpmat.I = ws->best_model->dims[m];
       tmpmat.J = args.nfactors;
-      tmpmat.vals = model->factors[m];
+      tmpmat.vals = ws->best_model->factors[m];
 
       mat_write(&tmpmat, matfname);
       free(matfname);
     }
   }
 
-  tc_model_free(model);
   tc_ws_free(ws);
 
   return EXIT_SUCCESS;

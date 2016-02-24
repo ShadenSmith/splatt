@@ -22,6 +22,7 @@ typedef enum
 {
   SPLATT_TC_SGD,
   SPLATT_TC_GD,
+  SPLATT_TC_CCD,
   SPLATT_TC_ALS,
   SPLATT_TC_NALGS
 } splatt_tc_type;
@@ -57,6 +58,14 @@ typedef struct
   /* GD */
   sp_timer_t grad_time;
   sp_timer_t line_time;
+
+  /* results + convergence */
+  idx_t max_badepochs;
+  idx_t nbadepochs;
+  val_t tolerance;
+  idx_t best_epoch;
+  val_t best_rmse;
+  tc_model * best_model;
 } tc_ws;
 
 
@@ -83,6 +92,13 @@ void splatt_tc_als(
 
 
 void splatt_tc_gd(
+    sptensor_t * train,
+    sptensor_t const * const validate,
+    tc_model * const model,
+    tc_ws * const ws);
+
+
+void splatt_tc_ccd(
     sptensor_t * train,
     sptensor_t const * const validate,
     tc_model * const model,
@@ -212,6 +228,17 @@ tc_model * tc_model_alloc(
     splatt_tc_type const which);
 
 
+#define tc_model_copy splatt_tc_model_copy
+/**
+* @brief Allocate and copy a model.
+*
+* @param model The model to copy.
+*
+* @return A deep copy of model.
+*/
+tc_model * tc_model_copy(
+    tc_model const * const model);
+
 
 #define tc_model_free splatt_tc_model_free
 /**
@@ -221,6 +248,41 @@ tc_model * tc_model_alloc(
 */
 void tc_model_free(
     tc_model * model);
+
+
+
+#define tc_converge splatt_tc_converge
+/**
+* @brief Print progress statistics and determine if a model has converged.
+*        Convergence is detected when the RMSE on the validation set has not
+*        improved more than 'ws->tolerance' in 'ws->max_badepochs' epochs.
+*
+*        If improvement is detected, this routine will store the new best model
+*        and resulting RMSE.
+*
+*        Note that this routine does not calculate the objective function for
+*        you. Some optimization functions (e.g., gradient descent) compute the
+*        objective during training (line search, etc.) and so we save
+*        computations by not recomputing those values.
+*
+* @param train The training set.
+* @param validate The validation set.
+* @param model The model we are checking.
+* @param loss The computed loss of model.
+* @param frobsq The summed squared frobenius of the factors.
+* @param epoch Which epoch we are on (for printing).
+* @param ws Workspace to use (for storing statistics).
+*
+* @return True if converged, false otherwise.
+*/
+bool tc_converge(
+    sptensor_t const * const train,
+    sptensor_t const * const validate,
+    tc_model const * const model,
+    val_t const loss,
+    val_t const frobsq,
+    idx_t const epoch,
+    tc_ws * const ws);
 
 
 #endif

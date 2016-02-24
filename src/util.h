@@ -106,4 +106,19 @@ int * get_primes(
   int N,
   int * nprimes);
 
+
+#define par_memcpy splatt_par_memcpy
+/**
+* @brief Perform a parallel memcpy. Like memcpy(), dst and src must not
+*        overlap.
+*
+* @param dst The destination buffer.
+* @param src The source buffer.
+* @param bytes The number of bytes to copy.
+*/
+void par_memcpy(
+    void * const restrict dst,
+    void const * const restrict src,
+    size_t const bytes);
+
 #endif

@@ -153,11 +153,16 @@ void splatt_tc_sgd(
     perm[n] = n;
   }
 
-  val_t prev_obj = 0;
-  val_t prev_val_rmse = 0;
+  val_t loss = tc_loss_sq(train, model, ws);
+  val_t frobsq = tc_frob_sq(model, ws);
+  tc_converge(train, validate, model, loss, frobsq, 0, ws);
+
+  /* for bold driver */
+  val_t obj = loss + frobsq;
+  val_t prev_obj = obj;
 
   /* foreach epoch */
-  for(idx_t e=0; e < ws->max_its; ++e) {
+  for(idx_t e=1; e < ws->max_its+1; ++e) {
     timer_start(&ws->train_time);
 
     /* new nnz ordering */
@@ -171,33 +176,24 @@ void splatt_tc_sgd(
 
     /* compute RMSE and adjust learning rate */
     timer_start(&ws->test_time);
-    val_t const loss = tc_loss_sq(train, model, ws);
-    val_t const frobsq = tc_frob_sq(model, ws);
-    val_t const obj = loss + frobsq;
-    val_t const train_rmse = sqrt(loss / train->nnz);
-    val_t const val_rmse = tc_rmse(validate, model, ws);
+    loss = tc_loss_sq(train, model, ws);
+    frobsq = tc_frob_sq(model, ws);
+    obj = loss + frobsq;
     timer_stop(&ws->test_time);
+    if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
+      break;
+    }
 
-    printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
-        "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
-        e+1, obj, train_rmse, val_rmse,
-        ws->train_time.seconds, ws->test_time.seconds);
-
-    if(e > 0) {
+    /* bold driver */
+    if(e > 1) {
       if(obj < prev_obj) {
         ws->learn_rate *= 1.05;
       } else {
         ws->learn_rate *= 0.50;
       }
-
-      /* check convergence */
-      if(fabs(val_rmse - prev_val_rmse) < 1e-8) {
-        break;
-      }
     }
 
     prev_obj = obj;
-    prev_val_rmse = val_rmse;
   }
 
   splatt_free(perm);

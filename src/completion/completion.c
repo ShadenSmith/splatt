@@ -50,6 +50,30 @@ static inline val_t p_predict_val3(
 }
 
 
+/**
+* @brief Print some basic statistics about factorization progress.
+*
+* @param epoch Which epoch we are on.
+* @param obj The value of the objective function.
+* @param rmse_tr The RMSE on the training set.
+* @param rmse_vl The RMSE on the validation set.
+* @param ws Workspace, used for timing information.
+*/
+static void p_print_progress(
+    idx_t const epoch,
+    val_t const obj,
+    val_t const rmse_tr,
+    val_t const rmse_vl,
+    tc_ws const * const ws)
+{
+  printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
+      "RMSE-tr: %0.5e   RMSE-vl: %0.5e   time-tr: %0.3fs   time-ts: %0.3fs\n",
+      epoch, obj, rmse_tr, rmse_vl,
+      ws->train_time.seconds, ws->test_time.seconds);
+}
+
+
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
@@ -176,12 +200,33 @@ tc_model * tc_model_alloc(
   for(idx_t m=0; m < train->nmodes; ++m) {
     model->dims[m] = train->dims[m];
 
-    idx_t const size = model->dims[m] * rank;
-    model->factors[m] = splatt_malloc(size * sizeof(**(model->factors)));
-    fill_rand(model->factors[m], size);
+    idx_t const bytes = model->dims[m] * rank * sizeof(**(model->factors));
+    model->factors[m] = splatt_malloc(bytes);
+    fill_rand(model->factors[m], model->dims[m] * rank);
   }
 
   return model;
+}
+
+
+tc_model * tc_model_copy(
+    tc_model const * const model)
+{
+  tc_model * ret = splatt_malloc(sizeof(*model));
+
+  ret->which = model->which;
+  ret->rank = model->rank;
+  ret->nmodes = model->nmodes;
+  for(idx_t m=0; m < model->nmodes; ++m) {
+    ret->dims[m] = model->dims[m];
+
+    idx_t const bytes = model->dims[m] * model->rank *
+        sizeof(**(model->factors));
+    ret->factors[m] = splatt_malloc(bytes);
+    par_memcpy(ret->factors[m], model->factors[m], bytes);
+  }
+
+  return ret;
 }
 
 
@@ -239,6 +284,9 @@ tc_ws * tc_ws_alloc(
   case SPLATT_TC_SGD:
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
+  case SPLATT_TC_CCD:
+    ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
+    break;
   case SPLATT_TC_ALS:
     ws->thds = thd_init(nthreads, 3,
         rank * sizeof(val_t),           /* prediction buffer */
@@ -251,6 +299,15 @@ tc_ws * tc_ws_alloc(
     break;
   }
 
+  /* convergence */
+  ws->max_badepochs = 20;
+  ws->nbadepochs = 0;
+  ws->best_epoch = 0;
+  ws->best_rmse = SPLATT_VAL_MAX;
+  ws->tolerance = 1e-4;
+
+  ws->best_model = tc_model_copy(model);
+
   return ws;
 }
 
@@ -262,7 +319,49 @@ void tc_ws_free(
   for(idx_t m=0; m < ws->nmodes; ++m) {
     splatt_free(ws->gradients[m]);
   }
+  tc_model_free(ws->best_model);
   splatt_free(ws);
+}
+
+
+bool tc_converge(
+    sptensor_t const * const train,
+    sptensor_t const * const validate,
+    tc_model const * const model,
+    val_t const loss,
+    val_t const frobsq,
+    idx_t const epoch,
+    tc_ws * const ws)
+{
+  val_t const obj = loss + frobsq;
+  val_t const train_rmse = sqrt(loss / train->nnz);
+
+  timer_start(&ws->test_time);
+  val_t const val_rmse = tc_rmse(validate, model, ws);
+  timer_stop(&ws->test_time);
+
+  p_print_progress(epoch, obj, train_rmse, val_rmse, ws);
+
+  bool converged = false;
+  if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
+    ws->nbadepochs = 0;
+    ws->best_rmse = val_rmse;
+    ws->best_epoch = epoch;
+
+    /* save best model */
+    for(idx_t m=0; m < model->nmodes; ++m) {
+      par_memcpy(ws->best_model->factors[m], model->factors[m],
+          model->dims[m] * model->rank * sizeof(**(model->factors)));
+    }
+  } else {
+    printf("!!! bad epoch %0.5f\n", val_rmse - ws->best_rmse);
+    ++ws->nbadepochs;
+    if(ws->nbadepochs == ws->max_badepochs) {
+      converged = true;
+    }
+  }
+
+  return converged;
 }
 
 
