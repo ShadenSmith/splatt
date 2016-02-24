@@ -254,7 +254,7 @@ int splatt_tc_cmd(
     return SPLATT_ERROR_BADINPUT;
   }
 
-  printf("\nvalidate nnz: %"SPLATT_PF_IDX"\n\n", validate->nnz);
+  printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);
   printf("BEST VALIDATION RMSE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
       ws->best_rmse, ws->best_epoch);
 

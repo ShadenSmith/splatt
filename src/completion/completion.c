@@ -343,13 +343,12 @@ bool tc_converge(
     ws->best_rmse = val_rmse;
     ws->best_epoch = epoch;
 
-    /* save best model */
+    /* save the best model */
     for(idx_t m=0; m < model->nmodes; ++m) {
       par_memcpy(ws->best_model->factors[m], model->factors[m],
           model->dims[m] * model->rank * sizeof(**(model->factors)));
     }
   } else {
-    printf("!!! bad epoch %0.5f\n", val_rmse - ws->best_rmse);
     ++ws->nbadepochs;
     if(ws->nbadepochs == ws->max_badepochs) {
       converged = true;
