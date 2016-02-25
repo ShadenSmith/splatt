@@ -27,6 +27,7 @@ static char tc_doc[] =
 
 #define TC_REG 255
 #define TC_NOWRITE 254
+#define TC_SEED 253
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
@@ -36,6 +37,7 @@ static struct argp_option tc_options[] = {
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD"},
   {"reg", TC_REG, "SIZE", 0, "step size (learning rate) for SGD"},
+  {"seed", TC_REG, "SEED", 0, "random seed (default: system time)"},
   {0}
 };
 
@@ -85,6 +87,9 @@ typedef struct
   char * ifnames[3];
   int nfiles;
 
+  bool set_seed;
+  unsigned int seed;
+
   splatt_tc_type which_alg;
 
   bool write;
@@ -118,6 +123,8 @@ static void default_tc_opts(
   args->reg = -1.;
   args->max_its = 0;
   args->nthreads = omp_get_num_procs();
+  args->set_seed = false;
+  args->seed = time(NULL);
 }
 
 
@@ -166,6 +173,10 @@ static error_t parse_tc_opt(
   case TC_REG:
     args->reg = strtod(arg, &buf);
     break;
+   case TC_SEED:
+    args->seed = (unsigned int) atoi(arg);
+    args->set_seed = true;
+    break;
 
   case ARGP_KEY_ARG:
     if(args->nfiles == 3) {
@@ -201,6 +212,8 @@ int splatt_tc_cmd(
   argp_parse(&tc_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
   print_header();
 
+  srand(args.seed);
+
   sptensor_t * train = tt_read(args.ifnames[0]);
   sptensor_t * validate = tt_read(args.ifnames[1]);
   if(train == NULL || validate == NULL) {
@@ -228,29 +241,41 @@ int splatt_tc_cmd(
     ws->max_its = args.max_its;
   }
 
-  printf("rank: %"SPLATT_PF_IDX" lrn: %0.3e  reg: %0.3e\n\n",
-      model->rank, ws->learn_rate, ws->regularization[0]);
+  printf("Factoring ------------------------------------------------------\n");
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
+      model->rank, ws->max_its, ws->tolerance);
+  if(args.set_seed) {
+    printf("SEED=%u ", args.seed);
+  } else {
+    printf("SEED=random ");
+  }
+  printf("THREADS=%"SPLATT_PF_IDX"\nSTEP=%0.3e REG=%0.3e\n",
+       ws->nthreads, ws->learn_rate, ws->regularization[0]);
+  printf("VALIDATION=%s\n", args.ifnames[1]);
+  if(args.ifnames[2] != NULL) {
+    printf("TEST=%s\n", args.ifnames[2]);
+  }
 
   switch(args.which_alg) {
   case SPLATT_TC_GD:
-    printf("\nGD\n");
+    printf("ALG=GD\n\n");
     splatt_tc_gd(train, validate, model, ws);
     break;
   case SPLATT_TC_SGD:
-    printf("\nSGD\n");
+    printf("ALG=SGD\n\n");
     splatt_tc_sgd(train, validate, model, ws);
     break;
   case SPLATT_TC_CCD:
-    printf("\nCCD\n");
+    printf("ALG=CCD\n\n");
     splatt_tc_ccd(train, validate, model, ws);
     break;
   case SPLATT_TC_ALS:
-    printf("\nALS\n");
+    printf("ALG=ALS\n\n");
     splatt_tc_als(train, validate, model, ws);
     break;
   default:
     /* error */
-    fprintf(stderr, "SPLATT: unknown completion algorithm\n");
+    fprintf(stderr, "\n\nSPLATT: unknown completion algorithm\n");
     return SPLATT_ERROR_BADINPUT;
   }
 

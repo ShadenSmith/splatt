@@ -86,8 +86,7 @@ int main(
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 #endif
 
-  //srand(time(NULL) * (rank+1));
-  srand(0);
+  srand(time(NULL) * (rank+1));
 
   /* initialize timers */
   init_timers();

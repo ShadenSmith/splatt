@@ -159,8 +159,8 @@ static void p_process_tree3(
     val_t * const restrict g_brow = grad_b + (fids[fib] * nfactors);
 
     /* push Hadmard products down tree */
-    for(idx_t r=0; r < nfactors; ++r) {
-      predict_buf[r] = arow[r] * brow[r];
+    for(idx_t f=0; f < nfactors; ++f) {
+      predict_buf[f] = arow[f] * brow[f];
     }
 
     /* foreach nnz in fiber */
@@ -170,16 +170,16 @@ static void p_process_tree3(
 
       /* compute the  predicted value and loss */
       val_t predicted = 0;
-      for(idx_t r=0; r < nfactors; ++r) {
-        predicted += crow[r] * predict_buf[r];
+      for(idx_t f=0; f < nfactors; ++f) {
+        predicted += crow[f] * predict_buf[f];
       }
       val_t const loss = vals[jj] - predicted;
 
       /* update gradients */
-      for(idx_t r=0; r < nfactors; ++r) {
-        g_arow[r] += brow[r] * crow[r] * loss;
-        g_brow[r] += arow[r] * crow[r] * loss;
-        g_crow[r] += arow[r] * brow[r] * loss;
+      for(idx_t f=0; f < nfactors; ++f) {
+        g_arow[f] += brow[f] * crow[f] * loss;
+        g_brow[f] += arow[f] * crow[f] * loss;
+        g_crow[f] += arow[f] * brow[f] * loss;
       }
     }
   } /* foreach fiber */

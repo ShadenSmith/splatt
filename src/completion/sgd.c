@@ -8,10 +8,13 @@
 #include "../csf.h"
 #include "../reorder.h"
 #include "../util.h"
-#include "../sort.h"
+#include "../io.h"
 
 #include <math.h>
 #include <omp.h>
+
+
+#define USE_CSF_SGD 1
 
 
 
@@ -56,23 +59,25 @@ static inline void p_update_model3(
 
   /* update rows */
   for(idx_t f=0; f < nfactors; ++f) {
-#if 0
-    arow[f] += rate * ((loss * brow[f] * crow[f]) - (reg[0] * arow[f]));
-    brow[f] += rate * ((loss * arow[f] * crow[f]) - (reg[1] * brow[f]));
-    crow[f] += rate * ((loss * arow[f] * brow[f]) - (reg[2] * crow[f]));
-#else
-    val_t const moda = rate * ((loss * brow[f] * crow[f]) - (reg[0] * arow[f]));
-    val_t const modb = rate * ((loss * arow[f] * crow[f]) - (reg[1] * brow[f]));
-    val_t const modc = rate * ((loss * arow[f] * brow[f]) - (reg[2] * crow[f]));
-    arow[f] += moda;
-    brow[f] += modb;
-    crow[f] += modc;
-#endif
+    val_t const moda = (loss * brow[f] * crow[f]) - (reg[0] * arow[f]);
+    val_t const modb = (loss * arow[f] * crow[f]) - (reg[1] * brow[f]);
+    val_t const modc = (loss * arow[f] * brow[f]) - (reg[2] * crow[f]);
+    arow[f] += rate * moda;
+    brow[f] += rate * modb;
+    crow[f] += rate * modc;
   }
 }
 
 
 
+/**
+* @brief Update a three-mode model based on the i-th node of a CSF tensor.
+*
+* @param train The training data (in CSf format).
+* @param i Which node to process.
+* @param model The model to update.
+* @param ws Workspace to use.
+*/
 static inline void p_update_model_csf3(
     splatt_csf const * const train,
     idx_t const i,
@@ -82,6 +87,7 @@ static inline void p_update_model_csf3(
   idx_t const nfactors = model->rank;
   csf_sparsity const * const pt = train->pt;
   assert(model->nmodes == 3);
+  assert(train->ntiles == 1);
 
   /* sparsity structure */
   idx_t const * const restrict sptr = pt->fptr[0];
@@ -95,15 +101,11 @@ static inline void p_update_model_csf3(
   val_t * const restrict bvals = model->factors[train->dim_perm[1]];
   val_t * const restrict cvals = model->factors[train->dim_perm[2]];
 
-  val_t const rate = ws->learn_rate;
-  val_t const * const restrict reg = ws->regularization;
 
-  /*
-   * TODO: multithreading
-   */
-  int const tid = 0;
-  /* thread buffers */
-  val_t * const restrict predict_buf  = ws->thds[tid].scratch[0];
+  val_t const rate = ws->learn_rate;
+  val_t const areg = ws->regularization[train->dim_perm[0]];
+  val_t const breg = ws->regularization[train->dim_perm[1]];
+  val_t const creg = ws->regularization[train->dim_perm[2]];
 
   /* grab the top-level row */
   idx_t const a_id = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
@@ -113,32 +115,25 @@ static inline void p_update_model_csf3(
   for(idx_t fib=sptr[i]; fib < sptr[i+1]; ++fib) {
     val_t * const restrict brow = bvals + (fids[fib] * nfactors);
 
-    /* push Hadmard products down tree */
-    for(idx_t f=0; f < nfactors; ++f) {
-      predict_buf[f] = arow[f] * brow[f];
-    }
-
     /* foreach nnz in fiber */
     for(idx_t jj=fptr[fib]; jj < fptr[fib+1]; ++jj) {
       val_t * const restrict crow = cvals + (inds[jj] * nfactors);
 
-      /* compute the  predicted value and loss */
-      val_t predicted = 0;
+      /* compute the loss */
+      val_t loss = vals[jj];
       for(idx_t f=0; f < nfactors; ++f) {
-        predicted += crow[f] * predict_buf[f];
+        loss -= arow[f] * brow[f] * crow[f];
       }
-      val_t const loss = vals[jj] - predicted;
 
       /* update model */
       for(idx_t f=0; f < nfactors; ++f) {
-        val_t const moda = rate * ((loss * brow[f] * crow[f]) - (reg[0] * arow[f]));
-        val_t const modb = rate * ((loss * arow[f] * crow[f]) - (reg[1] * brow[f]));
-        val_t const modc = rate * ((loss * arow[f] * brow[f]) - (reg[2] * crow[f]));
-        //if( jj > 10  && jj < 20)
-          //printf("MOD: %f %f %f\n", moda, modb, modc);
-        arow[f] += moda;
-        brow[f] += modb;
-        crow[f] += modc;
+        /* compute all modifications FIRST since we are updating all rows */
+        val_t const moda = (loss * brow[f] * crow[f]) - (areg * arow[f]);
+        val_t const modb = (loss * arow[f] * crow[f]) - (breg * brow[f]);
+        val_t const modc = (loss * arow[f] * brow[f]) - (creg * crow[f]);
+        arow[f] += rate * moda;
+        brow[f] += rate * modb;
+        crow[f] += rate * modc;
       }
     }
   } /* foreach fiber */
@@ -211,8 +206,6 @@ static void p_update_model(
 
 
 
-
-
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -224,32 +217,32 @@ void splatt_tc_sgd(
     tc_ws * const ws)
 {
   idx_t const nfactors = model->rank;
-  val_t const * const restrict train_vals = train->vals;
 
-  /* convert training data to CSF-ALLMODE */
+#if USE_CSF_SGD
+  /* convert training data to a single CSF */
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
   opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
-  splatt_csf * csf = csf_alloc(train, opts);
-  assert(csf->ntiles == 1);
+  splatt_csf * csf = splatt_malloc(sizeof(*csf));
+  csf_alloc_mode(train, CSF_SORTED_BIGFIRST, 0, csf, opts);
 
-  idx_t * perm = splatt_malloc(train->nnz * sizeof(*perm));
+  assert(csf->ntiles == 1);
 
   idx_t const nslices = csf[0].pt->nfibs[0];
   idx_t * perm_i = splatt_malloc(nslices * sizeof(*perm_i));
 
-  /* init perm */
-  for(idx_t n=0; n < train->nnz; ++n) {
-    perm[n] = n;
-  }
   for(idx_t n=0; n < nslices; ++n) {
     perm_i[n] = n;
   }
+#else
+  /* initialize perm */
+  idx_t * perm = splatt_malloc(train->nnz * sizeof(*perm));
+  for(idx_t n=0; n < train->nnz; ++n) {
+    perm[n] = n;
+  }
+#endif
 
   timer_reset(&ws->train_time);
   timer_reset(&ws->test_time);
-
-  tt_sort(train, 0, NULL);
 
   val_t loss = tc_loss_sq(train, model, ws);
   val_t frobsq = tc_frob_sq(model, ws);
@@ -263,19 +256,17 @@ void splatt_tc_sgd(
   for(idx_t e=1; e < ws->max_its+1; ++e) {
     timer_start(&ws->train_time);
 
-    /* new nnz ordering */
 
     /* update model from all training observations */
-#if 0
-    //shuffle_idx(perm, train->nnz);
-    for(idx_t n=0; n < train->nnz; ++n) {
-      p_update_model(train, n, model, ws);
+#if USE_CSF_SGD
+    shuffle_idx(perm_i, nslices);
+    for(idx_t i=0; i < nslices; ++i) {
+      p_update_model_csf3(csf, perm_i[i], model, ws);
     }
 #else
-    //shuffle_idx(perm_i, nslices);
-    for(idx_t i=0; i < 2 /*nslices*/; ++i) {
-      //printf("e %lu: %lu vs %lu\n", e, i, perm_i[i]);
-      p_update_model_csf3(csf, i, model, ws);
+    shuffle_idx(perm, train->nnz);
+    for(idx_t n=0; n < train->nnz; ++n) {
+      p_update_model(train, perm[n], model, ws);
     }
 #endif
     timer_stop(&ws->train_time);
@@ -302,10 +293,14 @@ void splatt_tc_sgd(
     prev_obj = obj;
   }
 
-  splatt_free(perm);
+#if USE_CSF_SGD
   splatt_free(perm_i);
-  csf_free(csf, opts);
+  csf_free_mode(csf);
+  splatt_free(csf);
   splatt_free_opts(opts);
+#else
+  splatt_free(perm);
+#endif
 }
 
 
