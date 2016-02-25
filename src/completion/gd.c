@@ -264,6 +264,7 @@ void splatt_tc_gd(
   ws->learn_rate = learn_rate;
 
   csf_free(csf, opts);
+  splatt_free_opts(opts);
 }
 
 
