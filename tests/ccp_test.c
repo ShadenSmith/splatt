@@ -210,7 +210,6 @@ CTEST2(ccp, bigpart)
   timer_fstart(&part);
   idx_t const bneck = partition_1d(weights, N, parts, P);
   timer_stop(&part);
-  printf("partition: %0.3fs\n", part.seconds);
 
   /* correctness */
   bool success;

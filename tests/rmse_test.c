@@ -27,7 +27,7 @@ CTEST_TEARDOWN(rmse)
 }
 
 
-CTEST2(rmse, tensor_1nnz)
+CTEST2_SKIP(rmse, tensor_1nnz)
 {
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_VERBOSITY] = SPLATT_VERBOSITY_NONE;

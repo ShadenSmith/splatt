@@ -7,6 +7,8 @@
 #include "base.h"
 #include "util.h"
 
+#include <omp.h>
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
@@ -118,16 +120,19 @@ int * get_primes(
 }
 
 
-void par_memcpy(void *dst, const void *src, size_t n)
+void par_memcpy(
+    void * const restrict dst,
+    void const * const restrict src,
+    size_t const bytes)
 {
-#pragma omp parallel
+  #pragma omp parallel
   {
     int nthreads = omp_get_num_threads();
     int tid = omp_get_thread_num();
 
-    size_t n_per_thread = (n + nthreads - 1)/nthreads;
-    size_t n_begin = SS_MIN(n_per_thread*tid, n);
-    size_t n_end = SS_MIN(n_begin + n_per_thread, n);
+    size_t n_per_thread = (bytes + nthreads - 1)/nthreads;
+    size_t n_begin = SS_MIN(n_per_thread * tid, bytes);
+    size_t n_end = SS_MIN(n_begin + n_per_thread, bytes);
 
     memcpy((char *)dst + n_begin, (char *)src + n_begin, n_end - n_begin);
   }
