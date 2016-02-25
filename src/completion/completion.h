@@ -253,10 +253,6 @@ tc_model * tc_model_copy(
 void tc_model_free(
     tc_model * model);
 
-#ifdef __cplusplus
-}
-#endif
-
 
 #define tc_converge splatt_tc_converge
 /**
@@ -291,5 +287,8 @@ bool tc_converge(
     idx_t const epoch,
     tc_ws * const ws);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
