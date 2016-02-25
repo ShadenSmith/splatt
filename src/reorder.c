@@ -534,7 +534,7 @@ void shuffle_idx(
 
     /* swap n and j */
     idx_t const tmp = arr[n];
-    arr[n] = j;
+    arr[n] = arr[j];
     arr[j] = tmp;
   }
 }
