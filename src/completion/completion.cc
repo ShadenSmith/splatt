@@ -66,7 +66,7 @@ static void p_print_progress(
     val_t const rmse_vl,
     tc_ws const * const ws)
 {
-  printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
+  printf("epoch:%4ld   obj: %0.5e   "
       "RMSE-tr: %0.5e   RMSE-vl: %0.5e   time-tr: %0.3fs   time-ts: %0.3fs\n",
       epoch, obj, rmse_tr, rmse_vl,
       ws->train_time.seconds, ws->test_time.seconds);
@@ -248,7 +248,7 @@ tc_model * tc_model_alloc(
 tc_model * tc_model_copy(
     tc_model const * const model)
 {
-  tc_model * ret = splatt_malloc(sizeof(*model));
+  tc_model * ret = (tc_model *)splatt_malloc(sizeof(*model));
 
   ret->which = model->which;
   ret->rank = model->rank;
@@ -258,7 +258,7 @@ tc_model * tc_model_copy(
 
     idx_t const bytes = model->dims[m] * model->rank *
         sizeof(**(model->factors));
-    ret->factors[m] = splatt_malloc(bytes);
+    ret->factors[m] = (val_t *)splatt_malloc(bytes);
     par_memcpy(ret->factors[m], model->factors[m], bytes);
   }
 
@@ -299,7 +299,7 @@ tc_ws * tc_ws_alloc(
   /* allocate gradients */
   for(idx_t m=0; m < nmodes; ++m) {
     if(model->which == SPLATT_TC_GD) {
-      ws->gradients[m] = splatt_malloc(model->dims[m] * rank *
+      ws->gradients[m] = (val_t *)splatt_malloc(model->dims[m] * rank *
           sizeof(**(ws->gradients)));
     } else {
       ws->gradients[m] = NULL;
