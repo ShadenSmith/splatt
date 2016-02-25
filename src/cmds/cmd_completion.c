@@ -27,15 +27,19 @@ static char tc_doc[] =
 
 #define TC_REG 255
 #define TC_NOWRITE 254
+#define TC_NORAND_PER_ITERATION 253
+#define TC_HOGWILD 252
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
-  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
+  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 16)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   {"alg", 'a', "ALG", 0, "which opt algorithm to use (default: sgd)"},
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
-  {"step", 's', "SIZE", 0, "step size (learning rate) for SGD"},
-  {"reg", TC_REG, "SIZE", 0, "step size (learning rate) for SGD"},
+  {"step", 's', "SIZE", 0, "step size (learning rate) for SGD (default 0.001)"},
+  {"reg", TC_REG, "SIZE", 0, "regularization parameter (default 0.02)"},
+  {"norand", TC_NORAND_PER_ITERATION, 0, 0, "do not randomly permute every iteration for SGD"},
+  {"hogwild", TC_HOGWILD, 0, 0, "hogwild for SGD (default no)"},
   {0}
 };
 
@@ -95,6 +99,9 @@ typedef struct
   idx_t max_its;
   idx_t nfactors;
   idx_t nthreads;
+
+  bool rand_per_iteration;
+  bool hogwild;
 } tc_cmd_args;
 
 
@@ -118,6 +125,8 @@ static void default_tc_opts(
   args->reg = -1.;
   args->max_its = 0;
   args->nthreads = omp_get_num_procs();
+  args->rand_per_iteration = true;
+  args->hogwild = false;
 }
 
 
@@ -165,6 +174,12 @@ static error_t parse_tc_opt(
     break;
   case TC_REG:
     args->reg = strtod(arg, &buf);
+    break;
+  case TC_NORAND_PER_ITERATION:
+    args->rand_per_iteration = false;
+    break;
+  case TC_HOGWILD:
+    args->hogwild = true;
     break;
 
   case ARGP_KEY_ARG:
@@ -227,6 +242,8 @@ int splatt_tc_cmd(
   if(args.max_its != 0) {
     ws->max_its = args.max_its;
   }
+  ws->rand_per_iteration = args.rand_per_iteration;
+  ws->hogwild = args.hogwild;
 
   printf("rank: %"SPLATT_PF_IDX" lrn: %0.3e  reg: %0.3e\n\n",
       model->rank, ws->learn_rate, ws->regularization[0]);
