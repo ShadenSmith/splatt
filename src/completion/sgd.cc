@@ -36,7 +36,7 @@ static void p_update_model(
   idx_t const nmodes = train->nmodes;
   idx_t const x = nnz_index;
 
-  val_t * const restrict buffer = ws->thds[omp_get_thread_num()].scratch[0];
+  val_t * const restrict buffer = (val_t *)ws->thds[omp_get_thread_num()].scratch[0];
 
   /* compute the error */
   val_t const err = train->vals[x] - tc_predict_val(model, train, x, buffer);
@@ -92,7 +92,7 @@ void splatt_tc_sgd(
   idx_t const nfactors = model->rank;
   val_t const * const restrict train_vals = train->vals;
 
-  idx_t * perm = splatt_malloc(train->nnz * sizeof(*perm));
+  idx_t * perm = (idx_t *)splatt_malloc(train->nnz * sizeof(*perm));
 
   sp_timer_t train_time;
   sp_timer_t test_time;
@@ -112,14 +112,20 @@ void splatt_tc_sgd(
     timer_start(&train_time);
 
     /* new nnz ordering */
-    shuffle_idx(perm, train->nnz);
+    double t = omp_get_wtime();
+    if (0 == e) shuffle_idx(perm, train->nnz);
+    //printf("shuffle takes %f\n", omp_get_wtime() - t);
 
+    t = omp_get_wtime();
     /* update model from all training observations */
+#pragma omp parallel for
     for(idx_t n=0; n < train->nnz; ++n) {
       p_update_model(train, perm[n], model, ws);
     }
     timer_stop(&train_time);
+    //printf("update takes %f\n", omp_get_wtime() - t);
 
+    t = omp_get_wtime();
     /* compute RMSE and adjust learning rate */
     timer_start(&test_time);
     val_t const loss = tc_loss_sq(train, model, ws);
@@ -128,8 +134,9 @@ void splatt_tc_sgd(
     val_t const train_rmse = sqrt(loss / train->nnz);
     val_t const val_rmse = tc_rmse(validate, model, ws);
     timer_stop(&test_time);
+    //printf("test takes %f\n", omp_get_wtime() - t);
 
-    printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
+    printf("epoch:%4ld   obj: %0.5e   "
         "RMSE-tr: %0.5e   RMSE-vl: %0.5e time-tr: %0.3fs  time-ts: %0.3fs\n",
         e+1, obj, train_rmse, val_rmse, train_time.seconds, test_time.seconds);
 

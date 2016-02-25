@@ -43,7 +43,7 @@ val_t tc_loss_sq(
 
   #pragma omp parallel reduction(+:loss_obj)
   {
-    val_t * buffer = ws->thds[omp_get_thread_num()].scratch[0];
+    val_t * buffer = (val_t *)ws->thds[omp_get_thread_num()].scratch[0];
 
     #pragma omp for schedule(static)
     for(idx_t x=0; x < test->nnz; ++x) {
@@ -84,8 +84,8 @@ val_t tc_frob_sq(
 }
 
 
-
-val_t tc_predict_val(
+template<int nmodes>
+val_t tc_predict_val_(
     tc_model const * const model,
     sptensor_t const * const test,
     idx_t const index,
@@ -119,6 +119,42 @@ val_t tc_predict_val(
 }
 
 
+val_t tc_predict_val(
+    tc_model const * const model,
+    sptensor_t const * const test,
+    idx_t const index,
+    val_t * const restrict buffer)
+{
+  if (2 == model->nmodes) {
+    return tc_predict_val_<2>(model, test, index, buffer);
+  }
+
+  idx_t const nfactors = model->rank;
+
+  /* initialize accumulation of each latent factor with the first row */
+  idx_t const row_id = test->ind[0][index];
+  val_t const * const init_row = model->factors[0] + (row_id * nfactors);
+  for(idx_t f=0; f < nfactors; ++f) {
+    buffer[f] = init_row[f];
+  }
+
+  /* now multiply each factor by A(i,:), B(j,:) ... */
+  idx_t const nmodes = model->nmodes;
+  for(idx_t m=1; m < nmodes; ++m) {
+    idx_t const row_id = test->ind[m][index];
+    val_t const * const row = model->factors[m] + (row_id * nfactors);
+    for(idx_t f=0; f < nfactors; ++f) {
+      buffer[f] *= row[f];
+    }
+  }
+
+  /* finally, sum the factors to form the final estimated value */
+  val_t est = 0;
+  for(idx_t f=0; f < nfactors; ++f) {
+    est += buffer[f];
+  }
+  return est;
+}
 
 /******************************************************************************
  * WORKSPACE FUNCTIONS
@@ -129,7 +165,7 @@ tc_model * tc_model_alloc(
     idx_t const rank,
     splatt_tc_type const which)
 {
-  tc_model * model = splatt_malloc(sizeof(*model));
+  tc_model * model = (tc_model *)splatt_malloc(sizeof(*model));
 
   model->which = which;
   model->rank = rank;
@@ -138,7 +174,7 @@ tc_model * tc_model_alloc(
     model->dims[m] = train->dims[m];
 
     idx_t const size = model->dims[m] * rank;
-    model->factors[m] = splatt_malloc(size * sizeof(**(model->factors)));
+    model->factors[m] = (val_t *)splatt_malloc(size * sizeof(**(model->factors)));
     fill_rand(model->factors[m], size);
   }
 
@@ -161,7 +197,7 @@ tc_ws * tc_ws_alloc(
     tc_model const * const model,
     idx_t nthreads)
 {
-  tc_ws * ws = splatt_malloc(sizeof(*ws));
+  tc_ws * ws = (tc_ws *)splatt_malloc(sizeof(*ws));
 
   /* some reasonable defaults */
   ws->learn_rate = 0.001;
