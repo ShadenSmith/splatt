@@ -37,7 +37,7 @@ static struct argp_option tc_options[] = {
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD"},
   {"reg", TC_REG, "SIZE", 0, "step size (learning rate) for SGD"},
-  {"seed", TC_REG, "SEED", 0, "random seed (default: system time)"},
+  {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
   {0}
 };
 
@@ -173,7 +173,7 @@ static error_t parse_tc_opt(
   case TC_REG:
     args->reg = strtod(arg, &buf);
     break;
-   case TC_SEED:
+  case TC_SEED:
     args->seed = (unsigned int) atoi(arg);
     args->set_seed = true;
     break;

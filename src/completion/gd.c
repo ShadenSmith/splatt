@@ -168,12 +168,11 @@ static void p_process_tree3(
       val_t const * const restrict crow = cvals + (inds[jj] * nfactors);
       val_t * const restrict g_crow = grad_c + (inds[jj] * nfactors);
 
-      /* compute the  predicted value and loss */
-      val_t predicted = 0;
+      /* compute the loss */
+      val_t loss = vals[jj];
       for(idx_t f=0; f < nfactors; ++f) {
-        predicted += crow[f] * predict_buf[f];
+        loss -= predict_buf[f] * crow[f];
       }
-      val_t const loss = vals[jj] - predicted;
 
       /* update gradients */
       for(idx_t f=0; f < nfactors; ++f) {
