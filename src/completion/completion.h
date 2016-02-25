@@ -11,6 +11,10 @@
 #include "../sptensor.h"
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 
 /******************************************************************************
@@ -204,5 +208,8 @@ tc_model * tc_model_alloc(
 void tc_model_free(
     tc_model * model);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
