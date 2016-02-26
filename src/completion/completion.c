@@ -252,7 +252,6 @@ tc_ws * tc_ws_alloc(
 
   /* some reasonable defaults */
   ws->learn_rate = 0.001;
-  ws->max_its = 1000;
   for(idx_t m=0; m < nmodes; ++m) {
     ws->regularization[m] = 0.02;
   }
@@ -294,6 +293,8 @@ tc_ws * tc_ws_alloc(
   }
 
   /* convergence */
+  ws->max_its = 1000;
+  ws->max_seconds = 1000;
   ws->max_badepochs = 20;
   ws->nbadepochs = 0;
   ws->best_epoch = 0;
@@ -352,6 +353,11 @@ bool tc_converge(
     if(ws->nbadepochs == ws->max_badepochs) {
       converged = true;
     }
+  }
+
+  /* check for time limit */
+  if(ws->train_time.seconds + ws->test_time.seconds >= ws->max_seconds) {
+    converged = true;
   }
 
   return converged;

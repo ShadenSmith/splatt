@@ -45,6 +45,7 @@ typedef struct
   idx_t nmodes;
   val_t learn_rate;
   idx_t max_its;
+  double max_seconds;
   val_t regularization[MAX_NMODES];
 
   val_t * gradients[MAX_NMODES];
