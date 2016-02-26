@@ -790,20 +790,31 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
 
   histogram_array[nslices] = tt->nnz;
 
-  /* first mode is sorted, now shift cmplt left and sort each subtensor */
-  idx_t saved = cmplt[0];
-  memmove(cmplt, cmplt+1, (tt->nmodes - 1) * sizeof(*cmplt));
-  cmplt[tt->nmodes-1] = saved;
-
+  /* for 3/4D, we can use quicksort on only the leftover modes */
   if(tt->nmodes == 3) {
     #pragma omp parallel for schedule(dynamic)
     for(idx_t i = 0; i < nslices; ++i) {
-      p_tt_quicksort3(tt, cmplt, histogram_array[i], histogram_array[i + 1]);
+      p_tt_quicksort2(tt, cmplt+1, histogram_array[i], histogram_array[i + 1]);
       for(idx_t j = histogram_array[i]; j < histogram_array[i + 1]; ++j) {
         tt->ind[m][j] = i;
       }
     }
+
+  } else if(tt->nmodes == 4) {
+    #pragma omp parallel for schedule(dynamic)
+    for(idx_t i = 0; i < nslices; ++i) {
+      p_tt_quicksort3(tt, cmplt+1, histogram_array[i], histogram_array[i + 1]);
+      for(idx_t j = histogram_array[i]; j < histogram_array[i + 1]; ++j) {
+        tt->ind[m][j] = i;
+      }
+    }
+
   } else {
+    /* shift cmplt left one time, then do normal quicksort */
+    idx_t saved = cmplt[0];
+    memmove(cmplt, cmplt+1, (tt->nmodes - 1) * sizeof(*cmplt));
+    cmplt[tt->nmodes-1] = saved;
+
     #pragma omp parallel for schedule(dynamic)
     for(idx_t i = 0; i < nslices; ++i) {
       p_tt_quicksort(tt, cmplt, histogram_array[i], histogram_array[i + 1]);
@@ -811,12 +822,12 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
         tt->ind[m][j] = i;
       }
     }
-  }
 
-  /* undo cmplt changes */
-  saved = cmplt[tt->nmodes-1];
-  memmove(cmplt+1, cmplt, (tt->nmodes - 1) * sizeof(*cmplt));
-  cmplt[0] = saved;
+    /* undo cmplt changes */
+    saved = cmplt[tt->nmodes-1];
+    memmove(cmplt+1, cmplt, (tt->nmodes - 1) * sizeof(*cmplt));
+    cmplt[0] = saved;
+  }
 
   splatt_free(histogram_array);
 }
