@@ -12,7 +12,7 @@
 
 
 /**
-* @brief Return 1 if inds[mode][a] <= inds[mode][b].
+* @brief Return 1 if inds[a] <= inds[b].
 *
 * @param inds The index arrays of a tensor.
 * @param m The most important mode.
@@ -32,12 +32,12 @@ static int __idx_cmp(
     return 1;
   }
 
-  for(idx_t m=0; m < nmodes; ++m) {
-    if(m == mode) {
-      continue;
-    }
+  if(inds[mode][a] > inds[mode][b]) {
+    return 0;
+  }
 
-    if(inds[m][a] < inds[m][b]) {
+  for(idx_t m=1; m < nmodes; ++m) {
+    if(inds[(m+mode)%nmodes][a] < inds[(m+mode)%nmodes][b]) {
       return 1;
     }
   }
@@ -78,8 +78,10 @@ CTEST_TEARDOWN(sort_tensor)
 
 CTEST2(sort_tensor, full_sort)
 {
+  omp_set_num_threads(2);
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
+
     for(idx_t m=tt->nmodes; m-- != 0; ) {
       tt_sort(tt, m, NULL);
 
@@ -87,6 +89,8 @@ CTEST2(sort_tensor, full_sort)
         ASSERT_EQUAL(1, __idx_cmp(tt->ind, m, tt->nmodes, x, x+1));
       }
     }
+
+    return;
   }
 }
 
@@ -98,6 +102,7 @@ CTEST2(sort_tensor, par_sort)
     /* make a copy */
     sptensor_t * test = tt_alloc(gold->nnz, gold->nmodes);
     for(idx_t m=0; m < gold->nmodes; ++m) {
+      test->dims[m] = gold->dims[m];
       memcpy(test->ind[m], gold->ind[m], gold->nnz * sizeof(**(test->ind)));
     }
     memcpy(test->vals, gold->vals, gold->nnz * sizeof(*(test->vals)));
