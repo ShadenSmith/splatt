@@ -29,7 +29,7 @@ double * splatt_default_opts(void)
   if(omp_in_parallel()) {
     opts[SPLATT_OPTION_NTHREADS]  = 1;
   } else {
-    opts[SPLATT_OPTION_NTHREADS]  = omp_get_num_procs();
+    opts[SPLATT_OPTION_NTHREADS]  = omp_get_max_threads();
   }
 
 

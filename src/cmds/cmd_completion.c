@@ -122,7 +122,7 @@ static void default_tc_opts(
   args->learn_rate = -1.;
   args->reg = -1.;
   args->max_its = 0;
-  args->nthreads = omp_get_num_procs();
+  args->nthreads = omp_get_max_threads();
   args->set_seed = false;
   args->seed = time(NULL);
 }
