@@ -159,8 +159,8 @@ static void p_process_tree3(
     val_t * const restrict g_brow = grad_b + (fids[fib] * nfactors);
 
     /* push Hadmard products down tree */
-    for(idx_t r=0; r < nfactors; ++r) {
-      predict_buf[r] = arow[r] * brow[r];
+    for(idx_t f=0; f < nfactors; ++f) {
+      predict_buf[f] = arow[f] * brow[f];
     }
 
     /* foreach nnz in fiber */
@@ -168,18 +168,17 @@ static void p_process_tree3(
       val_t const * const restrict crow = cvals + (inds[jj] * nfactors);
       val_t * const restrict g_crow = grad_c + (inds[jj] * nfactors);
 
-      /* compute the  predicted value and loss */
-      val_t predicted = 0;
-      for(idx_t r=0; r < nfactors; ++r) {
-        predicted += crow[r] * predict_buf[r];
+      /* compute the loss */
+      val_t loss = vals[jj];
+      for(idx_t f=0; f < nfactors; ++f) {
+        loss -= predict_buf[f] * crow[f];
       }
-      val_t const loss = vals[jj] - predicted;
 
       /* update gradients */
-      for(idx_t r=0; r < nfactors; ++r) {
-        g_arow[r] += brow[r] * crow[r] * loss;
-        g_brow[r] += arow[r] * crow[r] * loss;
-        g_crow[r] += arow[r] * brow[r] * loss;
+      for(idx_t f=0; f < nfactors; ++f) {
+        g_arow[f] += brow[f] * crow[f] * loss;
+        g_brow[f] += arow[f] * crow[f] * loss;
+        g_crow[f] += arow[f] * brow[f] * loss;
       }
     }
   } /* foreach fiber */
@@ -264,6 +263,7 @@ void splatt_tc_gd(
   ws->learn_rate = learn_rate;
 
   csf_free(csf, opts);
+  splatt_free_opts(opts);
 }
 
 
