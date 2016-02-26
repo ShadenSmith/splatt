@@ -673,41 +673,51 @@ static void p_quicksort(
   }
 }
 
+
 /**
  * idx = idx2*dim1 + idx1
  * -> ret = idx1*dim2 + idx2
  *        = (idx%dim1)*dim2 + idx/dim1
  */
-static inline idx_t transpose_idx(idx_t idx, idx_t dim1, idx_t dim2)
+static inline idx_t p_transpose_idx(
+    idx_t const idx,
+    idx_t const dim1,
+    idx_t const dim2)
 {
   return idx%dim1*dim2 + idx/dim1;
 }
 
 /**
- * counting sort on the msb and comparison-based sort for
- * the remaining
- */
-void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
+* @brief Perform a counting sort on the most significant mode (cmplt[0]) and
+*        then parallel quicksorts on each of slices.
+*
+* @param tt The tensor to sort.
+* @param cmplt Mode permutation used for defining tie-breaking order.
+*/
+static void p_counting_sort_hybrid(
+    sptensor_t * const tt,
+    idx_t * const cmplt)
 {
   idx_t m = cmplt[0];
   idx_t nslices = tt->dims[m];
 
-  idx_t **new_ind = splatt_malloc(tt->nmodes*sizeof(idx_t *));
+  idx_t * new_ind[MAX_NMODES];
   for(idx_t i = 0; i < tt->nmodes; ++i) {
-    if(i != m) new_ind[i] = splatt_malloc(tt->nnz*sizeof(idx_t));
+    if(i != m) {
+      new_ind[i] = splatt_malloc(tt->nnz * sizeof(**new_ind));
+    }
   }
-  val_t *new_vals = splatt_malloc(tt->nnz*sizeof(val_t));
+  val_t * new_vals = splatt_malloc(tt->nnz * sizeof(*new_vals));
 
-  idx_t *histogram_array = splatt_malloc((nslices*omp_get_max_threads() + 1)*sizeof(idx_t));
+  idx_t * histogram_array = splatt_malloc(
+      (nslices * omp_get_max_threads() + 1) * sizeof(*histogram_array));
 
   #pragma omp parallel
   {
-    double t = omp_get_wtime();
-
     int nthreads = omp_get_num_threads();
     int tid = omp_get_thread_num();
 
-    idx_t *histogram = histogram_array + nslices*tid;
+    idx_t * histogram = histogram_array + (nslices * tid);
     memset(histogram, 0, nslices * sizeof(idx_t));
 
     idx_t j_per_thread = (tt->nnz + nthreads - 1)/nthreads;
@@ -715,7 +725,7 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
     idx_t jend = SS_MIN(jbegin + j_per_thread, tt->nnz);
 
     /* count */
-    for (idx_t j = jbegin; j < jend; ++j) {
+    for(idx_t j = jbegin; j < jend; ++j) {
       idx_t idx = tt->ind[m][j];
       ++histogram[idx];
     }
@@ -723,9 +733,9 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
     #pragma omp barrier
 
     /* prefix sum */
-    for (idx_t j = tid*nslices + 1; j < (tid + 1)*nslices; ++j) {
-      idx_t transpose_j = transpose_idx(j, nthreads, nslices);
-      idx_t transpose_j_minus_1 = transpose_idx(j - 1, nthreads, nslices);
+    for(idx_t j = (tid*nslices) + 1; j < (tid+1) * nslices; ++j) {
+      idx_t transpose_j = p_transpose_idx(j, nthreads, nslices);
+      idx_t transpose_j_minus_1 = p_transpose_idx(j - 1, nthreads, nslices);
 
       histogram_array[transpose_j] += histogram_array[transpose_j_minus_1];
     }
@@ -733,13 +743,10 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
     #pragma omp barrier
     #pragma omp master
     {
-      //printf("\tgather takes %f\n", omp_get_wtime() - t);
-      t = omp_get_wtime();
-
-      for (idx_t t = 1; t < nthreads; ++t) {
-        idx_t j0 = nslices*t - 1, j1 = nslices*(t + 1) - 1;
-        idx_t transpose_j0 = transpose_idx(j0, nthreads, nslices);
-        idx_t transpose_j1 = transpose_idx(j1, nthreads, nslices);
+      for(int t = 1; t < nthreads; ++t) {
+        idx_t j0 = (nslices*t) - 1, j1 = nslices * (t+1) - 1;
+        idx_t transpose_j0 = p_transpose_idx(j0, nthreads, nslices);
+        idx_t transpose_j1 = p_transpose_idx(j1, nthreads, nslices);
 
         histogram_array[transpose_j1] += histogram_array[transpose_j0];
       }
@@ -747,11 +754,11 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
     #pragma omp barrier
 
     if (tid > 0) {
-      idx_t transpose_j0 = transpose_idx(nslices*tid - 1, nthreads, nslices);
+      idx_t transpose_j0 = p_transpose_idx(nslices*tid - 1, nthreads, nslices);
 
-      for (idx_t j = tid*nslices; j < (tid + 1)*nslices - 1; ++j) {
+      for(idx_t j = tid*nslices; j < (tid+1) * nslices - 1; ++j) {
 
-        idx_t transpose_j = transpose_idx(j, nthreads, nslices);
+        idx_t transpose_j = p_transpose_idx(j, nthreads, nslices);
 
         histogram_array[transpose_j] += histogram_array[transpose_j0];
       }
@@ -759,6 +766,8 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
 
     #pragma omp barrier
 
+
+    /* now copy values into new structures (but not the mode we are sorting */
     for(idx_t j_off = 0; j_off < (jend-jbegin); ++j_off) {
       /* we are actually going backwards */
       idx_t const j = jend - j_off - 1;
@@ -783,7 +792,6 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
       tt->ind[i] = new_ind[i];
     }
   }
-  splatt_free(new_ind);
   splatt_free(tt->vals);
   tt->vals = new_vals;
 
@@ -833,6 +841,7 @@ void counting_sort_hybrid(sptensor_t * const tt, idx_t *cmplt)
 }
 
 
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -865,7 +874,7 @@ void tt_sort_range(
 
   timer_start(&timers[TIMER_SORT]);
   if(start == 0 && end == tt->nnz) {
-    counting_sort_hybrid(tt, cmplt);
+    p_counting_sort_hybrid(tt, cmplt);
 
   /* sort a subtensor */
   } else {
