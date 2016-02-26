@@ -39,7 +39,7 @@ CTEST2(api, opts_alloc)
   ASSERT_NOT_NULL(opts);
 
   /* test defaults */
-  ASSERT_EQUAL(omp_get_num_procs(), (int) opts[SPLATT_OPTION_NTHREADS]);
+  ASSERT_EQUAL(omp_get_max_threads(), (int) opts[SPLATT_OPTION_NTHREADS]);
 
   splatt_free_opts(opts);
 }
