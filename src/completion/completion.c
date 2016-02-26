@@ -356,7 +356,8 @@ bool tc_converge(
   }
 
   /* check for time limit */
-  if(ws->train_time.seconds + ws->test_time.seconds >= ws->max_seconds) {
+  if(ws->max_seconds > 0 &&
+      ws->train_time.seconds + ws->test_time.seconds >= ws->max_seconds) {
     converged = true;
   }
 

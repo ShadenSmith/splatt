@@ -39,7 +39,7 @@ static struct argp_option tc_options[] = {
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD"},
   {"reg", TC_REG, "SIZE", 0, "step size (learning rate) for SGD"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
-  {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds(default: 1000)"},
+  {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
   {0}
 };
 
@@ -100,6 +100,7 @@ typedef struct
   val_t reg;
 
   idx_t max_its;
+  bool set_timeout;
   double max_seconds;
   idx_t nfactors;
   idx_t nthreads;
@@ -125,7 +126,8 @@ static void default_tc_opts(
   args->learn_rate = -1.;
   args->reg = -1.;
   args->max_its = 0;
-  args->max_seconds = 0;
+  args->set_timeout = false;
+  args->max_seconds;
   args->nthreads = omp_get_max_threads();
   args->set_seed = false;
   args->seed = time(NULL);
@@ -183,6 +185,7 @@ static error_t parse_tc_opt(
     break;
   case TC_TIME:
     args->max_seconds = atof(arg);
+    args->set_timeout = true;
     break;
 
   case ARGP_KEY_ARG:
@@ -248,13 +251,19 @@ int splatt_tc_cmd(
   if(args.max_its != 0) {
     ws->max_its = args.max_its;
   }
-  if(args.max_seconds != 0) {
+  if(args.max_seconds != DBL_MIN) {
     ws->max_seconds = args.max_seconds;
   }
 
   printf("Factoring ------------------------------------------------------\n");
-  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" MAXTIME=%0.1fs TOL=%0.1e ",
-      model->rank, ws->max_its, ws->max_seconds, ws->tolerance);
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" ",
+      model->rank, ws->max_its);
+  if(args.set_timeout) {
+    printf("MAXTIME=NONE ");
+  } else {
+    printf("MAXTIME=%0.1fs ", ws->max_seconds);
+  }
+  printf("TOL=%0.1e ", ws->tolerance);
   if(args.set_seed) {
     printf("SEED=%u ", args.seed);
   } else {
