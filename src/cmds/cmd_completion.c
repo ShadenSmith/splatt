@@ -266,7 +266,7 @@ int splatt_tc_cmd(
   if(args.set_seed) {
     printf("SEED=%u ", args.seed);
   } else {
-    printf("SEED=random ");
+    printf("SEED=time ");
   }
   printf("THREADS=%"SPLATT_PF_IDX"\nSTEP=%0.3e REG=%0.3e\n",
        ws->nthreads, ws->learn_rate, ws->regularization[0]);
