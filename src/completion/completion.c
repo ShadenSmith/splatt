@@ -252,19 +252,30 @@ tc_ws * tc_ws_alloc(
 
   /* some reasonable defaults */
   ws->learn_rate = 0.001;
-  for(idx_t m=0; m < nmodes; ++m) {
-    ws->regularization[m] = 0.02;
-  }
-
   idx_t const rank = model->rank;
 
-  /* allocate gradients */
+  /* set parameters, allocate gradients, etc. */
   for(idx_t m=0; m < nmodes; ++m) {
-    if(model->which == SPLATT_TC_GD) {
+    switch(model->which) {
+    case SPLATT_TC_GD:
+      ws->regularization[m] = 1e-2;
       ws->gradients[m] = splatt_malloc(model->dims[m] * rank *
           sizeof(**(ws->gradients)));
-    } else {
+      break;
+    case SPLATT_TC_SGD:
+      ws->regularization[m] = 5e-3;
       ws->gradients[m] = NULL;
+      break;
+    case SPLATT_TC_CCD:
+      ws->regularization[m] = 5e-3;
+      ws->gradients[m] = NULL;
+      break;
+    case SPLATT_TC_ALS:
+      ws->regularization[m] = 2e-1;
+      ws->gradients[m] = NULL;
+      break;
+    case SPLATT_TC_NALGS:
+      break;
     }
   }
 

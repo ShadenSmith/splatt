@@ -127,7 +127,6 @@ static void default_tc_opts(
   args->reg = -1.;
   args->max_its = 0;
   args->set_timeout = false;
-  args->max_seconds;
   args->nthreads = omp_get_max_threads();
   args->set_seed = false;
   args->seed = time(NULL);
@@ -251,7 +250,7 @@ int splatt_tc_cmd(
   if(args.max_its != 0) {
     ws->max_its = args.max_its;
   }
-  if(args.max_seconds != DBL_MIN) {
+  if(args.set_timeout) {
     ws->max_seconds = args.max_seconds;
   }
 
