@@ -484,67 +484,67 @@ void splatt_tc_ccd(
 
     #pragma omp parallel
     {
-      /* row updates */
-      for(idx_t m=0; m < nmodes; ++m) {
-
-        /* which routine to call? */
-        idx_t const depth = csf_mode_depth(m, csf->dim_perm, nmodes);
-        node_type which;
-        if(depth == 0) {
-          which = NODE_ROOT;
-        } else if(depth == nmodes - 1) {
-          which = NODE_LEAF;
-        } else {
-          which = NODE_INTL;
-        }
-
-        for(idx_t f=0; f < nfactors; ++f) {
-          /* initialize numerator/denominator */
-          #pragma omp for schedule(static)
-          for(idx_t i=0; i < csf->dims[m]; ++i) {
-            ws->numerator[i] = 0;
-            ws->denominator[i] = ws->regularization[m];
-          }
-
-          /* Compute numerator/denominator. Distribute tile layer to threads */
-          #pragma omp for schedule(static, 1)
-          for(idx_t t=0; t < csf->tile_dims[m]; ++t) {
-            idx_t tile = get_next_tileid(TILE_BEGIN, csf->tile_dims, nmodes, m,
-                t);
-            while(tile != TILE_END) {
-              /* process tile */
-              switch(which) {
-              case NODE_ROOT:
-                p_process_root3(csf, tile, f, model, ws);
-                break;
-              case NODE_INTL:
-                p_process_intl3(csf, tile, f, model, ws);
-                break;
-              case NODE_LEAF:
-                p_process_leaf3(csf, tile, f, model, ws);
-                break;
-              }
-
-              /* move on to text tile in my layer */
-              tile = get_next_tileid(tile, csf->tile_dims, nmodes, m, t);
+      for(idx_t f=0; f < nfactors; ++f) {
+        for(idx_t inner=0; inner < 2; ++inner) {
+          for(idx_t m=0; m < nmodes; ++m) {
+            /* initialize numerator/denominator */
+            #pragma omp for schedule(static)
+            for(idx_t i=0; i < csf->dims[m]; ++i) {
+              ws->numerator[i] = 0;
+              ws->denominator[i] = ws->regularization[m];
             }
-          } /* foreach tile */
 
-          /* now update residual and new row */
-          switch(which) {
-          case NODE_ROOT:
-            p_update_root3(csf, f, model, ws);
-            break;
-          case NODE_INTL:
-            p_update_intl3(csf, f, model, ws);
-            break;
-          case NODE_LEAF:
-            p_update_leaf3(csf, f, model, ws);
-            break;
-          }
+            /* which routine to call? */
+            idx_t const depth = csf_mode_depth(m, csf->dim_perm, nmodes);
+            node_type which;
+            if(depth == 0) {
+              which = NODE_ROOT;
+            } else if(depth == nmodes - 1) {
+              which = NODE_LEAF;
+            } else {
+              which = NODE_INTL;
+            }
 
-        } /* foreach factor */
-      } /* foreach mode */
+            /* Compute numerator/denominator. Distribute tile layer to threads */
+            #pragma omp for schedule(static, 1)
+            for(idx_t t=0; t < csf->tile_dims[m]; ++t) {
+              idx_t tile = get_next_tileid(TILE_BEGIN, csf->tile_dims, nmodes, m,
+                  t);
+              while(tile != TILE_END) {
+                /* process tile */
+                switch(which) {
+                case NODE_ROOT:
+                  p_process_root3(csf, tile, f, model, ws);
+                  break;
+                case NODE_INTL:
+                  p_process_intl3(csf, tile, f, model, ws);
+                  break;
+                case NODE_LEAF:
+                  p_process_leaf3(csf, tile, f, model, ws);
+                  break;
+                }
+
+                /* move on to text tile in my layer */
+                tile = get_next_tileid(tile, csf->tile_dims, nmodes, m, t);
+              }
+            } /* foreach tile */
+
+            /* now update residual and new row */
+            switch(which) {
+            case NODE_ROOT:
+              p_update_root3(csf, f, model, ws);
+              break;
+            case NODE_INTL:
+              p_update_intl3(csf, f, model, ws);
+              break;
+            case NODE_LEAF:
+              p_update_leaf3(csf, f, model, ws);
+              break;
+            }
+
+          } /* foreach mode */
+        } /* foreach inner iteration */
+      } /* foreach factor */
     } /* omp parallel */
 
     timer_stop(&ws->train_time);
