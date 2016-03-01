@@ -242,6 +242,7 @@ void tc_model_free(
 
 
 tc_ws * tc_ws_alloc(
+    sptensor_t const * const train,
     tc_model const * const model,
     idx_t nthreads)
 {
@@ -254,8 +255,10 @@ tc_ws * tc_ws_alloc(
   ws->learn_rate = 0.001;
   idx_t const rank = model->rank;
 
-  /* set parameters, allocate gradients, etc. */
+  /* Set mode-specific parameters, allocate gradients, etc. */
   for(idx_t m=0; m < nmodes; ++m) {
+    ws->gradients[m] = NULL;
+
     switch(model->which) {
     case SPLATT_TC_GD:
       ws->regularization[m] = 1e-2;
@@ -264,22 +267,24 @@ tc_ws * tc_ws_alloc(
       break;
     case SPLATT_TC_SGD:
       ws->regularization[m] = 5e-3;
-      ws->gradients[m] = NULL;
       break;
     case SPLATT_TC_CCD:
       ws->regularization[m] = 5e-3;
-      ws->gradients[m] = NULL;
       break;
     case SPLATT_TC_ALS:
       ws->regularization[m] = 2e-1;
-      ws->gradients[m] = NULL;
       break;
     case SPLATT_TC_NALGS:
       break;
     }
   }
 
-  /* allocate thread structures */
+  /* size of largest mode (for CCD) */
+  idx_t const max_dim = train->dims[argmax_elem(train->dims, train->nmodes)];
+
+  /* Allocate general structures */
+  ws->numerator = NULL;
+  ws->denominator = NULL;
   ws->nthreads = nthreads;
   switch(model->which) {
   case SPLATT_TC_GD:
@@ -289,6 +294,8 @@ tc_ws * tc_ws_alloc(
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_CCD:
+    ws->numerator   = splatt_malloc(max_dim * sizeof(*ws->numerator));
+    ws->denominator = splatt_malloc(max_dim * sizeof(*ws->denominator));
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_ALS:
@@ -326,6 +333,8 @@ void tc_ws_free(
     splatt_free(ws->gradients[m]);
   }
   tc_model_free(ws->best_model);
+  splatt_free(ws->numerator);
+  splatt_free(ws->denominator);
   splatt_free(ws);
 }
 

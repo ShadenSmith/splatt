@@ -49,6 +49,8 @@ typedef struct
   val_t regularization[MAX_NMODES];
 
   val_t * gradients[MAX_NMODES];
+  val_t * numerator;
+  val_t * denominator;
 
   idx_t nthreads;
   thd_info * thds;
@@ -114,12 +116,14 @@ void splatt_tc_ccd(
 /**
 * @brief Allocate and initialize a workspace used for tensor completion.
 *
+* @param model The training data.
 * @param model The model we will be computing.
 * @param nthreads The number of threads to use during the factorization.
 *
 * @return The allocated workspace.
 */
 tc_ws * tc_ws_alloc(
+    sptensor_t const * const train,
     tc_model const * const model,
     idx_t nthreads);
 

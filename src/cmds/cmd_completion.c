@@ -236,7 +236,7 @@ int splatt_tc_cmd(
   /* allocate model + workspace */
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
   omp_set_num_threads(args.nthreads);
-  tc_ws * ws = tc_ws_alloc(model, args.nthreads);
+  tc_ws * ws = tc_ws_alloc(train, model, args.nthreads);
 
   /* check for non-default vals */
   if(args.learn_rate != -1.) {
