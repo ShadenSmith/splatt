@@ -51,6 +51,46 @@ static inline val_t p_predict_val3(
 
 
 /**
+* @brief Predict a value for a three-way tensor when the model uses column-major
+*        matrices.
+*
+* @param model The column-major model to use for the prediction.
+* @param test The test tensor which gives us the model rows.
+* @param index The nonzero to draw the row indices from. test[0][index] ...
+*
+* @return The predicted value.
+*/
+static inline val_t p_predict_val3_col(
+    tc_model const * const model,
+    sptensor_t const * const test,
+    idx_t const index)
+{
+  val_t est = 0;
+  idx_t const nfactors = model->rank;
+
+  assert(test->nmodes == 3);
+
+  idx_t const i = test->ind[0][index];
+  idx_t const j = test->ind[1][index];
+  idx_t const k = test->ind[2][index];
+
+  idx_t const I = model->dims[0];
+  idx_t const J = model->dims[1];
+  idx_t const K = model->dims[2];
+
+  val_t const * const restrict A = model->factors[0];
+  val_t const * const restrict B = model->factors[1];
+  val_t const * const restrict C = model->factors[2];
+
+  for(idx_t f=0; f < nfactors; ++f) {
+    est += A[i+(f*I)] * B[j+(f*J)] * C[k+(f*K)];
+  }
+
+  return est;
+}
+
+
+/**
 * @brief Print some basic statistics about factorization progress.
 *
 * @param epoch Which epoch we are on.
@@ -103,10 +143,18 @@ val_t tc_loss_sq(
   {
     val_t * buffer = ws->thds[omp_get_thread_num()].scratch[0];
 
-    #pragma omp for schedule(static)
-    for(idx_t x=0; x < test->nnz; ++x) {
-      val_t const err = test_vals[x] - tc_predict_val(model, test, x, buffer);
-      loss_obj += err * err;
+    if(model->which == SPLATT_TC_CCD) {
+      #pragma omp for schedule(static)
+      for(idx_t x=0; x < test->nnz; ++x) {
+        val_t const err = test_vals[x] - tc_predict_val_col(model, test, x, buffer);
+        loss_obj += err * err;
+      }
+    } else {
+      #pragma omp for schedule(static)
+      for(idx_t x=0; x < test->nnz; ++x) {
+        val_t const err = test_vals[x] - tc_predict_val(model, test, x, buffer);
+        loss_obj += err * err;
+      }
     }
   }
 
@@ -149,11 +197,11 @@ val_t tc_predict_val(
     idx_t const index,
     val_t * const restrict buffer)
 {
-  idx_t const nfactors = model->rank;
-
   if(test->nmodes == 3) {
     return p_predict_val3(model, test, index);
   }
+
+  idx_t const nfactors = model->rank;
 
   /* initialize accumulation of each latent factor with the first row */
   idx_t const row_id = test->ind[0][index];
@@ -181,6 +229,43 @@ val_t tc_predict_val(
   return est;
 }
 
+
+val_t tc_predict_val_col(
+    tc_model const * const model,
+    sptensor_t const * const test,
+    idx_t const index,
+    val_t * const restrict buffer)
+{
+  if(test->nmodes == 3) {
+    return p_predict_val3_col(model, test, index);
+  }
+
+  idx_t const nfactors = model->rank;
+
+  /* initialize accumulation of each latent factor with the first row */
+  idx_t const row_id = test->ind[0][index];
+  val_t const * const init_row = model->factors[0] + (row_id * nfactors);
+  for(idx_t f=0; f < nfactors; ++f) {
+    buffer[f] = model->factors[0][row_id + (f * model->dims[0])];
+  }
+
+  /* now multiply each factor by A(i,:), B(j,:) ... */
+  idx_t const nmodes = model->nmodes;
+  for(idx_t m=1; m < nmodes; ++m) {
+    idx_t const row_id = test->ind[m][index];
+    for(idx_t f=0; f < nfactors; ++f) {
+      buffer[f] *= model->factors[m][row_id + (f * model->dims[m])];
+    }
+  }
+
+  /* finally, sum the factors to form the final estimated value */
+  val_t est = 0;
+  for(idx_t f=0; f < nfactors; ++f) {
+    est += buffer[f];
+  }
+
+  return est;
+}
 
 
 /******************************************************************************

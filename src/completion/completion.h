@@ -216,6 +216,25 @@ val_t tc_predict_val(
     val_t * const restrict buffer);
 
 
+#define tc_predict_val_col splatt_tc_predict_val_col
+/**
+* @brief Predict a value of the nonzero in position 'index', when the model is
+*        stored column-major.
+*
+* @param model The column-major model to use for prediction.
+* @param test The sparse tensor to test against.
+* @param index The index of the nonzero to predict. test->ind[:][index] used.
+* @param buffer A buffer at least of size model->rank.
+*
+* @return The predicted value.
+*/
+val_t tc_predict_val_col(
+    tc_model const * const model,
+    sptensor_t const * const test,
+    idx_t const index,
+    val_t * const restrict buffer);
+
+
 
 #define tc_model_alloc splatt_tc_model_alloc
 /**
