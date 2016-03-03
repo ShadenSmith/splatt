@@ -32,7 +32,7 @@ static inline val_t p_predict_val3(
   val_t est = 0;
   idx_t const nfactors = model->rank;
 
-  assert(test->nmodes == 0);
+  assert(test->nmodes == 3);
 
   idx_t const i = test->ind[0][index];
   idx_t const j = test->ind[1][index];
@@ -288,7 +288,6 @@ tc_ws * tc_ws_alloc(
 
   /* some reasonable defaults */
   ws->learn_rate = 0.001;
-
   ws->max_its = 1000;
   for(idx_t m=0; m < nmodes; ++m) {
     ws->regularization[m] = 0.02;
@@ -335,7 +334,7 @@ tc_ws * tc_ws_alloc(
   ws->nbadepochs = 0;
   ws->best_epoch = 0;
   ws->best_rmse = SPLATT_VAL_MAX;
-  ws->tolerance = 1e-4;
+  ws->tolerance = 1e-6;
 
   ws->best_model = tc_model_copy(model);
 
