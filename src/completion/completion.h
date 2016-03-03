@@ -63,6 +63,9 @@ typedef struct
   sp_timer_t grad_time;
   sp_timer_t line_time;
 
+  /* SGD */
+  sp_timer_t shuffle_time;
+
   /* results + convergence */
   idx_t max_badepochs;
   idx_t nbadepochs;
@@ -70,6 +73,9 @@ typedef struct
   idx_t best_epoch;
   val_t best_rmse;
   tc_model * best_model;
+
+  bool rand_per_iteration;
+  bool hogwild;
 } tc_ws;
 
 
