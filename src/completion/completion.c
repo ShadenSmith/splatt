@@ -129,6 +129,37 @@ val_t tc_rmse(
 
 
 
+val_t tc_mae(
+    sptensor_t const * const test,
+    tc_model const * const model,
+    tc_ws * const ws)
+{
+  val_t loss_obj = 0.;
+  val_t const * const restrict test_vals = test->vals;
+
+  #pragma omp parallel reduction(+:loss_obj)
+  {
+    val_t * buffer = ws->thds[omp_get_thread_num()].scratch[0];
+
+    if(model->which == SPLATT_TC_CCD) {
+      #pragma omp for schedule(static)
+      for(idx_t x=0; x < test->nnz; ++x) {
+        val_t const predicted = tc_predict_val_col(model, test, x, buffer);
+        loss_obj += fabs(test_vals[x] - predicted);
+      }
+    } else {
+      #pragma omp for schedule(static)
+      for(idx_t x=0; x < test->nnz; ++x) {
+        val_t const predicted = tc_predict_val(model, test, x, buffer);
+        loss_obj += fabs(test_vals[x] - predicted);
+      }
+    }
+  }
+
+  return loss_obj / test->nnz;
+}
+
+
 
 
 val_t tc_loss_sq(

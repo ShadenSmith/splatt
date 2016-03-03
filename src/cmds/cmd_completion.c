@@ -299,8 +299,8 @@ int splatt_tc_cmd(
   }
 
   printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);
-  printf("BEST VALIDATION RMSE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
-      ws->best_rmse, ws->best_epoch);
+  printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
+      ws->best_rmse, tc_mae(validate, ws->best_model, ws), ws->best_epoch);
 
   tt_free(validate);
   tt_free(train);
@@ -313,7 +313,9 @@ int splatt_tc_cmd(
       return SPLATT_ERROR_BADINPUT;
     }
     printf("test nnz: %"SPLATT_PF_IDX"\n", test->nnz);
-    printf("TEST RMSE: %0.5f\n", tc_rmse(test, ws->best_model, ws));
+    printf("TEST RMSE: %0.5f MAE: %0.5f\n",
+        tc_rmse(test, ws->best_model, ws),
+        tc_mae(test, ws->best_model, ws));
     tt_free(test);
   }
 
