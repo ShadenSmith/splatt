@@ -149,7 +149,8 @@ void bench_csf(
   sp_timer_t modetime;
 
   double * cpd_opts = splatt_default_opts();
-  //cpd_opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
+  cpd_opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
+  cpd_opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
   cpd_opts[SPLATT_OPTION_NTHREADS] = threads[nruns-1];
 
   idx_t const nfactors = mats[0]->J;
@@ -159,9 +160,8 @@ void bench_csf(
     TILE_SIZES[0] * nfactors * sizeof(val_t) + 64,
     (tt->nmodes * nfactors * sizeof(val_t)) + 64);
 
-  splatt_csf * cs = splatt_csf_alloc(tt, cpd_opts);
+  splatt_csf * cs = csf_alloc(tt, cpd_opts);
 
-#if 1
   printf("** CSF **\n");
   unsigned long cs_bytes = csf_storage(cs, cpd_opts);
   char * bstr = bytes_str(cs_bytes);
@@ -217,7 +217,6 @@ void bench_csf(
 
   /* fix any matrices that we shuffled */
   p_shuffle_mats(mats, opts->perm->iperms, tt->nmodes);
-#endif
 }
 
 void bench_giga(

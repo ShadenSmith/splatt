@@ -49,9 +49,12 @@ typedef struct
   idx_t nmodes;
   val_t learn_rate;
   idx_t max_its;
+  double max_seconds;
   val_t regularization[MAX_NMODES];
 
   val_t * gradients[MAX_NMODES];
+  val_t * numerator;
+  val_t * denominator;
 
   idx_t nthreads;
   thd_info * thds;
@@ -123,12 +126,14 @@ void splatt_tc_ccd(
 /**
 * @brief Allocate and initialize a workspace used for tensor completion.
 *
+* @param model The training data.
 * @param model The model we will be computing.
 * @param nthreads The number of threads to use during the factorization.
 *
 * @return The allocated workspace.
 */
 tc_ws * tc_ws_alloc(
+    sptensor_t const * const train,
     tc_model const * const model,
     idx_t nthreads);
 
@@ -215,6 +220,25 @@ val_t tc_frob_sq(
 * @return The predicted value.
 */
 val_t tc_predict_val(
+    tc_model const * const model,
+    sptensor_t const * const test,
+    idx_t const index,
+    val_t * const restrict buffer);
+
+
+#define tc_predict_val_col splatt_tc_predict_val_col
+/**
+* @brief Predict a value of the nonzero in position 'index', when the model is
+*        stored column-major.
+*
+* @param model The column-major model to use for prediction.
+* @param test The sparse tensor to test against.
+* @param index The index of the nonzero to predict. test->ind[:][index] used.
+* @param buffer A buffer at least of size model->rank.
+*
+* @return The predicted value.
+*/
+val_t tc_predict_val_col(
     tc_model const * const model,
     sptensor_t const * const test,
     idx_t const index,

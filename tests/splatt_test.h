@@ -12,7 +12,8 @@ static char const * const datasets[] = {
   DATASET(small.tns),
   DATASET(med.tns),
   DATASET(small4.tns),
-  DATASET(med4.tns)
+  DATASET(med4.tns),
+  DATASET(med5.tns)
 };
 #define MAX_DSETS 16
 
@@ -21,7 +22,8 @@ static char const * const graphs[] = {
   GRAPH(small.graph),
   GRAPH(med.graph),
   GRAPH(small4.graph),
-  GRAPH(med4.graph)
+  GRAPH(med4.graph),
+  GRAPH(med5.graph)
 };
 #define MAX_GRAPHS 16
 

@@ -51,6 +51,46 @@ static inline val_t p_predict_val3(
 
 
 /**
+* @brief Predict a value for a three-way tensor when the model uses column-major
+*        matrices.
+*
+* @param model The column-major model to use for the prediction.
+* @param test The test tensor which gives us the model rows.
+* @param index The nonzero to draw the row indices from. test[0][index] ...
+*
+* @return The predicted value.
+*/
+static inline val_t p_predict_val3_col(
+    tc_model const * const model,
+    sptensor_t const * const test,
+    idx_t const index)
+{
+  val_t est = 0;
+  idx_t const nfactors = model->rank;
+
+  assert(test->nmodes == 3);
+
+  idx_t const i = test->ind[0][index];
+  idx_t const j = test->ind[1][index];
+  idx_t const k = test->ind[2][index];
+
+  idx_t const I = model->dims[0];
+  idx_t const J = model->dims[1];
+  idx_t const K = model->dims[2];
+
+  val_t const * const restrict A = model->factors[0];
+  val_t const * const restrict B = model->factors[1];
+  val_t const * const restrict C = model->factors[2];
+
+  for(idx_t f=0; f < nfactors; ++f) {
+    est += A[i+(f*I)] * B[j+(f*J)] * C[k+(f*K)];
+  }
+
+  return est;
+}
+
+
+/**
 * @brief Print some basic statistics about factorization progress.
 *
 * @param epoch Which epoch we are on.
@@ -103,10 +143,18 @@ val_t tc_loss_sq(
   {
     val_t * buffer = (val_t *)ws->thds[omp_get_thread_num()].scratch[0];
 
-    #pragma omp for schedule(static)
-    for(idx_t x=0; x < test->nnz; ++x) {
-      val_t const err = test_vals[x] - tc_predict_val(model, test, x, buffer);
-      loss_obj += err * err;
+    if(model->which == SPLATT_TC_CCD) {
+      #pragma omp for schedule(static)
+      for(idx_t x=0; x < test->nnz; ++x) {
+        val_t const err = test_vals[x] - tc_predict_val_col(model, test, x, buffer);
+        loss_obj += err * err;
+      }
+    } else {
+      #pragma omp for schedule(static)
+      for(idx_t x=0; x < test->nnz; ++x) {
+        val_t const err = test_vals[x] - tc_predict_val(model, test, x, buffer);
+        loss_obj += err * err;
+      }
     }
   }
 
@@ -149,11 +197,11 @@ val_t tc_predict_val_(
     idx_t const index,
     val_t * const restrict buffer)
 {
-  idx_t const nfactors = model->rank;
-
   if(test->nmodes == 3) {
     return p_predict_val3(model, test, index);
   }
+
+  idx_t const nfactors = model->rank;
 
   /* initialize accumulation of each latent factor with the first row */
   idx_t const row_id = test->ind[0][index];
@@ -180,7 +228,6 @@ val_t tc_predict_val_(
 
   return est;
 }
-
 
 val_t tc_predict_val(
     tc_model const * const model,
@@ -188,8 +235,11 @@ val_t tc_predict_val(
     idx_t const index,
     val_t * const restrict buffer)
 {
-  if (2 == model->nmodes) {
+  if (test->nmodes == 2) {
     return tc_predict_val_<2>(model, test, index, buffer);
+  }
+  else if(test->nmodes == 3) {
+    return p_predict_val3(model, test, index);
   }
 
   idx_t const nfactors = model->rank;
@@ -216,8 +266,47 @@ val_t tc_predict_val(
   for(idx_t f=0; f < nfactors; ++f) {
     est += buffer[f];
   }
+
   return est;
 }
+
+val_t tc_predict_val_col(
+    tc_model const * const model,
+    sptensor_t const * const test,
+    idx_t const index,
+    val_t * const restrict buffer)
+{
+  if(test->nmodes == 3) {
+    return p_predict_val3_col(model, test, index);
+  }
+
+  idx_t const nfactors = model->rank;
+
+  /* initialize accumulation of each latent factor with the first row */
+  idx_t const row_id = test->ind[0][index];
+  val_t const * const init_row = model->factors[0] + (row_id * nfactors);
+  for(idx_t f=0; f < nfactors; ++f) {
+    buffer[f] = model->factors[0][row_id + (f * model->dims[0])];
+  }
+
+  /* now multiply each factor by A(i,:), B(j,:) ... */
+  idx_t const nmodes = model->nmodes;
+  for(idx_t m=1; m < nmodes; ++m) {
+    idx_t const row_id = test->ind[m][index];
+    for(idx_t f=0; f < nfactors; ++f) {
+      buffer[f] *= model->factors[m][row_id + (f * model->dims[m])];
+    }
+  }
+
+  /* finally, sum the factors to form the final estimated value */
+  val_t est = 0;
+  for(idx_t f=0; f < nfactors; ++f) {
+    est += buffer[f];
+  }
+
+  return est;
+}
+
 
 /******************************************************************************
  * WORKSPACE FUNCTIONS
@@ -278,6 +367,7 @@ void tc_model_free(
 
 
 tc_ws * tc_ws_alloc(
+    sptensor_t const * const train,
     tc_model const * const model,
     idx_t nthreads)
 {
@@ -288,24 +378,38 @@ tc_ws * tc_ws_alloc(
 
   /* some reasonable defaults */
   ws->learn_rate = 0.001;
-  ws->max_its = 1000;
-  for(idx_t m=0; m < nmodes; ++m) {
-    ws->regularization[m] = 0.02;
-  }
-
   idx_t const rank = model->rank;
 
-  /* allocate gradients */
+  /* Set mode-specific parameters, allocate gradients, etc. */
   for(idx_t m=0; m < nmodes; ++m) {
-    if(model->which == SPLATT_TC_GD) {
+    ws->gradients[m] = NULL;
+
+    switch(model->which) {
+    case SPLATT_TC_GD:
+      ws->regularization[m] = 1e-2;
       ws->gradients[m] = (val_t *)splatt_malloc(model->dims[m] * rank *
           sizeof(**(ws->gradients)));
-    } else {
-      ws->gradients[m] = NULL;
+      break;
+    case SPLATT_TC_SGD:
+      ws->regularization[m] = 5e-3;
+      break;
+    case SPLATT_TC_CCD:
+      ws->regularization[m] = 2e-1;
+      break;
+    case SPLATT_TC_ALS:
+      ws->regularization[m] = 2e-1;
+      break;
+    case SPLATT_TC_NALGS:
+      break;
     }
   }
 
-  /* allocate thread structures */
+  /* size of largest mode (for CCD) */
+  idx_t const max_dim = train->dims[argmax_elem(train->dims, train->nmodes)];
+
+  /* Allocate general structures */
+  ws->numerator = NULL;
+  ws->denominator = NULL;
   ws->nthreads = nthreads;
   switch(model->which) {
   case SPLATT_TC_GD:
@@ -315,6 +419,8 @@ tc_ws * tc_ws_alloc(
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_CCD:
+    ws->numerator   = (val_t *)splatt_malloc(max_dim * sizeof(*ws->numerator));
+    ws->denominator = (val_t *)splatt_malloc(max_dim * sizeof(*ws->denominator));
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_ALS:
@@ -330,6 +436,8 @@ tc_ws * tc_ws_alloc(
   }
 
   /* convergence */
+  ws->max_its = 1000;
+  ws->max_seconds = 1000;
   ws->max_badepochs = 20;
   ws->nbadepochs = 0;
   ws->best_epoch = 0;
@@ -350,6 +458,8 @@ void tc_ws_free(
     splatt_free(ws->gradients[m]);
   }
   tc_model_free(ws->best_model);
+  splatt_free(ws->numerator);
+  splatt_free(ws->denominator);
   splatt_free(ws);
 }
 
@@ -388,6 +498,12 @@ bool tc_converge(
     if(ws->nbadepochs == ws->max_badepochs) {
       converged = true;
     }
+  }
+
+  /* check for time limit */
+  if(ws->max_seconds > 0 &&
+      ws->train_time.seconds + ws->test_time.seconds >= ws->max_seconds) {
+    converged = true;
   }
 
   return converged;

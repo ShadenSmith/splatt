@@ -28,8 +28,9 @@ static char tc_doc[] =
 #define TC_REG 255
 #define TC_NOWRITE 254
 #define TC_SEED 253
-#define TC_NORAND_PER_ITERATION 252
-#define TC_HOGWILD 251
+#define TC_TIME 252
+#define TC_NORAND_PER_ITERATION 251
+#define TC_HOGWILD 250
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 16)"},
@@ -40,6 +41,7 @@ static struct argp_option tc_options[] = {
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD (default 0.001)"},
   {"reg", TC_REG, "SIZE", 0, "regularization parameter (default 0.02)"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
+  {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
   {"norand", TC_NORAND_PER_ITERATION, 0, 0, "do not randomly permute every iteration for SGD"},
   {"hogwild", TC_HOGWILD, 0, 0, "hogwild for SGD (default no)"},
   {0}
@@ -102,6 +104,8 @@ typedef struct
   val_t reg;
 
   idx_t max_its;
+  bool set_timeout;
+  double max_seconds;
   idx_t nfactors;
   idx_t nthreads;
 
@@ -129,7 +133,8 @@ static void default_tc_opts(
   args->learn_rate = -1.;
   args->reg = -1.;
   args->max_its = 0;
-  args->nthreads = omp_get_num_procs();
+  args->set_timeout = false;
+  args->nthreads = omp_get_max_threads();
   args->set_seed = false;
   args->seed = time(NULL);
   args->rand_per_iteration = true;
@@ -185,6 +190,10 @@ static error_t parse_tc_opt(
   case TC_SEED:
     args->seed = (unsigned int) atoi(arg);
     args->set_seed = true;
+    break;
+  case TC_TIME:
+    args->max_seconds = atof(arg);
+    args->set_timeout = true;
     break;
   case TC_NORAND_PER_ITERATION:
     args->rand_per_iteration = false;
@@ -242,7 +251,7 @@ int splatt_tc_cmd(
   /* allocate model + workspace */
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
   omp_set_num_threads(args.nthreads);
-  tc_ws * ws = tc_ws_alloc(model, args.nthreads);
+  tc_ws * ws = tc_ws_alloc(train, model, args.nthreads);
 
   /* check for non-default vals */
   if(args.learn_rate != -1.) {
@@ -256,16 +265,25 @@ int splatt_tc_cmd(
   if(args.max_its != 0) {
     ws->max_its = args.max_its;
   }
+  if(args.set_timeout) {
+    ws->max_seconds = args.max_seconds;
+  }
   ws->rand_per_iteration = args.rand_per_iteration;
   ws->hogwild = args.hogwild;
 
   printf("Factoring ------------------------------------------------------\n");
-  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
-      model->rank, ws->max_its, ws->tolerance);
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" ",
+      model->rank, ws->max_its);
+  if(args.set_timeout) {
+    printf("MAXTIME=NONE ");
+  } else {
+    printf("MAXTIME=%0.1fs ", ws->max_seconds);
+  }
+  printf("TOL=%0.1e ", ws->tolerance);
   if(args.set_seed) {
     printf("SEED=%u ", args.seed);
   } else {
-    printf("SEED=random ");
+    printf("SEED=time ");
   }
   printf("THREADS=%"SPLATT_PF_IDX"\nSTEP=%0.3e REG=%0.3e\n",
        ws->nthreads, ws->learn_rate, ws->regularization[0]);

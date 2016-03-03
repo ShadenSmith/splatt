@@ -23,8 +23,52 @@
 //#define SPLATT_RTM // use restricted transactional memory
 //#define SPLATT_CAS
 
+
+/******************************************************************************
+ * MUTEX FUNCTIONS
+ *****************************************************************************/
+
 #define NLOCKS 1024
-static int locks_initialized = 0;
+static omp_lock_t locks[NLOCKS*16];
+static bool locks_initialized = false;
+
+
+/**
+* @brief Initialize all OpenMP locks.
+*/
+static void p_init_locks()
+{
+  if (!locks_initialized) {
+    for(int i=0; i < NLOCKS; ++i) {
+      omp_init_lock(locks + (i*16));
+    }
+    locks_initialized = true;
+  }
+}
+
+/**
+* @brief Set a lock based on some id.
+*
+* @param id The lock to set.
+*/
+static inline void p_splatt_set_lock(
+    int id)
+{
+  int i = (id % NLOCKS) * 16;
+  omp_set_lock(locks + i);
+}
+
+/**
+* @brief Release a lock based on some id.
+*
+* @param id The lock to release.
+*/
+static inline void p_splatt_unset_lock(
+    int id)
+{
+  int i = (id % NLOCKS) * 16;
+  omp_unset_lock(locks + i);
+}
 
 //#define SPLATT_ATOMIC_CACHE
 #ifdef SPLATT_ATOMIC_CACHE
@@ -35,23 +79,8 @@ static int locks_initialized = 0;
 //#define SPLATT_MY_TTAS_LOCK
 #ifdef SPLATT_MY_TTAS_LOCK
 static volatile int locks[NLOCKS*16];
-#elif !defined(SPLATT_NO_LOCK)
-static omp_lock_t locks[NLOCKS*16];
 #endif
 
-static void p_init_locks()
-{
-  if (!locks_initialized) {
-    for(int i=0; i < NLOCKS; ++i) {
-#ifdef SPLATT_MY_TTAS_LOCK
-      locks[i*16] = 0;
-#elif !defined(SPLATT_NO_LOCK)
-      omp_init_lock(locks+i*16);
-#endif
-    }
-    locks_initialized = 1;
-  }
-}
 
 static inline void splatt_set_lock(int id)
 {
@@ -179,11 +208,11 @@ static inline void p_csf_process_fiber_lock(
   for(idx_t jj=start; jj < end; ++jj) {
     val_t * const restrict leafrow = leafmat + (inds[jj] * nfactors);
     val_t const v = vals[jj];
-    splatt_set_lock(inds[jj]);
+    p_splatt_set_lock(inds[jj]);
     for(idx_t f=0; f < nfactors; ++f) {
       leafrow[f] += v * accumbuf[f];
     }
-    splatt_unset_lock(inds[jj]);
+    p_splatt_unset_lock(inds[jj]);
   }
 }
 
@@ -844,11 +873,11 @@ static void p_csf_mttkrp_internal3_(
           } while (!__sync_bool_compare_and_swap((long long *)(ov + r), *((long long *)(&old_ov)), *((long long *)(&new_ov))));
         }
 #else
-        splatt_set_lock(fids[f]);
+        p_splatt_set_lock(fids[f]);
         for(idx_t r=0; r < NFACTORS; ++r) {
           ov[r] += rv[r] * accumF[r];
         }
-        splatt_unset_lock(fids[f]);
+        p_splatt_unset_lock(fids[f]);
 #endif
       }
 #endif // SPLATT_INTRINSIC
@@ -1207,11 +1236,11 @@ static void p_csf_mttkrp_leaf3(
         for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
           val_t const v = vals[jj];
           val_t * const restrict ov = ovals + (inds[jj] * nfactors);
-          splatt_set_lock(inds[jj]);
+          p_splatt_set_lock(inds[jj]);
           for(idx_t r=0; r < nfactors; ++r) {
             ov[r] += v * accumF[r];
           }
-          splatt_unset_lock(inds[jj]);
+          p_splatt_unset_lock(inds[jj]);
         }
       }
     }
@@ -1803,9 +1832,9 @@ static void p_csf_mttkrp_internal(
           fp, fids, vals, mvals, nmodes, nfactors);
 
       val_t * const restrict outbuf = ovals + (noderow * nfactors);
-      splatt_set_lock(noderow);
+      p_splatt_set_lock(noderow);
       p_add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
-      splatt_unset_lock(noderow);
+      p_splatt_unset_lock(noderow);
 
       /* backtrack to next unfinished node */
       do {

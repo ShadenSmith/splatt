@@ -253,7 +253,7 @@ void ften_alloc(
 
   tt_sort(tt, mode, ft->dim_perm);
   if(tile != SPLATT_NOTILE) {
-    ft->tiled = (splatt_tile_type)1;
+    ft->tiled = (splatt_tile_type)tile;
     tt_tile(tt, ft->dim_perm);
   }
 
