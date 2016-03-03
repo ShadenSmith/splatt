@@ -19,7 +19,7 @@ double * splatt_default_opts(void)
   opts[SPLATT_OPTION_NITER]     = DEFAULT_ITS;
   opts[SPLATT_OPTION_VERBOSITY] = SPLATT_VERBOSITY_LOW;
 
-  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_TWOMODE;
+  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
   opts[SPLATT_OPTION_TILE]      = SPLATT_NOTILE;
   opts[SPLATT_OPTION_TILEDEPTH] = 1;
 
@@ -29,7 +29,7 @@ double * splatt_default_opts(void)
   if(omp_in_parallel()) {
     opts[SPLATT_OPTION_NTHREADS]  = 1;
   } else {
-    opts[SPLATT_OPTION_NTHREADS]  = omp_get_num_procs();
+    opts[SPLATT_OPTION_NTHREADS]  = omp_get_max_threads();
   }
 
 
