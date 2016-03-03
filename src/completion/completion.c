@@ -433,7 +433,7 @@ tc_ws * tc_ws_alloc(
   ws->nbadepochs = 0;
   ws->best_epoch = 0;
   ws->best_rmse = SPLATT_VAL_MAX;
-  ws->tolerance = 1e-6;
+  ws->tolerance = 1e-4;
 
   ws->best_model = tc_model_copy(model);
 
