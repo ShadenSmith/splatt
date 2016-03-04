@@ -38,7 +38,9 @@
 
 /**
 * @brief Compute the Cholesky decomposition of the normal equations and solve
-*        for out_row.
+*        for out_row. We only compute the upper-triangular portion of 'neqs',
+*        so work with the lower-triangular portion when column-major
+*        (for Fortran).
 *
 * @param neqs The NxN normal equations.
 * @param[out] out_row The RHS of the equation. Updated in place.
@@ -49,7 +51,7 @@ static inline void p_invert_row(
     val_t * const restrict out_row,
     idx_t const N)
 {
-  char uplo = 'U';
+  char uplo = 'L';
   int order = (int) N;
   int lda = (int) N;
   int info;
@@ -58,18 +60,20 @@ static inline void p_invert_row(
     fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
 
+
   int nrhs = 1;
   int ldb = (int) N;
   LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, out_row, &ldb, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
+    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
   }
 }
 
 
 
 /**
-* @brief Compute out += inrow' * inrow, a rank-1 update.
+* @brief Compute out += inrow' * inrow, a rank-1 update. Only compute the
+*        upper-triangular portion.
 *
 * @param inrow The input row to update with.
 * @param N The length of 'inrow'.
@@ -81,9 +85,9 @@ static inline void p_onevec_oprod(
     val_t * const restrict out)
 {
   for(idx_t i=0; i < N; ++i) {
-    val_t * const restrict orow = out + (i * N);
     val_t const ival = inrow[i];
-    for(idx_t j=0; j < N; ++j) {
+    val_t * const restrict orow = out + (i*N);
+    for(idx_t j=i; j < N; ++j) {
       orow[j] += ival * inrow[j];
     }
   }
@@ -129,8 +133,10 @@ static inline void p_update_row(
   }
 
   /* initialize normal eqs */
-  for(idx_t f=0; f < nfactors * nfactors; ++f) {
-    neqs[f] = 0;
+  for(idx_t i=0; i < nfactors; ++i) {
+    for(idx_t j=i; j < nfactors; ++j) {
+      neqs[j+(i*nfactors)] = 0;
+    }
   }
 
   idx_t const * const restrict sptr = pt->fptr[0];
