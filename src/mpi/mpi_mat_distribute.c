@@ -340,7 +340,7 @@ static void p_distribute_u3_rows(
     if(rank == 0) {
       amt = p_check_job(npes, pvols, rinfo, comm, bufclaims, &left);
       /* force claim next turn if no progress made this time */
-      mustclaim = (amt > 0);
+      mustclaim = (amt == 0);
     }
 
     MPI_Recv(&msg, 1, MPI_INT, 0, 0, comm, &(rinfo->status));
