@@ -101,8 +101,8 @@ CTEST2(sort_tensor, par_sort)
 
     /* make a copy */
     sptensor_t * test = tt_alloc(gold->nnz, gold->nmodes);
+    memcpy(test->dims, gold->dims, gold->nmodes * sizeof(*(test->dims)));
     for(idx_t m=0; m < gold->nmodes; ++m) {
-      test->dims[m] = gold->dims[m];
       memcpy(test->ind[m], gold->ind[m], gold->nnz * sizeof(**(test->ind)));
     }
     memcpy(test->vals, gold->vals, gold->nnz * sizeof(*(test->vals)));
