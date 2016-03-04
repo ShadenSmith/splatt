@@ -94,21 +94,21 @@ static inline val_t p_predict_val3_col(
 * @brief Print some basic statistics about factorization progress.
 *
 * @param epoch Which epoch we are on.
-* @param obj The value of the objective function.
+* @param loss The sum-of-squared loss.
 * @param rmse_tr The RMSE on the training set.
 * @param rmse_vl The RMSE on the validation set.
 * @param ws Workspace, used for timing information.
 */
 static void p_print_progress(
     idx_t const epoch,
-    val_t const obj,
+    val_t const loss,
     val_t const rmse_tr,
     val_t const rmse_vl,
     tc_ws const * const ws)
 {
-  printf("epoch:%4"SPLATT_PF_IDX"   obj: %0.5e   "
+  printf("epoch:%4"SPLATT_PF_IDX"   loss: %0.5e   "
       "RMSE-tr: %0.5e   RMSE-vl: %0.5e   time-tr: %0.3fs   time-ts: %0.3fs\n",
-      epoch, obj, rmse_tr, rmse_vl,
+      epoch, loss, rmse_tr, rmse_vl,
       ws->train_time.seconds, ws->test_time.seconds);
 }
 
@@ -472,7 +472,7 @@ bool tc_converge(
   val_t const val_rmse = tc_rmse(validate, model, ws);
   timer_stop(&ws->test_time);
 
-  p_print_progress(epoch, obj, train_rmse, val_rmse, ws);
+  p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
 
   bool converged = false;
   if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
