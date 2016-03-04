@@ -374,7 +374,6 @@ tc_ws * tc_ws_alloc(
   /* Set mode-specific parameters, allocate gradients, etc. */
   for(idx_t m=0; m < nmodes; ++m) {
     ws->gradients[m] = NULL;
-    ws->newvecs[m] = NULL;
 
     switch(model->which) {
     case SPLATT_TC_GD:
@@ -387,7 +386,6 @@ tc_ws * tc_ws_alloc(
       break;
     case SPLATT_TC_CCD:
       ws->regularization[m] = 2e-1;
-      ws->newvecs[m] = splatt_malloc(model->dims[m] * sizeof(**(ws->newvecs)));
       break;
     case SPLATT_TC_ALS:
       ws->regularization[m] = 2e-1;
@@ -430,6 +428,7 @@ tc_ws * tc_ws_alloc(
 
   /* convergence */
   ws->max_its = 1000;
+  ws->num_inner = 1;
   ws->max_seconds = 1000;
   ws->max_badepochs = 20;
   ws->nbadepochs = 0;
@@ -449,7 +448,6 @@ void tc_ws_free(
   thd_free(ws->thds, ws->nthreads);
   for(idx_t m=0; m < ws->nmodes; ++m) {
     splatt_free(ws->gradients[m]);
-    splatt_free(ws->newvecs[m]);
   }
   tc_model_free(ws->best_model);
   splatt_free(ws->numerator);

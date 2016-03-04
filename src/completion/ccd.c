@@ -11,6 +11,12 @@
 #include <math.h>
 #include <omp.h>
 
+
+/* It is faster to continually add/subtract to residual instead of recomputing
+ * predictions. In practice this is fine, but set to 1 if we want to see. */
+#define MEASURE_DRIFT 0
+
+
 #define GRAB_SPARSITY(tile_id) \
   csf_sparsity * const pt = csf->pt + (tile_id);\
   idx_t const * const restrict sptr = pt->fptr[0];\
@@ -249,58 +255,6 @@ static void p_process_leaf3(
 }
 
 
-static void p_init_residual(
-    splatt_csf * const csf,
-    tc_model const * const model,
-    tc_ws * const ws)
-{
-  idx_t const nfactors = model->rank;
-  assert(model->nmodes == 3);
-
-  val_t const * const restrict avals = model->factors[csf->dim_perm[0]];
-  val_t const * const restrict bvals = model->factors[csf->dim_perm[1]];
-  val_t const * const restrict cvals = model->factors[csf->dim_perm[2]];
-
-  #pragma omp parallel
-  {
-    int const tid = omp_get_thread_num();
-    val_t * const restrict predict_buf  = ws->thds[tid].scratch[0];
-
-    for(idx_t tile=0; tile < csf->ntiles; ++tile) {
-      GRAB_SPARSITY(tile)
-
-      #pragma omp for nowait
-      for(idx_t i=0; i < pt->nfibs[0]; ++i) {
-        idx_t const a_id = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
-
-        /* grab the top-level row */
-        val_t const * const restrict arow = avals + (a_id * nfactors);
-
-        /* process each fiber */
-        for(idx_t fib=sptr[i]; fib < sptr[i+1]; ++fib) {
-          val_t const * const restrict brow = bvals  + (fids[fib] * nfactors);
-
-          /* push Hadmard products down tree */
-          for(idx_t f=0; f < nfactors; ++f) {
-            predict_buf[f] = arow[f] * brow[f];
-          }
-
-          /* foreach nnz in fiber */
-          for(idx_t jj=fptr[fib]; jj < fptr[fib+1]; ++jj) {
-            val_t const * const restrict crow = cvals + (inds[jj] * nfactors);
-
-            /* compute the loss */
-            for(idx_t f=0; f < nfactors; ++f) {
-              residual[jj] -= predict_buf[f] * crow[f];
-            }
-          }
-        } /* foreach fiber */
-      } /* foreach slice */
-    } /* foreach tile */
-  } /* omp parallel */
-}
-
-
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -313,7 +267,7 @@ void splatt_tc_ccd(
 {
   /* convert training data to CSF-ONEMODE with full tiling */
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS] = ws->nthreads;
+  opts[SPLATT_OPTION_NTHREADS] = ws->nthreads * 2;
   opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
   opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
   opts[SPLATT_OPTION_TILEDEPTH] = 0;
@@ -322,9 +276,15 @@ void splatt_tc_ccd(
 
   printf("ntiles: %lu\n", csf->ntiles);
 
-  p_init_residual(csf, model, ws);
-
   idx_t const nfactors = model->rank;
+
+  /* initialize residual */
+  #pragma omp parallel
+  {
+    for(idx_t f=0; f < nfactors; ++f) {
+      p_update_residual3(csf, f, model, ws, -1);
+    }
+  }
 
   timer_reset(&ws->train_time);
   timer_reset(&ws->test_time);
@@ -347,11 +307,10 @@ void splatt_tc_ccd(
     #pragma omp parallel reduction(+:loss)
     {
       for(idx_t f=0; f < nfactors; ++f) {
-        for(idx_t inner=0; inner < 1; ++inner) {
+        /* add current component to residual */
+        p_update_residual3(csf, f, model, ws, 1);
 
-          /* add current component to residual */
-          p_update_residual3(csf, f, model, ws, 1);
-
+        for(idx_t inner=0; inner < ws->num_inner; ++inner) {
 
           /* compute new column 'f' for each factor */
           for(idx_t m=0; m < nmodes; ++m) {
@@ -411,8 +370,10 @@ void splatt_tc_ccd(
 
     timer_stop(&ws->train_time);
 
+#if MEASURE_DRIFT == 1
     val_t const gold = tc_loss_sq(train, model, ws);
-    printf("loss: %f gold: %f diff: %f\n", loss, gold, loss - gold);
+    printf("  residual: %e actual: %e diff: %e\n", loss, gold, loss - gold);
+#endif
 
     /* compute RMSE and adjust learning rate */
     timer_start(&ws->test_time);

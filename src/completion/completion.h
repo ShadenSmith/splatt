@@ -49,7 +49,6 @@ typedef struct
   val_t regularization[MAX_NMODES];
 
   val_t * gradients[MAX_NMODES];
-  val_t * newvecs[MAX_NMODES]; /* CCD++ */
   val_t * numerator;
   val_t * denominator;
 
@@ -58,6 +57,9 @@ typedef struct
 
   sp_timer_t train_time;
   sp_timer_t test_time;
+
+  /* CCD++ */
+  idx_t num_inner;
 
   /* GD */
   sp_timer_t grad_time;
