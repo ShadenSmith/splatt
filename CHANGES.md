@@ -4,7 +4,7 @@
 * Binary file IO now supported.
 * Better handled missing input files.
 * Added CREDITS.md
-
+* Chains-on-chains partition available
 
 1.1.1
 =====
