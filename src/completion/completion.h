@@ -28,6 +28,7 @@ typedef enum
   SPLATT_TC_GD,
   SPLATT_TC_CCD,
   SPLATT_TC_ALS,
+  SPLATT_TC_LBFGS,
   SPLATT_TC_NALGS
 } splatt_tc_type;
 
@@ -112,6 +113,13 @@ void splatt_tc_gd(
 
 
 void splatt_tc_ccd(
+    sptensor_t * train,
+    sptensor_t const * const validate,
+    tc_model * const model,
+    tc_ws * const ws);
+
+
+void splatt_tc_lbfgs(
     sptensor_t * train,
     sptensor_t const * const validate,
     tc_model * const model,
