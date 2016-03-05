@@ -48,7 +48,6 @@ typedef struct
   double max_seconds;
   val_t regularization[MAX_NMODES];
 
-  val_t * gradients[MAX_NMODES];
   val_t * numerator;
   val_t * denominator;
 
