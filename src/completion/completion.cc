@@ -399,6 +399,11 @@ tc_ws * tc_ws_alloc(
     case SPLATT_TC_ALS:
       ws->regularization[m] = 2e-1;
       break;
+    case SPLATT_TC_LBFGS:
+      ws->regularization[m] = 1e-2;
+      ws->gradients[m] = (val_t *)splatt_malloc(model->dims[m] * rank *
+          sizeof(**(ws->gradients)));
+      break;
     case SPLATT_TC_NALGS:
       break;
     }
@@ -428,6 +433,9 @@ tc_ws * tc_ws_alloc(
         rank * sizeof(val_t),           /* prediction buffer */
         rank * sizeof(val_t),           /* MTTKRP buffer */
         rank * rank * sizeof(val_t)); /* normal equations */
+    break;
+  case SPLATT_TC_LBFGS:
+    ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_NALGS:
     ws->thds = NULL;

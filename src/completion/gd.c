@@ -1,5 +1,4 @@
 
-
 #include "completion.h"
 #include "../csf.h"
 
@@ -37,7 +36,6 @@ static void p_update_model(
     for(idx_t m=0; m < model->nmodes; ++m) {
       val_t * const restrict mat = model->factors[m];
       val_t const * const restrict grad = ws->gradients[m];
-      val_t const reg = ws->regularization[m];
 
       #pragma omp for schedule(static) nowait
       for(idx_t x=0; x < (model->dims[m] * model->rank); ++x) {
@@ -112,7 +110,7 @@ static void p_line_search(
 * @param model The model to update
 * @param ws Workspace. ws->gradients are accessed.
 */
-static void p_process_tree3(
+void p_process_tree3(
     splatt_csf const * const csf,
     idx_t const i,
     tc_model * const model,
