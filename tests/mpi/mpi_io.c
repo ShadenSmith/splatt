@@ -78,6 +78,7 @@ CTEST2(mpi_io, splatt_mpi_coord_load)
 
       /* copy mine */
       memcpy(tmp->vals, vals, nnz * sizeof(*(tmp->vals)));
+      memcpy(tmp->dims, data->tensors[tt]->dims, nmodes * sizeof(*(tmp->dims)));
       for(idx_t m=0; m < nmodes; ++m) {
         memcpy(tmp->ind[m], inds[m], nnz * sizeof(**inds));
       }

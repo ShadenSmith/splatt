@@ -5,6 +5,11 @@
 #include <math.h>
 #include <omp.h>
 
+/* TODO: Conditionally include this OR define lapack prototypes below?
+ *       What does this offer beyond prototypes? Can we detect at compile time
+ *       if we are using MKL vs ATLAS, etc.?
+ */
+#include <mkl.h>
 
 
 
@@ -23,11 +28,13 @@
   #define LAPACK_DPOTRF spotrf_
   #define LAPACK_DPOTRS spotrs_
 #else
-  void dpotrf_(char *, int *, double *, int *, int *);
-  void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
+  //void dpotrf_(char *, int *, double *, int *, int *);
+  //void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
+  //void dsyrk_(char *, char *, int *, int *, double *, double *, int *, double *, double *, int *);
 
   #define LAPACK_DPOTRF dpotrf_
   #define LAPACK_DPOTRS dpotrs_
+  #define LAPACK_DSYRK dsyrk_
 #endif
 
 
@@ -38,7 +45,9 @@
 
 /**
 * @brief Compute the Cholesky decomposition of the normal equations and solve
-*        for out_row.
+*        for out_row. We only compute the upper-triangular portion of 'neqs',
+*        so work with the lower-triangular portion when column-major
+*        (for Fortran).
 *
 * @param neqs The NxN normal equations.
 * @param[out] out_row The RHS of the equation. Updated in place.
@@ -49,27 +58,29 @@ static inline void p_invert_row(
     val_t * const restrict out_row,
     idx_t const N)
 {
-  char uplo = 'U';
-  int order = (int) N;
-  int lda = (int) N;
+  char const uplo = 'L';
+  int const order = (int) N;
+  int const lda = (int) N;
   int info;
   LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
 
-  int nrhs = 1;
-  int ldb = (int) N;
+
+  int const nrhs = 1;
+  int const ldb = (int) N;
   LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, out_row, &ldb, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
+    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
   }
 }
 
 
 
 /**
-* @brief Compute out += inrow' * inrow, a rank-1 update.
+* @brief Compute DSYRK: out += inrow^T * inrow, a rank-1 update. Only compute
+*        the upper-triangular portion.
 *
 * @param inrow The input row to update with.
 * @param N The length of 'inrow'.
@@ -80,13 +91,25 @@ static inline void p_onevec_oprod(
     idx_t const N,
     val_t * const restrict out)
 {
+#if 1
   for(idx_t i=0; i < N; ++i) {
-    val_t * const restrict orow = out + (i * N);
     val_t const ival = inrow[i];
-    for(idx_t j=0; j < N; ++j) {
+    val_t * const restrict orow = out + (i*N);
+    for(idx_t j=i; j < N; ++j) {
       orow[j] += ival * inrow[j];
     }
   }
+#else
+  char const uplo = 'L';
+  char const trans = 'N';
+  int const order = (int) N;
+  int const k = 1;
+  int const lda = (int) N;
+  int const ldc = (int) N;
+  double const alpha = 1;
+  double const beta = 1;
+  LAPACK_DSYRK(&uplo, &trans, &order, &k, &alpha, inrow, &lda, &beta, out, &ldc);
+#endif
 }
 
 
@@ -129,8 +152,10 @@ static inline void p_update_row(
   }
 
   /* initialize normal eqs */
-  for(idx_t f=0; f < nfactors * nfactors; ++f) {
-    neqs[f] = 0;
+  for(idx_t i=0; i < nfactors; ++i) {
+    for(idx_t j=i; j < nfactors; ++j) {
+      neqs[j+(i*nfactors)] = 0;
+    }
   }
 
   idx_t const * const restrict sptr = pt->fptr[0];

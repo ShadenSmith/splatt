@@ -63,6 +63,9 @@ typedef struct
   sp_timer_t train_time;
   sp_timer_t test_time;
 
+  /* CCD++ */
+  idx_t num_inner;
+
   /* GD */
   sp_timer_t grad_time;
   sp_timer_t line_time;
@@ -180,6 +183,22 @@ val_t tc_rmse(
     tc_model const * const model,
     tc_ws * const ws);
 
+
+#define tc_mae splatt_tc_mae
+/**
+* @brief Compute the MAE against of a factorization against a test tensor.
+*        MAE is defined as: (\sum fabs(test[i] - predict[i])) / nnz.
+*
+* @param test The tensor to test against.
+* @param model The factorization the evaluate.
+* @param ws Workspace to use (thread buffers are accessed).
+*
+* @return The RMSE.
+*/
+val_t tc_mae(
+    sptensor_t const * const test,
+    tc_model const * const model,
+    tc_ws * const ws);
 
 
 #define tc_loss_sq splatt_tc_loss_sq

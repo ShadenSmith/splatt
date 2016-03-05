@@ -94,21 +94,21 @@ static inline val_t p_predict_val3_col(
 * @brief Print some basic statistics about factorization progress.
 *
 * @param epoch Which epoch we are on.
-* @param obj The value of the objective function.
+* @param loss The sum-of-squared loss.
 * @param rmse_tr The RMSE on the training set.
 * @param rmse_vl The RMSE on the validation set.
 * @param ws Workspace, used for timing information.
 */
 static void p_print_progress(
     idx_t const epoch,
-    val_t const obj,
+    val_t const loss,
     val_t const rmse_tr,
     val_t const rmse_vl,
     tc_ws const * const ws)
 {
-  printf("epoch:%4ld   obj: %0.5e   "
+  printf("epoch:%4ld   loss: %0.5e   "
       "RMSE-tr: %0.5e   RMSE-vl: %0.5e   time-tr: %0.3fs   time-ts: %0.3fs\n",
-      epoch, obj, rmse_tr, rmse_vl,
+      epoch, loss, rmse_tr, rmse_vl,
       ws->train_time.seconds, ws->test_time.seconds);
 }
 
@@ -127,6 +127,37 @@ val_t tc_rmse(
   return sqrt(tc_loss_sq(test, model, ws) / test->nnz);
 }
 
+
+
+val_t tc_mae(
+    sptensor_t const * const test,
+    tc_model const * const model,
+    tc_ws * const ws)
+{
+  val_t loss_obj = 0.;
+  val_t const * const restrict test_vals = test->vals;
+
+  #pragma omp parallel reduction(+:loss_obj)
+  {
+    val_t * buffer = (val_t *)ws->thds[omp_get_thread_num()].scratch[0];
+
+    if(model->which == SPLATT_TC_CCD) {
+      #pragma omp for schedule(static)
+      for(idx_t x=0; x < test->nnz; ++x) {
+        val_t const predicted = tc_predict_val_col(model, test, x, buffer);
+        loss_obj += fabs(test_vals[x] - predicted);
+      }
+    } else {
+      #pragma omp for schedule(static)
+      for(idx_t x=0; x < test->nnz; ++x) {
+        val_t const predicted = tc_predict_val(model, test, x, buffer);
+        loss_obj += fabs(test_vals[x] - predicted);
+      }
+    }
+  }
+
+  return loss_obj / test->nnz;
+}
 
 
 
@@ -445,12 +476,13 @@ tc_ws * tc_ws_alloc(
 
   /* convergence */
   ws->max_its = 1000;
+  ws->num_inner = 1;
   ws->max_seconds = 1000;
   ws->max_badepochs = 20;
   ws->nbadepochs = 0;
   ws->best_epoch = 0;
   ws->best_rmse = SPLATT_VAL_MAX;
-  ws->tolerance = 1e-6;
+  ws->tolerance = 1e-4;
 
   ws->best_model = tc_model_copy(model);
 
@@ -488,7 +520,7 @@ bool tc_converge(
   val_t const val_rmse = tc_rmse(validate, model, ws);
   timer_stop(&ws->test_time);
 
-  p_print_progress(epoch, obj, train_rmse, val_rmse, ws);
+  p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
 
   bool converged = false;
   if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
