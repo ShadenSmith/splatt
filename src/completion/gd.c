@@ -37,9 +37,12 @@ void splatt_tc_gd(
 
   /* allocate gradients */
   val_t * gradients[MAX_NMODES];
+  val_t * directions[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
     gradients[m] = splatt_malloc(model->dims[m] * model->rank *
         sizeof(**gradients));
+    directions[m] = splatt_malloc(model->dims[m] * model->rank *
+        sizeof(**directions));
   }
 
   timer_reset(&ws->train_time);
@@ -58,7 +61,22 @@ void splatt_tc_gd(
 
     tc_gradient(csf, model, ws, gradients);
 
-    tc_line_search(train, model, ws, prev_obj, gradients, gradients,
+    /* direction is the negative gradient */
+    #pragma omp parallel
+    {
+      for(idx_t m=0; m < model->nmodes; ++m) {
+        idx_t const N = model->dims[m] * model->rank;
+        val_t const * const restrict grad = gradients[m];
+        val_t * const restrict direc = directions[m];
+
+        #pragma omp for schedule(static) nowait
+        for(idx_t x=0; x < N; ++x) {
+          direc[x] = -grad[x];
+        }
+      }
+    }
+
+    tc_line_search(train, model, ws, prev_obj, gradients, directions,
         &loss, &frobsq);
     prev_obj = loss + frobsq;
 
@@ -73,6 +91,7 @@ void splatt_tc_gd(
 
   for(idx_t m=0; m < nmodes; ++m) {
     splatt_free(gradients[m]);
+    splatt_free(directions[m]);
   }
 
   csf_free(csf, opts);

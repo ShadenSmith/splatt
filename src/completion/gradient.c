@@ -144,7 +144,27 @@ void tc_gradient(
 {
   timer_start(&ws->grad_time);
 
-  /* reset gradients - initialize with negative regularization */
+  /* reset gradients */
+  #pragma omp parallel
+  {
+    for(idx_t m=0; m < model->nmodes; ++m) {
+      val_t * const restrict grad = gradients[m];
+
+      #pragma omp for schedule(static) nowait
+      for(idx_t x=0; x < (train->dims[m] * model->rank); ++x) {
+        grad[x] = 0;
+      }
+    }
+  }
+
+
+  /* gradient computation -- process each slice */
+  for(idx_t i=0; i < train->pt->nfibs[0]; ++i) {
+    p_process_tree3(train, i, model, ws, gradients);
+  }
+
+  /* Gradient is actually -grad + \lambda A */
+
   #pragma omp parallel
   {
     for(idx_t m=0; m < model->nmodes; ++m) {
@@ -154,19 +174,47 @@ void tc_gradient(
 
       #pragma omp for schedule(static) nowait
       for(idx_t x=0; x < (train->dims[m] * model->rank); ++x) {
-        grad[x] = -(reg * mat[x]);
+        grad[x] = -grad[x] + (reg * mat[x]);
       }
     }
-  }
-
-  /* gradient computation -- process each slice */
-  for(idx_t i=0; i < train->pt->nfibs[0]; ++i) {
-    p_process_tree3(train, i, model, ws, gradients);
   }
 
   timer_stop(&ws->grad_time);
 }
 
+
+/**
+* @brief Compute the dot product between the gradient and the new direction.
+*
+* @param model Just for vector sizes.
+* @param gradients Gradient matrices (non-negated).
+* @param directions The new direction vector.
+*
+* @return gradient^T direction.
+*/
+static val_t p_grad_dot(
+    tc_model const * const model,
+    val_t * * gradients,
+    val_t * * directions)
+{
+  val_t grad_dot = 0;
+
+  #pragma omp parallel reduction(+:grad_dot)
+  {
+    for(idx_t m=0; m < model->nmodes; ++m) {
+      val_t const * const grad = gradients[m];
+      val_t const * const direc = directions[m];
+      idx_t const N = model->dims[m] * model->rank;
+
+      #pragma omp for schedule(static) nowait
+      for(idx_t x=0; x < N; ++x) {
+        grad_dot += grad[x] * direc[x];
+      }
+    }
+  }
+
+  return grad_dot;
+}
 
 
 
@@ -183,69 +231,51 @@ void tc_line_search(
   timer_start(&ws->line_time);
   val_t loss;
   val_t frobsq;
-  idx_t neval = 1;
+  idx_t neval = 0;
 
-  /* Wolfe conditions TODO: choose these better? */
-  val_t learn_rate = 1e-3;
-  val_t const c = 1e-5;
-  val_t const rho = 0.5;
+  val_t learn_rate = ws->learn_rate * 4;
+  val_t const dec = 0.5;
 
-  /* gradient^T gradient */
-  val_t grad_tpose = 0;
-  #pragma omp parallel reduction(+:grad_tpose)
-  {
-    for(idx_t m=0; m < model->nmodes; ++m) {
-      val_t const * const restrict grad = gradients[m];
+  /* Wolfe conditions TODO: choose better? */
+  val_t const wolfe = 1e-5;
 
-      /* pointer comparison, if they are equal use steepest descent */
-      if(gradients != directions) {
-        val_t const * const restrict direc = directions[m];
-        #pragma omp for schedule(static) nowait
-        for(idx_t x=0; x < (model->dims[m] * model->rank); ++x) {
-          grad_tpose += grad[x] * direc[x];
-        }
-
-      } else {
-        /* just steepest descent */
-        #pragma omp for schedule(static) nowait
-        for(idx_t x=0; x < (model->dims[m] * model->rank); ++x) {
-          grad_tpose += grad[x] * grad[x];
-        }
-      }
-    }
+  val_t gdot = p_grad_dot(model, gradients, directions);
+  if(gdot > 0) {
+    return;
   }
-  grad_tpose *= c;
 
   /* update model with initial step size */
   p_update_model(model, ws, directions, 0, learn_rate);
 
   while(true) {
+    ++neval;
+
     /* compute new objective */
     loss = tc_loss_sq(train, model, ws);
     frobsq = tc_frob_sq(model, ws);
     val_t const obj = loss + frobsq;
 
-    if(obj < prev_obj + (learn_rate * grad_tpose)) {
-#if 0
-      printf("  %0.5e -> %0.5e delta: %0.5e (neval: %lu learn: %0.3e)\n",
-          prev_obj, obj, obj - prev_obj, neval, learn_rate);
-#endif
+    if(obj < prev_obj + (learn_rate * wolfe * gdot)) {
       break;
     }
 
     /* change learning rate and update model (while undoing last step) */
-    p_update_model(model, ws, directions, learn_rate, learn_rate * rho);
-    learn_rate *= rho;
+    p_update_model(model, ws, directions, learn_rate, learn_rate * dec);
+    learn_rate *= dec;
 
-    if(neval++ > 25) {
-      printf("  LINE SEARCH STALLED, >25 EVALUATIONS. MOVING ON.\n");
+    if(neval > 25) {
+      printf("  LINE SEARCH STALLED, >25 EVALUATIONS.\n");
       break;
     }
-
   }
 
   timer_stop(&ws->line_time);
+#if 0
+  printf("  %0.5e -> %0.5e delta: %0.5e (neval: %lu learn: %0.3e)\n",
+      prev_obj, loss + frobsq, loss + frobsq - prev_obj, neval-1, learn_rate);
+#endif
 
+  ws->learn_rate = learn_rate;
   *ret_loss = loss;
   *ret_frobsq = frobsq;
 }

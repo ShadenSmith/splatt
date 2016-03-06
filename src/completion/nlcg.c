@@ -20,12 +20,24 @@ static void p_update_direction(
     val_t * * gradients,
     val_t * * directions)
 {
-  /* restart, just go for steepest descent (negative gradient) */
+  /* Restart, just go for steepest descent (negative gradient).
+   * NOTE: we don't just run the normal code (multiplying by beta=0) because
+   * the first iteration doesn't initialize directions.
+   */
   if(beta == 0) {
-    for(idx_t m=0; m < model->nmodes; ++m) {
-      par_memcpy(directions[m], gradients[m],
-          model->dims[m] * model->rank * sizeof(**directions));
-    }
+    #pragma omp parallel
+    {
+      for(idx_t m=0; m < model->nmodes; ++m) {
+        idx_t const N = model->dims[m] * model->rank;
+
+        val_t * const restrict dir = directions[m];
+        val_t const * const restrict grad = gradients[m];
+        #pragma omp for schedule(static) nowait
+        for(idx_t x=0; x < N; ++x) {
+          dir[x] = -grad[x];
+        }
+      }
+    } /* omp parallel */
     return;
   }
 
@@ -39,7 +51,7 @@ static void p_update_direction(
       #pragma omp for schedule(static) nowait
       for(idx_t x=0; x < N; ++x) {
         /* p_{k+1} \gets - gradient + \Beta p_{k} */
-        dir[x] = grad[x] + (beta * dir[x]);
+        dir[x] = -grad[x] + (beta * dir[x]);
       }
     }
   } /* omp parallel */
