@@ -20,6 +20,7 @@ static char tc_doc[] =
   "splatt-complete -- Complete a tensor with missing entries.\n"
   "Available tensor completion algorithms are:\n"
   "  gd\t\tgradient descent\n"
+  "  cg\t\nnonlinear conjugate gradient\n"
   "  sgd\t\tstochastic gradient descent\n"
   "  ccd\t\tcoordinate descent\n"
   "  als\t\talternating least squares\n";
@@ -52,6 +53,7 @@ typedef struct
 
 static tc_alg_map maps[] = {
   { "gd", SPLATT_TC_GD },
+  { "cg", SPLATT_TC_NLCG },
   { "sgd", SPLATT_TC_SGD },
   { "als", SPLATT_TC_ALS },
   { "ccd", SPLATT_TC_CCD },
@@ -279,6 +281,10 @@ int splatt_tc_cmd(
   case SPLATT_TC_GD:
     printf("ALG=GD\n\n");
     splatt_tc_gd(train, validate, model, ws);
+    break;
+  case SPLATT_TC_NLCG:
+    printf("ALG=NLCG\n\n");
+    splatt_tc_nlcg(train, validate, model, ws);
     break;
   case SPLATT_TC_SGD:
     printf("ALG=SGD\n\n");

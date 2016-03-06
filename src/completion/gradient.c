@@ -35,12 +35,11 @@ static void p_update_model(
   {
     for(idx_t m=0; m < model->nmodes; ++m) {
       val_t * const restrict mat = model->factors[m];
-      val_t const * const restrict grad = directions[m];
-      val_t const reg = ws->regularization[m];
+      val_t const * const restrict direc = directions[m];
 
       #pragma omp for schedule(static) nowait
       for(idx_t x=0; x < (model->dims[m] * model->rank); ++x) {
-        mat[x] += new_rate * grad[x];
+        mat[x] += new_rate * direc[x];
       }
     }
   } /* end omp parallel */
@@ -132,6 +131,11 @@ static void p_process_tree3(
 
 
 
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
+
 void tc_gradient(
     splatt_csf const * const train,
     tc_model const * const model,
@@ -166,11 +170,6 @@ void tc_gradient(
 
 
 
-
-/******************************************************************************
- * PUBLIC FUNCTIONS
- *****************************************************************************/
-
 void tc_line_search(
     sptensor_t const * const train,
     tc_model * const model,
@@ -182,13 +181,13 @@ void tc_line_search(
     val_t * ret_frobsq)
 {
   timer_start(&ws->line_time);
-  val_t learn_rate = 1e-3;
   val_t loss;
   val_t frobsq;
   idx_t neval = 1;
 
-  /* Wolfe conditions */
-  val_t const c = 1e-4;
+  /* Wolfe conditions TODO: choose these better? */
+  val_t learn_rate = 1e-3;
+  val_t const c = 1e-5;
   val_t const rho = 0.5;
 
   /* gradient^T gradient */
@@ -228,7 +227,7 @@ void tc_line_search(
 
     if(obj < prev_obj + (learn_rate * grad_tpose)) {
 #if 0
-      printf("  %0.5f -> %0.5f delta: %0.5e (neval: %lu learn: %0.3e)\n",
+      printf("  %0.5e -> %0.5e delta: %0.5e (neval: %lu learn: %0.3e)\n",
           prev_obj, obj, obj - prev_obj, neval, learn_rate);
 #endif
       break;
@@ -238,7 +237,11 @@ void tc_line_search(
     p_update_model(model, ws, directions, learn_rate, learn_rate * rho);
     learn_rate *= rho;
 
-    ++neval;
+    if(neval++ > 25) {
+      printf("  LINE SEARCH STALLED, >25 EVALUATIONS. MOVING ON.\n");
+      break;
+    }
+
   }
 
   timer_stop(&ws->line_time);

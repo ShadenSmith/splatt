@@ -38,7 +38,7 @@ void splatt_tc_gd(
   /* allocate gradients */
   val_t * gradients[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
-    gradients[m] = splatt_malloc(train->dims[m] * model->rank *
+    gradients[m] = splatt_malloc(model->dims[m] * model->rank *
         sizeof(**gradients));
   }
 
@@ -46,8 +46,6 @@ void splatt_tc_gd(
   timer_reset(&ws->test_time);
   timer_reset(&ws->grad_time);
   timer_reset(&ws->line_time);
-
-  val_t learn_rate = ws->learn_rate;
 
   val_t loss = tc_loss_sq(train, model, ws);
   val_t frobsq = tc_frob_sq(model, ws);
@@ -62,7 +60,6 @@ void splatt_tc_gd(
 
     tc_line_search(train, model, ws, prev_obj, gradients, gradients,
         &loss, &frobsq);
-
     prev_obj = loss + frobsq;
 
     timer_stop(&ws->train_time);
@@ -73,9 +70,6 @@ void splatt_tc_gd(
       break;
     }
   }
-
-  /* save any changes */
-  ws->learn_rate = learn_rate;
 
   for(idx_t m=0; m < nmodes; ++m) {
     splatt_free(gradients[m]);
