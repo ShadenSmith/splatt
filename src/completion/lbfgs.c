@@ -44,11 +44,6 @@ static lbfgsfloatval_t p_lbfgs_evaluate(
 
   idx_t offset = 0;
   for(idx_t m=0; m < nmodes; ++m) {
-#if 0
-    for(idx_t i=0; i < model->dims[m]*model->rank; ++i) {
-      g[offset + i] = gradients[m][i];
-    }
-#endif
     size_t const bytes = model->dims[m] * model->rank * sizeof(*g);
     par_memcpy(g + offset, gradients[m], bytes);
     offset += train->dims[m] * model->rank;
