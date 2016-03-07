@@ -123,7 +123,11 @@ set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -restrict -std=c++0x")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+<<<<<<< HEAD
 file(GLOB SPLATT_SOURCES src/*.c src/*.cc src/ccp/*.c src/completion/*.c src/completion/*.cc src/completion/liblbfgs/*.c ${MPI_SOURCES})
+=======
+file(GLOB SPLATT_SOURCES src/*.c src/ccp/*.c src/completion/*.c src/completion/liblbfgs/*.c ${MPI_SOURCES})
+>>>>>>> 200428901024125c62dccdf8b4bb5a89cd38f73b
 
 # Generate splatt library
 add_subdirectory(lib)

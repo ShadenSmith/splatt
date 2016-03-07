@@ -1,7 +1,9 @@
 #include <math.h>
 
 #include "completion.h"
+#include "gradient.h"
 #include "../csf.h"
+#include "../util.h"
 #include "liblbfgs/lbfgs.h"
 #include "liblbfgs/arithmetic_ansi.h"
 
@@ -16,13 +18,9 @@ typedef struct
   splatt_csf *csf;
   tc_model *model;
   tc_ws *ws;
+  val_t * gradients[MAX_NMODES];
 } lbfgs_user_data;
 
-extern void p_process_tree3(
-    splatt_csf const * const csf,
-    idx_t const i,
-    tc_model * const model,
-    tc_ws * const ws); /* defined in gd.c */
 
 static lbfgsfloatval_t p_lbfgs_evaluate(
     void *instance, /* the user data sent for lbfgs() function by the client */
@@ -37,40 +35,20 @@ static lbfgsfloatval_t p_lbfgs_evaluate(
   splatt_csf *csf = user_data->csf;
   tc_model *model = user_data->model;
   tc_ws *ws = user_data->ws;
+  val_t * * gradients = user_data->gradients;
 
-  idx_t nmodes = model->nmodes;
+  idx_t const nmodes = model->nmodes;
 
-  #pragma omp parallel
-  {
-    idx_t offset = 0;
-    /* reset gradients - initialize with negative regularization */
-    for(idx_t m=0; m < nmodes; ++m) {
-      val_t const * const restrict mat = model->factors[m];
-      val_t * const restrict grad = ws->gradients[m];
-      val_t const reg = ws->regularization[m];
-
-      #pragma omp for schedule(static) nowait
-      for(idx_t i=0; i < (csf->dims[m] * model->rank); ++i) {
-        grad[i] = -(reg * mat[i]);
-        assert(mat[i] == x[i + offset]);
-      }
-
-      offset += csf->dims[m]*model->rank;
-    }
-  }
- 
-  /* gradient computation -- process each slice */
-  for(idx_t i=0; i < csf->pt->nfibs[0]; ++i) {
-    p_process_tree3(csf, i, model, ws);
-  }
+  timer_start(&ws->train_time);
+  tc_gradient(csf, model, ws, gradients);
 
   idx_t offset = 0;
   for(idx_t m=0; m < nmodes; ++m) {
-    for(idx_t i=0; i < model->dims[m]*model->rank; ++i) {
-      g[offset + i] = -ws->gradients[m][i];
-    }
+    size_t const bytes = model->dims[m] * model->rank * sizeof(*g);
+    par_memcpy(g + offset, gradients[m], bytes);
     offset += train->dims[m] * model->rank;
   }
+  timer_stop(&ws->train_time);
 
   val_t loss = tc_loss_sq(train, model, ws);
   val_t frobsq = tc_frob_sq(model, ws);
@@ -126,7 +104,13 @@ void splatt_tc_lbfgs(
   opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
   splatt_csf * csf = csf_alloc(train, opts);
   assert(csf->ntiles == 1);
- 
+
+  idx_t const nmodes = train->nmodes;
+
+  timer_reset(&ws->train_time);
+  timer_reset(&ws->test_time);
+
+
   idx_t n = 0;
   for(idx_t m=0; m < model->nmodes; ++m) {
     n += model->dims[m] * model->rank;
@@ -157,6 +141,12 @@ void splatt_tc_lbfgs(
   user_data.csf = csf;
   user_data.model = model;
   user_data.ws = ws;
+
+  /* allocate gradients */
+  for(idx_t m=0; m < nmodes; ++m) {
+    user_data.gradients[m] = splatt_malloc(model->dims[m] * model->rank * sizeof(val_t));
+  }
+
 
   val_t fx;
   int ret = lbfgs(n, mat, &fx, p_lbfgs_evaluate, p_lbfgs_progress, &user_data, &param);
@@ -199,4 +189,13 @@ void splatt_tc_lbfgs(
     }
     printf(")\n");
   }
+
+
+  /* cleanup */
+  for(idx_t m=0; m < nmodes; ++m) {
+    splatt_free(user_data.gradients[m]);
+  }
+  csf_free(csf, opts);
+  splatt_free_opts(opts);
 }
+

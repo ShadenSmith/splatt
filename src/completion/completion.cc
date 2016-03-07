@@ -11,9 +11,11 @@
 #include <omp.h>
 
 
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
 
 /**
 * @brief Predict a value for a three-way tensor.
@@ -217,6 +219,7 @@ val_t tc_frob_sq(
     }
   } /* end omp parallel */
 
+  assert(reg_obj > 0);
   return reg_obj;
 }
 
@@ -411,15 +414,18 @@ tc_ws * tc_ws_alloc(
   ws->learn_rate = 0.001;
   idx_t const rank = model->rank;
 
-  /* Set mode-specific parameters, allocate gradients, etc. */
+  /* Set mode-specific parameters, etc. */
   for(idx_t m=0; m < nmodes; ++m) {
-    ws->gradients[m] = NULL;
 
     switch(model->which) {
     case SPLATT_TC_GD:
       ws->regularization[m] = 1e-2;
-      ws->gradients[m] = (val_t *)splatt_malloc(model->dims[m] * rank *
-          sizeof(**(ws->gradients)));
+      break;
+    case SPLATT_TC_NLCG:
+      ws->regularization[m] = 1e-2;
+      break;
+    case SPLATT_TC_LBFGS:
+      ws->regularization[m] = 1e-2;
       break;
     case SPLATT_TC_SGD:
       ws->regularization[m] = 5e-3;
@@ -449,6 +455,12 @@ tc_ws * tc_ws_alloc(
   ws->nthreads = nthreads;
   switch(model->which) {
   case SPLATT_TC_GD:
+    ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
+    break;
+  case SPLATT_TC_LBFGS:
+    ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
+    break;
+  case SPLATT_TC_NLCG:
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_SGD:
@@ -494,9 +506,6 @@ void tc_ws_free(
     tc_ws * ws)
 {
   thd_free(ws->thds, ws->nthreads);
-  for(idx_t m=0; m < ws->nmodes; ++m) {
-    splatt_free(ws->gradients[m]);
-  }
   tc_model_free(ws->best_model);
   splatt_free(ws->numerator);
   splatt_free(ws->denominator);
@@ -548,5 +557,6 @@ bool tc_converge(
 
   return converged;
 }
+
 
 
