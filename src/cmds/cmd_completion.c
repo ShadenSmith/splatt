@@ -63,7 +63,6 @@ static tc_alg_map maps[] = {
   { "sgd", SPLATT_TC_SGD },
   { "als", SPLATT_TC_ALS },
   { "ccd", SPLATT_TC_CCD },
-  { "lbfgs", SPLATT_TC_LBFGS },
   { NULL,  SPLATT_TC_NALGS }
 };
 
@@ -321,10 +320,6 @@ int splatt_tc_cmd(
   case SPLATT_TC_ALS:
     printf("ALG=ALS\n\n");
     splatt_tc_als(train, validate, model, ws);
-    break;
-  case SPLATT_TC_LBFGS:
-    printf("ALG=LBFGS\n\n");
-    splatt_tc_lbfgs(train, validate, model, ws);
     break;
   default:
     /* error */

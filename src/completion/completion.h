@@ -30,7 +30,6 @@ typedef enum
   SPLATT_TC_LBFGS,
   SPLATT_TC_CCD,
   SPLATT_TC_ALS,
-  SPLATT_TC_LBFGS,
   SPLATT_TC_NALGS
 } splatt_tc_type;
 
