@@ -21,6 +21,7 @@ static char tc_doc[] =
   "Available tensor completion algorithms are:\n"
   "  gd\t\tgradient descent\n"
   "  cg\t\nnonlinear conjugate gradient\n"
+  "  lbfgs\t\tlimited-memory BFGS\n"
   "  sgd\t\tstochastic gradient descent\n"
   "  ccd\t\tcoordinate descent\n"
   "  als\t\talternating least squares\n";
@@ -53,6 +54,7 @@ typedef struct
 
 static tc_alg_map maps[] = {
   { "gd", SPLATT_TC_GD },
+  { "lbfgs", SPLATT_TC_LBFGS },
   { "cg", SPLATT_TC_NLCG },
   { "sgd", SPLATT_TC_SGD },
   { "als", SPLATT_TC_ALS },
@@ -285,6 +287,10 @@ int splatt_tc_cmd(
   case SPLATT_TC_NLCG:
     printf("ALG=NLCG\n\n");
     splatt_tc_nlcg(train, validate, model, ws);
+    break;
+  case SPLATT_TC_LBFGS:
+    printf("ALG=LBFGS\n\n");
+    splatt_tc_lbfgs(train, validate, model, ws);
     break;
   case SPLATT_TC_SGD:
     printf("ALG=SGD\n\n");

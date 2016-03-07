@@ -384,6 +384,9 @@ tc_ws * tc_ws_alloc(
     case SPLATT_TC_NLCG:
       ws->regularization[m] = 1e-2;
       break;
+    case SPLATT_TC_LBFGS:
+      ws->regularization[m] = 1e-2;
+      break;
     case SPLATT_TC_SGD:
       ws->regularization[m] = 5e-3;
       break;
@@ -407,6 +410,9 @@ tc_ws * tc_ws_alloc(
   ws->nthreads = nthreads;
   switch(model->which) {
   case SPLATT_TC_GD:
+    ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
+    break;
+  case SPLATT_TC_LBFGS:
     ws->thds = thd_init(nthreads, 1, rank * sizeof(val_t));
     break;
   case SPLATT_TC_NLCG:
