@@ -241,9 +241,6 @@ void splatt_tc_sgd(
   }
 #endif
 
-  timer_reset(&ws->train_time);
-  timer_reset(&ws->test_time);
-
   val_t loss = tc_loss_sq(train, model, ws);
   val_t frobsq = tc_frob_sq(model, ws);
   tc_converge(train, validate, model, loss, frobsq, 0, ws);
@@ -252,9 +249,9 @@ void splatt_tc_sgd(
   val_t obj = loss + frobsq;
   val_t prev_obj = obj;
 
+  timer_start(&ws->tc_time);
   /* foreach epoch */
   for(idx_t e=1; e < ws->max_its+1; ++e) {
-    timer_start(&ws->train_time);
 
 
     /* update model from all training observations */
@@ -269,14 +266,11 @@ void splatt_tc_sgd(
       p_update_model(train, perm[n], model, ws);
     }
 #endif
-    timer_stop(&ws->train_time);
 
     /* compute RMSE and adjust learning rate */
-    timer_start(&ws->test_time);
     loss = tc_loss_sq(train, model, ws);
     frobsq = tc_frob_sq(model, ws);
     obj = loss + frobsq;
-    timer_stop(&ws->test_time);
     if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
       break;
     }

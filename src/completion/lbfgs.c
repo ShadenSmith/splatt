@@ -39,7 +39,6 @@ static lbfgsfloatval_t p_lbfgs_evaluate(
 
   idx_t const nmodes = model->nmodes;
 
-  timer_start(&ws->train_time);
   tc_gradient(csf, model, ws, gradients);
 
   idx_t offset = 0;
@@ -48,7 +47,6 @@ static lbfgsfloatval_t p_lbfgs_evaluate(
     par_memcpy(g + offset, gradients[m], bytes);
     offset += train->dims[m] * model->rank;
   }
-  timer_stop(&ws->train_time);
 
   val_t loss = tc_loss_sq(train, model, ws);
   val_t frobsq = tc_frob_sq(model, ws);
@@ -82,9 +80,8 @@ static int p_lbfgs_progress(
   val_t frobsq = tc_frob_sq(model, ws);
   ls_acc += ls;
   printf("ls: %d\t", ls_acc);
-  tc_converge(train, validate, model, loss, frobsq, k, ws);
 
-  return 0;
+  return tc_converge(train, validate, model, loss, frobsq, k, ws);
 }
 
 
@@ -106,10 +103,6 @@ void splatt_tc_lbfgs(
   assert(csf->ntiles == 1);
 
   idx_t const nmodes = train->nmodes;
-
-  timer_reset(&ws->train_time);
-  timer_reset(&ws->test_time);
-
 
   idx_t n = 0;
   for(idx_t m=0; m < model->nmodes; ++m) {
@@ -147,6 +140,7 @@ void splatt_tc_lbfgs(
     user_data.gradients[m] = splatt_malloc(model->dims[m] * model->rank * sizeof(val_t));
   }
 
+  timer_start(&ws->tc_time);
 
   val_t fx;
   int ret = lbfgs(n, mat, &fx, p_lbfgs_evaluate, p_lbfgs_progress, &user_data, &param);
@@ -189,7 +183,6 @@ void splatt_tc_lbfgs(
     }
     printf(")\n");
   }
-
 
   /* cleanup */
   for(idx_t m=0; m < nmodes; ++m) {

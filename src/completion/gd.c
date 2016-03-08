@@ -45,19 +45,15 @@ void splatt_tc_gd(
         sizeof(**directions));
   }
 
-  timer_reset(&ws->train_time);
-  timer_reset(&ws->test_time);
-  timer_reset(&ws->grad_time);
-  timer_reset(&ws->line_time);
-
   val_t loss = tc_loss_sq(train, model, ws);
   val_t frobsq = tc_frob_sq(model, ws);
   val_t prev_obj = loss + frobsq;
   tc_converge(train, validate, model, loss, frobsq, 0, ws);
 
+  timer_start(&ws->tc_time);
+
   /* foreach epoch */
   for(idx_t e=1; e < ws->max_its+1; ++e) {
-    timer_start(&ws->train_time);
 
     tc_gradient(csf, model, ws, gradients);
 
@@ -80,7 +76,6 @@ void splatt_tc_gd(
         &loss, &frobsq);
     prev_obj = loss + frobsq;
 
-    timer_stop(&ws->train_time);
 
     printf("  time-grad: %0.3fs  time-line: %0.3fs\n",
         ws->grad_time.seconds, ws->line_time.seconds);

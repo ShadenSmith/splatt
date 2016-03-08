@@ -131,8 +131,10 @@ static inline void timer_reset(sp_timer_t * const timer)
 */
 static inline void timer_start(sp_timer_t * const timer)
 {
-  timer->running = 1;
-  gettimeofday(&(timer->start), NULL);
+  if(timer->running == 0) {
+    timer->running = 1;
+    gettimeofday(&(timer->start), NULL);
+  }
 }
 
 
@@ -143,10 +145,12 @@ static inline void timer_start(sp_timer_t * const timer)
 */
 static inline void timer_stop(sp_timer_t * const timer)
 {
-  timer->running = 0;
-  gettimeofday(&(timer->stop), NULL);
-  timer->seconds += (double)(timer->stop.tv_sec - timer->start.tv_sec);
-  timer->seconds += 1e-6 * (timer->stop.tv_usec - timer->start.tv_usec);
+  if(timer->running == 1) {
+    timer->running = 0;
+    gettimeofday(&(timer->stop), NULL);
+    timer->seconds += (double)(timer->stop.tv_sec - timer->start.tv_sec);
+    timer->seconds += 1e-6 * (timer->stop.tv_usec - timer->start.tv_usec);
+  }
 }
 
 

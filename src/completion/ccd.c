@@ -286,12 +286,11 @@ void splatt_tc_ccd(
     }
   }
 
-  timer_reset(&ws->train_time);
-  timer_reset(&ws->test_time);
-
   val_t loss = tc_loss_sq(train, model, ws);
   val_t frobsq = tc_frob_sq(model, ws);
   tc_converge(train, validate, model, loss, frobsq, 0, ws);
+
+  timer_start(&ws->tc_time);
 
   idx_t const nmodes = csf->nmodes;
 
@@ -301,7 +300,6 @@ void splatt_tc_ccd(
   /* foreach epoch */
   for(idx_t e=1; e < ws->max_its+1; ++e) {
     /* update model from all training observations */
-    timer_start(&ws->train_time);
 
     loss = 0;
     #pragma omp parallel reduction(+:loss)
@@ -368,7 +366,6 @@ void splatt_tc_ccd(
       } /* foreach factor */
     } /* omp parallel */
 
-    timer_stop(&ws->train_time);
 
 #if MEASURE_DRIFT == 1
     val_t const gold = tc_loss_sq(train, model, ws);
@@ -376,9 +373,7 @@ void splatt_tc_ccd(
 #endif
 
     /* compute RMSE and adjust learning rate */
-    timer_start(&ws->test_time);
     frobsq = tc_frob_sq(model, ws);
-    timer_stop(&ws->test_time);
     if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
       break;
     }

@@ -31,6 +31,7 @@ static char tc_doc[] =
 #define TC_NOWRITE 254
 #define TC_SEED 253
 #define TC_TIME 252
+#define TC_TOL 251
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
@@ -42,6 +43,7 @@ static struct argp_option tc_options[] = {
   {"reg", TC_REG, "SIZE", 0, "step size (learning rate) for SGD"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
   {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
+  {"tol", TC_TOL, "TOLERANCE", 0, "converge if RMSE-vl has not improved by TOLERANCE in 20 epochs (default: 1e-4)"},
   {0}
 };
 
@@ -56,6 +58,7 @@ static tc_alg_map maps[] = {
   { "gd", SPLATT_TC_GD },
   { "lbfgs", SPLATT_TC_LBFGS },
   { "cg", SPLATT_TC_NLCG },
+  { "nlcg", SPLATT_TC_NLCG },
   { "sgd", SPLATT_TC_SGD },
   { "als", SPLATT_TC_ALS },
   { "ccd", SPLATT_TC_CCD },
@@ -103,6 +106,9 @@ typedef struct
   val_t learn_rate;
   val_t reg;
 
+  bool set_tolerance;
+  val_t tolerance;
+
   idx_t max_its;
   bool set_timeout;
   double max_seconds;
@@ -134,6 +140,7 @@ static void default_tc_opts(
   args->nthreads = omp_get_max_threads();
   args->set_seed = false;
   args->seed = time(NULL);
+  args->set_tolerance = false;
 }
 
 
@@ -189,6 +196,10 @@ static error_t parse_tc_opt(
   case TC_TIME:
     args->max_seconds = atof(arg);
     args->set_timeout = true;
+    break;
+  case TC_TOL:
+    args->tolerance = atof(arg);
+    args->set_tolerance = true;
     break;
 
   case ARGP_KEY_ARG:
@@ -256,6 +267,9 @@ int splatt_tc_cmd(
   }
   if(args.set_timeout) {
     ws->max_seconds = args.max_seconds;
+  }
+  if(args.set_tolerance) {
+    ws->tolerance = args.tolerance;
   }
 
   printf("Factoring ------------------------------------------------------\n");
