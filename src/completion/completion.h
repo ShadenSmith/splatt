@@ -71,6 +71,8 @@ typedef struct
 
   /* SGD */
   sp_timer_t shuffle_time;
+  sp_timer_t train_time;
+  sp_timer_t test_time;
 
   /* results + convergence */
   idx_t max_badepochs;

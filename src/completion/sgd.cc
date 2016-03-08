@@ -14,7 +14,7 @@
 #include <omp.h>
 
 
-#define USE_CSF_SGD 1
+#define USE_CSF_SGD 0
 
 
 
@@ -241,13 +241,10 @@ void splatt_tc_sgd(
   }
 #endif
 
-<<<<<<< HEAD:src/completion/sgd.cc
   timer_reset(&ws->shuffle_time);
   timer_reset(&ws->train_time);
   timer_reset(&ws->test_time);
 
-=======
->>>>>>> 5ec188a8cc759be23c83bbbcb1d30f0b9ed68ecc:src/completion/sgd.c
   val_t loss = tc_loss_sq(train, model, ws);
   val_t frobsq = tc_frob_sq(model, ws);
   tc_converge(train, validate, model, loss, frobsq, 0, ws);
@@ -259,11 +256,8 @@ void splatt_tc_sgd(
   timer_start(&ws->tc_time);
   /* foreach epoch */
   for(idx_t e=1; e < ws->max_its+1; ++e) {
-<<<<<<< HEAD:src/completion/sgd.cc
-=======
 
 
->>>>>>> 5ec188a8cc759be23c83bbbcb1d30f0b9ed68ecc:src/completion/sgd.c
     /* update model from all training observations */
 #if USE_CSF_SGD
     if (ws->rand_per_iteration || e == 1) {
