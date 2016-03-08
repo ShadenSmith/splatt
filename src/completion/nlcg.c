@@ -178,11 +178,6 @@ void splatt_tc_nlcg(
 
   idx_t const nmodes = train->nmodes;
 
-  timer_reset(&ws->train_time);
-  timer_reset(&ws->test_time);
-  timer_reset(&ws->grad_time);
-  timer_reset(&ws->line_time);
-
   /* allocate gradients */
   val_t * directions[MAX_NMODES];
   val_t * gradients[MAX_NMODES];
@@ -199,25 +194,24 @@ void splatt_tc_nlcg(
   val_t prev_obj = loss + frobsq;
   tc_converge(train, validate, model, loss, frobsq, 0, ws);
 
+  timer_start(&ws->tc_time);
+
   /* initialize direction with negative gradient */
   tc_gradient(csf, model, ws, gradients);
   p_update_direction(model, 0, gradients, directions);
 
   /* foreach epoch */
   for(idx_t e=1; e < ws->max_its+1; ++e) {
-    timer_start(&ws->train_time);
 
     /* find the new iterate */
     tc_line_search(train, model, ws, prev_obj, gradients, directions,
         &loss, &frobsq);
     prev_obj = loss + frobsq;
 
-    timer_stop(&ws->train_time);
     /* check for convergence */
     if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
       break;
     }
-    timer_start(&ws->train_time);
 
     /* not converged, find next direction */
     p_swap_gradients(nmodes, prev_gradients, gradients);
@@ -225,7 +219,6 @@ void splatt_tc_nlcg(
     val_t const beta = p_conjugate_prplus(model, prev_gradients, gradients);
     p_update_direction(model, beta, gradients, directions);
 
-    timer_stop(&ws->train_time);
 
     printf("  time-grad: %0.3fs  time-line: %0.3fs\n",
         ws->grad_time.seconds, ws->line_time.seconds);

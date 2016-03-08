@@ -60,8 +60,7 @@ typedef struct
   idx_t nthreads;
   thd_info * thds;
 
-  sp_timer_t train_time;
-  sp_timer_t test_time;
+  sp_timer_t tc_time;
 
   /* CCD++ */
   idx_t num_inner;

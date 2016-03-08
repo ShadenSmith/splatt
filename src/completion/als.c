@@ -9,7 +9,7 @@
  *       What does this offer beyond prototypes? Can we detect at compile time
  *       if we are using MKL vs ATLAS, etc.?
  */
-#include <mkl.h>
+//#include <mkl.h>
 
 
 
@@ -28,9 +28,9 @@
   #define LAPACK_DPOTRF spotrf_
   #define LAPACK_DPOTRS spotrs_
 #else
-  //void dpotrf_(char *, int *, double *, int *, int *);
-  //void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
-  //void dsyrk_(char *, char *, int *, int *, double *, double *, int *, double *, double *, int *);
+  void dpotrf_(char *, int *, double *, int *, int *);
+  void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
+  void dsyrk_(char *, char *, int *, int *, double *, double *, int *, double *, double *, int *);
 
   #define LAPACK_DPOTRF dpotrf_
   #define LAPACK_DPOTRS dpotrs_
@@ -58,9 +58,9 @@ static inline void p_invert_row(
     val_t * const restrict out_row,
     idx_t const N)
 {
-  char const uplo = 'L';
-  int const order = (int) N;
-  int const lda = (int) N;
+  char uplo = 'L';
+  int order = (int) N;
+  int lda = (int) N;
   int info;
   LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
   if(info) {
@@ -68,8 +68,8 @@ static inline void p_invert_row(
   }
 
 
-  int const nrhs = 1;
-  int const ldb = (int) N;
+  int nrhs = 1;
+  int ldb = (int) N;
   LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, out_row, &ldb, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
@@ -242,15 +242,13 @@ void splatt_tc_als(
 
   val_t prev_val_rmse = 0;
 
-  timer_reset(&ws->train_time);
-  timer_reset(&ws->test_time);
-
   val_t const loss = tc_loss_sq(train, model, ws);
   val_t const frobsq = tc_frob_sq(model, ws);
   tc_converge(train, validate, model, loss, frobsq, 0, ws);
 
+  timer_start(&ws->tc_time);
+
   for(idx_t e=1; e < ws->max_its+1; ++e) {
-    timer_start(&(ws->train_time));
     #pragma omp parallel
     {
       int const tid = omp_get_thread_num();
@@ -264,13 +262,10 @@ void splatt_tc_als(
       }
     } /* end omp parallel */
 
-    timer_stop(&ws->train_time);
 
     /* compute new obj value, print stats, and exit if converged */
-    timer_start(&ws->test_time);
     val_t const loss = tc_loss_sq(train, model, ws);
     val_t const frobsq = tc_frob_sq(model, ws);
-    timer_stop(&ws->test_time);
     if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
       break;
     }

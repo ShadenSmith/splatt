@@ -17,16 +17,17 @@ vrmse_re = re.compile('RMSE-vl: (\d+\.\d+e[+-]\d+)')
 tr_time_re = re.compile('time-tr: (\d+\.\d+)s')
 ts_time_re = re.compile('time-ts: (\d+\.\d+)s')
 
-plt.xlabel('Time (seconds)')
+plt.xlabel('Epoch')
 plt.ylabel('RMSE (validation)')
 
 plots = []
 
 markers = {
-  'ALS' : '+-',
-  'GD'  : 'x-',
-  'SGD' : '.-',
-  'CCD' : '^-',
+  'ALS'   : '+-',
+  'GD'    : 'x-',
+  'NLCG'  : 'p-',
+  'SGD'   : '.-',
+  'CCD'   : '^-',
 }
 
 # parse each file
@@ -50,7 +51,7 @@ for log in sys.argv[1:]:
             float(ts_time_re.search(line).group(1))
 
         rmses.append(rmse)
-        times.append(time)
+        times.append(epoch)
 
   plt.plot(times, rmses, markers[alg], label=log, markersize=8)
 

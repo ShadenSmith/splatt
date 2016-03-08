@@ -109,9 +109,8 @@ static void p_print_progress(
     tc_ws const * const ws)
 {
   printf("epoch:%4ld   loss: %0.5e   "
-      "RMSE-tr: %0.5e   RMSE-vl: %0.5e   time-tr: %0.3fs   time-ts: %0.3fs\n",
-      epoch, loss, rmse_tr, rmse_vl,
-      ws->train_time.seconds, ws->test_time.seconds);
+      "RMSE-tr: %0.5e   RMSE-vl: %0.5e   time: %0.3fs\n",
+      epoch, loss, rmse_tr, rmse_vl, ws->tc_time.seconds);
 }
 
 
@@ -441,6 +440,11 @@ tc_ws * tc_ws_alloc(
     }
   }
 
+  /* reset timers */
+  timer_reset(&ws->grad_time);
+  timer_reset(&ws->line_time);
+  timer_reset(&ws->tc_time);
+
   /* size of largest mode (for CCD) */
   idx_t const max_dim = train->dims[argmax_elem(train->dims, train->nmodes)];
 
@@ -517,10 +521,9 @@ bool tc_converge(
   val_t const obj = loss + frobsq;
   val_t const train_rmse = sqrt(loss / train->nnz);
 
-  timer_start(&ws->test_time);
   val_t const val_rmse = tc_rmse(validate, model, ws);
-  timer_stop(&ws->test_time);
 
+  timer_stop(&ws->tc_time);
   p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
 
   bool converged = false;
@@ -542,11 +545,13 @@ bool tc_converge(
   }
 
   /* check for time limit */
-  if(ws->max_seconds > 0 &&
-      ws->train_time.seconds + ws->test_time.seconds >= ws->max_seconds) {
+  if(ws->max_seconds > 0 && ws->tc_time.seconds >= ws->max_seconds) {
     converged = true;
   }
 
+  if(!converged) {
+    timer_start(&ws->tc_time);
+  }
   return converged;
 }
 

@@ -31,8 +31,9 @@ static char tc_doc[] =
 #define TC_NOWRITE 254
 #define TC_SEED 253
 #define TC_TIME 252
-#define TC_NORAND_PER_ITERATION 251
-#define TC_HOGWILD 250
+#define TC_TOL 251
+#define TC_NORAND_PER_ITERATION 250
+#define TC_HOGWILD 249
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 16)"},
@@ -44,6 +45,7 @@ static struct argp_option tc_options[] = {
   {"reg", TC_REG, "SIZE", 0, "regularization parameter (default 0.02)"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
   {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
+  {"tol", TC_TOL, "TOLERANCE", 0, "converge if RMSE-vl has not improved by TOLERANCE in 20 epochs (default: 1e-4)"},
   {"norand", TC_NORAND_PER_ITERATION, 0, 0, "do not randomly permute every iteration for SGD"},
   {"hogwild", TC_HOGWILD, 0, 0, "hogwild for SGD (default no)"},
   {0}
@@ -60,6 +62,7 @@ static tc_alg_map maps[] = {
   { "gd", SPLATT_TC_GD },
   { "lbfgs", SPLATT_TC_LBFGS },
   { "cg", SPLATT_TC_NLCG },
+  { "nlcg", SPLATT_TC_NLCG },
   { "sgd", SPLATT_TC_SGD },
   { "als", SPLATT_TC_ALS },
   { "ccd", SPLATT_TC_CCD },
@@ -107,6 +110,9 @@ typedef struct
   val_t learn_rate;
   val_t reg;
 
+  bool set_tolerance;
+  val_t tolerance;
+
   idx_t max_its;
   bool set_timeout;
   double max_seconds;
@@ -141,6 +147,7 @@ static void default_tc_opts(
   args->nthreads = omp_get_max_threads();
   args->set_seed = false;
   args->seed = time(NULL);
+  args->set_tolerance = false;
   args->rand_per_iteration = true;
   args->hogwild = false;
 }
@@ -198,6 +205,10 @@ static error_t parse_tc_opt(
   case TC_TIME:
     args->max_seconds = atof(arg);
     args->set_timeout = true;
+    break;
+  case TC_TOL:
+    args->tolerance = atof(arg);
+    args->set_tolerance = true;
     break;
   case TC_NORAND_PER_ITERATION:
     args->rand_per_iteration = false;
@@ -271,6 +282,9 @@ int splatt_tc_cmd(
   }
   if(args.set_timeout) {
     ws->max_seconds = args.max_seconds;
+  }
+  if(args.set_tolerance) {
+    ws->tolerance = args.tolerance;
   }
   ws->rand_per_iteration = args.rand_per_iteration;
   ws->hogwild = args.hogwild;
