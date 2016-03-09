@@ -235,7 +235,7 @@ void splatt_tc_sgd(
   }
 #else
   /* initialize perm */
-  idx_t * perm = splatt_malloc(train->nnz * sizeof(*perm));
+  idx_t * perm = (idx_t *)splatt_malloc(train->nnz * sizeof(*perm));
   for(idx_t n=0; n < train->nnz; ++n) {
     perm[n] = n;
   }
