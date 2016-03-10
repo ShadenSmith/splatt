@@ -20,7 +20,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
 # ALL LIBRARIES -- will concatenate to this
-set(SPLATT_LIBS splatt m rt)
+enable_language(Fortran)
+set(SPLATT_LIBS splatt m rt gfortran)
 
 # check for MPI mode
 if (DEFINED USE_MPI)
@@ -45,6 +46,22 @@ else()
   message("Building in RELEASE mode.")
   set(CMAKE_BUILD_TYPE Release)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+endif()
+
+# find BLAS / LAPACK
+find_package(BLAS REQUIRED)
+if( BLAS_FOUND )
+  add_definitions(-DSPLATT_USE_BLAS=1)
+  include_directories(${BLAS_INCLUDE_DIR})
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${BLAS_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
+  message("USING BLAS LIBS: " ${BLAS_LIBRARIES})
+endif()
+find_package(LAPACK REQUIRED)
+if( LAPACK_FOUND )
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
+  message("USING LAPACK LIBS: " ${LAPACK_LIBRARIES})
 endif()
 
 # check for MT-Metis support
