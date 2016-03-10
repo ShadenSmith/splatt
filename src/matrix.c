@@ -198,6 +198,7 @@ static void p_mat_forwardsolve(
   }
 }
 
+
 /**
 * @brief Solve the system UX = B.
 *
@@ -387,43 +388,6 @@ void mat_aTa(
   idx_t const F = A->J;
   val_t const * const restrict Av = A->vals;
 
-  omp_set_num_threads(nthreads);
-
-#if 0
-  #pragma omp parallel
-  {
-    int const tid = omp_get_thread_num();
-    val_t * const restrict accum = (val_t *) thds[tid].scratch[0];
-
-    /* compute upper triangular portion */
-    memset(accum, 0, F * F * sizeof(val_t));
-
-    /* compute each thread's partial matrix product */
-    #pragma omp for schedule(static)
-    for(idx_t i=0; i < I; ++i) {
-      for(idx_t mi=0; mi < F; ++mi) {
-        for(idx_t mj=mi; mj < F; ++mj) {
-          accum[mj + (mi*F)] += Av[mi + (i*F)] * Av[mj + (i*F)];
-        }
-      }
-    }
-
-    /* parallel reduction on accum */
-    thd_reduce(thds, 0, F * F, REDUCE_SUM);
-
-    /* copy to lower triangular matrix */
-    #pragma omp master
-    {
-      for(idx_t i=1; i < F; ++i) {
-        for(idx_t j=0; j < i; ++j) {
-          accum[j + (i*F)] = accum[i + (j*F)];
-        }
-      }
-      memcpy(ret->vals, accum, F * F * sizeof(val_t));
-    }
-  }
-#else
-
   char uplo = 'L';
   char trans = 'N'; /* actually do A * A' due to row-major ordering */
   int N = (int) F;
@@ -435,8 +399,6 @@ void mat_aTa(
 
   LAPACK_DSYRK(&uplo, &trans, &N, &K, &alpha, A->vals, &lda, &beta, ret->vals,
       &ldc);
-
-#endif
 
 #ifdef SPLATT_USE_MPI
   timer_start(&timers[TIMER_MPI_ATA]);

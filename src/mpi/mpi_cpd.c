@@ -729,17 +729,9 @@ double mpi_cpd_als_iterate(
         m1 = mats[MAX_NMODES];
       }
 
-#if 0
-      /* M2 = (CtC .* BtB .* ...)^-1 */
-      calc_gram_inv(m, nmodes, aTa);
-
-      /* A = M1 * M2 */
-      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
-      mat_matmul(m1, aTa[MAX_NMODES], globmats[m]);
-#else
+      /* invert normal equations (Cholesky factorization) for new factor */
       par_memcpy(globmats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
       mat_solve_normals(m, nmodes, aTa, globmats[m], 0.);
-#endif
 
       /* normalize columns and extract lambda */
       if(it == 0) {
