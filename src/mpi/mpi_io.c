@@ -1032,7 +1032,7 @@ void mpi_filter_tt_1d(
         ftt->indmap[mode][i] = tt->indmap[mode][i+start];
       }
     } else {
-      memcpy(ftt->indmap[m], tt->indmap[m], tt->dims[m] * sizeof(idx_t));
+      par_memcpy(ftt->indmap[m], tt->indmap[m], tt->dims[m] * sizeof(idx_t));
     }
   }
 

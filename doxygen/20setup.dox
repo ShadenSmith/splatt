@@ -12,10 +12,11 @@ software prerequisites:
 
 1. C99 compiler with OpenMP support ([http://gnu.gcc.org](http://gnu.gcc.org)).
 2. CMake, version 2.6 or higher ([http://www.cmake.org](http://www.cmake.org)).
+3. LAPACK ([http://www.netlib.org/atlas/](http://www.netlib.org/atlas/)).
 
-We have successfully used GCC and LLVM (clang), but most of our testing is
-conducted with GCC. Note that OpenMP support is required and many default LLVM
-installations do not include the needed OpenMP <a href="http://openmp.llvm.org/">runtime</a>.
+We have successfully used GCC, LLVM (clang), and ICC,  but most of our testing
+is conducted with GCC. Note that OpenMP support is required and many default
+LLVM installations do not include the needed OpenMP <a href="http://openmp.llvm.org/">runtime</a>.
 
 \splatt also has optional support for <a href="http://mpi-forum.org/">MPI</a>.
 Most testing is conducted with <a href="http://www.open-mpi.org/">OpenMPI</a>

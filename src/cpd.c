@@ -72,6 +72,18 @@ int splatt_cpd_als(
 
 
 /******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
+
+/**
+* @brief Resets serial and MPI timers that were activated during some CPD
+*        pre-processing.
+*
+* @param rinfo MPI rank information.
+*/
+
+
+/******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 double cpd_als_iterate(
@@ -100,6 +112,7 @@ double cpd_als_iterate(
   matrix_t * aTa[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
     aTa[m] = mat_alloc(nfactors, nfactors);
+    memset(aTa[m]->vals, 0, nfactors * nfactors * sizeof(val_t));
     mat_aTa(mats[m], aTa[m], rinfo, thds, nthreads);
   }
   /* used as buffer space */
@@ -129,12 +142,8 @@ double cpd_als_iterate(
       mttkrp_csf(tensors, mats, m, thds, opts);
       timer_stop(&timers[TIMER_MTTKRP]);
 
-      /* M2 = (CtC .* BtB .* ...)^-1 */
-      calc_gram_inv(m, nmodes, aTa);
-
-      /* A = M1 * M2 */
-      memset(mats[m]->vals, 0, mats[m]->I * nfactors * sizeof(val_t));
-      mat_matmul(m1, aTa[MAX_NMODES], mats[m]);
+      par_memcpy(mats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
+      mat_solve_normals(m, nmodes, aTa, mats[m], 0.);
 
       /* normalize columns and extract lambda */
       if(it == 0) {

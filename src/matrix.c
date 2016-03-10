@@ -12,6 +12,24 @@
 #include <omp.h>
 
 
+#if   SPLATT_VAL_TYPEWIDTH == 32
+  void spotrf_(char *, int *, float *, int *, int *);
+  void spotrs_(char *, int *, int *, float *, int *, float *, int *, int *);
+
+  #define LAPACK_DPOTRF spotrf_
+  #define LAPACK_DPOTRS spotrs_
+#else
+  void dpotrf_(char *, int *, double *, int *, int *);
+  void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
+  void dsyrk_(char *, char *, int *, int *, double *, double *, int *, double *, double *, int *);
+
+  #define LAPACK_DPOTRF dpotrf_
+  #define LAPACK_DPOTRS dpotrs_
+  #define LAPACK_DSYRK dsyrk_
+#endif
+
+
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
@@ -179,6 +197,7 @@ static void p_mat_forwardsolve(
     }
   }
 }
+
 
 /**
 * @brief Solve the system UX = B.
@@ -369,37 +388,17 @@ void mat_aTa(
   idx_t const F = A->J;
   val_t const * const restrict Av = A->vals;
 
-  omp_set_num_threads(nthreads);
+  char uplo = 'L';
+  char trans = 'N'; /* actually do A * A' due to row-major ordering */
+  int N = (int) F;
+  int K = (int) I;
+  int lda = N;
+  int ldc = N;
+  val_t alpha = 1.;
+  val_t beta = 0.;
 
-  #pragma omp parallel
-  {
-    int const tid = omp_get_thread_num();
-    val_t * const accum = (val_t *) thds[tid].scratch[0];
-
-    /* compute upper triangular portion */
-    memset(accum, 0, F * F * sizeof(val_t));
-
-    /* compute each thread's partial matrix product */
-    #pragma omp for schedule(static)
-    for(idx_t i=0; i < I; ++i) {
-      for(idx_t mi=0; mi < F; ++mi) {
-        for(idx_t mj=mi; mj < F; ++mj) {
-          accum[mj + (mi*F)] += Av[mi + (i*F)] * Av[mj + (i*F)];
-        }
-      }
-    }
-
-    /* parallel reduction on accum */
-    thd_reduce(thds, 0, F * F, REDUCE_SUM);
-
-    /* copy to lower triangular matrix */
-    #pragma omp master
-    for(idx_t i=1; i < F; ++i) {
-      for(idx_t j=0; j < i; ++j) {
-        accum[j + (i*F)] = accum[i + (j*F)];
-      }
-    }
-  }
+  LAPACK_DSYRK(&uplo, &trans, &N, &K, &alpha, A->vals, &lda, &beta, ret->vals,
+      &ldc);
 
 #ifdef SPLATT_USE_MPI
   timer_start(&timers[TIMER_MPI_ATA]);
@@ -408,12 +407,10 @@ void mat_aTa(
   timer_stop(&timers[TIMER_MPI_IDLE]);
 
   timer_start(&timers[TIMER_MPI_COMM]);
-  MPI_Allreduce(thds[0].scratch[0], ret->vals, F * F, SPLATT_MPI_VAL, MPI_SUM,
+  MPI_Allreduce(MPI_IN_PLACE, ret->vals, F * F, SPLATT_MPI_VAL, MPI_SUM,
       rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_COMM]);
   timer_stop(&timers[TIMER_MPI_ATA]);
-#else
-  memcpy(ret->vals, (val_t *) thds[0].scratch[0], F * F * sizeof(val_t));
 #endif
 
   timer_stop(&timers[TIMER_ATA]);
@@ -485,6 +482,72 @@ void mat_normalize(
   }
   timer_stop(&timers[TIMER_MATNORM]);
 }
+
+
+void mat_solve_normals(
+  idx_t const mode,
+  idx_t const nmodes,
+	matrix_t * * aTa,
+  matrix_t * rhs,
+  val_t const reg)
+{
+  timer_start(&timers[TIMER_INV]);
+
+  /* nfactors */
+  int const N = aTa[0]->J;
+
+  /* form upper-triangual normal equations */
+  val_t * const restrict neqs = aTa[MAX_NMODES]->vals;
+  #pragma omp parallel
+  {
+    /* first initialize */
+    #pragma omp for schedule(static, 1)
+    for(int i=0; i < N; ++i) {
+      neqs[i+(i*N)] = 1. + reg;
+      for(int j=i+1; j < N; ++j) {
+        neqs[j+(i*N)] = 1.;
+      }
+    }
+
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(m == mode) {
+        continue;
+      }
+
+      val_t const * const restrict mat = aTa[m]->vals;
+      #pragma omp for schedule(static, 1) nowait
+      for(int i=0; i < N; ++i) {
+        for(int j=i; j < N; ++j) {
+          neqs[j+(i*N)] *= mat[j+(i*N)];
+        }
+      }
+    }
+  } /* omp parallel */
+
+
+  /* Cholesky factorization */
+  char uplo = 'L';
+  int order = N;
+  int lda = N;
+  int info;
+  LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
+  if(info) {
+    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
+  }
+
+
+  /* Solve against rhs */
+  int nrhs = (int) rhs->I;
+  int ldb = N;
+  LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, rhs->vals, &ldb, &info);
+  if(info) {
+    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
+  }
+
+  timer_stop(&timers[TIMER_INV]);
+}
+
+
 
 
 void calc_gram_inv(
