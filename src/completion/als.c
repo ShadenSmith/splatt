@@ -79,37 +79,31 @@ static inline void p_invert_row(
 
 
 /**
-* @brief Compute DSYRK: out += inrow^T * inrow, a rank-1 update. Only compute
+* @brief Compute DSYRK: out += A^T * A, a rank-k update. Only compute
 *        the upper-triangular portion.
 *
-* @param inrow The input row to update with.
-* @param N The length of 'inrow'.
+* @param A The input row(s) to update with.
+* @param N The length of 'A'.
+* @param nvecs The number of rows in 'A'.
+* @param nflush Then number of times this has been performed (this slice).
 * @param[out] out The NxN matrix to update.
 */
-static inline void p_onevec_oprod(
-		val_t const * const restrict inrow,
+static inline void p_vec_oprod(
+		val_t * const restrict A,
     idx_t const N,
+    idx_t const nvecs,
+    idx_t const nflush,
     val_t * const restrict out)
 {
-#if 1
-  for(idx_t i=0; i < N; ++i) {
-    val_t const ival = inrow[i];
-    val_t * const restrict orow = out + (i*N);
-    for(idx_t j=i; j < N; ++j) {
-      orow[j] += ival * inrow[j];
-    }
-  }
-#else
-  char const uplo = 'L';
-  char const trans = 'N';
-  int const order = (int) N;
-  int const k = 1;
-  int const lda = (int) N;
-  int const ldc = (int) N;
-  double const alpha = 1;
-  double const beta = 1;
-  LAPACK_DSYRK(&uplo, &trans, &order, &k, &alpha, inrow, &lda, &beta, out, &ldc);
-#endif
+  char uplo = 'L';
+  char trans = 'N';
+  int order = (int) N;
+  int k = (int) nvecs;
+  int lda = (int) N;
+  int ldc = (int) N;
+  double alpha = 1;
+  double beta = (nflush == 0) ? 0. : 1.;
+  LAPACK_DSYRK(&uplo, &trans, &order, &k, &alpha, A, &lda, &beta, out, &ldc);
 }
 
 
@@ -143,19 +137,16 @@ static inline void p_update_row(
   idx_t const fid = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
   val_t * const restrict out_row = model->factors[csf->dim_perm[0]] +
       (fid * nfactors);
-  val_t * const restrict hada  = ws->thds[tid].scratch[0];
   val_t * const restrict accum = ws->thds[tid].scratch[1];
   val_t * const restrict neqs  = ws->thds[tid].scratch[2];
 
+  idx_t bufsize = 0; /* how many hada vecs are in mat_accum */
+  idx_t nflush = 0;  /* how many times we have flushed to add to the neqs */
+  val_t * const restrict mat_accum  = ws->thds[tid].scratch[3];
+  val_t * hada = mat_accum;
+
   for(idx_t f=0; f < nfactors; ++f) {
     out_row[f] = 0;
-  }
-
-  /* initialize normal eqs */
-  for(idx_t i=0; i < nfactors; ++i) {
-    for(idx_t j=i; j < nfactors; ++j) {
-      neqs[j+(i*nfactors)] = 0;
-    }
   }
 
   idx_t const * const restrict sptr = pt->fptr[0];
@@ -180,8 +171,13 @@ static inline void p_update_row(
       hada[r] = av[r] * bv[r];
     }
 
-    /* add to normal equations */
-    p_onevec_oprod(hada, nfactors, neqs);
+    hada += nfactors;
+    if(++bufsize == ALS_BUFSIZE) {
+      /* add to normal equations */
+      p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
+      hada = mat_accum;
+      bufsize = 0;
+    }
 
     /* foreach nnz in fiber */
     for(idx_t jj=fptr[fib]+1; jj < fptr[fib+1]; ++jj) {
@@ -192,15 +188,24 @@ static inline void p_update_row(
         hada[r] = av[r] * bv[r];
       }
 
-      /* add to normal equations */
-      p_onevec_oprod(hada, nfactors, neqs);
+      hada += nfactors;
+      if(++bufsize == ALS_BUFSIZE) {
+        /* add to normal equations */
+        p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
+        bufsize = 0;
+        hada = mat_accum;
+      }
     }
 
     /* accumulate into output row */
     for(idx_t r=0; r < nfactors; ++r) {
       out_row[r] += accum[r] * av[r];
     }
-  }
+
+  } /* foreach fiber */
+
+  /* final flush */
+  p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
 
   /* add regularization to the diagonal */
   for(idx_t f=0; f < nfactors; ++f) {
