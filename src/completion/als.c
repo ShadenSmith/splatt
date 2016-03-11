@@ -251,7 +251,10 @@ void splatt_tc_als(
   val_t const frobsq = tc_frob_sq(model, ws);
   tc_converge(train, validate, model, loss, frobsq, 0, ws);
 
+  sp_timer_t mode_timer;
+  timer_reset(&mode_timer);
   timer_start(&ws->tc_time);
+
 
   for(idx_t e=1; e < ws->max_its+1; ++e) {
     #pragma omp parallel
@@ -259,9 +262,20 @@ void splatt_tc_als(
       int const tid = omp_get_thread_num();
 
       for(idx_t m=0; m < nmodes; ++m) {
+        #pragma omp master
+        timer_fstart(&mode_timer);
+
         /* update each row in parallel */
         for(idx_t i=parts[m][tid]; i < parts[m][tid+1]; ++i) {
           p_update_row(csf+m, i, ws->regularization[m], model, ws, tid);
+        }
+        #pragma omp barrier
+
+        #pragma omp master
+        {
+          timer_stop(&mode_timer);
+          printf("  mode: %"SPLATT_PF_IDX" time: %0.3fs\n", m+1,
+              mode_timer.seconds);
         }
         #pragma omp barrier
       }
