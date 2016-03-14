@@ -131,6 +131,14 @@ void calc_gram_inv(
   idx_t const nmodes,
   matrix_t ** aTa);
 
+
+void mat_solve_normals(
+  idx_t const mode,
+  idx_t const nmodes,
+	matrix_t * * ata,
+  matrix_t * rhs,
+  val_t const reg);
+
 #define mat_normalize splatt_mat_normalize
 /**
 * @brief Normalize the columns of A and return the norms in lambda.

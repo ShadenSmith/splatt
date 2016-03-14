@@ -8,9 +8,11 @@
 #include "../timer.h"
 #include "../thd_info.h"
 #include "../tile.h"
+#include "../util.h"
 
 #include <math.h>
 #include <omp.h>
+
 
 
 /******************************************************************************
@@ -43,7 +45,7 @@ static void p_flush_glob_to_local(
 
   assert(start + nowned <= localmat->I);
 
-  memcpy(localmat->vals + (start*nfactors),
+  par_memcpy(localmat->vals + (start*nfactors),
          globalmat->vals,
          nowned * nfactors * sizeof(val_t));
 }
@@ -534,7 +536,7 @@ double mpi_cpd_als_iterate(
       m1->I = globmats[m]->I;
       m1ptr->I = globmats[m]->I;
 
-    if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
+      if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
         mpi_add_my_partials(rinfo->indmap[m], mats[MAX_NMODES], m1, rinfo,
@@ -547,12 +549,9 @@ double mpi_cpd_als_iterate(
         m1 = mats[MAX_NMODES];
       }
 
-      /* M2 = (CtC .* BtB .* ...)^-1 */
-      calc_gram_inv(m, nmodes, aTa);
-
-      /* A = M1 * M2 */
-      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
-      mat_matmul(m1, aTa[MAX_NMODES], globmats[m]);
+      /* invert normal equations (Cholesky factorization) for new factor */
+      par_memcpy(globmats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
+      mat_solve_normals(m, nmodes, aTa, globmats[m], 0.);
 
       /* normalize columns and extract lambda */
       if(it == 0) {
@@ -706,7 +705,7 @@ void mpi_add_my_partials(
   idx_t const goffset = (indmap == NULL) ?
       start - mat_start : indmap[start] - mat_start;
 
-  memcpy(globmat->vals + (goffset * nfactors),
+  par_memcpy(globmat->vals + (goffset * nfactors),
          localmat->vals + (start * nfactors),
          nowned * nfactors * sizeof(val_t));
   timer_stop(&timers[TIMER_MPI_PARTIALS]);
