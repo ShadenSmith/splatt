@@ -70,6 +70,22 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -xHost -DNDEBUG")
 endif()
 
+# find BLAS / LAPACK
+find_package(BLAS REQUIRED)
+if( BLAS_FOUND )
+  add_definitions(-DSPLATT_USE_BLAS=1)
+  include_directories(${BLAS_INCLUDE_DIR})
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${BLAS_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
+  message("USING BLAS LIBS: " ${BLAS_LIBRARIES})
+endif()
+find_package(LAPACK REQUIRED)
+if( LAPACK_FOUND )
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
+  message("USING LAPACK LIBS: " ${LAPACK_LIBRARIES})
+endif()
+
 # check for MT-Metis support
 if (DEFINED USE_MTMETIS)
   message("Building with MT-Metis support.")

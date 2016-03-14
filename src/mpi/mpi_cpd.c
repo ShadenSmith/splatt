@@ -14,6 +14,7 @@
 #include <omp.h>
 
 
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
@@ -44,7 +45,7 @@ static void p_flush_glob_to_local(
 
   assert(start + nowned <= localmat->I);
 
-  memcpy(localmat->vals + (start*nfactors),
+  par_memcpy(localmat->vals + (start*nfactors),
          globalmat->vals,
          nowned * nfactors * sizeof(val_t));
 }
@@ -549,11 +550,9 @@ double mpi_cpd_als_iterate(
         m1 = mats[MAX_NMODES];
       }
 
-      /* M2 = (CtC .* BtB .* ...)^-1 */
-      calc_gram_inv(m, nmodes, aTa);
-
-      /* A = M1 * M2 */
-      mat_matmul(m1, aTa[MAX_NMODES], globmats[m]);
+      /* invert normal equations (Cholesky factorization) for new factor */
+      par_memcpy(globmats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
+      mat_solve_normals(m, nmodes, aTa, globmats[m], 0.);
 
       /* normalize columns and extract lambda */
       if(it == 0) {

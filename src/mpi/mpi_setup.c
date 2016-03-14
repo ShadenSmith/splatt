@@ -3,6 +3,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "../splatt_mpi.h"
+#include "../util.h"
 
 
 /******************************************************************************
@@ -330,7 +331,7 @@ void mpi_cpy_indmap(
   if(tt->indmap[mode] != NULL) {
     idx_t const dim = tt->dims[mode];
     rinfo->indmap[mode] = splatt_malloc(dim * sizeof(**(rinfo->indmap)));
-    memcpy(rinfo->indmap[mode], tt->indmap[mode],
+    par_memcpy(rinfo->indmap[mode], tt->indmap[mode],
         dim * sizeof(**(rinfo->indmap)));
 
   } else {
