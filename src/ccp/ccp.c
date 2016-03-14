@@ -32,8 +32,8 @@ static idx_t p_linear_search(
     idx_t const target)
 {
   for(idx_t x=left; x < right-1; ++x) {
-    if(weights[x+1] > target) {
-      return x;
+    if(target < weights[x+1]) {
+      return x+1;
     }
   }
 
@@ -83,8 +83,9 @@ static idx_t p_eps_rb_partition_1d(
     idx_t const nparts,
     idx_t const eps)
 {
-  idx_t lower = weights[nitems-1] / nparts;
-  idx_t upper = weights[nitems-1];
+  idx_t const tot_weight = weights[nitems-1];
+  idx_t lower = tot_weight / nparts;
+  idx_t upper = tot_weight;
 
   do {
     idx_t mid = lower + ((upper - lower) / 2);
@@ -119,6 +120,10 @@ idx_t partition_1d(
   /* use recursive bisectioning with 0 tolerance to get exact solution */
   idx_t bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
 
+  /* apply partitioning that we found */
+  bool success = lprobe(weights, nitems, parts, nparts, bottleneck);
+  assert(success == true);
+
   timer_stop(&timers[TIMER_PART]);
   return bottleneck;
 }
@@ -132,26 +137,36 @@ bool lprobe(
     idx_t const nparts,
     idx_t const bottleneck)
 {
-  idx_t p=0;
-  parts[p++] = 0;
-  idx_t bsum = bottleneck;
-
+  ++nprobes;
   idx_t const wtotal = weights[nitems-1];
+  /* initialize partitioning */
+  parts[0] = 0;
+  for(idx_t p=1; p <= nparts; ++p) {
+    parts[p] = nitems;
+  }
 
+  idx_t bsum = bottleneck;
   idx_t step = nitems / nparts;
-  while(p < nparts && bsum < wtotal) {
+  for(idx_t p=1; p < nparts; ++p) {
+    /* jump to the next bucket */
     while(step < nitems && weights[step] < bsum) {
       step += nitems / nparts;
     }
-    parts[p] = p_binary_search(weights, step - (nitems/nparts), SS_MIN(step, nitems),
-        bsum);
-    bsum = weights[parts[p]] + bottleneck;
-    ++p;
+
+    /* find the end (exclusive) index of process p */
+    parts[p] = p_binary_search(weights, step - (nitems/nparts),
+        SS_MIN(step,nitems), bsum);
+
+    /* we ran out of stuff to do */
+    if(parts[p] == nitems) {
+      /* check for pathological case when the last weight is larger than
+       * bottleneck */
+      idx_t const size_last = weights[nitems-1] - weights[parts[p-1]-1];
+      return size_last < bottleneck;
+    }
+    bsum = weights[parts[p]-1] + bottleneck;
   }
 
-  parts[p] = nitems;
-
-  ++nprobes;
   return bsum >= wtotal;
 }
 

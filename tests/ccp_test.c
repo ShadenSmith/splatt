@@ -7,7 +7,7 @@
 
 #include "splatt_test.h"
 
-#define NUM_CCP_TESTS 6
+#define NUM_CCP_TESTS 7
 
 
 CTEST_DATA(ccp)
@@ -21,6 +21,7 @@ CTEST_DATA(ccp)
   idx_t * fororder_data;
   idx_t * revorder_data;
   idx_t * bigend_data;
+  idx_t * fibonacci_data;
 
   idx_t * ptrs[NUM_CCP_TESTS];
 };
@@ -38,6 +39,7 @@ CTEST_SETUP(ccp)
   data->revorder_data = malloc(data->N * sizeof(*(data->revorder_data)));
   data->bigend_data = malloc(data->N * sizeof(*(data->bigend_data)));
   data->unit_data = malloc(data->N * sizeof(*(data->unit_data)));
+  data->fibonacci_data = malloc(data->N * sizeof(*(data->fibonacci_data)));
 
   for(idx_t x=0; x < data->N; ++x) {
     data->unit_data[x] = 1;
@@ -47,6 +49,17 @@ CTEST_SETUP(ccp)
 
     data->fororder_data[x] = x;
     data->revorder_data[x] = data->N - x;
+
+    if(x < 2) {
+      data->fibonacci_data[x] = 1;
+    } else {
+      if(x < 10) {
+        data->fibonacci_data[x] = data->fibonacci_data[x-1] +
+            data->fibonacci_data[x-2];
+      } else {
+        data->fibonacci_data[x] = data->fibonacci_data[x-1] + 1000;
+      }
+    }
   }
 
 
@@ -59,6 +72,7 @@ CTEST_SETUP(ccp)
   data->ptrs[3] = data->revorder_data;
   data->ptrs[4] = data->bigend_data;
   data->ptrs[5] = data->unit_data;
+  data->ptrs[6] = data->fibonacci_data;
 }
 
 CTEST_TEARDOWN(ccp)
@@ -77,10 +91,17 @@ CTEST2(ccp, prefix_sum_inc)
   for(idx_t t=0; t < NUM_CCP_TESTS; ++t) {
     idx_t * const restrict weights = data->ptrs[t];
 
+    idx_t total = 0;
+    for(idx_t x=0; x < data->N; ++x) {
+      total += weights[x];
+    }
+
     /* make a copy */
     memcpy(pref, weights, data->N * sizeof(*pref));
 
     prefix_sum_inc(pref, data->N);
+
+    ASSERT_EQUAL(total, pref[data->N - 1]);
 
     idx_t running = 0;
     for(idx_t x=0; x < data->N; ++x) {
@@ -120,6 +141,7 @@ CTEST2(ccp, partition_1d)
   /* foreach test */
   for(idx_t t=0; t < NUM_CCP_TESTS; ++t) {
     idx_t * const restrict weights = data->ptrs[t];
+
     idx_t bneck = partition_1d(weights, data->N, data->parts, data->P);
 
     /* check bounds */
@@ -127,16 +149,19 @@ CTEST2(ccp, partition_1d)
     ASSERT_EQUAL(data->N, data->parts[data->P]);
 
     /* check non-overlapping partitions */
-    for(idx_t p=1; p < data->P; ++p) {
+    for(idx_t p=0; p < data->P; ++p) {
       /* if N < P, someone will have no work */
-      if(data->parts[p] <= data->parts[p-1]) {
+      if(data->parts[p] > data->parts[p+1]) {
         ASSERT_FAIL();
       }
     }
 
     /* check that bneck is not surpassed */
     for(idx_t p=0; p < data->P; ++p) {
-      if(weights[p+1] - weights[p] > bneck) {
+      idx_t const left = SS_MIN(data->parts[p], data->N-1);
+      /* -1 because exclusive bound */
+      idx_t const right = SS_MIN(data->parts[p+1]-1, data->N-1);
+      if(weights[right] - weights[left] > bneck) {
         ASSERT_FAIL();
       }
     }
@@ -237,12 +262,18 @@ CTEST2(ccp, part_equalsize)
   }
 
   idx_t const bneck = partition_1d(weights, N, parts, P);
+
   ASSERT_EQUAL(CHUNK, bneck);
+
+  lprobe(weights, N, parts, P, bneck);
 
   for(idx_t p=0; p < P; ++p) {
     ASSERT_EQUAL(CHUNK * p, parts[p]);
   }
+  ASSERT_EQUAL(N, parts[P]);
 
   free(weights);
   free(parts);
 }
+
+
