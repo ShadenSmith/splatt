@@ -666,7 +666,7 @@ static void p_fill_ssizes(
 *
 * @param rinfo MPI rank information.
 */
-static void p_get_best_mpi_dim(
+void p_get_best_mpi_dim(
   rank_info * const rinfo)
 {
   int nprimes = 0;
