@@ -13,28 +13,6 @@
 #include <math.h>
 #include <omp.h>
 
-/**
-* @brief Resets serial and MPI timers that were activated during some CPD
-*        pre-processing.
-*
-* @param rinfo MPI rank information.
-*/
-static void p_reset_cpd_timers(
-  rank_info const * const rinfo)
-{
-  timer_reset(&timers[TIMER_ATA]);
-#ifdef SPLATT_USE_MPI
-  timer_reset(&timers[TIMER_MPI]);
-  timer_reset(&timers[TIMER_MPI_IDLE]);
-  timer_reset(&timers[TIMER_MPI_COMM]);
-  timer_reset(&timers[TIMER_MPI_ATA]);
-  timer_reset(&timers[TIMER_MPI_REDUCE]);
-  timer_reset(&timers[TIMER_MPI_NORM]);
-  timer_reset(&timers[TIMER_MPI_UPDATE]);
-  timer_reset(&timers[TIMER_MPI_FIT]);
-  MPI_Barrier(rinfo->comm_3d);
-#endif
-}
 
 
 /******************************************************************************

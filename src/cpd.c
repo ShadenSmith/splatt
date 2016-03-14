@@ -70,17 +70,9 @@ int splatt_cpd_als(
 }
 
 
-
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-
-/**
-* @brief Resets serial and MPI timers that were activated during some CPD
-*        pre-processing.
-*
-* @param rinfo MPI rank information.
-*/
 
 
 /******************************************************************************

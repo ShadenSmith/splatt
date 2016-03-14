@@ -24,7 +24,6 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}
 enable_language(Fortran)
 
 # ALL LIBRARIES -- will concatenate to this
-enable_language(Fortran)
 set(SPLATT_LIBS splatt m rt gfortran)
 
 # check for MPI mode
