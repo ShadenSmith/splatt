@@ -42,6 +42,7 @@ typedef struct
 
   idx_t dims[MAX_NMODES];
   val_t * factors[MAX_NMODES];
+  val_t ** replicated_factors;
 } tc_model;
 
 
@@ -84,6 +85,9 @@ typedef struct
 
   bool rand_per_iteration;
   bool hogwild;
+  idx_t folds;
+
+  sptensor_t **tiles;
 } tc_ws;
 
 
