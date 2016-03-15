@@ -328,20 +328,22 @@ void tt_write(
   char const * const fname)
 {
   FILE * fout;
-  if(fname == NULL) {
-    fout = stdout;
-  } else {
-    if((fout = fopen(fname,"w")) == NULL) {
-      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
-      return;
-    }
+  if((fout = fopen(fname, "w")) == NULL) {
+    fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
+    return;
   }
 
-  tt_write_file(tt, fout);
+  switch(get_file_type(fname)) {
+  case SPLATT_FILE_BIN_COORD:
+    tt_write_binary_file(tt, fout);
+    break;
 
-  if(fname != NULL) {
-    fclose(fout);
+  case SPLATT_FILE_TEXT_COORD:
+  default:
+    tt_write_file(tt, fout);
+    break;
   }
+  fclose(fout);
 }
 
 void tt_write_file(

@@ -21,6 +21,7 @@ static char cmd_doc[] =
   "  bench\t\tBenchmark MTTKRP algorithms.\n"
   "  check\t\tCheck a tensor file for correctness.\n"
   "  convert\tConvert a tensor to different formats.\n"
+  "  generate\t\tGenerate a random sparse tensor.\n"
   "  reorder\t\tReorder a tensor using one of several methods.\n"
   "  stats\t\tPrint tensor statistics.\n"
   "  help\t\tPrint this help message.\n";
@@ -57,6 +58,7 @@ int splatt_cpd_cmd(int argc, char ** argv);
 int splatt_bench(int argc, char ** argv);
 int splatt_check(int argc, char ** argv);
 int splatt_convert(int argc, char ** argv);
+int splatt_gen_cmd(int argc, char ** argv);
 int splatt_reorder(int argc, char ** argv);
 int splatt_stats(int argc, char ** argv);
 
@@ -87,6 +89,7 @@ static cmd_struct const splatt_cmds[] = {
   { "bench", splatt_bench },
   { "check", splatt_check },
   { "convert", splatt_convert },
+  { "generate", splatt_gen_cmd },
   { "reorder", splatt_reorder },
   { "stats", splatt_stats },
   { "help", NULL},
