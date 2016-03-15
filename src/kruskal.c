@@ -165,22 +165,27 @@ val_t kruskal_norm(
   val_t norm_mats = 0;
 
   /* use aTa[MAX_NMODES] as scratch space */
-  for(idx_t x=0; x < rank*rank; ++x) {
-    av[x] = 1.;
+  for(idx_t i=0; i < rank; ++i) {
+    for(idx_t j=i; j < rank; ++j) {
+      av[j + (i*rank)] = 1.;
+    }
   }
 
   /* aTa[MAX_NMODES] = hada(aTa) */
   for(idx_t m=0; m < nmodes; ++m) {
     val_t const * const restrict atavals = aTa[m]->vals;
-    for(idx_t x=0; x < rank*rank; ++x) {
-      av[x] *= atavals[x];
+    for(idx_t i=0; i < rank; ++i) {
+      for(idx_t j=i; j < rank; ++j) {
+        av[j + (i*rank)] *= atavals[j + (i*rank)];
+      }
     }
   }
 
   /* now compute lambda^T * aTa[MAX_NMODES] * lambda */
   for(idx_t i=0; i < rank; ++i) {
-    for(idx_t j=0; j < rank; ++j) {
-      norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j];
+    norm_mats += av[i+(i*rank)] * lambda[i] * lambda[i];
+    for(idx_t j=i+1; j < rank; ++j) {
+      norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j] * 2;
     }
   }
 

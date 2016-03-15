@@ -15,6 +15,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#define ALS_BUFSIZE 1024
 
 
 
