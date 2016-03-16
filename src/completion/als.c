@@ -71,7 +71,7 @@ static inline void p_invert_row(
   int info;
   LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
+    //fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
 
 
@@ -79,7 +79,7 @@ static inline void p_invert_row(
   int ldb = (int) N;
   LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, out_row, &ldb, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
+    //fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
   }
 }
 
@@ -115,10 +115,9 @@ static inline void p_vec_oprod(
 
 
 
-static void p_update_tile(
+static void p_process_tile(
     splatt_csf const * const csf,
     idx_t const tile,
-    val_t const reg,
     tc_model * const model,
     tc_ws * const ws,
     thd_info * const thd_densefactors,
@@ -131,12 +130,82 @@ static void p_update_tile(
   }
 
   idx_t const nfactors = model->rank;
-  idx_t const nslices = pt->nfibs[0];
+
+  idx_t const * const restrict sptr = pt->fptr[0];
+  idx_t const * const restrict fptr = pt->fptr[1];
+  idx_t const * const restrict fids = pt->fids[1];
+  idx_t const * const restrict inds = pt->fids[2];
+
+  val_t const * const restrict avals = model->factors[csf->dim_perm[1]];
+  val_t const * const restrict bvals = model->factors[csf->dim_perm[2]];
+  val_t const * const restrict vals = pt->vals;
+
+  /* buffers */
+  val_t * const restrict accum = ws->thds[tid].scratch[1];
+  val_t * const restrict mat_accum = ws->thds[tid].scratch[3];
 
   /* update each slice */
+  idx_t const nslices = pt->nfibs[0];
   for(idx_t i=0; i < nslices; ++i) {
+    /* fid is the row we are actually updating */
+    idx_t const fid = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
 
-  }
+    /* replicated structures */
+    val_t * const restrict out_row =
+        (val_t *) thd_densefactors[tid].scratch[0] + (fid * nfactors);
+    val_t * const restrict neqs =
+        (val_t *) thd_densefactors[tid].scratch[1] + (fid*nfactors*nfactors);
+
+    idx_t bufsize = 0; /* how many hada vecs are in mat_accum */
+    idx_t nflush = 1;  /* how many times we have flushed to add to the neqs */
+    val_t * restrict hada = mat_accum;
+
+    /* process each fiber */
+    for(idx_t fib=sptr[i]; fib < sptr[i+1]; ++fib) {
+      val_t const * const restrict av = avals  + (fids[fib] * nfactors);
+
+      /* first entry of the fiber is used to initialize accum */
+      idx_t const jjfirst  = fptr[fib];
+      val_t const vfirst   = vals[jjfirst];
+      val_t const * const restrict bv = bvals + (inds[jjfirst] * nfactors);
+      for(idx_t r=0; r < nfactors; ++r) {
+        accum[r] = vfirst * bv[r];
+        hada[r] = av[r] * bv[r];
+      }
+      hada += nfactors;
+      if(++bufsize == ALS_BUFSIZE) {
+        /* add to normal equations */
+        p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
+        hada = mat_accum;
+        bufsize = 0;
+      }
+
+      /* foreach nnz in fiber */
+      for(idx_t jj=fptr[fib]+1; jj < fptr[fib+1]; ++jj) {
+        val_t const v = vals[jj];
+        val_t const * const restrict bv = bvals + (inds[jj] * nfactors);
+        for(idx_t r=0; r < nfactors; ++r) {
+          accum[r] += v * bv[r];
+          hada[r] = av[r] * bv[r];
+        }
+        hada += nfactors;
+        if(++bufsize == ALS_BUFSIZE) {
+          /* add to normal equations */
+          p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
+          hada = mat_accum;
+          bufsize = 0;
+        }
+      }
+
+      /* accumulate into output row */
+      for(idx_t r=0; r < nfactors; ++r) {
+        out_row[r] += accum[r] * av[r];
+      }
+    } /* foreach fiber */
+
+    /* final flush */
+    p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
+  } /* foreach slice */
 }
 
 
@@ -263,6 +332,7 @@ void splatt_tc_als(
     tc_ws * const ws)
 {
   idx_t const nmodes = train->nmodes;
+  idx_t const rank = model->rank;
 
   /* store dense modes redundantly among threads */
   bool isdense[MAX_NMODES];
@@ -275,9 +345,10 @@ void splatt_tc_als(
     }
   }
   if(maxdense > 0) {
-    thd_densefactors = thd_init(ws->nthreads, 2,
-        maxdense * model->rank * sizeof(val_t), /* accum */
-        maxdense * model->rank * model->rank * sizeof(val_t)); /* neqs */
+    thd_densefactors = thd_init(ws->nthreads, 3,
+        maxdense * rank * sizeof(val_t), /* accum */
+        maxdense * rank * rank * sizeof(val_t), /* neqs */
+        maxdense * sizeof(int)); /* nflush */
 
 
     printf("REPLICATING MODES:");
@@ -343,25 +414,53 @@ void splatt_tc_als(
             VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
           }
 
+#if 1
+          /* TODO: this better */
           memset(thd_densefactors[tid].scratch[0], 0,
-              model->dims[m] * model->rank * sizeof(val_t));
+              model->dims[m] * rank * sizeof(val_t));
+          memset(thd_densefactors[tid].scratch[1], 0,
+              model->dims[m] * rank * rank * sizeof(val_t));
+#endif
 
           /* update each tile in parallel */
           #pragma omp for schedule(dynamic, 1)
           for(idx_t tile=0; tile < csf[m].ntiles; ++tile) {
-            p_update_tile(csf+m, tile, ws->regularization[m], model, ws,
-                thd_densefactors, tid);
+            p_process_tile(csf+m, tile, model, ws, thd_densefactors, tid);
           }
 
+#if 1
           /* aggregate partial products */
-          thd_reduce(thd_densefactors, 0, model->dims[m] * model->rank,
-              REDUCE_SUM);
+          thd_reduce(thd_densefactors, 0,
+              model->dims[m] * rank, REDUCE_SUM);
+          thd_reduce(thd_densefactors, 1,
+              model->dims[m] * rank * rank, REDUCE_SUM);
+#endif
 
           /* save result to model */
           #pragma omp master
           {
             VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
           }
+
+          #pragma omp barrier
+
+          /* do all of the Cholesky factorizations */
+          val_t * const restrict out  = model->factors[m];
+          val_t const reg = ws->regularization[m];
+          #pragma omp for schedule(static, 1)
+          for(idx_t i=0; i < model->dims[m]; ++i) {
+            val_t * const restrict neqs_i =
+                (val_t *) thd_densefactors[0].scratch[1] + (i * rank * rank);
+            /* add regularization */
+            for(idx_t f=0; f < rank; ++f) {
+              neqs_i[f + (f * rank)] += reg;
+            }
+
+            /* Cholesky + solve */
+            p_invert_row(neqs_i, out + (i * rank), rank);
+          }
+
+        /* sparse modes are easy */
         } else {
 
           /* update each row in parallel */
@@ -393,8 +492,8 @@ void splatt_tc_als(
   } /* foreach iteration */
 
   /* cleanup */
-  csf_free(csf, opts);
   for(idx_t m=0; m < nmodes; ++m) {
+    csf_free_mode(csf+m);
     splatt_free(parts[m]);
   }
   if(maxdense > 0) {

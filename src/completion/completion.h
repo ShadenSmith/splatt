@@ -12,7 +12,7 @@
 #include "../timer.h"
 
 
-#define ALS_BUFSIZE 1024
+#define ALS_BUFSIZE 2048
 
 /*
  * Modes shorter than this are be considered 'dense'.
