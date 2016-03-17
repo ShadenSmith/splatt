@@ -87,6 +87,7 @@ static val_t p_update_residual3(
     idx_t const f,
     tc_model const * const model,
     tc_ws * const ws,
+    idx_t const * const part,
     val_t const mult)
 {
   idx_t const nfactors = model->rank;
@@ -100,9 +101,10 @@ static val_t p_update_residual3(
 
   val_t myloss = 0;
 
-  /* update residual */
-  #pragma omp for schedule(dynamic)
-  for(idx_t tile=0; tile < csf->ntiles; ++tile) {
+  int const tid = omp_get_thread_num();
+
+  /* update residual in parallel */
+  for(idx_t tile=part[tid]; tile < part[tid+1]; ++tile) {
     GRAB_SPARSITY(tile)
 
     for(idx_t i=0; i < pt->nfibs[0]; ++i) {
@@ -120,6 +122,8 @@ static val_t p_update_residual3(
       } /* foreach fiber */
     } /* foreach slice */
   } /* foreach tile */
+
+  #pragma omp barrier
 
   return myloss;
 }
@@ -163,7 +167,9 @@ static void p_process_root3(
 
         val_t const sgrad = bval * cval;
         //numer[a_id] += (residual[jj] + (predict * cval)) * sgrad;
+        //#pragma omp atomic
         numer[a_id] += residual[jj] * bval * cval;
+        //#pragma omp atomic
         denom[a_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
@@ -205,7 +211,9 @@ static void p_process_intl3(
 
         val_t const sgrad = aval * cval;
         //numer[b_id] += (residual[jj] + (predict * cval)) * sgrad;
+        //#pragma omp atomic
         numer[b_id] += residual[jj] * sgrad;
+        //#pragma omp atomic
         denom[b_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
@@ -247,7 +255,9 @@ static void p_process_leaf3(
 
         val_t const sgrad = aval * bval;
         //numer[c_id] += (residual[jj] + (predict * cval)) * sgrad;
+        //#pragma omp atomic
         numer[c_id] += residual[jj] * predict;
+        //#pragma omp atomic
         denom[c_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
@@ -267,12 +277,14 @@ void splatt_tc_ccd(
 {
   /* convert training data to CSF-ONEMODE with full tiling */
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS] = ws->nthreads * 2;
+  opts[SPLATT_OPTION_NTHREADS] = ws->nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
-  opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
-  opts[SPLATT_OPTION_TILEDEPTH] = 0;
+  opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+  opts[SPLATT_OPTION_TILEDEPTH] = 1;
 
   splatt_csf * csf = csf_alloc(train, opts);
+
+  idx_t * residual_part = csf_partition_tiles_1d(csf, ws->nthreads);
 
   printf("ntiles: %lu\n", csf->ntiles);
 
@@ -282,7 +294,7 @@ void splatt_tc_ccd(
   #pragma omp parallel
   {
     for(idx_t f=0; f < nfactors; ++f) {
-      p_update_residual3(csf, f, model, ws, -1);
+      p_update_residual3(csf, f, model, ws, residual_part, -1);
     }
   }
 
@@ -304,9 +316,11 @@ void splatt_tc_ccd(
     loss = 0;
     #pragma omp parallel reduction(+:loss)
     {
+      int const tid = omp_get_thread_num();
+
       for(idx_t f=0; f < nfactors; ++f) {
         /* add current component to residual */
-        p_update_residual3(csf, f, model, ws, 1);
+        p_update_residual3(csf, f, model, ws, residual_part, 1);
 
         for(idx_t inner=0; inner < ws->num_inner; ++inner) {
 
@@ -327,11 +341,16 @@ void splatt_tc_ccd(
 
             /* Compute numerator/denominator. Distribute tile layer to threads
              *  to avoid locks. */
+#if 0
             #pragma omp for schedule(static, 1)
             for(idx_t t=0; t < csf->tile_dims[m]; ++t) {
               idx_t tile = get_next_tileid(TILE_BEGIN, csf->tile_dims, nmodes,
                   m, t);
               while(tile != TILE_END) {
+            #pragma omp for
+            for(idx_t tile=0; tile < csf->ntiles; ++tile) {
+#endif
+            for(idx_t tile=residual_part[tid]; tile < residual_part[tid+1]; ++tile) {
                 /* process tile */
                 switch(which) {
                 case NODE_ROOT:
@@ -346,9 +365,12 @@ void splatt_tc_ccd(
                 }
 
                 /* move on to text tile in my layer */
+#if 0
                 tile = get_next_tileid(tile, csf->tile_dims, nmodes, m, t);
               }
+#endif
             } /* foreach tile */
+            #pragma omp barrier
 
             /* numerator/denominator are now computed; update factor column */
             val_t * const restrict avals = model->factors[m] + (f * dim);
@@ -361,7 +383,7 @@ void splatt_tc_ccd(
         } /* foreach inner iteration */
 
         /* subtract new rank-1 factor from residual */
-        loss = p_update_residual3(csf, f, model, ws, -1);
+        loss = p_update_residual3(csf, f, model, ws, residual_part, -1);
 
       } /* foreach factor */
     } /* omp parallel */
@@ -381,6 +403,7 @@ void splatt_tc_ccd(
   } /* foreach epoch */
 
   /* cleanup */
+  splatt_free(residual_part);
   csf_free(csf, opts);
 }
 
