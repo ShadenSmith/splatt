@@ -319,6 +319,80 @@ static inline void p_update_row(
 
 
 
+/**
+* @brief Update factor[m] which follows a dense mode. This function should be
+*        called from inside an OpenMP parallel region!
+*
+* @param csf The CSF tensor array. csf[m] is a tiled tensor.
+* @param m The mode we are updating.
+* @param model The current model.
+* @param ws Workspace info.
+* @param thd_densefactors Thread structures for the dense mode.
+* @param parts parts[m] is a load balanced partition of csf[m] tiles.
+* @param tid Thread ID.
+*/
+static void p_dense_mode_update(
+    splatt_csf const * const csf,
+    idx_t const m,
+    tc_model * const model,
+    tc_ws * const ws,
+    thd_info * const thd_densefactors,
+    idx_t * * parts,
+    int const tid)
+{
+  idx_t const rank = model->rank;
+
+  /* master thread writes/aggregates directly to the model */
+  #pragma omp master
+  VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
+
+#if 1
+  /* TODO: this better */
+  memset(thd_densefactors[tid].scratch[0], 0,
+      model->dims[m] * rank * sizeof(val_t));
+  memset(thd_densefactors[tid].scratch[1], 0,
+      model->dims[m] * rank * rank * sizeof(val_t));
+#endif
+
+  /* update each tile in parallel */
+  for(idx_t tile=parts[m][tid]; tile < parts[m][tid+1]; ++tile) {
+    p_process_tile(csf+m, tile, model, ws, thd_densefactors, tid);
+  }
+  #pragma omp barrier
+
+#if 1
+  /* aggregate partial products */
+  thd_reduce(thd_densefactors, 0,
+      model->dims[m] * rank, REDUCE_SUM);
+  thd_reduce(thd_densefactors, 1,
+      model->dims[m] * rank * rank, REDUCE_SUM);
+#endif
+
+  /* save result to model */
+  #pragma omp master
+  VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
+
+  #pragma omp barrier
+
+  /* do all of the Cholesky factorizations */
+  val_t * const restrict out  = model->factors[m];
+  val_t const reg = ws->regularization[m];
+  #pragma omp for schedule(static, 1)
+  for(idx_t i=0; i < model->dims[m]; ++i) {
+    val_t * const restrict neqs_i =
+        (val_t *) thd_densefactors[0].scratch[1] + (i * rank * rank);
+    /* add regularization */
+    for(idx_t f=0; f < rank; ++f) {
+      neqs_i[f + (f * rank)] += reg;
+    }
+
+    /* Cholesky + solve */
+    p_invert_row(neqs_i, out + (i * rank), rank);
+  }
+}
+
+
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
@@ -376,7 +450,7 @@ void splatt_tc_als(
       opts[SPLATT_OPTION_TILEDEPTH] = 1; /* don't tile dense mode */
 
       csf_alloc_mode(train, CSF_SORTED_MINUSONE, m, csf+m, opts);
-      parts[m] = NULL; /* TODO: Load balance tiles? */
+      parts[m] = csf_partition_tiles_1d(csf+m, ws->nthreads);
 
     } else {
       /* standard CSF allocation for sparse modes */
@@ -408,61 +482,10 @@ void splatt_tc_als(
         timer_fstart(&mode_timer);
 
         if(isdense[m]) {
-          #pragma omp master
-          {
-            /* master thread writes/aggregates directly to the model */
-            VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
-          }
+          p_dense_mode_update(csf, m, model, ws, thd_densefactors, parts, tid);
 
-#if 1
-          /* TODO: this better */
-          memset(thd_densefactors[tid].scratch[0], 0,
-              model->dims[m] * rank * sizeof(val_t));
-          memset(thd_densefactors[tid].scratch[1], 0,
-              model->dims[m] * rank * rank * sizeof(val_t));
-#endif
-
-          /* update each tile in parallel */
-          #pragma omp for schedule(dynamic, 1)
-          for(idx_t tile=0; tile < csf[m].ntiles; ++tile) {
-            p_process_tile(csf+m, tile, model, ws, thd_densefactors, tid);
-          }
-
-#if 1
-          /* aggregate partial products */
-          thd_reduce(thd_densefactors, 0,
-              model->dims[m] * rank, REDUCE_SUM);
-          thd_reduce(thd_densefactors, 1,
-              model->dims[m] * rank * rank, REDUCE_SUM);
-#endif
-
-          /* save result to model */
-          #pragma omp master
-          {
-            VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
-          }
-
-          #pragma omp barrier
-
-          /* do all of the Cholesky factorizations */
-          val_t * const restrict out  = model->factors[m];
-          val_t const reg = ws->regularization[m];
-          #pragma omp for schedule(static, 1)
-          for(idx_t i=0; i < model->dims[m]; ++i) {
-            val_t * const restrict neqs_i =
-                (val_t *) thd_densefactors[0].scratch[1] + (i * rank * rank);
-            /* add regularization */
-            for(idx_t f=0; f < rank; ++f) {
-              neqs_i[f + (f * rank)] += reg;
-            }
-
-            /* Cholesky + solve */
-            p_invert_row(neqs_i, out + (i * rank), rank);
-          }
-
-        /* sparse modes are easy */
+        /* dense modes are easy */
         } else {
-
           /* update each row in parallel */
           for(idx_t i=parts[m][tid]; i < parts[m][tid+1]; ++i) {
             p_update_row(csf+m, i, ws->regularization[m], model, ws, tid);

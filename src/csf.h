@@ -178,6 +178,22 @@ idx_t * csf_partition_1d(
     idx_t const nparts);
 
 
+#define csf_partition_tiles_1d splatt_csf_partition_tiles_1d
+/**
+* @brief Split the tiles of csf into 'nparts' partitions.
+*        NOTE: This does not account for any mode-ordering of the tiles, and
+*        instead treats them as a 1D resource.
+*
+* @param csf The tiled tensor to partition.
+* @param nparts The number of partitions to compute.
+*
+* @return An array of length (nparts+1) specifying the starts of each part.
+*/
+idx_t * csf_partition_tiles_1d(
+    splatt_csf const * const csf,
+    idx_t const nparts);
+
+
 #define csf_count_nnz splatt_csf_count_nnz
 /**
 * @brief Count the nonzeros below a given node in a CSF tensor.
