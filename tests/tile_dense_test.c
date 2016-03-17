@@ -202,3 +202,51 @@ CTEST2(tile_dense, check_tile_bounds_weirddims)
   free(ptr);
 }
 
+
+/*
+ * Use a basic checksum to ensure  no nnz went missing after CCP tiling. We use
+ * the tile ptr to traverse the tensor and check. A pass does not rule out a
+ * false negative!
+ */
+CTEST2(tile_dense, ccp_no_missing_nnz_traverse)
+{
+  idx_t cksums[MAX_NMODES];
+  for(idx_t m=0; m < data->tt->nmodes; ++m) {
+    cksums[m] = 0;
+
+    sptensor_t const * const tt = data->tt;
+    for(idx_t x=0; x < tt->nnz; ++x) {
+      cksums[m] += tt->ind[m][x];
+    }
+  }
+
+  idx_t * ptr = tt_ccptile(data->tt, data->tile_dims);
+  ASSERT_EQUAL(data->tt->nnz, ptr[data->ntiles]);
+
+  /* use get_next_tileid to simulate traversal */
+  for(idx_t i=0; i < data->tile_dims[0]; ++i) {
+    idx_t id;
+    id = get_next_tileid(TILE_BEGIN, data->tile_dims, data->tt->nmodes, 0, i);
+    while(id != TILE_END) {
+      idx_t const start = ptr[id];
+      idx_t const end = ptr[id+1];
+      for(idx_t m=0; m < data->tt->nmodes; ++m) {
+        sptensor_t const * const tt = data->tt;
+        for(idx_t x=start; x < end; ++x) {
+          cksums[m] -= tt->ind[m][x];
+        }
+      }
+
+      /* next tile */
+      id = get_next_tileid(id, data->tile_dims, data->tt->nmodes, 0, i);
+    }
+  }
+
+  /* hopefully we ended up at 0... */
+  for(idx_t m=0; m < data->tt->nmodes; ++m) {
+    ASSERT_EQUAL(0, cksums[m]);
+  }
+  free(ptr);
+}
+
+

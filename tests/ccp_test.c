@@ -276,4 +276,25 @@ CTEST2(ccp, part_equalsize)
   free(parts);
 }
 
+CTEST2(ccp, test_1)
+{
+  idx_t const N = 101;
+
+  idx_t * weights = malloc(N * sizeof(*weights));
+  idx_t * parts = malloc(2 * sizeof(*weights));
+
+  for(idx_t x=0; x < N; ++x) {
+    weights[x] = 1;
+  }
+
+  idx_t const bneck = partition_1d(weights, N, parts, 1);
+
+  ASSERT_EQUAL(N, bneck);
+  ASSERT_EQUAL(0, parts[0]);
+  ASSERT_EQUAL(N, parts[1]);
+
+  free(weights);
+  free(parts);
+}
+
 

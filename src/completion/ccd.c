@@ -279,7 +279,7 @@ void splatt_tc_ccd(
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_NTHREADS] = ws->nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
-  opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+  opts[SPLATT_OPTION_TILE] = SPLATT_CCPTILE;
   opts[SPLATT_OPTION_TILEDEPTH] = 1;
 
   splatt_csf * csf = csf_alloc(train, opts);

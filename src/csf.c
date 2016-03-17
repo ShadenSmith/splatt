@@ -475,11 +475,14 @@ static void p_csf_alloc_untiled(
 *
 * @param ct The CSF tensor to fill.
 * @param tt The sparse tensor to start from.
+* @param tile_func Function pointer to a sparse tensor tiling function,
+*                  e.g., tt_densetile() and tt_ccptile()
 * @param splatt_opts Options array for SPLATT - used for tile dimensions.
 */
-static void p_csf_alloc_densetile(
+static void p_csf_alloc_tiled(
   splatt_csf * const ct,
   sptensor_t * const tt,
+  idx_t * (* tile_func)(sptensor_t * const, idx_t const * const),
   double const * const splatt_opts)
 {
   idx_t const nmodes = tt->nmodes;
@@ -497,7 +500,7 @@ static void p_csf_alloc_densetile(
 
   /* perform tensor tiling */
   tt_sort(tt, ct->dim_perm[0], ct->dim_perm);
-  idx_t * nnz_ptr = tt_densetile(tt, ct->tile_dims);
+  idx_t * nnz_ptr = tile_func(tt, ct->tile_dims);
 
   ct->ntiles = ntiles;
   ct->pt = splatt_malloc(ntiles * sizeof(*(ct->pt)));
@@ -576,7 +579,10 @@ static void p_mk_csf(
     p_csf_alloc_untiled(ct, tt);
     break;
   case SPLATT_DENSETILE:
-    p_csf_alloc_densetile(ct, tt, splatt_opts);
+    p_csf_alloc_tiled(ct, tt, tt_densetile, splatt_opts);
+    break;
+  case SPLATT_CCPTILE:
+    p_csf_alloc_tiled(ct, tt, tt_ccptile, splatt_opts);
     break;
   default:
     fprintf(stderr, "SPLATT: tiling '%d' unsupported for CSF tensors.\n",

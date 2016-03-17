@@ -137,11 +137,22 @@ idx_t partition_1d(
 
   nprobes = 0;
 
+  idx_t nparts_adj = nparts;
+
+  /* if nparts > nitems, just truncate */
+  if(nparts > nitems) {
+    for(idx_t p=nitems; p <= nparts; ++p) {
+      parts[p] = nitems;
+    }
+    nparts_adj = nitems;
+  }
+
   /* use recursive bisectioning with 0 tolerance to get exact solution */
-  idx_t bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
+  idx_t bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts_adj,
+      0);
 
   /* apply partitioning that we found */
-  bool success = lprobe(weights, nitems, parts, nparts, bottleneck);
+  bool success = lprobe(weights, nitems, parts, nparts_adj, bottleneck);
   assert(success == true);
 
   timer_stop(&timers[TIMER_PART]);

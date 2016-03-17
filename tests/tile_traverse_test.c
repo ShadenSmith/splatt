@@ -6,7 +6,7 @@
 #include "splatt_test.h"
 
 
-static void __fill_arr(
+static void p_fill_arr(
     idx_t * const arr,
     idx_t const len,
     idx_t const val)
@@ -26,8 +26,8 @@ CTEST_DATA(tile_traverse)
 
 CTEST_SETUP(tile_traverse)
 {
-  __fill_arr(data->dims, MAX_NMODES, 0);
-  __fill_arr(data->coords, MAX_NMODES, 0);
+  p_fill_arr(data->dims, MAX_NMODES, 0);
+  p_fill_arr(data->coords, MAX_NMODES, 0);
 }
 
 
@@ -41,8 +41,8 @@ CTEST_TEARDOWN(tile_traverse)
  */
 CTEST2(tile_traverse, get_tile_id_zero)
 {
-  __fill_arr(data->dims, MAX_NMODES, 1);
-  __fill_arr(data->coords, MAX_NMODES, 0);
+  p_fill_arr(data->dims, MAX_NMODES, 1);
+  p_fill_arr(data->coords, MAX_NMODES, 0);
 
   /* one tile_traverse, id should always be 0 */
   ASSERT_EQUAL(0, get_tile_id(data->dims, MAX_NMODES, data->coords));
@@ -57,7 +57,7 @@ CTEST2(tile_traverse, get_tile_id_3d)
   idx_t const nmodes = 3;
   idx_t const nthreads = 7;
 
-  __fill_arr(data->dims, nmodes, nthreads);
+  p_fill_arr(data->dims, nmodes, nthreads);
 
   idx_t id = 0;
   for(idx_t m1=0; m1 < nthreads; ++m1) {
@@ -184,7 +184,7 @@ CTEST2(tile_traverse, get_tile_id_begin)
   idx_t const nmodes = 6;
   idx_t const nthreads = 3;
 
-  __fill_arr(data->dims, nmodes, nthreads);
+  p_fill_arr(data->dims, nmodes, nthreads);
 
   for(idx_t m=0; m < nmodes; ++m) {
     for(idx_t d=0; d < data->dims[m]; ++d) {
@@ -192,7 +192,7 @@ CTEST2(tile_traverse, get_tile_id_begin)
       idx_t const b_id = get_next_tileid(TILE_BEGIN, data->dims, nmodes, m, d);
 
       /* now do it ourselves */
-      __fill_arr(data->coords, nmodes, 0);
+      p_fill_arr(data->coords, nmodes, 0);
       data->coords[m] = d;
       idx_t const c_id = get_tile_id(data->dims, nmodes, data->coords);
 
@@ -210,11 +210,11 @@ CTEST2(tile_traverse, get_tile_id_end)
   idx_t const nmodes = MAX_NMODES;
   idx_t const nthreads = 3;
 
-  __fill_arr(data->dims, nmodes, nthreads);
+  p_fill_arr(data->dims, nmodes, nthreads);
 
   for(idx_t m=0; m < nmodes; ++m) {
     /* very last tile */
-    __fill_arr(data->coords, nmodes, nthreads-1);
+    p_fill_arr(data->coords, nmodes, nthreads-1);
 
     /* now ensure every idx in the mode sees that it is the end */
     for(idx_t d=0; d < data->dims[m]; ++d) {
@@ -236,11 +236,11 @@ CTEST2(tile_traverse, get_tile_id)
   idx_t const nmodes = MAX_NMODES;
   idx_t const nthreads = 3;
 
-  __fill_arr(data->dims, nmodes, nthreads);
+  p_fill_arr(data->dims, nmodes, nthreads);
 
   for(idx_t m=0; m < nmodes; ++m) {
     /* empty tiles */
-    __fill_arr(data->coords, nmodes, 0);
+    p_fill_arr(data->coords, nmodes, 0);
 
     /* the number of tiles that the traversal should go through */
     idx_t ntiles = 1;
@@ -284,7 +284,7 @@ CTEST2(tile_traverse, tile_weird_dim)
 
   for(idx_t m=0; m < nmodes; ++m) {
     /* empty tiles */
-    __fill_arr(data->coords, nmodes, 0);
+    p_fill_arr(data->coords, nmodes, 0);
 
     /* the number of tiles that the traversal should go through */
     idx_t ntiles = 1;
