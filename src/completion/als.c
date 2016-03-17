@@ -346,13 +346,12 @@ static void p_dense_mode_update(
   #pragma omp master
   VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
 
-#if 1
-  /* TODO: this better */
+  /* TODO: this could be better by instead only initializing neqs with beta=0
+   * and keeping track of which have been updated. */
   memset(thd_densefactors[tid].scratch[0], 0,
       model->dims[m] * rank * sizeof(val_t));
   memset(thd_densefactors[tid].scratch[1], 0,
       model->dims[m] * rank * rank * sizeof(val_t));
-#endif
 
   /* update each tile in parallel */
   for(idx_t tile=parts[m][tid]; tile < parts[m][tid+1]; ++tile) {
@@ -360,13 +359,15 @@ static void p_dense_mode_update(
   }
   #pragma omp barrier
 
-#if 1
   /* aggregate partial products */
   thd_reduce(thd_densefactors, 0,
       model->dims[m] * rank, REDUCE_SUM);
+
+  /* TODO: this could be better by using a custom reduction which only
+   * operates on the upper triangular portion. OpenMP 4 declare reduction
+   * would be good here? */
   thd_reduce(thd_densefactors, 1,
       model->dims[m] * rank * rank, REDUCE_SUM);
-#endif
 
   /* save result to model */
   #pragma omp master
