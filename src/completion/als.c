@@ -5,6 +5,13 @@
 #include <math.h>
 #include <omp.h>
 
+#define VPTR_SWAP(x,y) \
+do {\
+  val_t * tmp = (x);\
+  (x) = (y);\
+  (y) = tmp;\
+} while(0)
+
 /* TODO: Conditionally include this OR define lapack prototypes below?
  *       What does this offer beyond prototypes? Can we detect at compile time
  *       if we are using MKL vs ATLAS, etc.?
@@ -64,7 +71,7 @@ static inline void p_invert_row(
   int info;
   LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
+    //fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
 
 
@@ -72,7 +79,7 @@ static inline void p_invert_row(
   int ldb = (int) N;
   LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, out_row, &ldb, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
+    //fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
   }
 }
 
@@ -106,6 +113,100 @@ static inline void p_vec_oprod(
   LAPACK_DSYRK(&uplo, &trans, &order, &k, &alpha, A, &lda, &beta, out, &ldc);
 }
 
+
+
+static void p_process_tile(
+    splatt_csf const * const csf,
+    idx_t const tile,
+    tc_model * const model,
+    tc_ws * const ws,
+    thd_info * const thd_densefactors,
+    int const tid)
+{
+  csf_sparsity const * const pt = csf->pt + tile;
+  /* empty tile */
+  if(pt->vals == 0) {
+    return;
+  }
+
+  idx_t const nfactors = model->rank;
+
+  idx_t const * const restrict sptr = pt->fptr[0];
+  idx_t const * const restrict fptr = pt->fptr[1];
+  idx_t const * const restrict fids = pt->fids[1];
+  idx_t const * const restrict inds = pt->fids[2];
+
+  val_t const * const restrict avals = model->factors[csf->dim_perm[1]];
+  val_t const * const restrict bvals = model->factors[csf->dim_perm[2]];
+  val_t const * const restrict vals = pt->vals;
+
+  /* buffers */
+  val_t * const restrict accum = ws->thds[tid].scratch[1];
+  val_t * const restrict mat_accum = ws->thds[tid].scratch[3];
+
+  /* update each slice */
+  idx_t const nslices = pt->nfibs[0];
+  for(idx_t i=0; i < nslices; ++i) {
+    /* fid is the row we are actually updating */
+    idx_t const fid = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
+
+    /* replicated structures */
+    val_t * const restrict out_row =
+        (val_t *) thd_densefactors[tid].scratch[0] + (fid * nfactors);
+    val_t * const restrict neqs =
+        (val_t *) thd_densefactors[tid].scratch[1] + (fid*nfactors*nfactors);
+
+    idx_t bufsize = 0; /* how many hada vecs are in mat_accum */
+    idx_t nflush = 1;  /* how many times we have flushed to add to the neqs */
+    val_t * restrict hada = mat_accum;
+
+    /* process each fiber */
+    for(idx_t fib=sptr[i]; fib < sptr[i+1]; ++fib) {
+      val_t const * const restrict av = avals  + (fids[fib] * nfactors);
+
+      /* first entry of the fiber is used to initialize accum */
+      idx_t const jjfirst  = fptr[fib];
+      val_t const vfirst   = vals[jjfirst];
+      val_t const * const restrict bv = bvals + (inds[jjfirst] * nfactors);
+      for(idx_t r=0; r < nfactors; ++r) {
+        accum[r] = vfirst * bv[r];
+        hada[r] = av[r] * bv[r];
+      }
+      hada += nfactors;
+      if(++bufsize == ALS_BUFSIZE) {
+        /* add to normal equations */
+        p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
+        hada = mat_accum;
+        bufsize = 0;
+      }
+
+      /* foreach nnz in fiber */
+      for(idx_t jj=fptr[fib]+1; jj < fptr[fib+1]; ++jj) {
+        val_t const v = vals[jj];
+        val_t const * const restrict bv = bvals + (inds[jj] * nfactors);
+        for(idx_t r=0; r < nfactors; ++r) {
+          accum[r] += v * bv[r];
+          hada[r] = av[r] * bv[r];
+        }
+        hada += nfactors;
+        if(++bufsize == ALS_BUFSIZE) {
+          /* add to normal equations */
+          p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
+          hada = mat_accum;
+          bufsize = 0;
+        }
+      }
+
+      /* accumulate into output row */
+      for(idx_t r=0; r < nfactors; ++r) {
+        out_row[r] += accum[r] * av[r];
+      }
+    } /* foreach fiber */
+
+    /* final flush */
+    p_vec_oprod(mat_accum, nfactors, bufsize, nflush++, neqs);
+  } /* foreach slice */
+}
 
 
 
@@ -218,6 +319,81 @@ static inline void p_update_row(
 
 
 
+/**
+* @brief Update factor[m] which follows a dense mode. This function should be
+*        called from inside an OpenMP parallel region!
+*
+* @param csf The CSF tensor array. csf[m] is a tiled tensor.
+* @param m The mode we are updating.
+* @param model The current model.
+* @param ws Workspace info.
+* @param thd_densefactors Thread structures for the dense mode.
+* @param parts parts[m] is a load balanced partition of csf[m] tiles.
+* @param tid Thread ID.
+*/
+static void p_dense_mode_update(
+    splatt_csf const * const csf,
+    idx_t const m,
+    tc_model * const model,
+    tc_ws * const ws,
+    thd_info * const thd_densefactors,
+    idx_t * * parts,
+    int const tid)
+{
+  idx_t const rank = model->rank;
+
+  /* master thread writes/aggregates directly to the model */
+  #pragma omp master
+  VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
+
+  /* TODO: this could be better by instead only initializing neqs with beta=0
+   * and keeping track of which have been updated. */
+  memset(thd_densefactors[tid].scratch[0], 0,
+      model->dims[m] * rank * sizeof(val_t));
+  memset(thd_densefactors[tid].scratch[1], 0,
+      model->dims[m] * rank * rank * sizeof(val_t));
+
+  /* update each tile in parallel */
+  for(idx_t tile=parts[m][tid]; tile < parts[m][tid+1]; ++tile) {
+    p_process_tile(csf+m, tile, model, ws, thd_densefactors, tid);
+  }
+  #pragma omp barrier
+
+  /* aggregate partial products */
+  thd_reduce(thd_densefactors, 0,
+      model->dims[m] * rank, REDUCE_SUM);
+
+  /* TODO: this could be better by using a custom reduction which only
+   * operates on the upper triangular portion. OpenMP 4 declare reduction
+   * would be good here? */
+  thd_reduce(thd_densefactors, 1,
+      model->dims[m] * rank * rank, REDUCE_SUM);
+
+  /* save result to model */
+  #pragma omp master
+  VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
+
+  #pragma omp barrier
+
+  /* do all of the Cholesky factorizations */
+  val_t * const restrict out  = model->factors[m];
+  val_t const reg = ws->regularization[m];
+  #pragma omp for schedule(static, 1)
+  for(idx_t i=0; i < model->dims[m]; ++i) {
+    val_t * const restrict neqs_i =
+        (val_t *) thd_densefactors[0].scratch[1] + (i * rank * rank);
+    /* add regularization */
+    for(idx_t f=0; f < rank; ++f) {
+      neqs_i[f + (f * rank)] += reg;
+    }
+
+    /* Cholesky + solve */
+    p_invert_row(neqs_i, out + (i * rank), rank);
+  }
+}
+
+
+
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
@@ -230,19 +406,60 @@ void splatt_tc_als(
     tc_model * const model,
     tc_ws * const ws)
 {
+  idx_t const nmodes = train->nmodes;
+  idx_t const rank = model->rank;
+
+  /* store dense modes redundantly among threads */
+  bool isdense[MAX_NMODES];
+  thd_info * thd_densefactors = NULL;
+  idx_t maxdense = 0;
+  for(idx_t m=0; m < nmodes; ++m) {
+    isdense[m] = train->dims[m] < DENSEMODE_THRESHOLD;
+    if(isdense[m]) {
+      maxdense = SS_MAX(maxdense, train->dims[m]);
+    }
+  }
+  if(maxdense > 0) {
+    thd_densefactors = thd_init(ws->nthreads, 3,
+        maxdense * rank * sizeof(val_t), /* accum */
+        maxdense * rank * rank * sizeof(val_t), /* neqs */
+        maxdense * sizeof(int)); /* nflush */
+
+
+    printf("REPLICATING MODES:");
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(isdense[m]) {
+        printf(" %"SPLATT_PF_IDX, m+1);
+      }
+    }
+    printf("\n\n");
+  }
+
+  /* load-balanced partition each mode for threads */
+  idx_t * parts[MAX_NMODES];
+
+  splatt_csf csf[MAX_NMODES];
+
   /* convert training data to CSF-ALLMODE */
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
-  opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
-  splatt_csf * csf = csf_alloc(train, opts);
-  assert(csf->ntiles == 1);
-
-  idx_t const nmodes = train->nmodes;
-
-  /* partition each mode for threads */
-  idx_t * parts[MAX_NMODES];
+  opts[SPLATT_OPTION_NTHREADS] = ws->nthreads;
   for(idx_t m=0; m < nmodes; ++m) {
-    parts[m] = csf_partition_1d(csf+m, 0, ws->nthreads);
+    if(isdense[m]) {
+      /* standard CSF allocation for sparse modes */
+      opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+      opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
+      opts[SPLATT_OPTION_TILEDEPTH] = 1; /* don't tile dense mode */
+
+      csf_alloc_mode(train, CSF_SORTED_MINUSONE, m, csf+m, opts);
+      parts[m] = csf_partition_tiles_1d(csf+m, ws->nthreads);
+
+    } else {
+      /* standard CSF allocation for sparse modes */
+      opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+      opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+      csf_alloc_mode(train, CSF_SORTED_MINUSONE, m, csf+m, opts);
+      parts[m] = csf_partition_1d(csf+m, 0, ws->nthreads);
+    }
   }
 
   val_t prev_val_rmse = 0;
@@ -265,10 +482,17 @@ void splatt_tc_als(
         #pragma omp master
         timer_fstart(&mode_timer);
 
-        /* update each row in parallel */
-        for(idx_t i=parts[m][tid]; i < parts[m][tid+1]; ++i) {
-          p_update_row(csf+m, i, ws->regularization[m], model, ws, tid);
+        if(isdense[m]) {
+          p_dense_mode_update(csf, m, model, ws, thd_densefactors, parts, tid);
+
+        /* dense modes are easy */
+        } else {
+          /* update each row in parallel */
+          for(idx_t i=parts[m][tid]; i < parts[m][tid+1]; ++i) {
+            p_update_row(csf+m, i, ws->regularization[m], model, ws, tid);
+          }
         }
+
         #pragma omp barrier
 
         #pragma omp master
@@ -292,9 +516,12 @@ void splatt_tc_als(
   } /* foreach iteration */
 
   /* cleanup */
-  csf_free(csf, opts);
   for(idx_t m=0; m < nmodes; ++m) {
+    csf_free_mode(csf+m);
     splatt_free(parts[m]);
+  }
+  if(maxdense > 0) {
+    thd_free(thd_densefactors, ws->nthreads);
   }
 }
 

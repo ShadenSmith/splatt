@@ -811,6 +811,27 @@ idx_t * csf_partition_1d(
 }
 
 
+idx_t * csf_partition_tiles_1d(
+    splatt_csf const * const csf,
+    idx_t const nparts)
+{
+  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
+
+  idx_t const nmodes = csf->nmodes;
+  idx_t const ntiles = csf->ntiles;
+  idx_t * weights = splatt_malloc(ntiles * sizeof(*weights));
+
+  #pragma omp parallel for
+  for(idx_t i=0; i < ntiles; ++i) {
+    weights[i] = csf->pt->nfibs[nmodes-1];
+  }
+
+  partition_1d(weights, ntiles, parts, nparts);
+  splatt_free(weights);
+
+  return parts;
+}
+
 
 idx_t csf_count_nnz(
     idx_t * * fptr,
