@@ -6,6 +6,7 @@
 #include "sort.h"
 #include "timer.h"
 #include "io.h"
+#include "util.h"
 #include "ccp/ccp.h"
 
 
@@ -276,18 +277,23 @@ idx_t * tt_densetile(
 
   idx_t * tcounts = calloc(ntiles+2, sizeof(*tcounts));
 
-  /* count tile sizes (in nnz) */
-  idx_t coord[MAX_NMODES];
-  for(idx_t x=0; x < tt->nnz; ++x) {
-    for(idx_t m=0; m < nmodes; ++m) {
-      /* capping at dims-1 fixes overflow when dims don't divide evenly */
-      coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
+  #pragma omp parallel
+  {
+    /* count tile sizes (in nnz) */
+    idx_t coord[MAX_NMODES];
+    #pragma omp for schedule(static)
+    for(idx_t x=0; x < tt->nnz; ++x) {
+      for(idx_t m=0; m < nmodes; ++m) {
+        /* capping at dims-1 fixes overflow when dims don't divide evenly */
+        coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
+      }
+      /* offset by 1 to make prefix sum easy */
+      idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+      assert(id < ntiles);
+      #pragma omp atomic
+      ++tcounts[2+id];
     }
-    /* offset by 1 to make prefix sum easy */
-    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
-    assert(id < ntiles);
-    ++tcounts[2+id];
-  }
+  } /* omp parallel */
 
   /* prefix sum */
   for(idx_t t=3; t <= ntiles+1; ++t) {
@@ -297,6 +303,7 @@ idx_t * tt_densetile(
   sptensor_t * newtt = tt_alloc(tt->nnz, tt->nmodes);
 
   /* copy old tensor into new tiled one */
+  idx_t coord[MAX_NMODES];
   for(idx_t x=0; x < tt->nnz; ++x) {
     for(idx_t m=0; m < nmodes; ++m) {
       coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
@@ -313,9 +320,9 @@ idx_t * tt_densetile(
   }
 
   /* copy data into old struct */
-  memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
+  par_memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
   for(idx_t m=0; m < nmodes; ++m) {
-    memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
+    par_memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
   }
   tt_free(newtt);
 
@@ -338,11 +345,6 @@ idx_t * tt_ccptile(
   }
 
   idx_t * tcounts = calloc(ntiles+2, sizeof(*tcounts));
-
-  if(tt->nnz < 10) {
-    printf("\nBEFORE\n");
-    tt_write(tt, NULL);
-  }
 
   #pragma omp parallel
   {
@@ -422,15 +424,16 @@ idx_t * tt_ccptile(
     }
   } /* foreach nnz */
 
+  /* copy data into old struct */
+  par_memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    par_memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
+  }
+
   tt_free(newtt);
   for(idx_t m=0; m < nmodes; ++m) {
     free(hist[m]);
     splatt_free(parts[m]);
-  }
-
-  if(tt->nnz < 10) {
-    printf("\nAFTER\n");
-    tt_write(tt, NULL);
   }
 
   return tcounts;
