@@ -339,6 +339,11 @@ idx_t * tt_ccptile(
 
   idx_t * tcounts = calloc(ntiles+2, sizeof(*tcounts));
 
+  if(tt->nnz < 10) {
+    printf("\nBEFORE\n");
+    tt_write(tt, NULL);
+  }
+
   #pragma omp parallel
   {
     /* compute a histogram for each mode */
@@ -421,6 +426,11 @@ idx_t * tt_ccptile(
   for(idx_t m=0; m < nmodes; ++m) {
     free(hist[m]);
     splatt_free(parts[m]);
+  }
+
+  if(tt->nnz < 10) {
+    printf("\nAFTER\n");
+    tt_write(tt, NULL);
   }
 
   return tcounts;

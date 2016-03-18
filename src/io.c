@@ -34,6 +34,9 @@ static struct ftype file_extensions[] = {
 splatt_file_type get_file_type(
     char const * const fname)
 {
+  if(fname == NULL) {
+    return SPLATT_FILE_TEXT_COORD;
+  }
   /* find last . in filename */
   char const * const suffix = strrchr(fname, '.');
   if(suffix == NULL) {
@@ -328,7 +331,9 @@ void tt_write(
   char const * const fname)
 {
   FILE * fout;
-  if((fout = fopen(fname, "w")) == NULL) {
+  if(fname == NULL) {
+    fout = stdout;
+  } else if((fout = fopen(fname, "w")) == NULL) {
     fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", fname);
     return;
   }
@@ -343,7 +348,9 @@ void tt_write(
     tt_write_file(tt, fout);
     break;
   }
-  fclose(fout);
+  if(fname != NULL) {
+    fclose(fout);
+  }
 }
 
 void tt_write_file(
