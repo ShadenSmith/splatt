@@ -321,7 +321,6 @@ static inline void p_update_row(
 * @param model The current model.
 * @param ws Workspace info.
 * @param thd_densefactors Thread structures for the dense mode.
-* @param parts parts[m] is a load balanced partition of csf[m] tiles.
 * @param tid Thread ID.
 */
 static void p_densemode_als_update(
@@ -330,7 +329,6 @@ static void p_densemode_als_update(
     tc_model * const model,
     tc_ws * const ws,
     thd_info * const thd_densefactors,
-    idx_t * * parts,
     int const tid)
 {
   idx_t const rank = model->rank;
@@ -347,10 +345,10 @@ static void p_densemode_als_update(
       model->dims[m] * rank * rank * sizeof(val_t));
 
   /* update each tile in parallel */
-  for(idx_t tile=parts[m][tid]; tile < parts[m][tid+1]; ++tile) {
+  #pragma omp for schedule(dynamic, 1)
+  for(idx_t tile=0; tile < csf[m].ntiles; ++tile) {
     p_process_tile(csf+m, tile, model, ws, thd_densefactors, tid);
   }
-  #pragma omp barrier
 
   /* aggregate partial products */
   thd_reduce(thd_densefactors, 0,
@@ -432,11 +430,11 @@ void splatt_tc_als(
     if(ws->isdense[m]) {
       /* standard CSF allocation for sparse modes */
       opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
-      opts[SPLATT_OPTION_TILE] = SPLATT_CCPTILE;
+      opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
       opts[SPLATT_OPTION_TILEDEPTH] = 1; /* don't tile dense mode */
 
       csf_alloc_mode(train, CSF_SORTED_MINUSONE, m, csf+m, opts);
-      parts[m] = csf_partition_tiles_1d(csf+m, ws->nthreads);
+      parts[m] = NULL;
 
     } else {
       /* standard CSF allocation for sparse modes */
@@ -468,8 +466,7 @@ void splatt_tc_als(
         timer_fstart(&mode_timer);
 
         if(ws->isdense[m]) {
-          p_densemode_als_update(csf, m, model, ws, thd_densefactors, parts,
-              tid);
+          p_densemode_als_update(csf, m, model, ws, thd_densefactors, tid);
 
         /* dense modes are easy */
         } else {
