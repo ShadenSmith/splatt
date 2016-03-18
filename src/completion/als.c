@@ -432,7 +432,7 @@ void splatt_tc_als(
     if(ws->isdense[m]) {
       /* standard CSF allocation for sparse modes */
       opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
-      opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
+      opts[SPLATT_OPTION_TILE] = SPLATT_CCPTILE;
       opts[SPLATT_OPTION_TILEDEPTH] = 1; /* don't tile dense mode */
 
       csf_alloc_mode(train, CSF_SORTED_MINUSONE, m, csf+m, opts);
