@@ -21,6 +21,14 @@
  */
 #define DENSEMODE_THRESHOLD 300
 
+/* swap two val_t pointers */
+#define SPLATT_VPTR_SWAP(x,y) \
+do {\
+  val_t * tmp = (x);\
+  (x) = (y);\
+  (y) = tmp;\
+} while(0)
+
 
 
 /******************************************************************************
@@ -73,6 +81,11 @@ typedef struct
   /* GD */
   sp_timer_t grad_time;
   sp_timer_t line_time;
+
+  /* some algs handle dense modes separately */
+  idx_t num_dense;
+  bool isdense[MAX_NMODES];
+  idx_t maxdense_dim;
 
   /* results + convergence */
   idx_t max_badepochs;

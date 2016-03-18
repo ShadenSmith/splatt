@@ -373,8 +373,17 @@ tc_ws * tc_ws_alloc(
   ws->learn_rate = 0.001;
   idx_t const rank = model->rank;
 
+  ws->maxdense_dim = 0;
+  ws->num_dense =0;
+
   /* Set mode-specific parameters, etc. */
   for(idx_t m=0; m < nmodes; ++m) {
+    /* dense modes */
+    ws->isdense[m] = train->dims[m] < DENSEMODE_THRESHOLD;
+    if(ws->isdense[m]) {
+      ws->maxdense_dim = SS_MAX(ws->maxdense_dim, train->dims[m]);
+      ++(ws->num_dense);
+    }
 
     switch(model->which) {
     case SPLATT_TC_GD:

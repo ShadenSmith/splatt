@@ -5,13 +5,6 @@
 #include <math.h>
 #include <omp.h>
 
-#define VPTR_SWAP(x,y) \
-do {\
-  val_t * tmp = (x);\
-  (x) = (y);\
-  (y) = tmp;\
-} while(0)
-
 /* TODO: Conditionally include this OR define lapack prototypes below?
  *       What does this offer beyond prototypes? Can we detect at compile time
  *       if we are using MKL vs ATLAS, etc.?
@@ -71,7 +64,7 @@ static inline void p_invert_row(
   int info;
   LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
   if(info) {
-    //fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
+    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
 
 
@@ -79,7 +72,7 @@ static inline void p_invert_row(
   int ldb = (int) N;
   LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, out_row, &ldb, &info);
   if(info) {
-    //fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
+    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
   }
 }
 
@@ -331,7 +324,7 @@ static inline void p_update_row(
 * @param parts parts[m] is a load balanced partition of csf[m] tiles.
 * @param tid Thread ID.
 */
-static void p_dense_mode_update(
+static void p_densemode_als_update(
     splatt_csf const * const csf,
     idx_t const m,
     tc_model * const model,
@@ -344,7 +337,7 @@ static void p_dense_mode_update(
 
   /* master thread writes/aggregates directly to the model */
   #pragma omp master
-  VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
+  SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
 
   /* TODO: this could be better by instead only initializing neqs with beta=0
    * and keeping track of which have been updated. */
@@ -371,7 +364,7 @@ static void p_dense_mode_update(
 
   /* save result to model */
   #pragma omp master
-  VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
+  SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
 
   #pragma omp barrier
 
@@ -410,25 +403,17 @@ void splatt_tc_als(
   idx_t const rank = model->rank;
 
   /* store dense modes redundantly among threads */
-  bool isdense[MAX_NMODES];
   thd_info * thd_densefactors = NULL;
-  idx_t maxdense = 0;
-  for(idx_t m=0; m < nmodes; ++m) {
-    isdense[m] = train->dims[m] < DENSEMODE_THRESHOLD;
-    if(isdense[m]) {
-      maxdense = SS_MAX(maxdense, train->dims[m]);
-    }
-  }
-  if(maxdense > 0) {
+  if(ws->num_dense > 0) {
     thd_densefactors = thd_init(ws->nthreads, 3,
-        maxdense * rank * sizeof(val_t), /* accum */
-        maxdense * rank * rank * sizeof(val_t), /* neqs */
-        maxdense * sizeof(int)); /* nflush */
+        ws->maxdense_dim * rank * sizeof(val_t), /* accum */
+        ws->maxdense_dim * rank * rank * sizeof(val_t), /* neqs */
+        ws->maxdense_dim * sizeof(int)); /* nflush */
 
 
     printf("REPLICATING MODES:");
     for(idx_t m=0; m < nmodes; ++m) {
-      if(isdense[m]) {
+      if(ws->isdense[m]) {
         printf(" %"SPLATT_PF_IDX, m+1);
       }
     }
@@ -444,7 +429,7 @@ void splatt_tc_als(
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_NTHREADS] = ws->nthreads;
   for(idx_t m=0; m < nmodes; ++m) {
-    if(isdense[m]) {
+    if(ws->isdense[m]) {
       /* standard CSF allocation for sparse modes */
       opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
       opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
@@ -482,8 +467,9 @@ void splatt_tc_als(
         #pragma omp master
         timer_fstart(&mode_timer);
 
-        if(isdense[m]) {
-          p_dense_mode_update(csf, m, model, ws, thd_densefactors, parts, tid);
+        if(ws->isdense[m]) {
+          p_densemode_als_update(csf, m, model, ws, thd_densefactors, parts,
+              tid);
 
         /* dense modes are easy */
         } else {
@@ -520,7 +506,7 @@ void splatt_tc_als(
     csf_free_mode(csf+m);
     splatt_free(parts[m]);
   }
-  if(maxdense > 0) {
+  if(ws->maxdense_dim > 0) {
     thd_free(thd_densefactors, ws->nthreads);
   }
 }
