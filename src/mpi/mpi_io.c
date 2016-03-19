@@ -550,6 +550,10 @@ static void p_find_layer_boundaries(
     nnzcnt += ssizes[m][s];
   }
 
+  for( ; currp < layer_dim; ++currp) {
+    rinfo->layer_ptrs[m][currp] = dims[m];
+  }
+
   CLEANUP:
   /* store layer bounderies in layer_{starts, ends} */
   rinfo->layer_starts[m] = rinfo->layer_ptrs[m][rinfo->coords_3d[m]];
