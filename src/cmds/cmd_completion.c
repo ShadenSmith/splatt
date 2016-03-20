@@ -32,6 +32,7 @@ static char tc_doc[] =
 #define TC_SEED 253
 #define TC_TIME 252
 #define TC_TOL 251
+#define TC_INNER 250
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
@@ -41,6 +42,7 @@ static struct argp_option tc_options[] = {
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD"},
   {"reg", TC_REG, "SIZE", 0, "step size (learning rate) for SGD"},
+  {"inner", TC_INNER, "NITERS", 0, "number of inner iterations to use during CCD++ (default: 1)"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
   {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
   {"tol", TC_TOL, "TOLERANCE", 0, "converge if RMSE-vl has not improved by TOLERANCE in 20 epochs (default: 1e-4)"},
@@ -110,6 +112,7 @@ typedef struct
   val_t tolerance;
 
   idx_t max_its;
+  idx_t num_inner;
   bool set_timeout;
   double max_seconds;
   idx_t nfactors;
@@ -141,6 +144,7 @@ static void default_tc_opts(
   args->set_seed = false;
   args->seed = time(NULL);
   args->set_tolerance = false;
+  args->num_inner = 1;
 }
 
 
@@ -200,6 +204,9 @@ static error_t parse_tc_opt(
   case TC_TOL:
     args->tolerance = atof(arg);
     args->set_tolerance = true;
+    break;
+  case TC_INNER:
+    args->num_inner = strtoull(arg, &buf, 10);
     break;
 
   case ARGP_KEY_ARG:
@@ -271,6 +278,7 @@ int splatt_tc_cmd(
   if(args.set_tolerance) {
     ws->tolerance = args.tolerance;
   }
+  ws->num_inner = args.num_inner;
 
   printf("Factoring ------------------------------------------------------\n");
   printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" ",

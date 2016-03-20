@@ -405,6 +405,8 @@ void splatt_tc_ccd(
   idx_t const nmodes = train->nmodes;
   idx_t const nfactors = model->rank;
 
+  printf("\nINNER ITS: %lu\n", ws->num_inner);
+
   thd_info * thd_densefactors = NULL;
   if(ws->num_dense > 0) {
     thd_densefactors = thd_init(ws->nthreads, 2,
