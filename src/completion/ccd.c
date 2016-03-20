@@ -144,35 +144,98 @@ static void p_process_root3(
   idx_t const nfactors = model->rank;
 
   GRAB_SPARSITY(tile)
+  if(residual == NULL) {
+    return;
+  }
+  /* empty tile, just return */
+  if(residual == NULL) {
+    return;
+  }
+
   GRAB_CONST_FACTORS
 
   for(idx_t i=0; i < pt->nfibs[0]; ++i) {
     idx_t const a_id = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
 
-    /* grab the top-level row to update */
-    val_t const aval = avals[a_id];
-
     /* process each fiber */
     for(idx_t fib=sptr[i]; fib < sptr[i+1]; ++fib) {
       val_t const bval = bvals[fids[fib]];
-
-      /* push Hadmard product down tree */
-      val_t const predict = aval * bval;
 
       /* foreach nnz in fiber */
       for(idx_t jj=fptr[fib]; jj < fptr[fib+1]; ++jj) {
         val_t const cval = cvals[inds[jj]];
 
         val_t const sgrad = bval * cval;
-        //numer[a_id] += (residual[jj] + (predict * cval)) * sgrad;
-        //#pragma omp atomic
         numer[a_id] += residual[jj] * bval * cval;
-        //#pragma omp atomic
         denom[a_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
   } /* foreach slice */
 }
+
+
+static void p_process_root(
+    splatt_csf const * const csf,
+    idx_t const tile,
+    idx_t const f,
+    tc_model const * const model,
+    tc_ws * const ws,
+    val_t * const restrict numer,
+    val_t * const restrict denom)
+{
+  idx_t const nmodes = csf->nmodes;
+  if(nmodes == 3) {
+    p_process_root3(csf, tile, f, model, ws, numer, denom);
+    return;
+  }
+
+  idx_t const outdepth = 0;
+
+  /* grab sparsity structure */
+  csf_sparsity const * const pt = csf->pt + tile;
+  idx_t const * const * const restrict fp = (idx_t const * const *) pt->fptr;
+  idx_t const * const * const restrict fids = (idx_t const * const *) pt->fids;
+
+  idx_t idxstack[MAX_NMODES];
+  val_t predictbuf[MAX_NMODES];
+
+  /* grab factors */
+  val_t const * restrict mats[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    mats[m] = (val_t const * const restrict) model->factors[csf->dim_perm[m]] +
+        (f * model->dims[csf->dim_perm[m]]);
+  }
+
+  /* foreach outer slice */
+  for(idx_t i=0; i < pt->nfibs[0]; ++i) {
+    idx_t out_id = 0;
+
+    predictbuf[0] = 1.;
+
+    /* clear out stale data */
+    idxstack[0] = i;
+    for(idx_t m=1; m < nmodes-1; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
+      predictbuf[m] = 1;
+    }
+
+    /* process each subtree */
+    idx_t depth = 0;
+    while(idxstack[1] < fp[0][i+1]) {
+
+      /* move down to nnz node */
+      for(; depth < nmodes-2; ++depth) {
+        if(depth == outdepth) {
+          out_id = (fids[depth] == NULL) ?
+              idxstack[depth] : fids[depth][idxstack[depth]];
+        } else {
+          //predictbuf[depth] =
+        }
+      }
+    }
+  } /* foreach outer slice */
+}
+
 
 
 static void p_process_intl3(
@@ -187,6 +250,9 @@ static void p_process_intl3(
   idx_t const nfactors = model->rank;
 
   GRAB_SPARSITY(tile)
+  if(residual == NULL) {
+    return;
+  }
   GRAB_CONST_FACTORS
 
   for(idx_t i=0; i < pt->nfibs[0]; ++i) {
@@ -207,14 +273,29 @@ static void p_process_intl3(
         val_t const cval = cvals[inds[jj]];
 
         val_t const sgrad = aval * cval;
-        //numer[b_id] += (residual[jj] + (predict * cval)) * sgrad;
-        //#pragma omp atomic
         numer[b_id] += residual[jj] * sgrad;
-        //#pragma omp atomic
         denom[b_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
   } /* foreach slice */
+}
+
+
+static void p_process_intl(
+    splatt_csf const * const csf,
+    idx_t const tile,
+    idx_t const f,
+    tc_model const * const model,
+    tc_ws * const ws,
+    val_t * const restrict numer,
+    val_t * const restrict denom)
+{
+  idx_t const nmodes = csf->nmodes;
+  if(nmodes == 3) {
+    p_process_intl3(csf, tile, f, model, ws, numer, denom);
+    return;
+  }
+
 }
 
 
@@ -230,6 +311,9 @@ static void p_process_leaf3(
   idx_t const nfactors = model->rank;
 
   GRAB_SPARSITY(tile)
+  if(residual == NULL) {
+    return;
+  }
   GRAB_CONST_FACTORS
 
   for(idx_t i=0; i < pt->nfibs[0]; ++i) {
@@ -250,10 +334,7 @@ static void p_process_leaf3(
         val_t const cval = cvals[c_id];
 
         val_t const sgrad = aval * bval;
-        //numer[c_id] += (residual[jj] + (predict * cval)) * sgrad;
-        //#pragma omp atomic
         numer[c_id] += residual[jj] * predict;
-        //#pragma omp atomic
         denom[c_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
@@ -262,6 +343,23 @@ static void p_process_leaf3(
 
 
 
+static void p_process_leaf(
+    splatt_csf const * const csf,
+    idx_t const tile,
+    idx_t const f,
+    tc_model const * const model,
+    tc_ws * const ws,
+    val_t * const restrict numer,
+    val_t * const restrict denom)
+{
+  idx_t const nmodes = csf->nmodes;
+  if(nmodes == 3) {
+    p_process_leaf3(csf, tile, f, model, ws, numer, denom);
+    return;
+  }
+
+
+}
 
 
 /******************************************************************************
@@ -300,13 +398,13 @@ static void p_densemode_ccd_update(
   for(idx_t tile=0; tile < csf->ntiles; ++tile) {
     switch(which) {
     case NODE_ROOT:
-      p_process_root3(csf, tile, f, model, ws, numer, denom);
+      p_process_root(csf, tile, f, model, ws, numer, denom);
       break;
     case NODE_INTL:
-      p_process_intl3(csf, tile, f, model, ws, numer, denom);
+      p_process_intl(csf, tile, f, model, ws, numer, denom);
       break;
     case NODE_LEAF:
-      p_process_leaf3(csf, tile, f, model, ws, numer, denom);
+      p_process_leaf(csf, tile, f, model, ws, numer, denom);
       break;
     }
   } /* foreach tile */
@@ -369,13 +467,13 @@ static void p_sparsemode_ccd_update(
       /* process tile */
       switch(which) {
       case NODE_ROOT:
-        p_process_root3(csf, tile, f, model, ws, numer, denom);
+        p_process_root(csf, tile, f, model, ws, numer, denom);
         break;
       case NODE_INTL:
-        p_process_intl3(csf, tile, f, model, ws, numer, denom);
+        p_process_intl(csf, tile, f, model, ws, numer, denom);
         break;
       case NODE_LEAF:
-        p_process_leaf3(csf, tile, f, model, ws, numer, denom);
+        p_process_leaf(csf, tile, f, model, ws, numer, denom);
         break;
       }
 
@@ -405,8 +503,9 @@ void splatt_tc_ccd(
   idx_t const nmodes = train->nmodes;
   idx_t const nfactors = model->rank;
 
-  printf("\nINNER ITS: %lu\n", ws->num_inner);
+  printf("INNER ITS: %"SPLATT_PF_IDX"\n", ws->num_inner);
 
+  /* setup dense modes */
   thd_info * thd_densefactors = NULL;
   if(ws->num_dense > 0) {
     thd_densefactors = thd_init(ws->nthreads, 2,
