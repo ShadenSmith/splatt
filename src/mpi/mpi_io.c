@@ -492,7 +492,7 @@ static sptensor_t * p_read_tt_1d(
 * @param mode Which mode to work on.
 * @param rinfo MPI rank information.
 */
-static void p_find_layer_boundaries(
+void p_find_layer_boundaries(
   idx_t ** const ssizes,
   idx_t const mode,
   rank_info * const rinfo)
@@ -551,6 +551,10 @@ static void p_find_layer_boundaries(
       pnnz = (nnz - lastn) / SS_MAX(1, layer_dim - (currp-1));
     }
     nnzcnt += ssizes[m][s];
+  }
+
+  for( ; currp < layer_dim; ++currp) {
+    rinfo->layer_ptrs[m][currp] = dims[m];
   }
 
   CLEANUP:
@@ -638,7 +642,7 @@ static sptensor_t * p_rearrange_fine(
 * @param ssizes A 2D array for counting slice 'sizes'.
 * @param rinfo MPI information (containing global dims, nnz, etc.).
 */
-static void p_fill_ssizes(
+void p_fill_ssizes(
   sptensor_t const * const tt,
   idx_t ** const ssizes,
   rank_info const * const rinfo)
@@ -648,7 +652,7 @@ static void p_fill_ssizes(
 #pragma omp parallel for
     for(idx_t n=0; n < tt->nnz; ++n) {
 #pragma omp atomic
-      ssizes[m][ind[n]] += 1;
+      ssizes[m][rinfo->layer_starts[m] + ind[n]] += 1;
     }
 
     /* reduce to get total slice counts */
