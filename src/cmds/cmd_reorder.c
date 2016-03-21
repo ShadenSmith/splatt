@@ -18,6 +18,7 @@ static char perm_doc[] =
   "Mode-independent types are:\n"
   "  rand\t\t\tCreate a random permutation of a tensor\n"
   "  graph\t\t\tReorder based on the partitioning of a mode-independent graph\n"
+  "  manual\t\t\tReorder based on the input permutation files\n"
   "Mode-dependent types are:\n"
   "  hgraph\t\tReorder based on the partitioning of a fiber hyper-graph\n"
   "  bfs\t\t\tReorder based on breadth-first order\n"
@@ -25,7 +26,7 @@ static char perm_doc[] =
 
 static struct argp_option perm_options[] = {
   { "type", 't', "TYPE", 0, "type of reordering" },
-  { "pfile", 'p', "PFILE", 0, "partition file" },
+  { "pfile", 'p', "PFILE", 0, "partition/permutation file" },
   { "outfile", 'o', "FILE", 0, "write reordered tensor to file" },
   { 0, 0, 0, 0, "Mode-dependent options:", 1},
   { "mode", 'm', "MODE", 0, "tensor mode to analyze (default: 1)" },
@@ -70,6 +71,8 @@ static error_t parse_perm_opt(
       args->type = PERM_RCM;
     } else if(strcmp(arg, "matching") == 0) {
       args->type = PERM_MATCHING;
+    } else if(strcmp(arg, "manual") == 0) {
+      args->type = PERM_MANUAL;
     } else {
       args->typestr = arg;
       args->type = PERM_ERROR;
@@ -127,7 +130,38 @@ int splatt_reorder(
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
   /* perform permutation */
-  permutation_t * perm = tt_perm(tt, args.type, args.mode, args.pfname);
+  permutation_t * perm;
+  if(args.type == PERM_MANUAL) {
+    if(args.pfname == NULL) {
+      fprintf(stderr, "SPLATT: permutation file must be supplied for manual reordering.\n");
+      exit(1);
+    }
+
+    perm = (permutation_t *) splatt_malloc(sizeof(permutation_t));
+
+    char * fbuf = NULL;
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      asprintf(&fbuf, "%s.mode%"SPLATT_PF_IDX".perm", args.pfname, m);
+
+      idx_t dim;
+      perm->perms[m] = perm_read(&dim, fbuf);
+      assert(dim >= tt->dims[m]);
+
+      perm->iperms[m] = (idx_t *)splatt_malloc(sizeof(idx_t) * dim);
+      for(idx_t n=0; n < dim; ++n) {
+        perm->iperms[m][perm->perms[m][n]] = n;
+      }
+    }
+    for(idx_t m=tt->nmodes; m < MAX_NMODES; ++m) {
+      perm->perms[m]  = NULL;
+      perm->iperms[m] = NULL;
+    }
+
+    perm_apply(tt, perm->perms);
+  }
+  else {
+    perm = tt_perm(tt, args.type, args.mode, args.pfname);
+  }
 
   /* write output */
   if(args.ofname != NULL) {

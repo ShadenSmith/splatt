@@ -24,6 +24,7 @@ typedef enum
   PERM_RCM,         /** Reverse Cuthill-Mckee reordering. */
   PERM_MATCHING,
   PERM_FIBSCHED,    /** Not done. */
+  PERM_MANUAL,
   PERM_ERROR,
 } splatt_perm_type;
 
