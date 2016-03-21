@@ -385,10 +385,7 @@ void mat_aTa(
   assert(A->rowmajor);
   assert(ret->rowmajor);
 
-  cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, A->J, A->J, A->I, 1, A->vals, A->J, A->vals, A->J, 0, ret->vals, ret->J);
-  // can use dsyrk?
-  
-#ifdef SPLATT_USE_MPI
+  idx_t const I = A->I;
   idx_t const F = A->J;
   val_t const * const restrict Av = A->vals;
 
@@ -404,6 +401,7 @@ void mat_aTa(
   LAPACK_DSYRK(&uplo, &trans, &N, &K, &alpha, A->vals, &lda, &beta, ret->vals,
       &ldc);
 
+#ifdef SPLATT_USE_MPI
   timer_start(&timers[TIMER_MPI_ATA]);
   timer_start(&timers[TIMER_MPI_IDLE]);
   MPI_Barrier(rinfo->comm_3d);
