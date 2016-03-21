@@ -15,7 +15,14 @@
 
 /* It is faster to continually add/subtract to residual instead of recomputing
  * predictions. In practice this is fine, but set to 1 if we want to see. */
+#ifndef MEASURE_DRIFT
 #define MEASURE_DRIFT 0
+#endif
+
+/* Use hardcoded 3-mode kernels when possible. Results in small speedups. */
+#ifndef USE_3MODE_OPT
+#define USE_3MODE_OPT 1
+#endif
 
 
 #define GRAB_SPARSITY(tile_id) \
@@ -101,8 +108,6 @@ static val_t p_update_residual3(
 
   val_t myloss = 0;
 
-  int const tid = omp_get_thread_num();
-
   /* update residual in parallel */
   #pragma omp for schedule(dynamic, 1)
   for(idx_t tile=0; tile < csf->ntiles; ++tile) {
@@ -128,6 +133,88 @@ static val_t p_update_residual3(
 }
 
 
+static val_t p_update_residual(
+    splatt_csf const * const csf,
+    idx_t const f,
+    tc_model const * const model,
+    tc_ws * const ws,
+    val_t const mult)
+{
+  idx_t const nmodes = csf->nmodes;
+#if USE_3MODE_OPT
+  if(nmodes == 3) {
+    return p_update_residual3(csf, f, model, ws, mult);
+  }
+#endif
+
+  /* grab factors */
+  val_t const * restrict mats[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    mats[m] = (val_t const * restrict) model->factors[csf->dim_perm[m]] +
+        (f * model->dims[csf->dim_perm[m]]);
+  }
+  val_t const * const restrict lastmat = mats[nmodes-1];
+
+  val_t myloss = 0;
+
+  #pragma omp for schedule(dynamic, 1)
+  for(idx_t tile=0; tile < csf->ntiles; ++tile) {
+
+    /* grab sparsity structure */
+    csf_sparsity const * const pt = csf->pt + tile;
+    val_t * const restrict residual = pt->vals;
+    idx_t const * const restrict * fp = (idx_t const * const *) pt->fptr;
+    idx_t const * const restrict * fids = (idx_t const * const *) pt->fids;
+    idx_t const * const restrict inds = fids[nmodes-1];
+
+    idx_t idxstack[MAX_NMODES];
+    val_t predictbuf[MAX_NMODES];
+
+    /* foreach outer slice */
+    for(idx_t i=0; i < pt->nfibs[0]; ++i) {
+      idx_t out_id = (fids[0] == NULL) ? i : fids[0][i];
+
+      /* initialize first prediction portion */
+      predictbuf[0] = mats[0][out_id];
+
+      /* clear out stale data */
+      idxstack[0] = i;
+      for(idx_t m=1; m < nmodes-1; ++m) {
+        idxstack[m] = fp[m-1][idxstack[m-1]];
+      }
+
+      /* process each subtree */
+      idx_t depth = 0;
+      while(idxstack[1] < fp[0][i+1]) {
+        /* move down to nnz node while computing predicted value */
+        for(; depth < nmodes-2; ++depth) {
+          predictbuf[depth+1] = predictbuf[depth] *
+              mats[depth+1][fids[depth+1][idxstack[depth+1]]];
+        }
+
+        /* process all nonzeros [start, end) */
+        idx_t const start = fp[depth][idxstack[depth]];
+        idx_t const end   = fp[depth][idxstack[depth]+1];
+        for(idx_t jj=start; jj < end; ++jj) {
+          /* computed predicted value and update residual */
+          val_t const p = predictbuf[depth] * lastmat[inds[jj]];
+          residual[jj] += mult * p;
+          myloss += residual[jj] * residual[jj];
+        }
+
+        /* now move up to the next unprocessed subtree */
+        do {
+          ++idxstack[depth];
+          --depth;
+        } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+      } /* foreach fiber subtree */
+    } /* foreach outer slice */
+  } /* foreach tile */
+
+  return myloss;
+}
+
+
 
 /******************************************************************************
  * PROCESSING FUNCTIONS - for computing numerator/denominator
@@ -144,9 +231,6 @@ static void p_process_root3(
   idx_t const nfactors = model->rank;
 
   GRAB_SPARSITY(tile)
-  if(residual == NULL) {
-    return;
-  }
   /* empty tile, just return */
   if(residual == NULL) {
     return;
@@ -166,7 +250,7 @@ static void p_process_root3(
         val_t const cval = cvals[inds[jj]];
 
         val_t const sgrad = bval * cval;
-        numer[a_id] += residual[jj] * bval * cval;
+        numer[a_id] += residual[jj] * sgrad;
         denom[a_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
@@ -184,17 +268,22 @@ static void p_process_root(
     val_t * const restrict denom)
 {
   idx_t const nmodes = csf->nmodes;
+#if USE_3MODE_OPT
   if(nmodes == 3) {
     p_process_root3(csf, tile, f, model, ws, numer, denom);
     return;
   }
-
-  idx_t const outdepth = 0;
+#endif
 
   /* grab sparsity structure */
   csf_sparsity const * const pt = csf->pt + tile;
+  val_t const * const restrict residual = pt->vals;
+  if(residual == NULL) {
+    return;
+  }
   idx_t const * const * const restrict fp = (idx_t const * const *) pt->fptr;
   idx_t const * const * const restrict fids = (idx_t const * const *) pt->fids;
+  idx_t const * const restrict inds = fids[nmodes-1];
 
   idx_t idxstack[MAX_NMODES];
   val_t predictbuf[MAX_NMODES];
@@ -205,10 +294,11 @@ static void p_process_root(
     mats[m] = (val_t const * const restrict) model->factors[csf->dim_perm[m]] +
         (f * model->dims[csf->dim_perm[m]]);
   }
+  val_t const * const restrict lastmat = mats[nmodes-1];
 
   /* foreach outer slice */
   for(idx_t i=0; i < pt->nfibs[0]; ++i) {
-    idx_t out_id = 0;
+    idx_t const out_id = (fids[0] == NULL) ? i : fids[0][i];
 
     predictbuf[0] = 1.;
 
@@ -216,23 +306,33 @@ static void p_process_root(
     idxstack[0] = i;
     for(idx_t m=1; m < nmodes-1; ++m) {
       idxstack[m] = fp[m-1][idxstack[m-1]];
-      predictbuf[m] = 1;
     }
 
     /* process each subtree */
     idx_t depth = 0;
     while(idxstack[1] < fp[0][i+1]) {
-
-      /* move down to nnz node */
+      /* move down to nnz node while computing predicted value */
       for(; depth < nmodes-2; ++depth) {
-        if(depth == outdepth) {
-          out_id = (fids[depth] == NULL) ?
-              idxstack[depth] : fids[depth][idxstack[depth]];
-        } else {
-          //predictbuf[depth] =
-        }
+        predictbuf[depth+1] = predictbuf[depth] *
+            mats[depth+1][fids[depth+1][idxstack[depth+1]]];
       }
-    }
+
+      /* process all nonzeros [start, end) */
+      idx_t const start = fp[depth][idxstack[depth]];
+      idx_t const end   = fp[depth][idxstack[depth]+1];
+      for(idx_t jj=start; jj < end; ++jj) {
+        val_t const lastval = lastmat[inds[jj]];
+        val_t const sgrad = predictbuf[depth] * lastval;
+        numer[out_id] += residual[jj] * sgrad;
+        denom[out_id] += sgrad * sgrad;
+      }
+
+      /* now move up to the next unprocessed subtree */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+    } /* foreach fiber subtree */
   } /* foreach outer slice */
 }
 
@@ -285,16 +385,88 @@ static void p_process_intl(
     splatt_csf const * const csf,
     idx_t const tile,
     idx_t const f,
+    idx_t const outdepth,
     tc_model const * const model,
     tc_ws * const ws,
     val_t * const restrict numer,
     val_t * const restrict denom)
 {
   idx_t const nmodes = csf->nmodes;
+#if USE_3MODE_OPT
   if(nmodes == 3) {
     p_process_intl3(csf, tile, f, model, ws, numer, denom);
     return;
   }
+#endif
+
+  /* grab sparsity structure */
+  csf_sparsity const * const pt = csf->pt + tile;
+  val_t const * const restrict residual = pt->vals;
+  if(residual == NULL) {
+    return;
+  }
+  idx_t const * const * const restrict fp = (idx_t const * const *) pt->fptr;
+  idx_t const * const * const restrict fids = (idx_t const * const *) pt->fids;
+  idx_t const * const restrict inds = fids[nmodes-1];
+
+  idx_t idxstack[MAX_NMODES];
+  val_t predictbuf[MAX_NMODES];
+
+  /* grab factors */
+  val_t const * restrict mats[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    mats[m] = (val_t const * const restrict) model->factors[csf->dim_perm[m]] +
+        (f * model->dims[csf->dim_perm[m]]);
+  }
+  val_t const * const restrict lastmat = mats[nmodes-1];
+
+  /* foreach outer slice */
+  for(idx_t i=0; i < pt->nfibs[0]; ++i) {
+    idx_t const top_id = (fids[0] == NULL) ? i : fids[0][i];
+
+    predictbuf[0] = mats[0][top_id];
+
+    /* clear out stale data */
+    idxstack[0] = i;
+    for(idx_t m=1; m < nmodes-1; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
+    }
+
+    /* process each subtree */
+    idx_t depth = 0;
+    while(idxstack[1] < fp[0][i+1]) {
+      /* move down to the output level */
+      for(; depth < outdepth; ++depth) {
+        predictbuf[depth+1] = predictbuf[depth] *
+            mats[depth+1][fids[depth+1][idxstack[depth+1]]];
+      }
+
+      idx_t const out_id = fids[outdepth][idxstack[outdepth]];
+      predictbuf[depth] = predictbuf[depth-1];
+
+      /* move down to nnz node while computing predicted value */
+      for(; depth < nmodes-2; ++depth) {
+        predictbuf[depth+1] = predictbuf[depth] *
+            mats[depth+1][fids[depth+1][idxstack[depth+1]]];
+      }
+
+      /* process all nonzeros [start, end) */
+      idx_t const start = fp[depth][idxstack[depth]];
+      idx_t const end   = fp[depth][idxstack[depth]+1];
+      for(idx_t jj=start; jj < end; ++jj) {
+        val_t const lastval = lastmat[inds[jj]];
+        val_t const sgrad = predictbuf[depth] * lastval;
+        numer[out_id] += residual[jj] * sgrad;
+        denom[out_id] += sgrad * sgrad;
+      }
+
+      /* now move up to the next unprocessed subtree */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+    } /* foreach fiber subtree */
+  } /* foreach outer slice */
 
 }
 
@@ -353,12 +525,71 @@ static void p_process_leaf(
     val_t * const restrict denom)
 {
   idx_t const nmodes = csf->nmodes;
+#if USE_3MODE_OPT
   if(nmodes == 3) {
     p_process_leaf3(csf, tile, f, model, ws, numer, denom);
     return;
   }
+#endif
 
+  /* grab sparsity structure */
+  csf_sparsity const * const pt = csf->pt + tile;
+  val_t const * const restrict residual = pt->vals;
+  if(residual == NULL) {
+    return;
+  }
+  idx_t const * const * const restrict fp = (idx_t const * const *) pt->fptr;
+  idx_t const * const * const restrict fids = (idx_t const * const *) pt->fids;
+  idx_t const * const restrict inds = fids[nmodes-1];
 
+  idx_t idxstack[MAX_NMODES];
+  val_t predictbuf[MAX_NMODES];
+
+  /* grab factors */
+  val_t const * restrict mats[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    mats[m] = (val_t const * const restrict) model->factors[csf->dim_perm[m]] +
+        (f * model->dims[csf->dim_perm[m]]);
+  }
+
+  /* foreach outer slice */
+  for(idx_t i=0; i < pt->nfibs[0]; ++i) {
+    idx_t const top_id = (fids[0] == NULL) ? i : fids[0][i];
+
+    predictbuf[0] = mats[0][top_id];
+
+    /* clear out stale data */
+    idxstack[0] = i;
+    for(idx_t m=1; m < nmodes-1; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
+    }
+
+    /* process each subtree */
+    idx_t depth = 0;
+    while(idxstack[1] < fp[0][i+1]) {
+      /* move down to nnz node while computing predicted value */
+      for(; depth < nmodes-2; ++depth) {
+        predictbuf[depth+1] = predictbuf[depth] *
+            mats[depth+1][fids[depth+1][idxstack[depth+1]]];
+      }
+
+      /* process all nonzeros [start, end) */
+      val_t const sgrad = predictbuf[depth];
+      idx_t const start = fp[depth][idxstack[depth]];
+      idx_t const end   = fp[depth][idxstack[depth]+1];
+      for(idx_t jj=start; jj < end; ++jj) {
+        idx_t const out_id = inds[jj];
+        numer[out_id] += residual[jj] * sgrad;
+        denom[out_id] += sgrad * sgrad;
+      }
+
+      /* now move up to the next unprocessed subtree */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+    } /* foreach fiber subtree */
+  } /* foreach outer slice */
 }
 
 
@@ -392,6 +623,7 @@ static void p_densemode_ccd_update(
 
   /* which routine to call? */
   node_type const which = which_depth(csf, m);
+  idx_t const depth = csf_mode_depth(m, csf->dim_perm, csf->nmodes);
 
   /* Compute thread-local numerators/denominators */
   #pragma omp for schedule(dynamic, 1)
@@ -401,7 +633,7 @@ static void p_densemode_ccd_update(
       p_process_root(csf, tile, f, model, ws, numer, denom);
       break;
     case NODE_INTL:
-      p_process_intl(csf, tile, f, model, ws, numer, denom);
+      p_process_intl(csf, tile, f, depth, model, ws, numer, denom);
       break;
     case NODE_LEAF:
       p_process_leaf(csf, tile, f, model, ws, numer, denom);
@@ -456,6 +688,7 @@ static void p_sparsemode_ccd_update(
 
   /* which routine to call? */
   node_type const which = which_depth(csf, m);
+  idx_t const depth = csf_mode_depth(m, csf->dim_perm, csf->nmodes);
 
   /* Compute numerator/denominator. Distribute tile layer to threads
    *  to avoid locks. */
@@ -470,7 +703,7 @@ static void p_sparsemode_ccd_update(
         p_process_root(csf, tile, f, model, ws, numer, denom);
         break;
       case NODE_INTL:
-        p_process_intl(csf, tile, f, model, ws, numer, denom);
+        p_process_intl(csf, tile, f, depth, model, ws, numer, denom);
         break;
       case NODE_LEAF:
         p_process_leaf(csf, tile, f, model, ws, numer, denom);
@@ -504,6 +737,7 @@ void splatt_tc_ccd(
   idx_t const nfactors = model->rank;
 
   printf("INNER ITS: %"SPLATT_PF_IDX"\n", ws->num_inner);
+  printf("USING 3MODE OPTS: %d\n", USE_3MODE_OPT);
 
   /* setup dense modes */
   thd_info * thd_densefactors = NULL;
@@ -536,7 +770,7 @@ void splatt_tc_ccd(
   #pragma omp parallel
   {
     for(idx_t f=0; f < nfactors; ++f) {
-      p_update_residual3(csf, f, model, ws, -1);
+      p_update_residual(csf, f, model, ws, -1);
     }
   }
 
@@ -555,7 +789,7 @@ void splatt_tc_ccd(
 
       for(idx_t f=0; f < nfactors; ++f) {
         /* add current component to residual */
-        p_update_residual3(csf, f, model, ws, 1);
+        p_update_residual(csf, f, model, ws, 1);
 
         for(idx_t inner=0; inner < ws->num_inner; ++inner) {
 
@@ -572,7 +806,7 @@ void splatt_tc_ccd(
         } /* foreach inner iteration */
 
         /* subtract new rank-1 factor from residual */
-        loss = p_update_residual3(csf, f, model, ws, -1);
+        loss = p_update_residual(csf, f, model, ws, -1);
 
       } /* foreach factor */
     } /* omp parallel */
