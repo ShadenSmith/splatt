@@ -264,6 +264,16 @@ void perm_write_file(
   idx_t const dim,
   FILE * fout);
 
+#define perm_read splatt_perm_read
+idx_t *perm_read(
+  idx_t * dim,
+  char const * const fname);
+
+#define perm_read_file splatt_perm_read_file
+idx_t *perm_read_file(
+  idx_t * dim,
+  FILE * fin);
+
 
 /******************************************************************************
  * PARTITION FUNCTIONS

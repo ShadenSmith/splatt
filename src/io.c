@@ -796,3 +796,53 @@ void perm_write_file(
     fprintf(fout, "%"SPLATT_PF_IDX"\n", perm[i]);
   }
 }
+
+idx_t *perm_read(
+  idx_t * dim,
+  char const * const fname)
+{
+  *dim = 0;
+
+  FILE * fin;
+  if(fname == NULL) {
+    fin = stdin;
+  } else {
+    if((fin = fopen(fname,"r")) == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n.", fname);
+      return NULL;
+    }
+  }
+
+  idx_t *perm = perm_read_file(dim, fin);
+
+  if(fname != NULL) {
+    fclose(fin);
+  }
+
+  return perm;
+}
+
+idx_t *perm_read_file(
+  idx_t * dim,
+  FILE * fin)
+{
+  *dim = 0;
+  while(true) {
+    idx_t temp;
+    int ret = fscanf(fin, "%"SPLATT_PF_IDX"\n", &temp);
+    if(ret == EOF) {
+      break;
+    }
+    else if(ret == 1) {
+      ++(*dim);
+    }
+  }
+
+  idx_t *perm = (idx_t *)splatt_malloc(sizeof(idx_t) * (*dim));
+  fseek(fin, 0, SEEK_SET);
+  for(idx_t i=0; i < *dim; ++i) {
+    fscanf(fin, "%"SPLATT_PF_IDX"\n", perm + i);
+  }
+
+  return perm;
+}
