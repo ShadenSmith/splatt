@@ -43,7 +43,6 @@ typedef struct
 
   idx_t dims[MAX_NMODES];
   val_t * factors[MAX_NMODES];
-  val_t ** replicated_factors;
 } tc_model;
 
 
@@ -89,6 +88,11 @@ typedef struct
   idx_t folds;
 
   sptensor_t **tiles;
+
+#ifdef SPLATT_USE_MPI
+  rank_info *rinfo;
+  idx_t global_validate_nnz;
+#endif
 } tc_ws;
 
 
