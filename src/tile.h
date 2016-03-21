@@ -119,6 +119,30 @@ idx_t * tt_densetile(
   idx_t const * const tile_dims);
 
 
+
+#define tt_ccptile splatt_tt_ccptile
+/**
+* @brief Rearrange the nonzeros of a sparse tensor for load-balance. Blocks
+*        are defined such that each 1D layer (i.e., all adjacent tiles in a
+*        mode) have a roughly balanced number of nonzeros.
+*
+*        The tiling behaves the same as tt_densetile(), except tt_densetile()
+*        chooses tile boundaries only by tensor dimensions and the number of
+*        tiles.
+*
+* @param tt The sparse tensor to tile.
+* @param tile_dims The number of tiles to use along each dimension of the
+*                  tensor.
+*
+* @return A pointer into the rearranged tensor marking the start and end of
+*         each tile. These can be indexed via get_next_tileid().
+*/
+idx_t * tt_ccptile(
+  sptensor_t * const tt,
+  idx_t const * const tile_dims);
+
+
+
 #define tt_tile splatt_tt_tile
 /**
 * @brief Rearrange the nonzeros of a tensor into a tiled form.

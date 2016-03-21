@@ -15,7 +15,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define ALS_BUFSIZE 1024
+#define ALS_BUFSIZE 2048
+
+/*
+ * Modes shorter than this are be considered 'dense'.
+ * TODO: This should actually be a function of the number of nonzeros and
+ * probably the number of threads/ranks.
+ */
+#define DENSEMODE_THRESHOLD 300
+
+/* swap two val_t pointers */
+#define SPLATT_VPTR_SWAP(x,y) \
+do {\
+  val_t * tmp = (x);\
+  (x) = (y);\
+  (y) = tmp;\
+} while(0)
 
 
 
@@ -74,6 +89,11 @@ typedef struct
   sp_timer_t shuffle_time;
   sp_timer_t train_time;
   sp_timer_t test_time;
+
+  /* some algs handle dense modes separately */
+  idx_t num_dense;
+  bool isdense[MAX_NMODES];
+  idx_t maxdense_dim;
 
   /* results + convergence */
   idx_t max_badepochs;

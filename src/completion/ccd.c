@@ -12,6 +12,7 @@
 #include <omp.h>
 
 
+
 /* It is faster to continually add/subtract to residual instead of recomputing
  * predictions. In practice this is fine, but set to 1 if we want to see. */
 #define MEASURE_DRIFT 0
@@ -100,8 +101,10 @@ static val_t p_update_residual3(
 
   val_t myloss = 0;
 
-  /* update residual */
-  #pragma omp for schedule(dynamic)
+  int const tid = omp_get_thread_num();
+
+  /* update residual in parallel */
+  #pragma omp for schedule(dynamic, 1)
   for(idx_t tile=0; tile < csf->ntiles; ++tile) {
     GRAB_SPARSITY(tile)
 
@@ -134,15 +137,14 @@ static void p_process_root3(
     idx_t const tile,
     idx_t const f,
     tc_model const * const model,
-    tc_ws * const ws)
+    tc_ws * const ws,
+    val_t * const restrict numer,
+    val_t * const restrict denom)
 {
   idx_t const nfactors = model->rank;
 
   GRAB_SPARSITY(tile)
   GRAB_CONST_FACTORS
-
-  val_t * const restrict numer = ws->numerator;
-  val_t * const restrict denom = ws->denominator;
 
   for(idx_t i=0; i < pt->nfibs[0]; ++i) {
     idx_t const a_id = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
@@ -163,7 +165,9 @@ static void p_process_root3(
 
         val_t const sgrad = bval * cval;
         //numer[a_id] += (residual[jj] + (predict * cval)) * sgrad;
+        //#pragma omp atomic
         numer[a_id] += residual[jj] * bval * cval;
+        //#pragma omp atomic
         denom[a_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
@@ -176,15 +180,14 @@ static void p_process_intl3(
     idx_t const tile,
     idx_t const f,
     tc_model const * const model,
-    tc_ws * const ws)
+    tc_ws * const ws,
+    val_t * const restrict numer,
+    val_t * const restrict denom)
 {
   idx_t const nfactors = model->rank;
 
   GRAB_SPARSITY(tile)
   GRAB_CONST_FACTORS
-
-  val_t * const restrict numer = ws->numerator;
-  val_t * const restrict denom = ws->denominator;
 
   for(idx_t i=0; i < pt->nfibs[0]; ++i) {
     idx_t const a_id = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
@@ -205,7 +208,9 @@ static void p_process_intl3(
 
         val_t const sgrad = aval * cval;
         //numer[b_id] += (residual[jj] + (predict * cval)) * sgrad;
+        //#pragma omp atomic
         numer[b_id] += residual[jj] * sgrad;
+        //#pragma omp atomic
         denom[b_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
@@ -218,15 +223,14 @@ static void p_process_leaf3(
     idx_t const tile,
     idx_t const f,
     tc_model const * const model,
-    tc_ws * const ws)
+    tc_ws * const ws,
+    val_t * const restrict numer,
+    val_t * const restrict denom)
 {
   idx_t const nfactors = model->rank;
 
   GRAB_SPARSITY(tile)
   GRAB_CONST_FACTORS
-
-  val_t * const restrict numer = ws->numerator;
-  val_t * const restrict denom = ws->denominator;
 
   for(idx_t i=0; i < pt->nfibs[0]; ++i) {
     idx_t const a_id = (pt->fids[0] == NULL) ? i : pt->fids[0][i];
@@ -247,13 +251,146 @@ static void p_process_leaf3(
 
         val_t const sgrad = aval * bval;
         //numer[c_id] += (residual[jj] + (predict * cval)) * sgrad;
+        //#pragma omp atomic
         numer[c_id] += residual[jj] * predict;
+        //#pragma omp atomic
         denom[c_id] += sgrad * sgrad;
       }
     } /* foreach fiber */
   } /* foreach slice */
 }
 
+
+
+
+
+/******************************************************************************
+ * MODE-UPDATE FUNCTIONS - drivers for updating a full factor column
+ *****************************************************************************/
+
+
+static void p_densemode_ccd_update(
+    splatt_csf const * const csf,
+    idx_t const m,
+    idx_t const f,
+    tc_model * const model,
+    tc_ws * const ws,
+    thd_info * thd_densefactors,
+    int const tid)
+{
+  idx_t const dim = model->dims[m];
+
+  /* save numerator/denominator ptrs */
+  #pragma omp master
+  {
+    SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[0], ws->numerator);
+    SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[1], ws->denominator);
+  }
+
+  val_t * const restrict numer = thd_densefactors[tid].scratch[0];
+  val_t * const restrict denom = thd_densefactors[tid].scratch[1];
+  memset(numer, 0, dim * sizeof(*numer));
+  memset(denom, 0, dim * sizeof(*denom));
+
+  /* which routine to call? */
+  node_type const which = which_depth(csf, m);
+
+  /* Compute thread-local numerators/denominators */
+  #pragma omp for schedule(dynamic, 1)
+  for(idx_t tile=0; tile < csf->ntiles; ++tile) {
+    switch(which) {
+    case NODE_ROOT:
+      p_process_root3(csf, tile, f, model, ws, numer, denom);
+      break;
+    case NODE_INTL:
+      p_process_intl3(csf, tile, f, model, ws, numer, denom);
+      break;
+    case NODE_LEAF:
+      p_process_leaf3(csf, tile, f, model, ws, numer, denom);
+      break;
+    }
+  } /* foreach tile */
+
+  /* aggregate numerator and denominator */
+  thd_reduce(thd_densefactors, 0, dim, REDUCE_SUM);
+  thd_reduce(thd_densefactors, 1, dim, REDUCE_SUM);
+
+  /* return aggregated numer/denom to ws */
+  #pragma omp master
+  {
+    SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[0], ws->numerator);
+    SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[1], ws->denominator);
+  }
+  #pragma omp barrier
+
+  /* numerator/denominator are now computed; update factor column */
+  val_t const reg = ws->regularization[m];
+  val_t * const restrict avals = model->factors[m] + (f * dim);
+  val_t const * const agg_numer = ws->numerator;
+  val_t const * const agg_denom = ws->denominator;
+  #pragma omp for schedule(static)
+  for(idx_t i=0; i < dim; ++i) {
+    avals[i] = agg_numer[i] / (reg + agg_denom[i]);
+  }
+}
+
+
+
+static void p_sparsemode_ccd_update(
+    splatt_csf const * const csf,
+    idx_t const m,
+    idx_t const f,
+    tc_model * const model,
+    tc_ws * const ws,
+    int const tid)
+{
+  idx_t const dim = model->dims[m];
+
+  val_t * const restrict numer = ws->numerator;
+  val_t * const restrict denom = ws->denominator;
+
+  /* initialize numerator/denominator */
+  #pragma omp for schedule(static)
+  for(idx_t i=0; i < dim; ++i) {
+    numer[i] = 0;
+    denom[i] = ws->regularization[m];
+  }
+
+  /* which routine to call? */
+  node_type const which = which_depth(csf, m);
+
+  /* Compute numerator/denominator. Distribute tile layer to threads
+   *  to avoid locks. */
+  #pragma omp for schedule(dynamic, 1)
+  for(idx_t t=0; t < csf->tile_dims[m]; ++t) {
+    idx_t tile = get_next_tileid(TILE_BEGIN, csf->tile_dims, csf->nmodes,
+        m, t);
+    while(tile != TILE_END) {
+      /* process tile */
+      switch(which) {
+      case NODE_ROOT:
+        p_process_root3(csf, tile, f, model, ws, numer, denom);
+        break;
+      case NODE_INTL:
+        p_process_intl3(csf, tile, f, model, ws, numer, denom);
+        break;
+      case NODE_LEAF:
+        p_process_leaf3(csf, tile, f, model, ws, numer, denom);
+        break;
+      }
+
+      /* move on to text tile in my layer */
+      tile = get_next_tileid(tile, csf->tile_dims, csf->nmodes, m, t);
+    }
+  } /* foreach tile */
+
+  /* numerator/denominator are now computed; update factor column */
+  val_t * const restrict avals = model->factors[m] + (f * dim);
+  #pragma omp for schedule(static)
+  for(idx_t i=0; i < dim; ++i) {
+    avals[i] = numer[i] / denom[i];
+  }
+}
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
@@ -265,18 +402,36 @@ void splatt_tc_ccd(
     tc_model * const model,
     tc_ws * const ws)
 {
+  idx_t const nmodes = train->nmodes;
+  idx_t const nfactors = model->rank;
+
+  printf("\nINNER ITS: %lu\n", ws->num_inner);
+
+  thd_info * thd_densefactors = NULL;
+  if(ws->num_dense > 0) {
+    thd_densefactors = thd_init(ws->nthreads, 2,
+        ws->maxdense_dim * sizeof(val_t),  /* numerator */
+        ws->maxdense_dim * sizeof(val_t)); /* denominator */
+
+
+    printf("REPLICATING MODES:");
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(ws->isdense[m]) {
+        printf(" %"SPLATT_PF_IDX, m+1);
+      }
+    }
+    printf("\n\n");
+  }
+
   /* convert training data to CSF-ONEMODE with full tiling */
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS] = ws->nthreads * 2;
+  opts[SPLATT_OPTION_NTHREADS] = ws->nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
-  opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
-  opts[SPLATT_OPTION_TILEDEPTH] = 0;
+  opts[SPLATT_OPTION_TILE] = SPLATT_CCPTILE;
+  opts[SPLATT_OPTION_TILEDEPTH] = SS_MAX(ws->num_dense, 1);
+
 
   splatt_csf * csf = csf_alloc(train, opts);
-
-  printf("ntiles: %lu\n", csf->ntiles);
-
-  idx_t const nfactors = model->rank;
 
   /* initialize residual */
   #pragma omp parallel
@@ -292,18 +447,13 @@ void splatt_tc_ccd(
 
   timer_start(&ws->tc_time);
 
-  idx_t const nmodes = csf->nmodes;
-
-  val_t * const restrict numer = ws->numerator;
-  val_t * const restrict denom = ws->denominator;
-
   /* foreach epoch */
   for(idx_t e=1; e < ws->max_its+1; ++e) {
-    /* update model from all training observations */
-
     loss = 0;
     #pragma omp parallel reduction(+:loss)
     {
+      int const tid = omp_get_thread_num();
+
       for(idx_t f=0; f < nfactors; ++f) {
         /* add current component to residual */
         p_update_residual3(csf, f, model, ws, 1);
@@ -312,52 +462,14 @@ void splatt_tc_ccd(
 
           /* compute new column 'f' for each factor */
           for(idx_t m=0; m < nmodes; ++m) {
-
-            idx_t const dim = model->dims[m];
-
-            /* initialize numerator/denominator */
-            #pragma omp for schedule(static)
-            for(idx_t i=0; i < dim; ++i) {
-              numer[i] = 0;
-              denom[i] = ws->regularization[m];
+            if(ws->isdense[m]) {
+              p_densemode_ccd_update(csf, m, f, model, ws, thd_densefactors,
+                  tid);
+            } else {
+              p_sparsemode_ccd_update(csf, m, f, model, ws, tid);
             }
+          }
 
-            /* which routine to call? */
-            node_type const which = which_depth(csf, m);
-
-            /* Compute numerator/denominator. Distribute tile layer to threads
-             *  to avoid locks. */
-            #pragma omp for schedule(static, 1)
-            for(idx_t t=0; t < csf->tile_dims[m]; ++t) {
-              idx_t tile = get_next_tileid(TILE_BEGIN, csf->tile_dims, nmodes,
-                  m, t);
-              while(tile != TILE_END) {
-                /* process tile */
-                switch(which) {
-                case NODE_ROOT:
-                  p_process_root3(csf, tile, f, model, ws);
-                  break;
-                case NODE_INTL:
-                  p_process_intl3(csf, tile, f, model, ws);
-                  break;
-                case NODE_LEAF:
-                  p_process_leaf3(csf, tile, f, model, ws);
-                  break;
-                }
-
-                /* move on to text tile in my layer */
-                tile = get_next_tileid(tile, csf->tile_dims, nmodes, m, t);
-              }
-            } /* foreach tile */
-
-            /* numerator/denominator are now computed; update factor column */
-            val_t * const restrict avals = model->factors[m] + (f * dim);
-            #pragma omp for schedule(static)
-            for(idx_t i=0; i < dim; ++i) {
-              avals[i] = numer[i] / denom[i];
-            }
-
-          } /* foreach mode */
         } /* foreach inner iteration */
 
         /* subtract new rank-1 factor from residual */
@@ -382,6 +494,9 @@ void splatt_tc_ccd(
 
   /* cleanup */
   csf_free(csf, opts);
+  if(ws->num_dense > 0) {
+    thd_free(thd_densefactors, ws->nthreads);
+  }
 }
 
 

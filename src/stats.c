@@ -365,6 +365,10 @@ void cpd_stats(
     printf("DENSE TILE-DEPTH=%"SPLATT_PF_IDX,
         (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
     break;
+  case SPLATT_CCPTILE:
+    printf("CCP TILE-DEPTH=%"SPLATT_PF_IDX,
+        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+    break;
   case SPLATT_SYNCTILE:
     printf("SYNC");
     break;
@@ -449,6 +453,10 @@ void mpi_cpd_stats(
     break;
   case SPLATT_DENSETILE:
     printf("DENSE TILE-DEPTH=%"SPLATT_PF_IDX,
+        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+    break;
+  case SPLATT_CCPTILE:
+    printf("CCP TILE-DEPTH=%"SPLATT_PF_IDX,
         (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
     break;
   case SPLATT_SYNCTILE:

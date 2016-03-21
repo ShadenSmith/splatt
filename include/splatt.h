@@ -148,6 +148,7 @@ typedef enum
 {
   SPLATT_NOTILE,
   SPLATT_DENSETILE,
+  SPLATT_CCPTILE,
   /* DEPRECATED - pending CSF implementations */
   SPLATT_SYNCTILE,
   SPLATT_COOPTILE,

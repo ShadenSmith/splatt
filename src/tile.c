@@ -6,6 +6,8 @@
 #include "sort.h"
 #include "timer.h"
 #include "io.h"
+#include "util.h"
+#include "ccp/ccp.h"
 
 
 /******************************************************************************
@@ -273,20 +275,25 @@ idx_t * tt_densetile(
     tsizes[m] = SS_MAX(tt->dims[m] / tile_dims[m], 1);
   }
 
-  idx_t * tcounts = (idx_t *) calloc(ntiles+2, sizeof(idx_t));
+  idx_t * tcounts = calloc(ntiles+2, sizeof(*tcounts));
 
-  /* count tile sizes (in nnz) */
-  idx_t coord[MAX_NMODES];
-  for(idx_t x=0; x < tt->nnz; ++x) {
-    for(idx_t m=0; m < nmodes; ++m) {
-      /* capping at dims-1 fixes overflow when dims don't divide evenly */
-      coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
+  #pragma omp parallel
+  {
+    /* count tile sizes (in nnz) */
+    idx_t coord[MAX_NMODES];
+    #pragma omp for schedule(static)
+    for(idx_t x=0; x < tt->nnz; ++x) {
+      for(idx_t m=0; m < nmodes; ++m) {
+        /* capping at dims-1 fixes overflow when dims don't divide evenly */
+        coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
+      }
+      /* offset by 1 to make prefix sum easy */
+      idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+      assert(id < ntiles);
+      #pragma omp atomic
+      ++tcounts[2+id];
     }
-    /* offset by 1 to make prefix sum easy */
-    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
-    assert(id < ntiles);
-    ++tcounts[2+id];
-  }
+  } /* omp parallel */
 
   /* prefix sum */
   for(idx_t t=3; t <= ntiles+1; ++t) {
@@ -296,6 +303,7 @@ idx_t * tt_densetile(
   sptensor_t * newtt = tt_alloc(tt->nnz, tt->nmodes);
 
   /* copy old tensor into new tiled one */
+  idx_t coord[MAX_NMODES];
   for(idx_t x=0; x < tt->nnz; ++x) {
     for(idx_t m=0; m < nmodes; ++m) {
       coord[m] = SS_MIN(tt->ind[m][x] / tsizes[m], tile_dims[m]-1);
@@ -312,11 +320,121 @@ idx_t * tt_densetile(
   }
 
   /* copy data into old struct */
-  memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
+  par_memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
   for(idx_t m=0; m < nmodes; ++m) {
-    memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
+    par_memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
   }
   tt_free(newtt);
+
+  return tcounts;
+}
+
+
+idx_t * tt_ccptile(
+  sptensor_t * const tt,
+  idx_t const * const tile_dims)
+{
+  idx_t const nmodes = tt->nmodes;
+  idx_t * hist[MAX_NMODES];
+  idx_t * parts[MAX_NMODES];
+  idx_t ntiles = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    ntiles *= tile_dims[m];
+    hist[m] = calloc(tt->dims[m], sizeof(**hist));
+    parts[m] = splatt_malloc((tile_dims[m]+1) * sizeof(**parts));
+  }
+
+  idx_t * tcounts = calloc(ntiles+2, sizeof(*tcounts));
+
+  #pragma omp parallel
+  {
+    /* compute a histogram for each mode */
+    for(idx_t m=0; m < nmodes; ++m) {
+      idx_t const * const inds = tt->ind[m];
+      idx_t * const hgram = hist[m];
+
+      #pragma omp for schedule(static) nowait
+      for(idx_t x=0; x < tt->nnz; ++x) {
+
+        #pragma omp atomic
+        ++hgram[inds[x]];
+      }
+    }
+    #pragma omp barrier
+
+    /* now use CCP to partition each mode into tiles */
+    #pragma omp for schedule(static, 1)
+    for(idx_t m=0; m < nmodes; ++m) {
+      partition_1d(hist[m], tt->dims[m], parts[m], tile_dims[m]);
+    }
+
+    /* now go back over and count nnz per m-D tile */
+    idx_t coord[MAX_NMODES];
+    #pragma omp for schedule(dynamic, 32)
+    for(idx_t x=0; x < tt->nnz; ++x) {
+      /* map nnz to tile coords */
+      for(idx_t m=0; m < nmodes; ++m) {
+        /* TODO: Binary search. But, tile_dims[m] is usually going to be pretty
+         *       small, so this is low priority? */
+        for(idx_t p=0; p < tile_dims[m]; ++p) {
+          if(parts[m][p+1] > tt->ind[m][x]) {
+            coord[m] = p;
+            break;
+          }
+        }
+      }
+      /* offset by 1 to make prefix sum easy */
+      idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+      assert(id < ntiles);
+      #pragma omp atomic
+      ++tcounts[2+id];
+
+    } /* foreach nnz */
+  } /* omp parallel */
+
+
+  /* prefix sum */
+  for(idx_t t=3; t <= ntiles+1; ++t) {
+    tcounts[t] += tcounts[t-1];
+  }
+
+  sptensor_t * newtt = tt_alloc(tt->nnz, tt->nmodes);
+
+  /* copy old tensor into new tiled one */
+  idx_t coord[MAX_NMODES];
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    /* map nnz to linear tile ID, just like before */
+    for(idx_t m=0; m < nmodes; ++m) {
+      for(idx_t p=0; p < tile_dims[m]; ++p) {
+        if(parts[m][p+1] > tt->ind[m][x]) {
+          coord[m] = p;
+          break;
+        }
+      }
+    }
+
+    /* offset by 1 to make prefix sum easy */
+    idx_t const id = get_tile_id(tile_dims, nmodes, coord);
+    assert(id < ntiles);
+
+    idx_t newidx = tcounts[id+1]++;
+    newtt->vals[newidx] = tt->vals[x];
+    for(idx_t m=0; m < nmodes; ++m) {
+      newtt->ind[m][newidx] = tt->ind[m][x];
+    }
+  } /* foreach nnz */
+
+  /* copy data into old struct */
+  par_memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
+  for(idx_t m=0; m < nmodes; ++m) {
+    par_memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
+  }
+
+  tt_free(newtt);
+  for(idx_t m=0; m < nmodes; ++m) {
+    free(hist[m]);
+    splatt_free(parts[m]);
+  }
 
   return tcounts;
 }

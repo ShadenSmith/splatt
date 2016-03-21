@@ -1871,6 +1871,7 @@ static void p_root_decide(
     case SPLATT_NOTILE:
       p_csf_mttkrp_root(tensor, 0, mats, thds, opts);
       break;
+    case SPLATT_CCPTILE:
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
       if(opts[SPLATT_OPTION_TILEDEPTH] > 0) {
@@ -1926,6 +1927,7 @@ static void p_leaf_decide(
     case SPLATT_NOTILE:
       p_csf_mttkrp_leaf(tensor, 0, mats, thds, opts);
       break;
+    case SPLATT_CCPTILE:
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
       if(opts[SPLATT_OPTION_TILEDEPTH] > depth) {
@@ -1978,6 +1980,7 @@ static void p_intl_decide(
     case SPLATT_NOTILE:
       p_csf_mttkrp_internal(tensor, 0, mats, mode, thds, opts);
       break;
+    case SPLATT_CCPTILE:
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
       if(opts[SPLATT_OPTION_TILEDEPTH] > depth) {

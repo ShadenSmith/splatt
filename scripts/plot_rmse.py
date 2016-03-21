@@ -13,12 +13,12 @@ if len(sys.argv) == 1:
 
 alg_re = re.compile('ALG=(\w+)')
 epoch_re = re.compile('epoch:\s*(\d+)')
+trmse_re = re.compile('RMSE-tr: (\d+\.\d+e[+-]\d+)')
 vrmse_re = re.compile('RMSE-vl: (\d+\.\d+e[+-]\d+)')
-tr_time_re = re.compile('time-tr: (\d+\.\d+)s')
-ts_time_re = re.compile('time-ts: (\d+\.\d+)s')
+time_re = re.compile('time: (\d+\.\d+)s')
 
-plt.xlabel('Epoch')
-plt.ylabel('RMSE (validation)')
+plt.xlabel('Time (s)')
+plt.ylabel('RMSE (train)')
 
 plots = []
 
@@ -46,12 +46,12 @@ for log in sys.argv[1:]:
       if m:
         epoch = int(m.group(1))
         # grab RMSE and timing
-        rmse = float(vrmse_re.search(line).group(1))
-        time = float(tr_time_re.search(line).group(1)) + \
-            float(ts_time_re.search(line).group(1))
+        trmse = float(trmse_re.search(line).group(1))
+        vrmse = float(vrmse_re.search(line).group(1))
+        time = float(time_re.search(line).group(1))
 
-        rmses.append(rmse)
-        times.append(epoch)
+        rmses.append(trmse)
+        times.append(time)
 
   plt.plot(times, rmses, markers[alg], label=log, markersize=8)
 

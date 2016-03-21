@@ -32,9 +32,10 @@ static char tc_doc[] =
 #define TC_SEED 253
 #define TC_TIME 252
 #define TC_TOL 251
-#define TC_NORAND_PER_ITERATION 250
-#define TC_HOGWILD 249
-#define TC_FOLD 248
+#define TC_INNER 250
+#define TC_NORAND_PER_ITERATION 249
+#define TC_HOGWILD 248
+#define TC_FOLD 247
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 16)"},
@@ -44,6 +45,7 @@ static struct argp_option tc_options[] = {
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD (default 0.001)"},
   {"reg", TC_REG, "SIZE", 0, "regularization parameter (default 0.02)"},
+  {"inner", TC_INNER, "NITERS", 0, "number of inner iterations to use during CCD++ (default: 1)"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
   {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
   {"tol", TC_TOL, "TOLERANCE", 0, "converge if RMSE-vl has not improved by TOLERANCE in 20 epochs (default: 1e-4)"},
@@ -116,6 +118,7 @@ typedef struct
   val_t tolerance;
 
   idx_t max_its;
+  idx_t num_inner;
   bool set_timeout;
   double max_seconds;
   idx_t nfactors;
@@ -151,6 +154,7 @@ static void default_tc_opts(
   args->set_seed = false;
   args->seed = time(NULL);
   args->set_tolerance = false;
+  args->num_inner = 1;
   args->rand_per_iteration = true;
   args->hogwild = false;
   args->folds = 1;
@@ -214,6 +218,9 @@ static error_t parse_tc_opt(
     args->tolerance = atof(arg);
     args->set_tolerance = true;
     break;
+  case TC_INNER:
+    args->num_inner = strtoull(arg, &buf, 10);
+    break;
   case TC_NORAND_PER_ITERATION:
     args->rand_per_iteration = false;
     break;
@@ -222,7 +229,6 @@ static error_t parse_tc_opt(
     break;
   case TC_FOLD:
     args->folds = atoi(arg);
-    break;
 
   case ARGP_KEY_ARG:
     if(args->nfiles == 3) {
@@ -456,6 +462,7 @@ int splatt_tc_cmd(
   if(args.set_tolerance) {
     ws->tolerance = args.tolerance;
   }
+  ws->num_inner = args.num_inner;
   ws->rand_per_iteration = args.rand_per_iteration;
   ws->hogwild = args.hogwild;
   ws->folds = args.folds;
