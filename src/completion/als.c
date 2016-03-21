@@ -203,19 +203,96 @@ static void p_process_tile(
 
 
 
+static void p_process_slice3(
+    splatt_csf const * const csf,
+    idx_t const tile,
+    idx_t const i,
+    val_t const * const restrict A,
+    val_t const * const restrict B,
+    idx_t const nfactors,
+    val_t * const restrict out_row,
+    val_t * const restrict accum,
+    val_t * const restrict neqs,
+    val_t * const restrict neqs_buf,
+    idx_t * const bufsize,
+    idx_t * const nflush)
+{
+  csf_sparsity const * const pt = csf->pt + tile;
+  idx_t const * const restrict sptr = pt->fptr[0];
+  idx_t const * const restrict fptr = pt->fptr[1];
+  idx_t const * const restrict fids = pt->fids[1];
+  idx_t const * const restrict inds = pt->fids[2];
+  val_t const * const restrict vals = pt->vals;
+
+  val_t * hada = neqs_buf;
+
+  /* process each fiber */
+  for(idx_t fib=sptr[i]; fib < sptr[i+1]; ++fib) {
+    val_t const * const restrict av = A  + (fids[fib] * nfactors);
+
+    /* first entry of the fiber is used to initialize accum */
+    idx_t const jjfirst  = fptr[fib];
+    val_t const vfirst   = vals[jjfirst];
+    val_t const * const restrict bv = B + (inds[jjfirst] * nfactors);
+    for(idx_t r=0; r < nfactors; ++r) {
+      accum[r] = vfirst * bv[r];
+      hada[r] = av[r] * bv[r];
+    }
+
+    hada += nfactors;
+    if(++(*bufsize) == ALS_BUFSIZE) {
+      /* add to normal equations */
+      p_vec_oprod(neqs_buf, nfactors, *bufsize, (*nflush)++, neqs);
+      *bufsize = 0;
+      hada = neqs_buf;
+    }
+
+    /* foreach nnz in fiber */
+    for(idx_t jj=fptr[fib]+1; jj < fptr[fib+1]; ++jj) {
+      val_t const v = vals[jj];
+      val_t const * const restrict bv = B + (inds[jj] * nfactors);
+      for(idx_t r=0; r < nfactors; ++r) {
+        accum[r] += v * bv[r];
+        hada[r] = av[r] * bv[r];
+      }
+
+      hada += nfactors;
+      if(++(*bufsize) == ALS_BUFSIZE) {
+        /* add to normal equations */
+        p_vec_oprod(neqs_buf, nfactors, *bufsize, (*nflush)++, neqs);
+        *bufsize = 0;
+        hada = neqs_buf;
+      }
+    }
+
+    /* accumulate into output row */
+    for(idx_t r=0; r < nfactors; ++r) {
+      out_row[r] += accum[r] * av[r];
+    }
+
+  } /* foreach fiber */
+
+  /* final flush */
+  p_vec_oprod(neqs_buf, nfactors, *bufsize, (*nflush)++, neqs);
+}
+
+
+
 /**
 * @brief Compute the i-ith row of the MTTKRP, form the normal equations, and
 *        store the new row.
 *
 * @param csf The tensor of training data.
+* @param tile The tile that row i resides in.
 * @param i The row to update.
 * @param reg Regularization parameter for the i-th row.
 * @param model The model to update
 * @param ws Workspace.
 * @param tid OpenMP thread id.
 */
-static inline void p_update_row(
+static void p_update_slice(
     splatt_csf const * const csf,
+    idx_t const tile,
     idx_t const i,
     val_t const reg,
     tc_model * const model,
@@ -223,7 +300,7 @@ static inline void p_update_row(
     int const tid)
 {
   idx_t const nfactors = model->rank;
-  csf_sparsity const * const pt = csf->pt;
+  csf_sparsity const * const pt = csf->pt + tile;
 
   assert(model->nmodes == 3);
 
@@ -343,6 +420,8 @@ static void p_densemode_als_update(
       model->dims[m] * rank * sizeof(val_t));
   memset(thd_densefactors[tid].scratch[1], 0,
       model->dims[m] * rank * rank * sizeof(val_t));
+
+  #pragma omp barrier
 
   /* update each tile in parallel */
   #pragma omp for schedule(dynamic, 1)
@@ -472,7 +551,7 @@ void splatt_tc_als(
         } else {
           /* update each row in parallel */
           for(idx_t i=parts[m][tid]; i < parts[m][tid+1]; ++i) {
-            p_update_row(csf+m, i, ws->regularization[m], model, ws, tid);
+            p_update_slice(csf+m, 0, i, ws->regularization[m], model, ws, tid);
           }
         }
 

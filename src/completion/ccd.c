@@ -16,7 +16,7 @@
 /* It is faster to continually add/subtract to residual instead of recomputing
  * predictions. In practice this is fine, but set to 1 if we want to see. */
 #ifndef MEASURE_DRIFT
-#define MEASURE_DRIFT 0
+#define MEASURE_DRIFT 1
 #endif
 
 /* Use hardcoded 3-mode kernels when possible. Results in small speedups. */
@@ -163,6 +163,9 @@ static val_t p_update_residual(
     /* grab sparsity structure */
     csf_sparsity const * const pt = csf->pt + tile;
     val_t * const restrict residual = pt->vals;
+    if(residual == NULL) {
+      continue;
+    }
     idx_t const * const restrict * fp = (idx_t const * const *) pt->fptr;
     idx_t const * const restrict * fids = (idx_t const * const *) pt->fids;
     idx_t const * const restrict inds = fids[nmodes-1];
@@ -683,7 +686,7 @@ static void p_sparsemode_ccd_update(
   #pragma omp for schedule(static)
   for(idx_t i=0; i < dim; ++i) {
     numer[i] = 0;
-    denom[i] = ws->regularization[m];
+    denom[i] = 0;
   }
 
   /* which routine to call? */
@@ -717,9 +720,10 @@ static void p_sparsemode_ccd_update(
 
   /* numerator/denominator are now computed; update factor column */
   val_t * const restrict avals = model->factors[m] + (f * dim);
+  val_t const reg = ws->regularization[m];
   #pragma omp for schedule(static)
   for(idx_t i=0; i < dim; ++i) {
-    avals[i] = numer[i] / denom[i];
+    avals[i] = numer[i] / (denom[i] + reg);
   }
 }
 
