@@ -336,6 +336,7 @@ int splatt_tc_cmd(
   srand(args.seed);
 
 #ifdef SPLATT_USE_MPI
+  /* decompose train tensor into px1x1 */
   rinfo.decomp = SPLATT_DECOMP_MEDIUM;
   rinfo.dims_3d[0] = rinfo.npes;
   for(idx_t d=1; d < MAX_NMODES; ++d) {
@@ -347,6 +348,7 @@ int splatt_tc_cmd(
 
   sptensor_t * train = mpi_tt_read(args.ifnames[0], NULL, &rinfo);
 
+  /* decompose validate tensor with the same partitioning used for train */
   sptensor_t *validate = NULL;
   idx_t global_validate_nnz = 0;
   {

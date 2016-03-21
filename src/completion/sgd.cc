@@ -671,58 +671,6 @@ void splatt_tc_sgd(
 
   /* populate each tile */
   p_populate_tiles(ws, train, &sgd_comm, nnzs);
-#if 0
-  ws->tiles = (sptensor_t **)splatt_malloc(sizeof(sptensor_t) * nstratum);  
-  for(idx_t stratum=0; stratum < nstratum; ++stratum) {
-    ws->tiles[stratum] = tt_alloc(nnzs[stratum], nmodes);
-  }
-
-  for(idx_t stratum=0; stratum < nstratum; ++stratum) {
-    nnzs[stratum] = 0;
-  }
-
-  for(idx_t n=0; n < train->nnz; ++n) {
-    int tile_id = -1;
-    for(idx_t stratum=0; stratum < nstratum; ++stratum) {
-      bool in_tile = true;
-      int stratum_temp = stratum;
-      for(int m=1; m < nmodes; ++m) {
-        int layer = (stratum_temp%npes + rank)%npes;
-        stratum_temp /= npes;
-
-        if(train->ind[m][n] < sgd_rinfo.layer_ptrs[m][layer] ||
-          train->ind[m][n] >= sgd_rinfo.layer_ptrs[m][layer + 1]) {
-          in_tile = false;
-          break;
-        }
-      }
-      if (in_tile) {
-        assert(tile_id == -1);
-        tile_id = stratum;
-      }
-    }
-    assert(tile_id != -1);
-
-    ws->tiles[tile_id]->vals[nnzs[tile_id]] = train->vals[n];
-    ws->tiles[tile_id]->ind[0][nnzs[tile_id]] = train->ind[0][n];
-    int stratum_temp = tile_id;
-    for(idx_t m=1; m < nmodes; ++m) {
-      int stratum_offset = stratum_temp%npes;
-      stratum_temp /= npes;
-
-      if(stratum_offset != 0) {
-        int owner = (stratum_offset + rank)%npes;
-
-        assert(sgd_comm.global_to_locals[tile_id][m].find(train->ind[m][n]) != sgd_comm.global_to_locals[tile_id][m].end());
-        ws->tiles[tile_id]->ind[m][nnzs[tile_id]] = sgd_rinfo.layer_ptrs[m][owner] + sgd_comm.global_to_locals[tile_id][m][train->ind[m][n]];
-      }
-      else {
-        ws->tiles[tile_id]->ind[m][nnzs[tile_id]] = train->ind[m][n];
-      }
-    }
-    ++nnzs[tile_id];
-  }
-#endif
   splatt_free(nnzs);
 
   /* set up persistent communication */
