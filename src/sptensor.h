@@ -4,6 +4,10 @@
 
 #include "base.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /******************************************************************************
  * STRUCTURES
@@ -192,5 +196,9 @@ spmatrix_t * tt_unfold(
 */
 val_t tt_normsq(
   sptensor_t const * const tt);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
