@@ -719,7 +719,6 @@ static void p_sparsemode_ccd_update(
   } /* foreach tile */
 
   /* numerator/denominator are now computed; update factor column */
-  val_t const reg = ws->regularization[m];
   val_t * const restrict avals = model->factors[m] + (f * dim);
   val_t const reg = ws->regularization[m];
   #pragma omp for schedule(static)
