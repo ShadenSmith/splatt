@@ -1,10 +1,13 @@
 
 1.1.2
 =====
-* Binary file IO now supported.
-* Better handled missing input files.
 * Added CREDITS.md
+* Binary file IO now supported.
+* Better handle missing input files.
 * Chains-on-chains partition available
+* CPD now accepts --seed parameter for reproducibility (works in MPI too)
+* LAPACK now used
+
 
 1.1.1
 =====

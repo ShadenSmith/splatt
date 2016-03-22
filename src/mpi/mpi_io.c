@@ -1220,3 +1220,87 @@ sptensor_t * mpi_simple_distribute(
 }
 
 
+matrix_t * mpi_mat_rand(
+  idx_t const mode,
+  idx_t const nfactors,
+  permutation_t const * const perm,
+  rank_info * const rinfo)
+{
+  idx_t const localdim = rinfo->mat_end[mode] - rinfo->mat_start[mode];
+  matrix_t * mymat = mat_alloc(localdim, nfactors);
+
+  MPI_Status status;
+
+  /* figure out buffer sizes */
+  idx_t maxlocaldim = localdim;
+  if(rinfo->rank == 0) {
+    MPI_Reduce(MPI_IN_PLACE, &maxlocaldim, 1, SPLATT_MPI_IDX, MPI_MAX, 0,
+      rinfo->comm_3d);
+  } else {
+    MPI_Reduce(&maxlocaldim, NULL, 1, SPLATT_MPI_IDX, MPI_MAX, 0,
+      rinfo->comm_3d);
+  }
+
+  /* root rank does the heavy lifting */
+  if(rinfo->rank == 0) {
+    /* allocate buffers */
+    idx_t * loc_perm = splatt_malloc(maxlocaldim * sizeof(*loc_perm));
+    val_t * vbuf = splatt_malloc(maxlocaldim * nfactors * sizeof(*vbuf));
+
+    /* allocate initial factor */
+    matrix_t * full_factor = mat_rand(rinfo->global_dims[mode], nfactors);
+
+    /* copy root's own matrix to output */
+    #pragma omp parallel for schedule(static)
+    for(idx_t i=0; i < localdim; ++i) {
+      idx_t const gi = rinfo->mat_start[mode] + perm->iperms[mode][i];
+      for(idx_t f=0; f < nfactors; ++f) {
+       mymat->vals[f + (i*nfactors)] = full_factor->vals[f+(gi*nfactors)];
+      }
+    }
+
+    /* communicate! */
+    for(int p=1; p < rinfo->npes; ++p) {
+      /* first receive layer start and permutation info */
+      idx_t layerstart;
+      idx_t nrows;
+      MPI_Recv(&layerstart, 1, SPLATT_MPI_IDX, p, 0, rinfo->comm_3d, &status);
+      MPI_Recv(&nrows, 1, SPLATT_MPI_IDX, p, 1, rinfo->comm_3d, &status);
+      MPI_Recv(loc_perm, nrows, SPLATT_MPI_IDX, p, 2, rinfo->comm_3d, &status);
+
+      /* fill buffer */
+      #pragma omp parallel for schedule(static)
+      for(idx_t i=0; i < nrows; ++i) {
+        idx_t const gi = layerstart + loc_perm[i];
+        for(idx_t f=0; f < nfactors; ++f) {
+          vbuf[f + (i*nfactors)] = full_factor->vals[f+(gi*nfactors)];
+        }
+      }
+
+      /* send to rank p */
+      MPI_Send(vbuf, nrows * nfactors, SPLATT_MPI_VAL, p, 3, rinfo->comm_3d);
+    }
+
+    mat_free(full_factor);
+    splatt_free(loc_perm);
+    splatt_free(vbuf);
+
+  /* other ranks just send/recv */
+  } else {
+    /* send permutation info to root */
+    MPI_Send(&(rinfo->layer_starts[mode]), 1, SPLATT_MPI_IDX, 0, 0, rinfo->comm_3d);
+    MPI_Send(&localdim, 1, SPLATT_MPI_IDX, 0, 1, rinfo->comm_3d);
+    MPI_Send(perm->iperms[mode] + rinfo->mat_start[mode], localdim,
+        SPLATT_MPI_IDX, 0, 2, rinfo->comm_3d);
+
+    /* receive factor */
+    MPI_Recv(mymat->vals, mymat->I * mymat->J, SPLATT_MPI_VAL, 0, 3,
+        rinfo->comm_3d, &status);
+  }
+
+  return mymat;
+}
+
+
+
+

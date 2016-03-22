@@ -17,6 +17,7 @@ static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
   "splatt-cpd -- Compute the CPD of a sparse tensor.\n";
 
+#define TT_SEED 252
 #define TT_NOWRITE 253
 #define TT_TOL 254
 #define TT_TILE 255
@@ -27,6 +28,7 @@ static struct argp_option cpd_options[] = {
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file"},
+  {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   { 0 }
 };
@@ -94,6 +96,9 @@ static error_t parse_cpd_opt(
     break;
   case 'r':
     args->nfactors = atoi(arg);
+    break;
+  case TT_SEED:
+    srand(atoi(arg));
     break;
 
   case ARGP_KEY_ARG:

@@ -329,6 +329,29 @@ permutation_t *  mpi_distribute_mats(
   splatt_decomp_type const distribution);
 
 
+
+#define mpi_mat_rand splatt_mpi_mat_rand
+/**
+* @brief Allocate, initialize, and distribute a random matrix among MPI ranks.
+*        This function respects permutation info (such as from
+*        `mpi_distribute_mats()`) so that the same seed will result in the same
+*        problem solution, no matter the number of ranks.
+*
+* @param mode Which mode we are allocating for.
+* @param nfactors The number of columns in the matrix.
+* @param perm Permutation info. perm->iperms[mode] is used.
+* @param rinfo MPI rank information, rinfo->mat_start[mode] is used.
+*
+* @return The portion of the random matrix that I own.
+*/
+matrix_t * mpi_mat_rand(
+  idx_t const mode,
+  idx_t const nfactors,
+  permutation_t const * const perm,
+  rank_info * const rinfo);
+
+
+
 #define mpi_find_owned splatt_mpi_find_owned
 /**
 * @brief Setup 'owned' structures which mark the location of owned rows in

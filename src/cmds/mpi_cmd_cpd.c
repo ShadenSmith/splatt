@@ -19,6 +19,7 @@ static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
   "splatt-cpd -- Compute the CPD of a sparse tensor.\n";
 
+#define TT_SEED 252
 #define TT_NOWRITE 253
 #define TT_TOL 254
 #define TT_TILE 255
@@ -29,6 +30,7 @@ static struct argp_option cpd_options[] = {
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
+  {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution. "
                                  "Medium-grained decomposition is the default,"
@@ -135,6 +137,9 @@ static error_t parse_cpd_opt(
 
   case 'p':
     args->pfname = arg;
+    break;
+  case TT_SEED:
+    srand(atoi(arg));
     break;
 
   case ARGP_KEY_ARG:
@@ -276,6 +281,7 @@ int splatt_mpi_cpd_cmd(
   /* M, the result matrix is stored at mats[MAX_NMODES] */
   matrix_t * mats[MAX_NMODES+1];
   matrix_t * globmats[MAX_NMODES];
+
   for(idx_t m=0; m < nmodes; ++m) {
     /* ft[:] have different dimensionalities for 1D but ft[m+1] is guaranteed
      * to have the full dimensionality
@@ -286,11 +292,11 @@ int splatt_mpi_cpd_cmd(
     }
     max_dim = SS_MAX(max_dim, dim);
 
-    mats[m] = mat_rand(dim, args.nfactors);
+    /* actual factor */
+    globmats[m] = mpi_mat_rand(m, args.nfactors, perm, &rinfo);
 
-    /* for actual factor matrix */
-    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m],
-        args.nfactors);
+    /* for MTTKRP */
+    mats[m] = mat_alloc(dim, args.nfactors);
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.nfactors);
 
