@@ -441,8 +441,9 @@ static void p_process_intl(
             mats[depth+1][fids[depth+1][idxstack[depth+1]]];
       }
 
+      /* grab output idx and skip predictbuf at this depth */
       idx_t const out_id = fids[outdepth][idxstack[outdepth]];
-      predictbuf[depth] = predictbuf[depth-1];
+      predictbuf[outdepth] = predictbuf[outdepth-1];
 
       /* move down to nnz node while computing predicted value */
       for(; depth < nmodes-2; ++depth) {
@@ -454,8 +455,7 @@ static void p_process_intl(
       idx_t const start = fp[depth][idxstack[depth]];
       idx_t const end   = fp[depth][idxstack[depth]+1];
       for(idx_t jj=start; jj < end; ++jj) {
-        val_t const lastval = lastmat[inds[jj]];
-        val_t const sgrad = predictbuf[depth] * lastval;
+        val_t const sgrad = predictbuf[depth] * lastmat[inds[jj]];
         numer[out_id] += residual[jj] * sgrad;
         denom[out_id] += sgrad * sgrad;
       }
@@ -683,7 +683,7 @@ static void p_sparsemode_ccd_update(
   #pragma omp for schedule(static)
   for(idx_t i=0; i < dim; ++i) {
     numer[i] = 0;
-    denom[i] = ws->regularization[m];
+    denom[i] = 0;
   }
 
   /* which routine to call? */
@@ -716,10 +716,11 @@ static void p_sparsemode_ccd_update(
   } /* foreach tile */
 
   /* numerator/denominator are now computed; update factor column */
+  val_t const reg = ws->regularization[m];
   val_t * const restrict avals = model->factors[m] + (f * dim);
   #pragma omp for schedule(static)
   for(idx_t i=0; i < dim; ++i) {
-    avals[i] = numer[i] / denom[i];
+    avals[i] = numer[i] / (denom[i] + reg);
   }
 }
 
