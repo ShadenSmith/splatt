@@ -292,6 +292,24 @@ sptensor_t * mpi_simple_distribute(
   MPI_Comm comm);
 
 
+
+#define mpi_rearrange_by_part splatt_mpi_rearrange_by_part
+/**
+* @brief Rearrange nonzeros based on an nonzero partitioning. This allocates
+*        and returns a new sptensor_t.
+*
+* @param ttbuf The nonzeros to rearrange.
+* @param parts The partitioning of length ttbuf->nnz.
+* @param rinfo The communicator to rearrange along.
+*
+* @return A new rearranged tensor.
+*/
+sptensor_t * mpi_rearrange_by_part(
+  sptensor_t const * const ttbuf,
+  int const * const parts,
+  MPI_Comm comm);
+
+
 #define mpi_filter_tt_1d splatt_mpi_filter_tt_1d
 /**
 * @brief Run nonzeros from tt through filter to 'ftt'. This is 1D filtering,
