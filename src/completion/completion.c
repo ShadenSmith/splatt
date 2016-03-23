@@ -318,7 +318,7 @@ tc_model * tc_model_alloc(
   for(idx_t m=0; m < train->nmodes; ++m) {
     model->dims[m] = train->dims[m];
 
-    idx_t const bytes = model->dims[m] * rank * sizeof(**(model->factors));
+    size_t const bytes = model->dims[m] * rank * sizeof(**(model->factors));
     model->factors[m] = splatt_malloc(bytes);
     fill_rand(model->factors[m], model->dims[m] * rank);
   }

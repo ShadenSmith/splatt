@@ -7,7 +7,10 @@
 #include "../sptensor.h"
 #include "../completion/completion.h"
 #include "../stats.h"
+#include "../splatt_mpi.h"
+
 #include <omp.h>
+
 
 
 
@@ -241,19 +244,52 @@ int splatt_tc_cmd(
   tc_cmd_args args;
   default_tc_opts(&args);
   argp_parse(&tc_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+
+#ifdef SPLATT_USE_MPI
+  /* get global info */
+  rank_info rinfo;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &rinfo.npes);
+
+  if(rinfo.rank == 0) {
+    print_header();
+  }
+#else
   print_header();
+#endif
 
   srand(args.seed);
 
+  /* read input */
+#ifdef SPLATT_USE_MPI
+  sptensor_t * train = mpi_simple_distribute(args.ifnames[0], MPI_COMM_WORLD);
+  sptensor_t * validate = mpi_simple_distribute(args.ifnames[1], MPI_COMM_WORLD);
+
+  rinfo.nmodes = train->nmodes;
+  MPI_Allreduce(&(train->nnz), &(rinfo.global_nnz), 1, SPLATT_MPI_IDX,
+      MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(train->dims, &(rinfo.global_dims), train->nmodes,
+      SPLATT_MPI_IDX, MPI_MAX, MPI_COMM_WORLD);
+#else
   sptensor_t * train = tt_read(args.ifnames[0]);
   sptensor_t * validate = tt_read(args.ifnames[1]);
+#endif
   if(train == NULL || validate == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
   idx_t const nmodes = train->nmodes;
 
+
   /* print basic tensor stats */
+#ifdef SPLATT_USE_MPI
+  if(rinfo.rank == 0) {
+    mpi_global_stats(train, &rinfo, args.ifnames[0]);
+  }
+#else
   stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
+#endif
+
+  return 0;
 
   /* allocate model + workspace */
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);

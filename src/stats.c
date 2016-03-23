@@ -404,6 +404,7 @@ void mpi_global_stats(
   tt->nnz = tmpnnz;
 }
 
+
 void mpi_rank_stats(
   sptensor_t const * const tt,
   rank_info const * const rinfo)
