@@ -45,6 +45,9 @@ static inline val_t p_predict_val3(
   val_t const * const restrict C = model->factors[2] + (k * nfactors);
 
   for(idx_t f=0; f < nfactors; ++f) {
+    assert(!isnan(A[f]));
+    assert(!isnan(B[f]));
+    assert(!isnan(C[f]));
     est += A[f] * B[f] * C[f];
   }
 
@@ -337,6 +340,7 @@ val_t tc_predict_val_col(
   val_t const * const init_row = model->factors[0] + (row_id * nfactors);
   for(idx_t f=0; f < nfactors; ++f) {
     buffer[f] = model->factors[0][row_id + (f * model->dims[0])];
+    assert(!isnan(buffer[f]));
   }
 
   /* now multiply each factor by A(i,:), B(j,:) ... */
@@ -345,6 +349,7 @@ val_t tc_predict_val_col(
     idx_t const row_id = test->ind[m][index];
     for(idx_t f=0; f < nfactors; ++f) {
       buffer[f] *= model->factors[m][row_id + (f * model->dims[m])];
+      assert(!isnan(buffer[f]));
     }
   }
 
@@ -535,6 +540,8 @@ void tc_ws_free(
   splatt_free(ws);
 }
 
+/* defined in sgd.cc */
+void sgd_save_best_model(tc_ws *ws);
 
 bool tc_converge(
     sptensor_t const * const train,
@@ -570,9 +577,14 @@ bool tc_converge(
     ws->best_epoch = epoch;
 
     /* save the best model */
-    for(idx_t m=0; m < model->nmodes; ++m) {
-      par_memcpy(ws->best_model->factors[m], model->factors[m],
-          model->dims[m] * model->rank * sizeof(**(model->factors)));
+    if(model->which == SPLATT_TC_SGD) {
+      sgd_save_best_model(ws);
+    }
+    else {
+      for(idx_t m=0; m < model->nmodes; ++m) {
+        par_memcpy(ws->best_model->factors[m], model->factors[m],
+            model->dims[m] * model->rank * sizeof(**(model->factors)));
+      }
     }
   } else {
     ++ws->nbadepochs;
