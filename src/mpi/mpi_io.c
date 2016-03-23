@@ -586,9 +586,9 @@ static void p_get_best_mpi_dim(
     /* reset mpi dims */
     rinfo->dims_3d[m] = 1;
   }
-  int target = total_size / rinfo->npes;
+  idx_t target = total_size / rinfo->npes;
 
-  long diffs[MAX_NMODES];
+  idx_t diffs[MAX_NMODES];
 
   /* start from the largest prime */
   for(int p = nprimes-1; p >= 0; --p) {
@@ -606,7 +606,7 @@ static void p_get_best_mpi_dim(
     rinfo->dims_3d[furthest] *= primes[p];
   }
 
-  free(primes);
+  splatt_free(primes);
 }
 
 
