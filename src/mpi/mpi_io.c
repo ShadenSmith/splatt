@@ -552,17 +552,24 @@ static void p_fill_ssizes(
   idx_t ** const ssizes,
   rank_info const * const rinfo)
 {
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    idx_t const * const ind = tt->ind[m];
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      ssizes[m][ind[n]] += 1;
-    }
+  #pragma omp parallel
+  {
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      idx_t const * const ind = tt->ind[m];
+      #pragma omp for schedule(static)
+      for(idx_t n=0; n < tt->nnz; ++n) {
+        #pragma omp atomic
+        ssizes[m][ind[n]] += 1;
+      }
 
-    /* reduce to get total slice counts */
-    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) rinfo->global_dims[m],
-        SPLATT_MPI_IDX, MPI_SUM, rinfo->comm_3d);
-  }
+      /* reduce to get total slice counts */
+      #pragma omp master
+      MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) rinfo->global_dims[m],
+          SPLATT_MPI_IDX, MPI_SUM, rinfo->comm_3d);
+    }
+  } /* omp parallel */
 }
+
 
 
 /**
