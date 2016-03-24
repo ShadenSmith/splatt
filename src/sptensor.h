@@ -118,6 +118,21 @@ idx_t * tt_get_slices(
   idx_t * nunique);
 
 
+#define tt_get_hist splatt_tt_get_hist
+/**
+* @brief Return a histogram counting nonzeros appearing in indices of a given
+*        mode.
+*
+* @param tt The sparse tensor to make a histogram from.
+* @param mode Which mode we are counting.
+*
+* @return An array of length tt->dims[m].
+*/
+idx_t * tt_get_hist(
+  sptensor_t const * const tt,
+  idx_t const mode);
+
+
 #define tt_free splatt_tt_free
 /**
 * @brief Free the fields AND pointer of a tensor.
