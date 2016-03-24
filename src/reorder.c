@@ -509,15 +509,7 @@ permutation_t * perm_rand(
       perm->perms[m][n] = n;
     }
 
-    /* shuffle perm */
-    for(idx_t n=0; n < dims[m]; ++n) {
-      /* random idx in range [n, dims[m]) */
-      idx_t j = (rand_idx() % dims[m] - n) + n;
-      /* swap n and j */
-      idx_t tmp = perm->perms[m][n];
-      perm->perms[m][n] = j;
-      perm->perms[m][j] = tmp;
-    }
+    shuffle_idx(perm->perms[m], dims[m]);
 
     /* now fill in iperms */
     for(idx_t n=0; n < dims[m]; ++n) {
@@ -528,6 +520,23 @@ permutation_t * perm_rand(
   perm_apply(tt, perm->perms);
 
   return perm;
+}
+
+
+void shuffle_idx(
+    idx_t * const arr,
+    idx_t const N)
+{
+  /* shuffle perm */
+  for(idx_t n=0; n < N-2; ++n) {
+    /* random idx in range [n, dims[m]) */
+    idx_t j = (rand_idx() % (N - n)) + n;
+
+    /* swap n and j */
+    idx_t const tmp = arr[n];
+    arr[n] = arr[j];
+    arr[j] = tmp;
+  }
 }
 
 
