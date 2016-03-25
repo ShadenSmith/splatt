@@ -362,4 +362,25 @@ bool tc_converge(
     tc_ws * const ws);
 
 
+
+#ifdef SPLATT_USE_MPI
+
+int mpi_tc_distribute_med(
+    char const * const train_fname,
+    char const * const validate_fname,
+    idx_t const * const dims,
+    sptensor_t * * train_out,
+    sptensor_t * * validate_out,
+    rank_info * const rinfo);
+
+
+tc_model * mpi_tc_model_alloc(
+    sptensor_t const * const train,
+    idx_t const rank,
+    splatt_tc_type const which,
+    permutation_t const * const perm,
+    rank_info * const rinfo);
+
+#endif
+
 #endif

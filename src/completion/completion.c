@@ -527,3 +527,119 @@ bool tc_converge(
 
 
 
+
+/******************************************************************************
+ * MPI FUNCTIONS
+ *****************************************************************************/
+
+#ifdef SPLATT_USE_MPI
+
+
+int mpi_tc_distribute_med(
+    char const * const train_fname,
+    char const * const validate_fname,
+    idx_t const * const dims,
+    sptensor_t * * train_out,
+    sptensor_t * * validate_out,
+    rank_info * const rinfo)
+{
+  /* defaults if not otherwise specified */
+  if(dims == NULL) {
+    rinfo->decomp = DEFAULT_MPI_DISTRIBUTION;
+    for(idx_t m=0; m < MAX_NMODES; ++m) {
+      rinfo->dims_3d[m] = 1;
+    }
+  } else {
+    rinfo->decomp = SPLATT_DECOMP_MEDIUM;
+    for(idx_t m=0; m < MAX_NMODES; ++m) {
+      rinfo->dims_3d[m] = dims[m];
+    }
+  }
+
+  /* distribute training tensor with a medium-grained decomposition */
+  sptensor_t * train = mpi_tt_read(train_fname, NULL, rinfo);
+  *train_out = train;
+  if(train == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
+
+  /* simple distribution for validate tensor...we will redistribute to match
+   * training distribution */
+  sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, MPI_COMM_WORLD);
+  if(val_tmp == NULL) {
+    tt_free(train);
+    *train_out = NULL;
+    return SPLATT_ERROR_BADINPUT;
+  }
+
+  int * parts = splatt_malloc(val_tmp->nnz * sizeof(*parts));
+  #pragma omp parallel for schedule(static)
+  for(idx_t n=0; n < val_tmp->nnz; ++n) {
+    parts[n] = mpi_determine_med_owner(val_tmp, n, rinfo);
+  }
+
+  /* rearrange validation nonzeros */
+  sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,rinfo->comm_3d);
+  *validate_out = validate;
+  tt_free(val_tmp);
+  splatt_free(parts);
+
+  /* now map validation indices to layer coordinates and fill in dims */
+  #pragma omp parallel
+  {
+    for(idx_t m=0; m < validate->nmodes; ++m) {
+      #pragma omp master
+      validate->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+
+      #pragma omp for schedule(static) nowait
+      for(idx_t n=0; n < validate->nnz; ++n) {
+        assert(validate->ind[m][n] >= rinfo->layer_starts[m]);
+        assert(validate->ind[m][n] < rinfo->layer_ends[m]);
+        validate->ind[m][n] -= rinfo->layer_starts[m];
+      }
+    }
+  } /* omp parallel */
+
+  return SPLATT_SUCCESS;
+}
+
+
+tc_model * mpi_tc_model_alloc(
+    sptensor_t const * const train,
+    idx_t const rank,
+    splatt_tc_type const which,
+    permutation_t const * const perm,
+    rank_info * const rinfo)
+{
+  tc_model * model = splatt_malloc(sizeof(*model));
+
+  model->which = which;
+  model->rank = rank;
+  model->nmodes = train->nmodes;
+  for(idx_t m=0; m < train->nmodes; ++m) {
+    model->dims[m] = train->dims[m];
+
+    /* use mpi_mat_rand() to get consistent initializations across runs with
+     * different numbers of MPI ranks */
+    matrix_t * randmat = mpi_mat_rand(m, rank, perm, rinfo);
+    /* save and cleanup */
+    model->factors[m] = randmat->vals;
+    randmat->vals = NULL;
+    mat_free(randmat);
+  }
+
+  return model;
+}
+
+
+
+
+#endif
+
+
+
+
+
+
+
+

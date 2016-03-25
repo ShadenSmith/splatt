@@ -258,18 +258,21 @@ int splatt_tc_cmd(
   print_header();
 #endif
 
+  int success = SPLATT_SUCCESS;
+
   srand(args.seed);
 
   /* read input */
 #ifdef SPLATT_USE_MPI
-  sptensor_t * train = mpi_simple_distribute(args.ifnames[0], MPI_COMM_WORLD);
-  sptensor_t * validate = mpi_simple_distribute(args.ifnames[1], MPI_COMM_WORLD);
+  sptensor_t * train = NULL;
+  sptensor_t * validate = NULL;
 
-  rinfo.nmodes = train->nmodes;
-  MPI_Allreduce(&(train->nnz), &(rinfo.global_nnz), 1, SPLATT_MPI_IDX,
-      MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(train->dims, &(rinfo.global_dims), train->nmodes,
-      SPLATT_MPI_IDX, MPI_MAX, MPI_COMM_WORLD);
+  /* read + distribute tensors */
+  success = mpi_tc_distribute_med(args.ifnames[0], args.ifnames[1], NULL,
+      &train, &validate, &rinfo);
+  if(success != SPLATT_SUCCESS) {
+    return success;
+  }
 #else
   sptensor_t * train = tt_read(args.ifnames[0]);
   sptensor_t * validate = tt_read(args.ifnames[1]);
@@ -285,14 +288,38 @@ int splatt_tc_cmd(
   if(rinfo.rank == 0) {
     mpi_global_stats(train, &rinfo, args.ifnames[0]);
   }
-#else
-  stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
+
+  /* determine matrix distribution - this also calls tt_remove_empty() */
+  permutation_t * perm = mpi_distribute_mats(&rinfo, train, rinfo.decomp);
+
+  /* compress tensor to own local coordinate system */
+#if 0
+  tt_remove_empty(train);
+  for(idx_t m=0; m < train->nmodes; ++m) {
+    mpi_cpy_indmap(train, &rinfo, m);
+  }
 #endif
 
-  return 0;
+  for(idx_t m=0; m < train->nmodes; ++m) {
+    /* index into local tensor to grab owned rows */
+    mpi_find_owned(train, m, &rinfo);
+    /* determine isend and ineed lists */
+    mpi_compute_ineed(&rinfo, train, m, args.nfactors, 3);
+  }
+
+  mpi_rank_stats(train, &rinfo);
+
+  /* allocate model + workspace */
+  tc_model * model = mpi_tc_model_alloc(train, args.nfactors, args.which_alg,
+      perm, &rinfo);
+
+#else
+  stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
 
   /* allocate model + workspace */
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
+#endif
+
   omp_set_num_threads(args.nthreads);
   tc_ws * ws = tc_ws_alloc(train, model, args.nthreads);
 
@@ -315,6 +342,8 @@ int splatt_tc_cmd(
     ws->tolerance = args.tolerance;
   }
   ws->num_inner = args.num_inner;
+
+  return 0;
 
   printf("Factoring ------------------------------------------------------\n");
   printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" ",
