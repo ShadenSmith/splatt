@@ -244,6 +244,7 @@ int splatt_tc_cmd(
   tc_cmd_args args;
   default_tc_opts(&args);
   argp_parse(&tc_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+  omp_set_num_threads(args.nthreads);
 
 #ifdef SPLATT_USE_MPI
   /* get global info */
@@ -282,6 +283,10 @@ int splatt_tc_cmd(
   }
   idx_t const nmodes = train->nmodes;
 
+  char * myf = NULL;
+  asprintf(&myf, "rank%d.tns", rinfo.rank);
+  tt_write(train, myf);
+  free(myf);
 
   /* print basic tensor stats */
 #ifdef SPLATT_USE_MPI
@@ -292,14 +297,6 @@ int splatt_tc_cmd(
   /* determine matrix distribution - this also calls tt_remove_empty() */
   permutation_t * perm = mpi_distribute_mats(&rinfo, train, rinfo.decomp);
 
-  /* compress tensor to own local coordinate system */
-#if 0
-  tt_remove_empty(train);
-  for(idx_t m=0; m < train->nmodes; ++m) {
-    mpi_cpy_indmap(train, &rinfo, m);
-  }
-#endif
-
   for(idx_t m=0; m < train->nmodes; ++m) {
     /* index into local tensor to grab owned rows */
     mpi_find_owned(train, m, &rinfo);
@@ -307,21 +304,29 @@ int splatt_tc_cmd(
     mpi_compute_ineed(&rinfo, train, m, args.nfactors, 3);
   }
 
+  for(idx_t m=0; m < nmodes; ++m) {
+    printf("[%lu] %d: (%lu) %lu-%lu (nlocal: %lu nnbr: %lu = %lu x 2)\n",
+        m, rinfo.rank, rinfo.nowned[m], rinfo.ownstart[m], rinfo.ownend[m],
+        rinfo.nlocal2nbr[m], rinfo.nnbr2globs[m],
+        rinfo.nlocal2nbr[m] + rinfo.nnbr2globs[m]);
+  }
+
   mpi_rank_stats(train, &rinfo);
 
-  /* allocate model + workspace */
+  /* allocate model */
   tc_model * model = mpi_tc_model_alloc(train, args.nfactors, args.which_alg,
       perm, &rinfo);
 
 #else
   stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
 
-  /* allocate model + workspace */
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
 #endif
 
-  omp_set_num_threads(args.nthreads);
   tc_ws * ws = tc_ws_alloc(train, model, args.nthreads);
+#ifdef SPLATT_USE_MPI
+  ws->rinfo = &rinfo;
+#endif
 
   /* check for non-default vals */
   if(args.learn_rate != -1.) {
@@ -343,8 +348,9 @@ int splatt_tc_cmd(
   }
   ws->num_inner = args.num_inner;
 
-  return 0;
-
+#ifdef SPLATT_USE_MPI
+  if(rinfo.rank == 0) {
+#endif
   printf("Factoring ------------------------------------------------------\n");
   printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" ",
       model->rank, ws->max_its);
@@ -365,6 +371,9 @@ int splatt_tc_cmd(
   if(args.ifnames[2] != NULL) {
     printf("TEST=%s\n", args.ifnames[2]);
   }
+#ifdef SPLATT_USE_MPI
+  }
+#endif
 
   switch(args.which_alg) {
   case SPLATT_TC_GD:
@@ -396,6 +405,8 @@ int splatt_tc_cmd(
     fprintf(stderr, "\n\nSPLATT: unknown completion algorithm\n");
     return SPLATT_ERROR_BADINPUT;
   }
+
+  return 0;
 
   printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);
   printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",

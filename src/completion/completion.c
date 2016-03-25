@@ -353,6 +353,10 @@ void tc_model_free(
 {
   for(idx_t m=0; m < model->nmodes; ++m) {
     splatt_free(model->factors[m]);
+
+#ifdef SPLATT_USE_MPI
+    mat_free(model->globmats[m]);
+#endif
   }
 
   splatt_free(model);
@@ -617,15 +621,14 @@ tc_model * mpi_tc_model_alloc(
   model->rank = rank;
   model->nmodes = train->nmodes;
   for(idx_t m=0; m < train->nmodes; ++m) {
+    /* just allocate local factors */
     model->dims[m] = train->dims[m];
+    model->factors[m] = splatt_malloc(model->dims[m] * rank *
+        sizeof(**model->factors));
 
     /* use mpi_mat_rand() to get consistent initializations across runs with
      * different numbers of MPI ranks */
-    matrix_t * randmat = mpi_mat_rand(m, rank, perm, rinfo);
-    /* save and cleanup */
-    model->factors[m] = randmat->vals;
-    randmat->vals = NULL;
-    mat_free(randmat);
+    model->globmats[m] = mpi_mat_rand(m, rank, perm, rinfo);
   }
 
   return model;

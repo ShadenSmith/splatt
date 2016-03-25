@@ -11,6 +11,10 @@
 #include "../sptensor.h"
 #include "../timer.h"
 
+#ifdef SPLATT_USE_MPI
+#include "../splatt_mpi.h"
+#endif
+
 
 #define ALS_BUFSIZE 2048
 
@@ -55,6 +59,10 @@ typedef struct
 
   idx_t dims[MAX_NMODES];
   val_t * factors[MAX_NMODES];
+
+#ifdef SPLATT_USE_MPI
+  matrix_t * globmats[MAX_NMODES];
+#endif
 } tc_model;
 
 
@@ -94,6 +102,10 @@ typedef struct
   idx_t best_epoch;
   val_t best_rmse;
   tc_model * best_model;
+
+#ifdef SPLATT_USE_MPI
+  rank_info * rinfo;
+#endif
 } tc_ws;
 
 
