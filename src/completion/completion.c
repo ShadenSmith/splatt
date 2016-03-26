@@ -560,7 +560,27 @@ bool tc_converge(
   p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
 #endif
 
+  /* TODO: make this not terrible */
   bool converged = false;
+#ifdef SPLATT_USE_MPI
+  if(train_rmse - ws->best_rmse < -(ws->tolerance)) {
+    ws->nbadepochs = 0;
+    ws->best_rmse = train_rmse;
+    ws->best_epoch = epoch;
+
+    /* save the best model */
+    for(idx_t m=0; m < model->nmodes; ++m) {
+      par_memcpy(ws->best_model->factors[m], model->factors[m],
+          model->dims[m] * model->rank * sizeof(**(model->factors)));
+      /* TODO copy globmats too */
+    }
+  } else {
+    ++ws->nbadepochs;
+    if(ws->nbadepochs == ws->max_badepochs) {
+      converged = true;
+    }
+  }
+#else
   if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
     ws->nbadepochs = 0;
     ws->best_rmse = val_rmse;
@@ -578,6 +598,7 @@ bool tc_converge(
       converged = true;
     }
   }
+#endif
 
   /* check for time limit */
   if(ws->max_seconds > 0 && ws->tc_time.seconds >= ws->max_seconds) {
