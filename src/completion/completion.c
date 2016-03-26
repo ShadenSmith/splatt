@@ -543,12 +543,11 @@ bool tc_converge(
   val_t const train_rmse = sqrt(loss / train->nnz);
 #endif
 
-  val_t const val_rmse = tc_rmse(validate, model, ws);
-
   timer_stop(&ws->tc_time);
+  val_t const val_rmse = tc_rmse(validate, model, ws);
 #ifdef SPLATT_USE_MPI
   if(ws->rinfo->rank == 0) {
-    p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
+    p_print_progress(epoch, loss, train_rmse, 0, ws);
   }
 #else
   p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
