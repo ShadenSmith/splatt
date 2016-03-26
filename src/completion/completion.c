@@ -502,6 +502,13 @@ tc_ws * tc_ws_alloc(
 
   ws->best_model = tc_model_copy(model);
 
+#ifdef SPLATT_USE_MPI
+  ws->nbr2globs_buf  = NULL;
+  ws->nbr2globs_buf2 = NULL;
+  ws->local2nbr_buf  = NULL;
+  ws->local2nbr_buf2 = NULL;
+#endif
+
   return ws;
 }
 
@@ -563,6 +570,7 @@ bool tc_converge(
     for(idx_t m=0; m < model->nmodes; ++m) {
       par_memcpy(ws->best_model->factors[m], model->factors[m],
           model->dims[m] * model->rank * sizeof(**(model->factors)));
+      /* TODO copy globmats too */
     }
   } else {
     ++ws->nbadepochs;
