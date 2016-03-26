@@ -283,11 +283,6 @@ int splatt_tc_cmd(
   }
   idx_t const nmodes = train->nmodes;
 
-  char * myf = NULL;
-  asprintf(&myf, "rank%d.tns", rinfo.rank);
-  tt_write(train, myf);
-  free(myf);
-
   /* print basic tensor stats */
 #ifdef SPLATT_USE_MPI
   if(rinfo.rank == 0) {
@@ -316,10 +311,10 @@ int splatt_tc_cmd(
   /* allocate model */
   tc_model * model = mpi_tc_model_alloc(train, args.nfactors, args.which_alg,
       perm, &rinfo);
-
 #else
-  stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
 
+
+  stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
 #endif
 
@@ -371,38 +366,57 @@ int splatt_tc_cmd(
   if(args.ifnames[2] != NULL) {
     printf("TEST=%s\n", args.ifnames[2]);
   }
+
+  switch(args.which_alg) {
+  case SPLATT_TC_GD:
+    printf("ALG=GD\n\n");
+    break;
+  case SPLATT_TC_NLCG:
+    printf("ALG=NLCG\n\n");
+    break;
+  case SPLATT_TC_LBFGS:
+    printf("ALG=LBFGS\n\n");
+    break;
+  case SPLATT_TC_SGD:
+    printf("ALG=SGD\n\n");
+    break;
+  case SPLATT_TC_CCD:
+    printf("ALG=CCD\n\n");
+    break;
+  case SPLATT_TC_ALS:
+    printf("ALG=ALS\n\n");
+    break;
+  default:
+    /* error */
+    fprintf(stderr, "\n\nSPLATT: unknown completion algorithm\n");
+    return SPLATT_ERROR_BADINPUT;
+  }
+
 #ifdef SPLATT_USE_MPI
   }
 #endif
 
   switch(args.which_alg) {
   case SPLATT_TC_GD:
-    printf("ALG=GD\n\n");
     splatt_tc_gd(train, validate, model, ws);
     break;
   case SPLATT_TC_NLCG:
-    printf("ALG=NLCG\n\n");
     splatt_tc_nlcg(train, validate, model, ws);
     break;
   case SPLATT_TC_LBFGS:
-    printf("ALG=LBFGS\n\n");
     splatt_tc_lbfgs(train, validate, model, ws);
     break;
   case SPLATT_TC_SGD:
-    printf("ALG=SGD\n\n");
     splatt_tc_sgd(train, validate, model, ws);
     break;
   case SPLATT_TC_CCD:
-    printf("ALG=CCD\n\n");
     splatt_tc_ccd(train, validate, model, ws);
     break;
   case SPLATT_TC_ALS:
-    printf("ALG=ALS\n\n");
     splatt_tc_als(train, validate, model, ws);
     break;
   default:
     /* error */
-    fprintf(stderr, "\n\nSPLATT: unknown completion algorithm\n");
     return SPLATT_ERROR_BADINPUT;
   }
 

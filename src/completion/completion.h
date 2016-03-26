@@ -23,7 +23,7 @@
  * TODO: This should actually be a function of the number of nonzeros and
  * probably the number of threads/ranks.
  */
-#define DENSEMODE_THRESHOLD 300
+#define DENSEMODE_THRESHOLD 3
 
 /* swap two val_t pointers */
 #define SPLATT_VPTR_SWAP(x,y) \
@@ -105,6 +105,10 @@ typedef struct
 
 #ifdef SPLATT_USE_MPI
   rank_info * rinfo;
+
+  /* send/recv buffers */
+  val_t * nbr2globs_buf;
+  val_t * local2nbr_buf;
 #endif
 } tc_ws;
 
