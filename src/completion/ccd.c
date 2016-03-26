@@ -53,15 +53,80 @@
 #ifdef SPLATT_USE_MPI
 
 
-static void p_reduce_col_all2all(
+static void p_reduce_partials_all2all(
     tc_model * const model,
     tc_ws * const ws,
     idx_t const mode,
     idx_t const col)
 {
+  rank_info * const rinfo = ws->rinfo;
+  idx_t const m = mode;
 
+  if(ws->rinfo->layer_size[m] == 1) {
+    return;
+  }
 
+  idx_t const mat_start = rinfo->mat_start[m];
+  idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
+  idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
 
+  idx_t const nglobrows = model->globmats[m]->I;
+  val_t * const restrict numer = ws->numerator;
+  val_t * const restrict denom = ws->denominator;
+
+  /* grab buffers */
+  idx_t const nsends = rinfo->nlocal2nbr[m];
+  val_t * const restrict local2nbr_buf  = ws->local2nbr_buf;
+  val_t * const restrict local2nbr_buf2 = ws->local2nbr_buf2;
+  val_t * const restrict nbr2globs_buf  = ws->nbr2globs_buf;
+  val_t * const restrict nbr2globs_buf2 = ws->nbr2globs_buf2;
+
+  /* fill outgoing buffer */
+  #pragma omp for
+  for(idx_t s=0; s < nsends; ++s) {
+    idx_t const row = local2nbr_inds[s];
+    local2nbr_buf[s]  = numer[row];
+    local2nbr_buf2[s] = denom[row];
+  }
+
+  /* grab ptr/disp from rinfo. nbr2local and local2nbr will have the same
+   * structure so we just reuse those */
+  int const * const restrict nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
+  int const * const restrict nbr2local_ptr = rinfo->local2nbr_ptr[m];
+  int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
+  int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
+
+  /* exchange numerator and denominator */
+  #pragma omp master
+  {
+    timer_start(&timers[TIMER_MPI_COMM]);
+    MPI_Alltoallv(local2nbr_buf, nbr2local_ptr, nbr2local_disp, SPLATT_MPI_VAL,
+                  nbr2globs_buf, nbr2globs_ptr, nbr2globs_disp, SPLATT_MPI_VAL,
+                  rinfo->layer_comm[m]);
+    MPI_Alltoallv(local2nbr_buf2, nbr2local_ptr, nbr2local_disp, SPLATT_MPI_VAL,
+                  nbr2globs_buf2, nbr2globs_ptr, nbr2globs_disp, SPLATT_MPI_VAL,
+                  rinfo->layer_comm[m]);
+    timer_stop(&timers[TIMER_MPI_COMM]);
+  }
+  #pragma omp barrier
+
+  /* Now add received partial products. We can parallelize the additions from
+   * each process. */
+  int const lrank = rinfo->layer_rank[m];
+  int const lsize = rinfo->layer_size[m];
+  for(int p=1; p < lsize; ++p) {
+    int const porig = (p + lrank) % lsize;
+    /* The number of rows to recv from porig */
+    int const nrecvs = nbr2globs_ptr[porig];
+    int const disp  = nbr2globs_disp[porig];
+
+    #pragma omp for
+    for(int r=disp; r < disp + nrecvs; ++r) {
+      idx_t const row = nbr2globs_inds[r];// - mat_start;
+      numer[row] += nbr2globs_buf[r];
+      denom[row] += nbr2globs_buf2[r];
+    }
+  } /* end recvs */
 }
 
 
@@ -76,23 +141,31 @@ static void p_update_col_all2all(
   rank_info * const rinfo = ws->rinfo;
   idx_t const m = mode;
 
-  idx_t const mat_start = rinfo->mat_start[m];
-  idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
-  idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
-
   idx_t const nglobrows = model->globmats[m]->I;
   val_t const * const restrict gmatv = model->globmats[m]->vals +
       (col * nglobrows);
 
-  /* first prepare all values that I own and need to send */
+  /* ensure local info is up to date */
+  assert(rinfo->ownstart[m] + rinfo->nowned[m] <= model->dims[m]);
+  val_t * const restrict matv = model->factors[m] + (col * model->dims[m]);
+  par_memcpy(matv + rinfo->ownstart[m], gmatv, rinfo->nowned[m]*sizeof(*matv));
 
-  /* foreach send */
+  if(rinfo->layer_size[mode] == 1) {
+    return;
+  }
+
+  /* first prepare all values that I own and need to send */
+  idx_t const mat_start = rinfo->mat_start[m];
+  idx_t const * const restrict nbr2globs_inds = rinfo->nbr2globs_inds[m];
+  idx_t const * const restrict local2nbr_inds = rinfo->local2nbr_inds[m];
+
   idx_t const nsends = rinfo->nnbr2globs[m];
   idx_t const nrecvs = rinfo->nlocal2nbr[m];
 
-  val_t * const restrict nbr2globs_buf = ws->nbr2globs_buf + (col * nsends);
-  val_t * const restrict nbr2local_buf = ws->local2nbr_buf + (col * nrecvs);
+  val_t * const restrict nbr2globs_buf = ws->nbr2globs_buf;
+  val_t * const restrict nbr2local_buf = ws->local2nbr_buf;
 
+  /* foreach send */
   #pragma omp for
   for(idx_t s=0; s < nsends; ++s) {
     idx_t const row = nbr2globs_inds[s] - mat_start;
@@ -118,7 +191,6 @@ static void p_update_col_all2all(
   #pragma omp barrier
 
   /* now write incoming values to my local matrix */
-  val_t * const restrict matv = model->factors[m] + (col * model->dims[m]);
   #pragma omp for
   for(idx_t r=0; r < nrecvs; ++r) {
     idx_t const row = local2nbr_inds[r];
@@ -144,13 +216,22 @@ static void p_init_mpi(
     maxnbr2globs = SS_MAX(maxnbr2globs, ws->rinfo->nnbr2globs[m]);
   }
 
+#if 0
+  /*
+   * Only necessary if we parallelize communications over factors.
+   */
   maxlocal2nbr *= model->rank;
   maxnbr2globs *= model->rank;
+#endif
 
-  ws->local2nbr_buf = splatt_malloc(maxlocal2nbr * sizeof(val_t));
-  ws->nbr2globs_buf = splatt_malloc(maxnbr2globs * sizeof(val_t));
+  ws->local2nbr_buf  = splatt_malloc(maxlocal2nbr * sizeof(val_t));
+  ws->local2nbr_buf2 = splatt_malloc(maxlocal2nbr * sizeof(val_t));
+  ws->nbr2globs_buf  = splatt_malloc(maxnbr2globs * sizeof(val_t));
+  ws->nbr2globs_buf2 = splatt_malloc(maxnbr2globs * sizeof(val_t));
+
 
   /* get initial factors */
+  #pragma omp parallel
   for(idx_t m=0; m < train->nmodes; ++m) {
     for(idx_t f=0; f < model->rank; ++f) {
       p_update_col_all2all(model, ws, m, f);
@@ -777,16 +858,6 @@ static void p_densemode_ccd_update(
     SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[1], ws->denominator);
   }
   #pragma omp barrier
-
-  /* numerator/denominator are now computed; update factor column */
-  val_t const reg = ws->regularization[m];
-  val_t * const restrict avals = model->factors[m] + (f * dim);
-  val_t const * const agg_numer = ws->numerator;
-  val_t const * const agg_denom = ws->denominator;
-  #pragma omp for schedule(static)
-  for(idx_t i=0; i < dim; ++i) {
-    avals[i] = agg_numer[i] / (reg + agg_denom[i]);
-  }
 }
 
 
@@ -839,18 +910,45 @@ static void p_sparsemode_ccd_update(
       tile = get_next_tileid(tile, csf->tile_dims, csf->nmodes, m, t);
     }
   } /* foreach tile */
-
-  /* exchange partial updates */
-
-  /* numerator/denominator are now computed; update factor column */
-  val_t const reg = ws->regularization[m];
-  val_t * const restrict avals = model->factors[m] + (f * dim);
-  #pragma omp for schedule(static)
-  for(idx_t i=0; i < dim; ++i) {
-    avals[i] = numer[i] / (denom[i] + reg);
-  }
 }
 
+
+
+/**
+* @brief Finalize the new f-th column of factors[m] after computing the new
+*        numerator/denominator.
+*
+* @param model The model to update
+* @param ws Workspace data.
+* @param m The mode to update.
+* @param f The column to update.
+*/
+static inline void p_compute_newcol(
+    tc_model * const model,
+    tc_ws const * const ws,
+    idx_t const m,
+    idx_t const f)
+{
+
+#ifdef SPLATT_USE_MPI
+  idx_t const dim = model->globmats[m]->I;
+  val_t * const restrict avals = model->globmats[m]->vals + (f * dim);
+  idx_t const offset = ws->rinfo->ownstart[m];
+#else
+  idx_t const dim = model->dims[m];
+  val_t * const restrict avals = model->factors[m] + (f * dim);
+  idx_t const offset = 0;
+#endif
+
+  val_t const reg = ws->regularization[m];
+  val_t const * const restrict numer = ws->numerator + offset;
+  val_t const * const restrict denom = ws->denominator + offset;
+
+  #pragma omp for schedule(static)
+  for(idx_t i=0; i < dim; ++i) {
+    avals[i] = numer[i] / (reg + denom[i]);
+  }
+}
 
 
 
@@ -946,8 +1044,18 @@ void splatt_tc_ccd(
               p_sparsemode_ccd_update(csf, m, f, model, ws, tid);
             }
 
+#ifdef SPLATT_USE_MPI
+            /* exchange partial products */
+            p_reduce_partials_all2all(model, ws, m, f);
+#endif
+
+            /* numerator/denominator are now computed; update factor column */
+            p_compute_newcol(model, ws, m, f);
+
+#ifdef SPLATT_USE_MPI
             /* exchange update columns */
             p_update_col_all2all(model, ws, m, f);
+#endif
           } /* foreach mode */
         } /* foreach inner iteration */
 
@@ -967,6 +1075,12 @@ void splatt_tc_ccd(
 
     /* compute RMSE and adjust learning rate */
     frobsq = tc_frob_sq(model, ws);
+
+#ifdef SPLATT_USE_MPI
+    MPI_Allreduce(MPI_IN_PLACE, &loss, 1, SPLATT_MPI_VAL, MPI_SUM,
+        ws->rinfo->comm_3d);
+#endif
+
     if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
       break;
     }

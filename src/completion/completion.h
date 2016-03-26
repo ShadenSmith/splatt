@@ -23,7 +23,7 @@
  * TODO: This should actually be a function of the number of nonzeros and
  * probably the number of threads/ranks.
  */
-#define DENSEMODE_THRESHOLD 3
+#define DENSEMODE_THRESHOLD 300
 
 /* swap two val_t pointers */
 #define SPLATT_VPTR_SWAP(x,y) \
@@ -108,7 +108,9 @@ typedef struct
 
   /* send/recv buffers */
   val_t * nbr2globs_buf;
+  val_t * nbr2globs_buf2;
   val_t * local2nbr_buf;
+  val_t * local2nbr_buf2;
 #endif
 } tc_ws;
 

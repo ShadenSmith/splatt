@@ -299,13 +299,6 @@ int splatt_tc_cmd(
     mpi_compute_ineed(&rinfo, train, m, args.nfactors, 3);
   }
 
-  for(idx_t m=0; m < nmodes; ++m) {
-    printf("[%lu] %d: (%lu) %lu-%lu (nlocal: %lu nnbr: %lu = %lu x 2)\n",
-        m, rinfo.rank, rinfo.nowned[m], rinfo.ownstart[m], rinfo.ownend[m],
-        rinfo.nlocal2nbr[m], rinfo.nnbr2globs[m],
-        rinfo.nlocal2nbr[m] + rinfo.nnbr2globs[m]);
-  }
-
   mpi_rank_stats(train, &rinfo);
 
   /* allocate model */

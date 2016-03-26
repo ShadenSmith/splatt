@@ -125,7 +125,16 @@ val_t tc_rmse(
     tc_model const * const model,
     tc_ws * const ws)
 {
+#ifdef SPLATT_USE_MPI
+  val_t loss = tc_loss_sq(test, model, ws);
+
+  idx_t global_nnz = test->nnz;
+  MPI_Allreduce(MPI_IN_PLACE, &global_nnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+      ws->rinfo->comm_3d);
+  return sqrt(loss / global_nnz);
+#else
   return sqrt(tc_loss_sq(test, model, ws) / test->nnz);
+#endif
 }
 
 
@@ -157,7 +166,17 @@ val_t tc_mae(
     }
   }
 
+#ifdef SPLATT_USE_MPI
+  MPI_Allreduce(MPI_IN_PLACE, &loss_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
+      ws->rinfo->comm_3d);
+  idx_t nnz = test->nnz;
+  MPI_Allreduce(MPI_IN_PLACE, &nnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+      ws->rinfo->comm_3d);
+
+  return loss_obj / nnz;
+#else
   return loss_obj / test->nnz;
+#endif
 }
 
 
@@ -190,6 +209,11 @@ val_t tc_loss_sq(
     }
   }
 
+#ifdef SPLATT_USE_MPI
+  MPI_Allreduce(MPI_IN_PLACE, &loss_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
+      ws->rinfo->comm_3d);
+#endif
+
   return loss_obj;
 }
 
@@ -205,18 +229,28 @@ val_t tc_frob_sq(
 
   #pragma omp parallel reduction(+:reg_obj)
   {
-
     for(idx_t m=0; m < model->nmodes; ++m) {
       val_t accum = 0;
+#ifdef SPLATT_USE_MPI
+      idx_t const nrows = model->globmats[m]->I;
+      val_t const * const restrict mat = model->globmats[m]->vals;
+#else
+      idx_t const nrows = model->dims[m];
       val_t const * const restrict mat = model->factors[m];
+#endif
 
       #pragma omp for schedule(static) nowait
-      for(idx_t x=0; x < model->dims[m] * nfactors; ++x) {
+      for(idx_t x=0; x < nrows * nfactors; ++x) {
         accum += mat[x] * mat[x];
       }
       reg_obj += ws->regularization[m] * accum;
     }
   } /* end omp parallel */
+
+#ifdef SPLATT_USE_MPI
+  MPI_Allreduce(MPI_IN_PLACE, &reg_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
+      ws->rinfo->comm_3d);
+#endif
 
   assert(reg_obj > 0);
   return reg_obj;
@@ -476,9 +510,19 @@ void tc_ws_free(
     tc_ws * ws)
 {
   thd_free(ws->thds, ws->nthreads);
-  tc_model_free(ws->best_model);
   splatt_free(ws->numerator);
   splatt_free(ws->denominator);
+
+#ifdef SPLATT_USE_MPI
+  splatt_free(ws->nbr2globs_buf);
+  splatt_free(ws->nbr2globs_buf2);
+  splatt_free(ws->local2nbr_buf);
+  splatt_free(ws->local2nbr_buf2);
+  rank_free(*(ws->rinfo), ws->best_model->nmodes);
+#endif
+
+  tc_model_free(ws->best_model);
+
   splatt_free(ws);
 }
 
@@ -493,12 +537,22 @@ bool tc_converge(
     tc_ws * const ws)
 {
   val_t const obj = loss + frobsq;
+#ifdef SPLATT_USE_MPI
+  val_t const train_rmse = sqrt(loss / ws->rinfo->global_nnz);
+#else
   val_t const train_rmse = sqrt(loss / train->nnz);
+#endif
 
   val_t const val_rmse = tc_rmse(validate, model, ws);
 
   timer_stop(&ws->tc_time);
+#ifdef SPLATT_USE_MPI
+  if(ws->rinfo->rank == 0) {
+    p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
+  }
+#else
   p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
+#endif
 
   bool converged = false;
   if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
