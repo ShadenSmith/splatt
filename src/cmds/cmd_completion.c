@@ -413,7 +413,9 @@ int splatt_tc_cmd(
     return SPLATT_ERROR_BADINPUT;
   }
 
-  return 0;
+#ifdef SPLATT_USE_MPI
+  return SPLATT_SUCCESS;
+#endif
 
   printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);
   printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
