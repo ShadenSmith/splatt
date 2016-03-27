@@ -353,6 +353,9 @@ int splatt_tc_cmd(
   } else {
     printf("SEED=time ");
   }
+#ifdef SPLATT_USE_MPI
+  printf("RANKS=%d ", rinfo.npes);
+#endif
   printf("THREADS=%"SPLATT_PF_IDX"\nSTEP=%0.3e REG=%0.3e\n",
        ws->nthreads, ws->learn_rate, ws->regularization[0]);
   printf("VALIDATION=%s\n", args.ifnames[1]);
@@ -414,7 +417,7 @@ int splatt_tc_cmd(
   }
 
 #ifdef SPLATT_USE_MPI
-  return SPLATT_SUCCESS;
+  return EXIT_SUCCESS;
 #endif
 
   printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);

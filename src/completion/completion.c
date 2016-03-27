@@ -551,12 +551,13 @@ bool tc_converge(
 #endif
 
   timer_stop(&ws->tc_time);
-  val_t const val_rmse = tc_rmse(validate, model, ws);
 #ifdef SPLATT_USE_MPI
+  val_t const val_rmse = 0;
   if(ws->rinfo->rank == 0) {
-    p_print_progress(epoch, loss, train_rmse, 0, ws);
+    p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
   }
 #else
+  val_t const val_rmse = tc_rmse(validate, model, ws);
   p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
 #endif
 
