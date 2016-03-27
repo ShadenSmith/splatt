@@ -114,6 +114,24 @@ idx_t * tt_get_slices(
 }
 
 
+idx_t * tt_get_hist(
+  sptensor_t const * const tt,
+  idx_t const mode)
+{
+  idx_t * restrict hist = splatt_malloc(tt->dims[mode] * sizeof(*hist));
+  memset(hist, 0, tt->dims[mode] * sizeof(*hist));
+
+  idx_t const * const restrict inds = tt->ind[mode];
+  #pragma omp parallel for schedule(static)
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    #pragma omp atomic
+    ++hist[inds[x]];
+  }
+
+  return hist;
+}
+
+
 idx_t tt_remove_dups(
   sptensor_t * const tt)
 {

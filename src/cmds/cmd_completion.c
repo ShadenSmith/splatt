@@ -7,7 +7,10 @@
 #include "../sptensor.h"
 #include "../completion/completion.h"
 #include "../stats.h"
+#include "../splatt_mpi.h"
+
 #include <omp.h>
+
 
 
 
@@ -241,24 +244,77 @@ int splatt_tc_cmd(
   tc_cmd_args args;
   default_tc_opts(&args);
   argp_parse(&tc_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+  omp_set_num_threads(args.nthreads);
+
+#ifdef SPLATT_USE_MPI
+  /* get global info */
+  rank_info rinfo;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rinfo.rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &rinfo.npes);
+
+  if(rinfo.rank == 0) {
+    print_header();
+  }
+#else
   print_header();
+#endif
+
+  int success = SPLATT_SUCCESS;
 
   srand(args.seed);
 
+  /* read input */
+#ifdef SPLATT_USE_MPI
+  sptensor_t * train = NULL;
+  sptensor_t * validate = NULL;
+
+  /* read + distribute tensors */
+  success = mpi_tc_distribute_med(args.ifnames[0], args.ifnames[1], NULL,
+      &train, &validate, &rinfo);
+  if(success != SPLATT_SUCCESS) {
+    return success;
+  }
+#else
   sptensor_t * train = tt_read(args.ifnames[0]);
   sptensor_t * validate = tt_read(args.ifnames[1]);
+#endif
   if(train == NULL || validate == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
   idx_t const nmodes = train->nmodes;
 
   /* print basic tensor stats */
-  stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
+#ifdef SPLATT_USE_MPI
+  if(rinfo.rank == 0) {
+    mpi_global_stats(train, &rinfo, args.ifnames[0]);
+  }
 
-  /* allocate model + workspace */
+  /* determine matrix distribution - this also calls tt_remove_empty() */
+  permutation_t * perm = mpi_distribute_mats(&rinfo, train, rinfo.decomp);
+
+  for(idx_t m=0; m < train->nmodes; ++m) {
+    /* index into local tensor to grab owned rows */
+    mpi_find_owned(train, m, &rinfo);
+    /* determine isend and ineed lists */
+    mpi_compute_ineed(&rinfo, train, m, args.nfactors, 3);
+  }
+
+  mpi_rank_stats(train, &rinfo);
+
+  /* allocate model */
+  tc_model * model = mpi_tc_model_alloc(train, args.nfactors, args.which_alg,
+      perm, &rinfo);
+#else
+
+
+  stats_tt(train, args.ifnames[0], STATS_BASIC, 0, NULL);
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
-  omp_set_num_threads(args.nthreads);
+#endif
+
   tc_ws * ws = tc_ws_alloc(train, model, args.nthreads);
+#ifdef SPLATT_USE_MPI
+  ws->rinfo = &rinfo;
+#endif
 
   /* check for non-default vals */
   if(args.learn_rate != -1.) {
@@ -280,6 +336,9 @@ int splatt_tc_cmd(
   }
   ws->num_inner = args.num_inner;
 
+#ifdef SPLATT_USE_MPI
+  if(rinfo.rank == 0) {
+#endif
   printf("Factoring ------------------------------------------------------\n");
   printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" ",
       model->rank, ws->max_its);
@@ -294,6 +353,9 @@ int splatt_tc_cmd(
   } else {
     printf("SEED=time ");
   }
+#ifdef SPLATT_USE_MPI
+  printf("RANKS=%d ", rinfo.npes);
+#endif
   printf("THREADS=%"SPLATT_PF_IDX"\nSTEP=%0.3e REG=%0.3e\n",
        ws->nthreads, ws->learn_rate, ws->regularization[0]);
   printf("VALIDATION=%s\n", args.ifnames[1]);
@@ -304,33 +366,59 @@ int splatt_tc_cmd(
   switch(args.which_alg) {
   case SPLATT_TC_GD:
     printf("ALG=GD\n\n");
-    splatt_tc_gd(train, validate, model, ws);
     break;
   case SPLATT_TC_NLCG:
     printf("ALG=NLCG\n\n");
-    splatt_tc_nlcg(train, validate, model, ws);
     break;
   case SPLATT_TC_LBFGS:
     printf("ALG=LBFGS\n\n");
-    splatt_tc_lbfgs(train, validate, model, ws);
     break;
   case SPLATT_TC_SGD:
     printf("ALG=SGD\n\n");
-    splatt_tc_sgd(train, validate, model, ws);
     break;
   case SPLATT_TC_CCD:
     printf("ALG=CCD\n\n");
-    splatt_tc_ccd(train, validate, model, ws);
     break;
   case SPLATT_TC_ALS:
     printf("ALG=ALS\n\n");
-    splatt_tc_als(train, validate, model, ws);
     break;
   default:
     /* error */
     fprintf(stderr, "\n\nSPLATT: unknown completion algorithm\n");
     return SPLATT_ERROR_BADINPUT;
   }
+
+#ifdef SPLATT_USE_MPI
+  }
+#endif
+
+  switch(args.which_alg) {
+  case SPLATT_TC_GD:
+    splatt_tc_gd(train, validate, model, ws);
+    break;
+  case SPLATT_TC_NLCG:
+    splatt_tc_nlcg(train, validate, model, ws);
+    break;
+  case SPLATT_TC_LBFGS:
+    splatt_tc_lbfgs(train, validate, model, ws);
+    break;
+  case SPLATT_TC_SGD:
+    splatt_tc_sgd(train, validate, model, ws);
+    break;
+  case SPLATT_TC_CCD:
+    splatt_tc_ccd(train, validate, model, ws);
+    break;
+  case SPLATT_TC_ALS:
+    splatt_tc_als(train, validate, model, ws);
+    break;
+  default:
+    /* error */
+    return SPLATT_ERROR_BADINPUT;
+  }
+
+#ifdef SPLATT_USE_MPI
+  return EXIT_SUCCESS;
+#endif
 
   printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);
   printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",

@@ -528,9 +528,9 @@ void shuffle_idx(
     idx_t const N)
 {
   /* shuffle perm */
-  for(idx_t n=0; n < N; ++n) {
+  for(idx_t n=0; n < N-2; ++n) {
     /* random idx in range [n, dims[m]) */
-    idx_t j = (rand_idx() % N - n) + n;
+    idx_t j = (rand_idx() % (N - n)) + n;
 
     /* swap n and j */
     idx_t const tmp = arr[n];

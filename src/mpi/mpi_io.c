@@ -148,134 +148,6 @@ static int * p_distribute_parts(
 }
 
 
-/**
-* @brief Map a nonzero to an MPI rank based on the layer boundaries.
-*
-* @param ttbuf The sparse tensor.
-* @param n The index of the nonzero.
-* @param rinfo MPI rank information (uses dims_3d and layer_ptrs).
-*
-* @return The MPI rank that owns ttbuf[n].
-*/
-static int p_determine_owner(
-  sptensor_t * const ttbuf,
-  idx_t const n,
-  rank_info * const rinfo)
-{
-  int coords[MAX_NMODES];
-
-  /* determine the coordinates of the owner rank */
-  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
-    idx_t const id = ttbuf->ind[m][n];
-    /* silly linear scan over each layer.
-     * TODO: do a binary search */
-    for(int l=0; l <= rinfo->dims_3d[m]; ++l) {
-      if(id < rinfo->layer_ptrs[m][l]) {
-        coords[m] = l-1;
-        break;
-      }
-    }
-  }
-
-  /* translate that to an MPI rank */
-  int owner;
-  MPI_Cart_rank(rinfo->comm_3d, coords, &owner);
-  return owner;
-}
-
-
-/**
-* @brief Rearrange nonzeros in ttbuf based on a nonzero partitioning.
-*
-* @param ttbuf The nonzeros to rearrange.
-* @param parts The partitioning.
-* @param rinfo MPI rank information.
-*
-* @return A new rearranged tensor.
-*/
-static sptensor_t * p_rearrange_by_part(
-  sptensor_t * const ttbuf,
-  int const * const parts,
-  rank_info * const rinfo)
-{
-  /* count how many to send to each process */
-  int * nsend = calloc(rinfo->npes, sizeof(*nsend));
-  int * nrecv = calloc(rinfo->npes, sizeof(*nrecv));
-  for(idx_t n=0; n < ttbuf->nnz; ++n) {
-    nsend[parts[n]] += 1;
-  }
-  MPI_Alltoall(nsend, 1, MPI_INT, nrecv, 1, MPI_INT, rinfo->comm_3d);
-
-  idx_t send_total = 0;
-  idx_t recv_total = 0;
-  for(int p=0; p < rinfo->npes; ++p) {
-    send_total += nsend[p];
-    recv_total += nrecv[p];
-  }
-  assert(send_total = ttbuf->nnz);
-
-  /* how many nonzeros I'll own */
-  idx_t nowned = recv_total;
-
-  int * send_disp = (int *) splatt_malloc((rinfo->npes+1) * sizeof(int));
-  int * recv_disp = (int *) splatt_malloc((rinfo->npes+1) * sizeof(int));
-
-  /* recv_disp is const so we'll just fill it out once */
-  recv_disp[0] = 0;
-  for(int p=1; p <= rinfo->npes; ++p) {
-    recv_disp[p] = recv_disp[p-1] + nrecv[p-1];
-  }
-
-  /* allocate my tensor and send buffer */
-  sptensor_t * tt = tt_alloc(nowned, rinfo->nmodes);
-  idx_t * isend_buf = (idx_t *) splatt_malloc(ttbuf->nnz * sizeof(idx_t));
-
-  /* rearrange into sendbuf and send one mode at a time */
-  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
-    /* prefix sum to make disps */
-    send_disp[0] = send_disp[1] = 0;
-    for(int p=2; p <= rinfo->npes; ++p) {
-      send_disp[p] = send_disp[p-1] + nsend[p-2];
-    }
-
-    idx_t const * const ind = ttbuf->ind[m];
-    for(idx_t n=0; n < ttbuf->nnz; ++n) {
-      idx_t const index = send_disp[parts[n]+1]++;
-      isend_buf[index] = ind[n];
-    }
-
-    /* exchange indices */
-    MPI_Alltoallv(isend_buf, nsend, send_disp, SPLATT_MPI_IDX,
-                  tt->ind[m], nrecv, recv_disp, SPLATT_MPI_IDX,
-                  rinfo->comm_3d);
-  }
-  free(isend_buf);
-
-  /* lastly, rearrange vals */
-  val_t * vsend_buf = (val_t *) splatt_malloc(ttbuf->nnz * sizeof(val_t));
-  send_disp[0] = send_disp[1] = 0;
-  for(int p=2; p <= rinfo->npes; ++p) {
-    send_disp[p] = send_disp[p-1] + nsend[p-2];
-  }
-
-  val_t const * const vals = ttbuf->vals;
-  for(idx_t n=0; n < ttbuf->nnz; ++n) {
-    idx_t const index = send_disp[parts[n]+1]++;
-    vsend_buf[index] = vals[n];
-  }
-  /* exchange vals */
-  MPI_Alltoallv(vsend_buf, nsend, send_disp, SPLATT_MPI_VAL,
-                tt->vals,  nrecv, recv_disp, SPLATT_MPI_VAL,
-                rinfo->comm_3d);
-  free(vsend_buf);
-
-  free(nsend);
-  free(nrecv);
-  free(send_disp);
-  free(recv_disp);
-
-  return tt;
-}
 
 
 static void p_find_my_slices_1d(
@@ -594,10 +466,10 @@ static sptensor_t * p_rearrange_medium(
 
   #pragma omp parallel for schedule(static)
   for(idx_t n=0; n < ttbuf->nnz; ++n) {
-    parts[n] = p_determine_owner(ttbuf, n, rinfo);
+    parts[n] = mpi_determine_med_owner(ttbuf, n, rinfo);
   }
 
-  sptensor_t * tt = p_rearrange_by_part(ttbuf, parts, rinfo);
+  sptensor_t * tt = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
 
   splatt_free(parts);
   return tt;
@@ -623,7 +495,7 @@ static sptensor_t * p_rearrange_fine(
   /* first distribute partitioning information */
   int * parts = p_distribute_parts(ttbuf, pfname, rinfo);
 
-  sptensor_t * tt = p_rearrange_by_part(ttbuf, parts, rinfo);
+  sptensor_t * tt = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
 
   free(parts);
   return tt;
@@ -644,17 +516,24 @@ static void p_fill_ssizes(
   idx_t ** const ssizes,
   rank_info const * const rinfo)
 {
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    idx_t const * const ind = tt->ind[m];
-    for(idx_t n=0; n < tt->nnz; ++n) {
-      ssizes[m][ind[n]] += 1;
-    }
+  #pragma omp parallel
+  {
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      idx_t const * const ind = tt->ind[m];
+      #pragma omp for schedule(static)
+      for(idx_t n=0; n < tt->nnz; ++n) {
+        #pragma omp atomic
+        ssizes[m][ind[n]] += 1;
+      }
 
-    /* reduce to get total slice counts */
-    MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) rinfo->global_dims[m],
-        SPLATT_MPI_IDX, MPI_SUM, rinfo->comm_3d);
-  }
+      /* reduce to get total slice counts */
+      #pragma omp master
+      MPI_Allreduce(MPI_IN_PLACE, ssizes[m], (int) rinfo->global_dims[m],
+          SPLATT_MPI_IDX, MPI_SUM, rinfo->comm_3d);
+    }
+  } /* omp parallel */
 }
+
 
 
 /**
@@ -678,9 +557,9 @@ static void p_get_best_mpi_dim(
     /* reset mpi dims */
     rinfo->dims_3d[m] = 1;
   }
-  int target = total_size / rinfo->npes;
+  idx_t target = total_size / rinfo->npes;
 
-  long diffs[MAX_NMODES];
+  idx_t diffs[MAX_NMODES];
 
   /* start from the largest prime */
   for(int p = nprimes-1; p >= 0; --p) {
@@ -688,7 +567,10 @@ static void p_get_best_mpi_dim(
     /* find dim furthest from target */
     for(idx_t m=0; m < rinfo->nmodes; ++m) {
       /* distance is current - target */
-      diffs[m] = (rinfo->global_dims[m] / rinfo->dims_3d[m]) - target;
+      idx_t const curr = rinfo->global_dims[m] / rinfo->dims_3d[m];
+      /* avoid underflow */
+      diffs[m] = (curr > target) ? (curr - target) : 0;
+
       if(diffs[m] > diffs[furthest]) {
         furthest = m;
       }
@@ -698,7 +580,7 @@ static void p_get_best_mpi_dim(
     rinfo->dims_3d[furthest] *= primes[p];
   }
 
-  free(primes);
+  splatt_free(primes);
 }
 
 
@@ -905,6 +787,7 @@ sptensor_t * mpi_tt_read(
       MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(ttbuf->dims, &(rinfo->global_dims), ttbuf->nmodes,
       SPLATT_MPI_IDX, MPI_MAX, MPI_COMM_WORLD);
+
 
   /* first compute MPI dimension if not specified by the user */
   if(rinfo->decomp == DEFAULT_MPI_DISTRIBUTION) {
@@ -1218,5 +1101,207 @@ sptensor_t * mpi_simple_distribute(
 
   return tt;
 }
+
+
+matrix_t * mpi_mat_rand(
+  idx_t const mode,
+  idx_t const nfactors,
+  permutation_t const * const perm,
+  rank_info * const rinfo)
+{
+  idx_t const localdim = rinfo->mat_end[mode] - rinfo->mat_start[mode];
+  matrix_t * mymat = mat_alloc(localdim, nfactors);
+
+  MPI_Status status;
+
+  /* figure out buffer sizes */
+  idx_t maxlocaldim = localdim;
+  if(rinfo->rank == 0) {
+    MPI_Reduce(MPI_IN_PLACE, &maxlocaldim, 1, SPLATT_MPI_IDX, MPI_MAX, 0,
+      rinfo->comm_3d);
+  } else {
+    MPI_Reduce(&maxlocaldim, NULL, 1, SPLATT_MPI_IDX, MPI_MAX, 0,
+      rinfo->comm_3d);
+  }
+
+  /* root rank does the heavy lifting */
+  if(rinfo->rank == 0) {
+    /* allocate buffers */
+    idx_t * loc_perm = splatt_malloc(maxlocaldim * sizeof(*loc_perm));
+    val_t * vbuf = splatt_malloc(maxlocaldim * nfactors * sizeof(*vbuf));
+
+    /* allocate initial factor */
+    matrix_t * full_factor = mat_rand(rinfo->global_dims[mode], nfactors);
+
+    /* copy root's own matrix to output */
+    #pragma omp parallel for schedule(static)
+    for(idx_t i=0; i < localdim; ++i) {
+      idx_t const gi = rinfo->mat_start[mode] + perm->iperms[mode][i];
+      for(idx_t f=0; f < nfactors; ++f) {
+       mymat->vals[f + (i*nfactors)] = full_factor->vals[f+(gi*nfactors)];
+      }
+    }
+
+    /* communicate! */
+    for(int p=1; p < rinfo->npes; ++p) {
+      /* first receive layer start and permutation info */
+      idx_t layerstart;
+      idx_t nrows;
+      MPI_Recv(&layerstart, 1, SPLATT_MPI_IDX, p, 0, rinfo->comm_3d, &status);
+      MPI_Recv(&nrows, 1, SPLATT_MPI_IDX, p, 1, rinfo->comm_3d, &status);
+      MPI_Recv(loc_perm, nrows, SPLATT_MPI_IDX, p, 2, rinfo->comm_3d, &status);
+
+      /* fill buffer */
+      #pragma omp parallel for schedule(static)
+      for(idx_t i=0; i < nrows; ++i) {
+        idx_t const gi = layerstart + loc_perm[i];
+        for(idx_t f=0; f < nfactors; ++f) {
+          vbuf[f + (i*nfactors)] = full_factor->vals[f+(gi*nfactors)];
+        }
+      }
+
+      /* send to rank p */
+      MPI_Send(vbuf, nrows * nfactors, SPLATT_MPI_VAL, p, 3, rinfo->comm_3d);
+    }
+
+    mat_free(full_factor);
+    splatt_free(loc_perm);
+    splatt_free(vbuf);
+
+  /* other ranks just send/recv */
+  } else {
+    /* send permutation info to root */
+    MPI_Send(&(rinfo->layer_starts[mode]), 1, SPLATT_MPI_IDX, 0, 0, rinfo->comm_3d);
+    MPI_Send(&localdim, 1, SPLATT_MPI_IDX, 0, 1, rinfo->comm_3d);
+    MPI_Send(perm->iperms[mode] + rinfo->mat_start[mode], localdim,
+        SPLATT_MPI_IDX, 0, 2, rinfo->comm_3d);
+
+    /* receive factor */
+    MPI_Recv(mymat->vals, mymat->I * mymat->J, SPLATT_MPI_VAL, 0, 3,
+        rinfo->comm_3d, &status);
+  }
+
+  return mymat;
+}
+
+
+sptensor_t * mpi_rearrange_by_part(
+  sptensor_t const * const ttbuf,
+  int const * const parts,
+  MPI_Comm comm)
+{
+  int rank, npes;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &npes);
+
+  /* count how many to send to each process */
+  int * nsend = calloc(npes, sizeof(*nsend));
+  int * nrecv = calloc(npes, sizeof(*nrecv));
+  for(idx_t n=0; n < ttbuf->nnz; ++n) {
+    nsend[parts[n]] += 1;
+  }
+  MPI_Alltoall(nsend, 1, MPI_INT, nrecv, 1, MPI_INT, comm);
+
+  idx_t send_total = 0;
+  idx_t recv_total = 0;
+  for(int p=0; p < npes; ++p) {
+    send_total += nsend[p];
+    recv_total += nrecv[p];
+  }
+  assert(send_total = ttbuf->nnz);
+
+  /* how many nonzeros I'll own */
+  idx_t const nowned = recv_total;
+
+  int * send_disp = splatt_malloc((npes+1) * sizeof(*send_disp));
+  int * recv_disp = splatt_malloc((npes+1) * sizeof(*recv_disp));
+
+  /* recv_disp is const so we'll just fill it out once */
+  recv_disp[0] = 0;
+  for(int p=1; p <= npes; ++p) {
+    recv_disp[p] = recv_disp[p-1] + nrecv[p-1];
+  }
+
+  /* allocate my tensor and send buffer */
+  sptensor_t * tt = tt_alloc(nowned, ttbuf->nmodes);
+  idx_t * isend_buf = splatt_malloc(ttbuf->nnz * sizeof(*isend_buf));
+
+  /* rearrange into sendbuf and send one mode at a time */
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+    /* prefix sum to make disps */
+    send_disp[0] = send_disp[1] = 0;
+    for(int p=2; p <= npes; ++p) {
+      send_disp[p] = send_disp[p-1] + nsend[p-2];
+    }
+
+    idx_t const * const ind = ttbuf->ind[m];
+    for(idx_t n=0; n < ttbuf->nnz; ++n) {
+      idx_t const index = send_disp[parts[n]+1]++;
+      isend_buf[index] = ind[n];
+    }
+
+    /* exchange indices */
+    MPI_Alltoallv(isend_buf, nsend, send_disp, SPLATT_MPI_IDX,
+                  tt->ind[m], nrecv, recv_disp, SPLATT_MPI_IDX,
+                  comm);
+  }
+  splatt_free(isend_buf);
+
+  /* lastly, rearrange vals */
+  val_t * vsend_buf = splatt_malloc(ttbuf->nnz * sizeof(*vsend_buf));
+  send_disp[0] = send_disp[1] = 0;
+  for(int p=2; p <= npes; ++p) {
+    send_disp[p] = send_disp[p-1] + nsend[p-2];
+  }
+
+  val_t const * const vals = ttbuf->vals;
+  for(idx_t n=0; n < ttbuf->nnz; ++n) {
+    idx_t const index = send_disp[parts[n]+1]++;
+    vsend_buf[index] = vals[n];
+  }
+  /* exchange vals */
+  MPI_Alltoallv(vsend_buf, nsend, send_disp, SPLATT_MPI_VAL,
+                tt->vals,  nrecv, recv_disp, SPLATT_MPI_VAL,
+                comm);
+  splatt_free(vsend_buf);
+  splatt_free(send_disp);
+  splatt_free(recv_disp);
+
+  /* allocated with calloc */
+  free(nsend);
+  free(nrecv);
+
+  return tt;
+}
+
+
+int mpi_determine_med_owner(
+  sptensor_t * const ttbuf,
+  idx_t const n,
+  rank_info * const rinfo)
+{
+  int coords[MAX_NMODES];
+
+  assert(rinfo->decomp == SPLATT_DECOMP_MEDIUM);
+
+  /* determine the coordinates of the owner rank */
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+    idx_t const id = ttbuf->ind[m][n];
+    /* silly linear scan over each layer.
+     * TODO: do a binary search */
+    for(int l=0; l <= rinfo->dims_3d[m]; ++l) {
+      if(id < rinfo->layer_ptrs[m][l]) {
+        coords[m] = l-1;
+        break;
+      }
+    }
+  }
+
+  /* translate that to an MPI rank */
+  int owner;
+  MPI_Cart_rank(rinfo->comm_3d, coords, &owner);
+  return owner;
+}
+
 
 

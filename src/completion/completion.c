@@ -125,7 +125,16 @@ val_t tc_rmse(
     tc_model const * const model,
     tc_ws * const ws)
 {
+#ifdef SPLATT_USE_MPI
+  val_t loss = tc_loss_sq(test, model, ws);
+
+  idx_t global_nnz = test->nnz;
+  MPI_Allreduce(MPI_IN_PLACE, &global_nnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+      ws->rinfo->comm_3d);
+  return sqrt(loss / global_nnz);
+#else
   return sqrt(tc_loss_sq(test, model, ws) / test->nnz);
+#endif
 }
 
 
@@ -157,7 +166,17 @@ val_t tc_mae(
     }
   }
 
+#ifdef SPLATT_USE_MPI
+  MPI_Allreduce(MPI_IN_PLACE, &loss_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
+      ws->rinfo->comm_3d);
+  idx_t nnz = test->nnz;
+  MPI_Allreduce(MPI_IN_PLACE, &nnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+      ws->rinfo->comm_3d);
+
+  return loss_obj / nnz;
+#else
   return loss_obj / test->nnz;
+#endif
 }
 
 
@@ -190,6 +209,11 @@ val_t tc_loss_sq(
     }
   }
 
+#ifdef SPLATT_USE_MPI
+  MPI_Allreduce(MPI_IN_PLACE, &loss_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
+      ws->rinfo->comm_3d);
+#endif
+
   return loss_obj;
 }
 
@@ -205,18 +229,28 @@ val_t tc_frob_sq(
 
   #pragma omp parallel reduction(+:reg_obj)
   {
-
     for(idx_t m=0; m < model->nmodes; ++m) {
       val_t accum = 0;
+#ifdef SPLATT_USE_MPI
+      idx_t const nrows = model->globmats[m]->I;
+      val_t const * const restrict mat = model->globmats[m]->vals;
+#else
+      idx_t const nrows = model->dims[m];
       val_t const * const restrict mat = model->factors[m];
+#endif
 
       #pragma omp for schedule(static) nowait
-      for(idx_t x=0; x < model->dims[m] * nfactors; ++x) {
+      for(idx_t x=0; x < nrows * nfactors; ++x) {
         accum += mat[x] * mat[x];
       }
       reg_obj += ws->regularization[m] * accum;
     }
   } /* end omp parallel */
+
+#ifdef SPLATT_USE_MPI
+  MPI_Allreduce(MPI_IN_PLACE, &reg_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
+      ws->rinfo->comm_3d);
+#endif
 
   assert(reg_obj > 0);
   return reg_obj;
@@ -318,7 +352,7 @@ tc_model * tc_model_alloc(
   for(idx_t m=0; m < train->nmodes; ++m) {
     model->dims[m] = train->dims[m];
 
-    idx_t const bytes = model->dims[m] * rank * sizeof(**(model->factors));
+    size_t const bytes = model->dims[m] * rank * sizeof(**(model->factors));
     model->factors[m] = splatt_malloc(bytes);
     fill_rand(model->factors[m], model->dims[m] * rank);
   }
@@ -353,6 +387,10 @@ void tc_model_free(
 {
   for(idx_t m=0; m < model->nmodes; ++m) {
     splatt_free(model->factors[m]);
+
+#ifdef SPLATT_USE_MPI
+    mat_free(model->globmats[m]);
+#endif
   }
 
   splatt_free(model);
@@ -464,6 +502,13 @@ tc_ws * tc_ws_alloc(
 
   ws->best_model = tc_model_copy(model);
 
+#ifdef SPLATT_USE_MPI
+  ws->nbr2globs_buf  = NULL;
+  ws->nbr2globs_buf2 = NULL;
+  ws->local2nbr_buf  = NULL;
+  ws->local2nbr_buf2 = NULL;
+#endif
+
   return ws;
 }
 
@@ -472,9 +517,19 @@ void tc_ws_free(
     tc_ws * ws)
 {
   thd_free(ws->thds, ws->nthreads);
-  tc_model_free(ws->best_model);
   splatt_free(ws->numerator);
   splatt_free(ws->denominator);
+
+#ifdef SPLATT_USE_MPI
+  splatt_free(ws->nbr2globs_buf);
+  splatt_free(ws->nbr2globs_buf2);
+  splatt_free(ws->local2nbr_buf);
+  splatt_free(ws->local2nbr_buf2);
+  rank_free(*(ws->rinfo), ws->best_model->nmodes);
+#endif
+
+  tc_model_free(ws->best_model);
+
   splatt_free(ws);
 }
 
@@ -489,14 +544,44 @@ bool tc_converge(
     tc_ws * const ws)
 {
   val_t const obj = loss + frobsq;
+#ifdef SPLATT_USE_MPI
+  val_t const train_rmse = sqrt(loss / ws->rinfo->global_nnz);
+#else
   val_t const train_rmse = sqrt(loss / train->nnz);
-
-  val_t const val_rmse = tc_rmse(validate, model, ws);
+#endif
 
   timer_stop(&ws->tc_time);
+#ifdef SPLATT_USE_MPI
+  val_t const val_rmse = 0;
+  if(ws->rinfo->rank == 0) {
+    p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
+  }
+#else
+  val_t const val_rmse = tc_rmse(validate, model, ws);
   p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
+#endif
 
+  /* TODO: make this not terrible */
   bool converged = false;
+#ifdef SPLATT_USE_MPI
+  if(train_rmse - ws->best_rmse < -(ws->tolerance)) {
+    ws->nbadepochs = 0;
+    ws->best_rmse = train_rmse;
+    ws->best_epoch = epoch;
+
+    /* save the best model */
+    for(idx_t m=0; m < model->nmodes; ++m) {
+      par_memcpy(ws->best_model->factors[m], model->factors[m],
+          model->dims[m] * model->rank * sizeof(**(model->factors)));
+      /* TODO copy globmats too */
+    }
+  } else {
+    ++ws->nbadepochs;
+    if(ws->nbadepochs == ws->max_badepochs) {
+      converged = true;
+    }
+  }
+#else
   if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
     ws->nbadepochs = 0;
     ws->best_rmse = val_rmse;
@@ -506,6 +591,7 @@ bool tc_converge(
     for(idx_t m=0; m < model->nmodes; ++m) {
       par_memcpy(ws->best_model->factors[m], model->factors[m],
           model->dims[m] * model->rank * sizeof(**(model->factors)));
+      /* TODO copy globmats too */
     }
   } else {
     ++ws->nbadepochs;
@@ -513,6 +599,7 @@ bool tc_converge(
       converged = true;
     }
   }
+#endif
 
   /* check for time limit */
   if(ws->max_seconds > 0 && ws->tc_time.seconds >= ws->max_seconds) {
@@ -524,6 +611,121 @@ bool tc_converge(
   }
   return converged;
 }
+
+
+
+
+/******************************************************************************
+ * MPI FUNCTIONS
+ *****************************************************************************/
+
+#ifdef SPLATT_USE_MPI
+
+
+int mpi_tc_distribute_med(
+    char const * const train_fname,
+    char const * const validate_fname,
+    idx_t const * const dims,
+    sptensor_t * * train_out,
+    sptensor_t * * validate_out,
+    rank_info * const rinfo)
+{
+  /* defaults if not otherwise specified */
+  if(dims == NULL) {
+    rinfo->decomp = DEFAULT_MPI_DISTRIBUTION;
+    for(idx_t m=0; m < MAX_NMODES; ++m) {
+      rinfo->dims_3d[m] = 1;
+    }
+  } else {
+    rinfo->decomp = SPLATT_DECOMP_MEDIUM;
+    for(idx_t m=0; m < MAX_NMODES; ++m) {
+      rinfo->dims_3d[m] = dims[m];
+    }
+  }
+
+  /* distribute training tensor with a medium-grained decomposition */
+  sptensor_t * train = mpi_tt_read(train_fname, NULL, rinfo);
+  *train_out = train;
+  if(train == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
+
+  /* simple distribution for validate tensor...we will redistribute to match
+   * training distribution */
+  sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, MPI_COMM_WORLD);
+  if(val_tmp == NULL) {
+    tt_free(train);
+    *train_out = NULL;
+    return SPLATT_ERROR_BADINPUT;
+  }
+
+  int * parts = splatt_malloc(val_tmp->nnz * sizeof(*parts));
+  #pragma omp parallel for schedule(static)
+  for(idx_t n=0; n < val_tmp->nnz; ++n) {
+    parts[n] = mpi_determine_med_owner(val_tmp, n, rinfo);
+  }
+
+  /* rearrange validation nonzeros */
+  sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,rinfo->comm_3d);
+  *validate_out = validate;
+  tt_free(val_tmp);
+  splatt_free(parts);
+
+  /* now map validation indices to layer coordinates and fill in dims */
+  #pragma omp parallel
+  {
+    for(idx_t m=0; m < validate->nmodes; ++m) {
+      #pragma omp master
+      validate->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+
+      #pragma omp for schedule(static) nowait
+      for(idx_t n=0; n < validate->nnz; ++n) {
+        assert(validate->ind[m][n] >= rinfo->layer_starts[m]);
+        assert(validate->ind[m][n] < rinfo->layer_ends[m]);
+        validate->ind[m][n] -= rinfo->layer_starts[m];
+      }
+    }
+  } /* omp parallel */
+
+  return SPLATT_SUCCESS;
+}
+
+
+tc_model * mpi_tc_model_alloc(
+    sptensor_t const * const train,
+    idx_t const rank,
+    splatt_tc_type const which,
+    permutation_t const * const perm,
+    rank_info * const rinfo)
+{
+  tc_model * model = splatt_malloc(sizeof(*model));
+
+  model->which = which;
+  model->rank = rank;
+  model->nmodes = train->nmodes;
+  for(idx_t m=0; m < train->nmodes; ++m) {
+    /* just allocate local factors */
+    model->dims[m] = train->dims[m];
+    model->factors[m] = splatt_malloc(model->dims[m] * rank *
+        sizeof(**model->factors));
+
+    /* use mpi_mat_rand() to get consistent initializations across runs with
+     * different numbers of MPI ranks */
+    model->globmats[m] = mpi_mat_rand(m, rank, perm, rinfo);
+  }
+
+  return model;
+}
+
+
+
+
+#endif
+
+
+
+
+
 
 
 

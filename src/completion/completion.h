@@ -11,6 +11,10 @@
 #include "../sptensor.h"
 #include "../timer.h"
 
+#ifdef SPLATT_USE_MPI
+#include "../splatt_mpi.h"
+#endif
+
 
 #define ALS_BUFSIZE 2048
 
@@ -55,6 +59,10 @@ typedef struct
 
   idx_t dims[MAX_NMODES];
   val_t * factors[MAX_NMODES];
+
+#ifdef SPLATT_USE_MPI
+  matrix_t * globmats[MAX_NMODES];
+#endif
 } tc_model;
 
 
@@ -94,6 +102,16 @@ typedef struct
   idx_t best_epoch;
   val_t best_rmse;
   tc_model * best_model;
+
+#ifdef SPLATT_USE_MPI
+  rank_info * rinfo;
+
+  /* send/recv buffers */
+  val_t * nbr2globs_buf;
+  val_t * nbr2globs_buf2;
+  val_t * local2nbr_buf;
+  val_t * local2nbr_buf2;
+#endif
 } tc_ws;
 
 
@@ -361,5 +379,26 @@ bool tc_converge(
     idx_t const epoch,
     tc_ws * const ws);
 
+
+
+#ifdef SPLATT_USE_MPI
+
+int mpi_tc_distribute_med(
+    char const * const train_fname,
+    char const * const validate_fname,
+    idx_t const * const dims,
+    sptensor_t * * train_out,
+    sptensor_t * * validate_out,
+    rank_info * const rinfo);
+
+
+tc_model * mpi_tc_model_alloc(
+    sptensor_t const * const train,
+    idx_t const rank,
+    splatt_tc_type const which,
+    permutation_t const * const perm,
+    rank_info * const rinfo);
+
+#endif
 
 #endif

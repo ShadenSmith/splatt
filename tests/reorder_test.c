@@ -45,7 +45,7 @@ CTEST2(reorder, shuffle)
     }
 
     /* arbitrary */
-    if(same > 10) {
+    if(same > 5) {
       ASSERT_FAIL();
     }
 

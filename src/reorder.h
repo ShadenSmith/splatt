@@ -122,6 +122,19 @@ permutation_t * perm_rand(
   sptensor_t * const tt);
 
 
+
+#define shuffle_idx splatt_shuffle_idx
+/**
+* @brief Randomly shuffle a random list of idx_t.
+*
+* @param arr The array to shuffle.
+* @param N The length or 'arr'.
+*/
+void shuffle_idx(
+    idx_t * const arr,
+    idx_t const N);
+
+
 #define perm_hgraph splatt_perm_hgraph
 permutation_t * perm_hgraph(
   sptensor_t * const tt,
