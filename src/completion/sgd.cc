@@ -407,10 +407,22 @@ static inline void p_update_model_csf3(
       /* update model */
       for(idx_t f=0; f < nfactors; ++f) {
         /* compute all modifications FIRST since we are updating all rows */
+#define SPLATT_UPDATE_MLOGM
+#ifdef SPLATT_UPDATE_MLOGM
         double a = loss*arow[f];
         val_t const moda = (loss * brow[f] * crow[f]) - (areg * arow[f]);
         val_t const modb = (a * crow[f]) - (breg * brow[f]);
         val_t const modc = (a * brow[f]) - (creg * crow[f]);
+#elif defined(SPLATT_UPDATE_M)
+        double prod = loss*arow[f]*brow[f]*crow[f];
+        val_t const moda = (prod/arow[f]) - (areg * arow[f]);
+        val_t const modb = (prod/brow[f]) - (breg * brow[f]);
+        val_t const modc = (prod/crow[f]) - (creg * crow[f]);
+#else
+        val_t const moda = (loss * brow[f] * crow[f]) - (areg * arow[f]);
+        val_t const modb = (loss * arow[f] * crow[f]) - (breg * brow[f]);
+        val_t const modc = (loss * arow[f] * brow[f]) - (creg * crow[f]);
+#endif
         arow[f] += rate * moda;
         brow[f] += rate * modb;
         crow[f] += rate * modc;
@@ -476,12 +488,25 @@ static inline void p_update_model_csf4(
         /* update model */
         for(idx_t f=0; f < nfactors; ++f) {
           /* compute all modifications FIRST since we are updating all rows */
+#ifdef SPLATT_UPDATE_MLOGM
           double ab = loss*arow[f]*brow[f];
           double cd = loss*crow[f]*drow[f];
           val_t const moda = (brow[f] * cd) - (areg * arow[f]);
           val_t const modb = (arow[f] * cd) - (breg * brow[f]);
           val_t const modc = (ab * drow[f]) - (creg * crow[f]);
           val_t const modd = (ab * crow[f]) - (dreg * drow[f]);
+#elif defined(SPLATT_UPDATE_M)
+          double prod = loss*arow[f]*brow[f]*crow[f]*drow[f];
+          val_t const moda = (prod/arow[f]) - (areg * arow[f]);
+          val_t const modb = (prod/brow[f]) - (breg * brow[f]);
+          val_t const modc = (prod/crow[f]) - (creg * crow[f]);
+          val_t const modd = (prod/drow[f]) - (dreg * drow[f]);
+#else
+          val_t const moda = (loss * brow[f] * crow[f] * drow[f]) - (areg * arow[f]);
+          val_t const modb = (loss * arow[f] * crow[f] * drow[f]) - (breg * brow[f]);
+          val_t const modc = (loss * arow[f] * brow[f] * drow[f]) - (creg * crow[f]);
+          val_t const modd = (loss * arow[f] * brow[f] * crow[f]) - (dreg * drow[f]);
+#endif
           arow[f] += rate * moda;
           brow[f] += rate * modb;
           crow[f] += rate * modc;
@@ -556,6 +581,7 @@ static inline void p_update_model_csf5(
           /* update model */
           for(idx_t f=0; f < nfactors; ++f) {
             /* compute all modifications FIRST since we are updating all rows */
+#ifdef SPLATT_UPDATE_MLOGM
             double ab = loss*arow[f]*brow[f];
             double abc = ab*crow[f];
             double de_temp = drow[f]*erow[f];
@@ -565,6 +591,21 @@ static inline void p_update_model_csf5(
             val_t const modc = (ab * de_temp) - (creg * crow[f]);
             val_t const modd = (abc * erow[f]) - (dreg * drow[f]);
             val_t const mode = (abc * drow[f]) - (dreg * erow[f]);
+#elif defined(SPLATT_UPDATE_M)
+            double prod = loss*arow[f]*brow[f]*crow[f]*drow[f]*erow[f];
+            val_t const moda = (prod/arow[f]) - (areg * arow[f]);
+            val_t const modb = (prod/brow[f]) - (breg * brow[f]);
+            val_t const modc = (prod/crow[f]) - (creg * crow[f]);
+            val_t const modd = (prod/drow[f]) - (dreg * drow[f]);
+            val_t const mode = (prod/erow[f]) - (dreg * erow[f]);
+#else
+            val_t const moda = (loss * brow[f] * crow[f] * drow[f] * erow[f]) - (areg * arow[f]);
+            val_t const modb = (loss * arow[f] * crow[f] * drow[f] * erow[f]) - (breg * brow[f]);
+            val_t const modc = (loss * arow[f] * brow[f] * drow[f] * erow[f]) - (creg * crow[f]);
+            val_t const modd = (loss * arow[f] * brow[f] * crow[f] * erow[f]) - (dreg * drow[f]);
+            val_t const mode = (loss * arow[f] * brow[f] * crow[f] * drow[f]) - (dreg * erow[f]);
+#endif
+
             arow[f] += rate * moda;
             brow[f] += rate * modb;
             crow[f] += rate * modc;
@@ -649,6 +690,7 @@ static inline void p_update_model_csf6(
             for(idx_t f=0; f < nfactors; ++f) {
               /* compute all modifications FIRST since we are updating all rows */
 
+#ifdef SPLATT_UPDATE_MLOGM
               double ab = loss*arow[f]*brow[f];
               double cd = crow[f]*drow[f];
               double ef = erow[f]*frow[f];
@@ -663,6 +705,22 @@ static inline void p_update_model_csf6(
               val_t const modd = (abef * crow[f]) - (dreg * drow[f]);
               val_t const mode = (abcd * frow[f]) - (dreg * erow[f]);
               val_t const modf = (abcd * erow[f]) - (dreg * frow[f]);
+#elif defined(SPLATT_UPDATE_M)
+              val_t prod = loss*arow[f]*brow[f]*crow[f]*drow[f]*erow[f]*frow[f];
+              val_t const moda = (prod/arow[f]) - (areg * arow[f]);
+              val_t const modb = (prod/brow[f]) - (breg * brow[f]);
+              val_t const modc = (prod/crow[f]) - (creg * crow[f]);
+              val_t const modd = (prod/drow[f]) - (dreg * drow[f]);
+              val_t const mode = (prod/erow[f]) - (dreg * erow[f]);
+              val_t const modf = (prod/frow[f]) - (dreg * frow[f]);
+#else
+              val_t const moda = (loss * brow[f] * crow[f] * drow[f] * erow[f] * frow[f]) - (areg * arow[f]);
+              val_t const modb = (loss * arow[f] * crow[f] * drow[f] * erow[f] * frow[f]) - (breg * brow[f]);
+              val_t const modc = (loss * arow[f] * brow[f] * erow[f] * frow[f] * drow[f]) - (creg * crow[f]);
+              val_t const modd = (loss * arow[f] * brow[f] * erow[f] * frow[f] * crow[f]) - (dreg * drow[f]);
+              val_t const mode = (loss * arow[f] * brow[f] * crow[f] * drow[f] * frow[f]) - (dreg * erow[f]);
+              val_t const modf = (loss * arow[f] * brow[f] * crow[f] * drow[f] * erow[f]) - (dreg * frow[f]);
+#endif
               arow[f] += rate * moda;
               brow[f] += rate * modb;
               crow[f] += rate * modc;
@@ -2550,7 +2608,7 @@ void splatt_tc_sgd(
       maximum_stratum_total /= e;
       avg_total += avg_stratum_total;
       maximum_total += maximum_stratum_total;
-      printf("stratum %d avg_time %g max_time %g load_imbalance %g\n", s, avg_stratum_total, maximum_stratum_total, maximum_stratum_total/avg_stratum_total);
+      //printf("stratum %d avg_time %g max_time %g load_imbalance %g\n", s, avg_stratum_total, maximum_stratum_total, maximum_stratum_total/avg_stratum_total);
     }
     printf("total load_imbalance %g\n", maximum_total/avg_total);
   }
