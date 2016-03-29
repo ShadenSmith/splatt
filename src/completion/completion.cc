@@ -108,12 +108,11 @@ static void p_print_progress(
     idx_t const epoch,
     val_t const loss,
     val_t const rmse_tr,
-    val_t const rmse_vl,
     tc_ws const * const ws)
 {
   printf("epoch:%4ld   loss: %0.5e   "
-      "RMSE-tr: %0.5e   RMSE-vl: %0.5e   time: %0.3fs\n",
-      epoch, loss, rmse_tr, rmse_vl, ws->tc_time.seconds);
+      "RMSE-tr: %0.5e   time: %0.3fs\n",
+      epoch, loss, rmse_tr, ws->tc_time.seconds);
 }
 
 
@@ -559,18 +558,19 @@ bool tc_converge(
   val_t const train_rmse = sqrt(loss / ws->nnz);
 #endif
 
-  val_t const val_rmse = tc_rmse(validate, model, ws);
+  //val_t const val_rmse = tc_rmse(validate, model, ws);
 
   timer_stop(&ws->tc_time);
 #ifdef SPLATT_USE_MPI
   if(ws->rinfo->rank == 0) {
-    p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
+    p_print_progress(epoch, loss, train_rmse, ws);
   }
 #else
-  p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
+  p_print_progress(epoch, loss, train_rmse, ws);
 #endif
 
   bool converged = false;
+#if 0
   if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
     ws->nbadepochs = 0;
     ws->best_rmse = val_rmse;
@@ -592,6 +592,7 @@ bool tc_converge(
       converged = true;
     }
   }
+#endif
 
   /* check for time limit */
   if(ws->max_seconds > 0 && ws->tc_time.seconds >= ws->max_seconds) {

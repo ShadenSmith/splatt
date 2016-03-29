@@ -33,7 +33,6 @@ do {\
 } while(0)
 
 
-
 /******************************************************************************
  * TYPES
  *****************************************************************************/
@@ -105,11 +104,8 @@ typedef struct
 
   bool rand_per_iteration;
   bool hogwild;
+  bool csf;
   idx_t folds;
-
-  sptensor_t **tiles;
-  sptensor_t *external_tile;
-  sptensor_t *external_validate;
 
 #ifdef SPLATT_USE_MPI
   rank_info *rinfo;

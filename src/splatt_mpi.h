@@ -300,13 +300,30 @@ sptensor_t * mpi_simple_distribute(
 *
 * @param ttbuf The nonzeros to rearrange.
 * @param parts The partitioning of length ttbuf->nnz.
-* @param rinfo The communicator to rearrange along.
+* @param comm The communicator to rearrange along.
 *
 * @return A new rearranged tensor.
 */
 sptensor_t * mpi_rearrange_by_part(
   sptensor_t const * const ttbuf,
   int const * const parts,
+  MPI_Comm comm);
+
+
+#define mpi_rearrange_by_rinfo splatt_mpi_rearrange_by_rinfo
+/**
+* @brief Rearrange nonzeros based on rinfo->layer_ptrs. This allocates
+*        and returns a new sptensor_t.
+*
+* @param ttbuf The nonzeros to rearrange.
+* @param rinfo The partitioning of tensor specified by rinfo->layer_ptrs.
+* @param comm  The communicator to rearrange along.
+*
+* @return A new rearranged tensor.
+*/
+sptensor_t * mpi_rearrange_by_rinfo(
+  sptensor_t const * const ttbuf,
+  rank_info const * const rinfo,
   MPI_Comm comm);
 
 

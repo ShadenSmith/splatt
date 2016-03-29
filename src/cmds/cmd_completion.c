@@ -7,6 +7,7 @@
 #include "../sptensor.h"
 #include "../completion/completion.h"
 #include "../stats.h"
+#include <math.h>
 #include <omp.h>
 
 
@@ -35,23 +36,23 @@ static char tc_doc[] =
 #define TC_INNER 250
 #define TC_NORAND_PER_ITERATION 249
 #define TC_HOGWILD 248
-#define TC_FOLD 247
+#define TC_CSF 247
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
-  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 16)"},
+  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   {"alg", 'a', "ALG", 0, "which opt algorithm to use (default: sgd)"},
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD (default 0.001)"},
-  {"reg", TC_REG, "SIZE", 0, "regularization parameter (default 0.02)"},
+  {"reg", TC_REG, "SIZE", 0, "regularization parameter (default CCD/ALS 0.2 SGD 0.005 GD/NLCG/LBFGS 0.01)"},
   {"inner", TC_INNER, "NITERS", 0, "number of inner iterations to use during CCD++ (default: 1)"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
   {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
   {"tol", TC_TOL, "TOLERANCE", 0, "converge if RMSE-vl has not improved by TOLERANCE in 20 epochs (default: 1e-4)"},
   {"norand", TC_NORAND_PER_ITERATION, 0, 0, "do not randomly permute every iteration for SGD"},
   {"hogwild", TC_HOGWILD, 0, 0, "hogwild for SGD (default no)"},
-  {"folds", TC_FOLD, "FOLDS", 0, "folds per epoch (default 1)"},
+  {"csf", TC_CSF, 0, 0, "CSF for SGD (default no)"},
   {0}
 };
 
@@ -126,7 +127,7 @@ typedef struct
 
   bool rand_per_iteration;
   bool hogwild;
-  idx_t folds;
+  bool csf;
 } tc_cmd_args;
 
 
@@ -157,7 +158,7 @@ static void default_tc_opts(
   args->num_inner = 1;
   args->rand_per_iteration = true;
   args->hogwild = false;
-  args->folds = 1;
+  args->csf = false;
 }
 
 
@@ -227,8 +228,9 @@ static error_t parse_tc_opt(
   case TC_HOGWILD:
     args->hogwild = true;
     break;
-  case TC_FOLD:
-    args->folds = atoi(arg);
+  case TC_CSF:
+    args->csf = true;
+    break;
 
   case ARGP_KEY_ARG:
     if(args->nfiles == 3) {
@@ -333,7 +335,7 @@ int splatt_tc_cmd(
   print_header();
 #endif
 
-  srand(args.seed);
+  srand(args.seed + rinfo.rank);
 
 #ifdef SPLATT_USE_MPI
   /* decompose train tensor into px1x1 */
@@ -346,82 +348,29 @@ int splatt_tc_cmd(
     rinfo.layer_starts[m] = 0;
   }
 
+  double t = omp_get_wtime();
   sptensor_t * train = mpi_tt_read(args.ifnames[0], NULL, &rinfo);
+  if(rinfo.rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
+  t = omp_get_wtime();
 
   /* decompose validate tensor with the same partitioning used for train */
-  sptensor_t *validate = NULL;
-  idx_t global_validate_nnz = 0;
-  {
-    FILE *fin;
-    if ((fin = fopen(args.ifnames[1], "r")) == NULL) {
-      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", args.ifnames[1]);
-      return SPLATT_ERROR_BADINPUT;
-    }
+  timer_start(&timers[TIMER_IO]);
+  sptensor_t * validate_buf = mpi_simple_distribute(args.ifnames[1], MPI_COMM_WORLD);
+  sptensor_t * validate = mpi_rearrange_by_rinfo(validate_buf, &rinfo, MPI_COMM_WORLD);
+  tt_free(validate_buf);
+  if(rinfo.rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
 
-    timer_start(&timers[TIMER_IO]);
+  validate->dims[0] = rinfo.layer_ends[0] - rinfo.layer_starts[0];
 
-    /* first count nnz in tensor */
-    idx_t nnz = 0;
-    idx_t nmodes = 0;
-
-    idx_t dims[MAX_NMODES];
-    tt_get_layer_dims(fin, &nmodes, &nnz, dims, &rinfo);
-
-    if(nmodes > MAX_NMODES) {
-      fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
-                      "Found %"SPLATT_PF_IDX". Please recompile with "
-                      "MAX_NMODES=%"SPLATT_PF_IDX".\n",
-              MAX_NMODES, nmodes, nmodes);
-      return SPLATT_ERROR_BADINPUT;
-    }
-
-    /* allocate structures */
-    validate = tt_alloc(nnz, nmodes);
-    memcpy(validate->dims, dims, nmodes * sizeof(*dims));
-
-    char * line = NULL;
-    int64_t read;
-    size_t len = 0;
-
-    /* fill in tensor data */
-    rewind(fin);
-    nnz = 0;
-    while((read = getline(&line, &len, fin)) != -1) {
-      /* skip empty and commented lines */
-      if(read > 1 && line[0] != '#') {
-        char *ptr = line;
-
-        bool skip = false;
-        for(idx_t m=0; m < nmodes; ++m) {
-          idx_t ind = strtoull(ptr, &ptr, 10) - 1;
-          if(0 == m) {
-            if(ind < rinfo.layer_starts[0] || ind >= rinfo.layer_ends[0]) {
-              skip = true;
-            }
-            else {
-              validate->ind[m][nnz] = ind - rinfo.layer_starts[0];
-            }
-          }
-          else if (!skip) {
-            validate->ind[m][nnz] = ind;
-          }
-        }
-        val_t val = strtod(ptr, &ptr);
-        if (!skip) {
-          validate->vals[nnz++] = val;
-          assert(nnz <= validate->nnz);
-        }
-      }
-    }
-
-    free(line);
-
-    global_validate_nnz = validate->nnz;
-    MPI_Allreduce(MPI_IN_PLACE, &global_validate_nnz, 1, SPLATT_MPI_IDX, MPI_SUM, MPI_COMM_WORLD);
-
-    timer_stop(&timers[TIMER_IO]);
-    fclose(fin);
+#pragma omp parallel for
+  for(idx_t n=0; n < validate->nnz; ++n) {
+    validate->ind[0][n] -= rinfo.layer_starts[0];
   }
+
+  idx_t global_validate_nnz = validate->nnz;
+  MPI_Allreduce(MPI_IN_PLACE, &global_validate_nnz, 1, SPLATT_MPI_IDX, MPI_SUM, MPI_COMM_WORLD);
+  timer_stop(&timers[TIMER_IO]);
+
 #else
   sptensor_t * train = tt_read(args.ifnames[0]);
   sptensor_t * validate = tt_read(args.ifnames[1]);
@@ -443,6 +392,13 @@ int splatt_tc_cmd(
 
   /* allocate model + workspace */
   tc_model * model = tc_model_alloc(train, args.nfactors, args.which_alg);
+  /* scale initial model values by 1/sqrt(nfactors) */
+  /*val_t scale = 1/sqrt(model->rank);
+  for(int m=0; m < model->nmodes; ++m) {
+    for(idx_t i=0; i < model->dims[m]*model->rank; ++i) {
+      model->factors[m][i] *= scale;
+    }
+  }*/
   omp_set_num_threads(args.nthreads);
   tc_ws * ws = tc_ws_alloc(train, model, args.nthreads);
 
@@ -467,7 +423,7 @@ int splatt_tc_cmd(
   ws->num_inner = args.num_inner;
   ws->rand_per_iteration = args.rand_per_iteration;
   ws->hogwild = args.hogwild;
-  ws->folds = args.folds;
+  ws->csf = args.csf;
 
 #ifdef SPLATT_USE_MPI
   if(rinfo.rank==0) {
@@ -486,8 +442,13 @@ int splatt_tc_cmd(
   } else {
     printf("SEED=time ");
   }
+#ifdef SPLATT_USE_MPI
+  printf("RANKS=%d THREADS=%"SPLATT_PF_IDX"\nSTEP=%0.3e REG=%0.3e\n",
+       rinfo.npes, ws->nthreads, ws->learn_rate, ws->regularization[0]);
+#else
   printf("THREADS=%"SPLATT_PF_IDX"\nSTEP=%0.3e REG=%0.3e\n",
        ws->nthreads, ws->learn_rate, ws->regularization[0]);
+#endif
   printf("VALIDATION=%s\n", args.ifnames[1]);
   if(args.ifnames[2] != NULL) {
     printf("TEST=%s\n", args.ifnames[2]);
@@ -512,13 +473,13 @@ int splatt_tc_cmd(
   case SPLATT_TC_SGD:
 #ifdef SPLATT_USE_MPI
     if(rinfo.rank==0) {
-      printf("ALG=SGD rand_per_iteration=%d hogwild=%d folds=%ld\n\n", ws->rand_per_iteration, ws->hogwild, ws->folds);
+      printf("ALG=SGD rand_per_iteration=%d hogwild=%d csf=%d\n\n", ws->rand_per_iteration, ws->hogwild, ws->csf);
     }
     ws->rinfo = &rinfo;
     ws->global_validate_nnz = global_validate_nnz;
     splatt_tc_sgd(train, validate, model, ws);
 #else
-    printf("ALG=SGD rand_per_iteration=%d hogwild=%d folds=%ld\n\n", ws->rand_per_iteration, ws->hogwild, ws->folds);
+    printf("ALG=SGD rand_per_iteration=%d hogwild=%d csf=%d\n\n", ws->rand_per_iteration, ws->hogwild, ws->csf);
     splatt_tc_sgd(train, validate, model, ws);
 #endif
     break;
@@ -539,9 +500,15 @@ int splatt_tc_cmd(
 #ifdef SPLATT_USE_MPI
   double mae = tc_mae(validate, ws->best_model, ws);
   if(rinfo.rank == 0) {
-    printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", ws->global_validate_nnz);
-    printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
-        ws->best_rmse, mae, ws->best_epoch);
+    //printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", ws->global_validate_nnz);
+    //printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
+        //ws->best_rmse, mae, ws->best_epoch);
+  }
+  splatt_free(rinfo.send_reqs);
+  splatt_free(rinfo.recv_reqs);
+  splatt_free(rinfo.stats);
+  for(idx_t m=0; m < nmodes; ++m) {
+    splatt_free(rinfo.layer_ptrs[m]);
   }
 #else
   printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);

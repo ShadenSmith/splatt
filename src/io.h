@@ -10,6 +10,10 @@
 #include "graph.h"
 #include "reorder.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /**
 * @brief Open a file.
@@ -283,5 +287,9 @@ idx_t * part_read(
   char const * const ifname,
   idx_t const nvtxs,
   idx_t * nparts);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
