@@ -16,9 +16,11 @@
 #if   SPLATT_VAL_TYPEWIDTH == 32
   void spotrf_(char *, int *, float *, int *, int *);
   void spotrs_(char *, int *, int *, float *, int *, float *, int *, int *);
+  void ssyrk_(char *, char *, int *, int *, float *, float *, int *, float *, float *, int *);
 
   #define LAPACK_DPOTRF spotrf_
   #define LAPACK_DPOTRS spotrs_
+  #define LAPACK_DSYRK  ssyrk_
 #else
   void dpotrf_(char *, int *, double *, int *, int *);
   void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
@@ -26,7 +28,7 @@
 
   #define LAPACK_DPOTRF dpotrf_
   #define LAPACK_DPOTRS dpotrs_
-  #define LAPACK_DSYRK dsyrk_
+  #define LAPACK_DSYRK  dsyrk_
 #endif
 
 

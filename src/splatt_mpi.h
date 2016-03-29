@@ -292,6 +292,24 @@ sptensor_t * mpi_simple_distribute(
   MPI_Comm comm);
 
 
+
+#define mpi_rearrange_by_part splatt_mpi_rearrange_by_part
+/**
+* @brief Rearrange nonzeros based on an nonzero partitioning. This allocates
+*        and returns a new sptensor_t.
+*
+* @param ttbuf The nonzeros to rearrange.
+* @param parts The partitioning of length ttbuf->nnz.
+* @param rinfo The communicator to rearrange along.
+*
+* @return A new rearranged tensor.
+*/
+sptensor_t * mpi_rearrange_by_part(
+  sptensor_t const * const ttbuf,
+  int const * const parts,
+  MPI_Comm comm);
+
+
 #define mpi_filter_tt_1d splatt_mpi_filter_tt_1d
 /**
 * @brief Run nonzeros from tt through filter to 'ftt'. This is 1D filtering,
@@ -327,6 +345,29 @@ permutation_t *  mpi_distribute_mats(
   rank_info * const rinfo,
   sptensor_t * const tt,
   splatt_decomp_type const distribution);
+
+
+
+#define mpi_mat_rand splatt_mpi_mat_rand
+/**
+* @brief Allocate, initialize, and distribute a random matrix among MPI ranks.
+*        This function respects permutation info (such as from
+*        `mpi_distribute_mats()`) so that the same seed will result in the same
+*        problem solution, no matter the number of ranks.
+*
+* @param mode Which mode we are allocating for.
+* @param nfactors The number of columns in the matrix.
+* @param perm Permutation info. perm->iperms[mode] is used.
+* @param rinfo MPI rank information, rinfo->mat_start[mode] is used.
+*
+* @return The portion of the random matrix that I own.
+*/
+matrix_t * mpi_mat_rand(
+  idx_t const mode,
+  idx_t const nfactors,
+  permutation_t const * const perm,
+  rank_info * const rinfo);
+
 
 
 #define mpi_find_owned splatt_mpi_find_owned
