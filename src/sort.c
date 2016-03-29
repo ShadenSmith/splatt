@@ -700,6 +700,7 @@ static void p_counting_sort_hybrid(
 {
   idx_t m = cmplt[0];
   idx_t nslices = tt->dims[m];
+  if(nslices == 0) return;
 
   idx_t * new_ind[MAX_NMODES];
   for(idx_t i = 0; i < tt->nmodes; ++i) {
