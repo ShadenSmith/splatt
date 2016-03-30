@@ -35,8 +35,8 @@ static char tc_doc[] =
 #define TC_TOL 251
 #define TC_INNER 250
 #define TC_NORAND_PER_ITERATION 249
-#define TC_HOGWILD 248
-#define TC_CSF 247
+#define TC_CSF 248
+#define TC_NSTRATUM 247
 static struct argp_option tc_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum iterations/epochs (default: 500)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
@@ -51,8 +51,8 @@ static struct argp_option tc_options[] = {
   {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
   {"tol", TC_TOL, "TOLERANCE", 0, "converge if RMSE-vl has not improved by TOLERANCE in 20 epochs (default: 1e-4)"},
   {"norand", TC_NORAND_PER_ITERATION, 0, 0, "do not randomly permute every iteration for SGD"},
-  {"hogwild", TC_HOGWILD, 0, 0, "hogwild for SGD (default no)"},
   {"csf", TC_CSF, 0, 0, "CSF for SGD (default no)"},
+  {"stratum", TC_NSTRATUM, "NSTRATUM", 0, "# of stratums for SGD (default P^(M-1) where P is # of ranks and M is # of modes)"},
   {0}
 };
 
@@ -126,8 +126,8 @@ typedef struct
   idx_t nthreads;
 
   bool rand_per_iteration;
-  bool hogwild;
   bool csf;
+  idx_t nstratum;
 } tc_cmd_args;
 
 
@@ -157,8 +157,8 @@ static void default_tc_opts(
   args->set_tolerance = false;
   args->num_inner = 1;
   args->rand_per_iteration = true;
-  args->hogwild = false;
   args->csf = false;
+  args->nstratum = -1;
 }
 
 
@@ -225,11 +225,11 @@ static error_t parse_tc_opt(
   case TC_NORAND_PER_ITERATION:
     args->rand_per_iteration = false;
     break;
-  case TC_HOGWILD:
-    args->hogwild = true;
-    break;
   case TC_CSF:
     args->csf = true;
+    break;
+  case TC_NSTRATUM:
+    args->nstratum = atoi(arg);
     break;
 
   case ARGP_KEY_ARG:
@@ -422,8 +422,8 @@ int splatt_tc_cmd(
   }
   ws->num_inner = args.num_inner;
   ws->rand_per_iteration = args.rand_per_iteration;
-  ws->hogwild = args.hogwild;
   ws->csf = args.csf;
+  ws->nstratum = args.nstratum;
 
 #ifdef SPLATT_USE_MPI
   if(rinfo.rank==0) {
@@ -473,13 +473,13 @@ int splatt_tc_cmd(
   case SPLATT_TC_SGD:
 #ifdef SPLATT_USE_MPI
     if(rinfo.rank==0) {
-      printf("ALG=SGD rand_per_iteration=%d hogwild=%d csf=%d\n\n", ws->rand_per_iteration, ws->hogwild, ws->csf);
+      printf("ALG=SGD rand_per_iteration=%d nstratum=%d csf=%d\n\n", ws->rand_per_iteration, ws->nstratum, ws->csf);
     }
     ws->rinfo = &rinfo;
     ws->global_validate_nnz = global_validate_nnz;
     splatt_tc_sgd(train, validate, model, ws);
 #else
-    printf("ALG=SGD rand_per_iteration=%d hogwild=%d csf=%d\n\n", ws->rand_per_iteration, ws->hogwild, ws->csf);
+    printf("ALG=SGD rand_per_iteration=%d csf=%d\n\n", ws->rand_per_iteration, ws->csf);
     splatt_tc_sgd(train, validate, model, ws);
 #endif
     break;

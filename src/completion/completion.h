@@ -103,9 +103,8 @@ typedef struct
   tc_model * best_model;
 
   bool rand_per_iteration;
-  bool hogwild;
   bool csf;
-  idx_t folds;
+  int nstratum;
 
 #ifdef SPLATT_USE_MPI
   rank_info *rinfo;
