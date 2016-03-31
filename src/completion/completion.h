@@ -90,6 +90,12 @@ typedef struct
   sp_timer_t grad_time;
   sp_timer_t line_time;
 
+  /* CCD++ */
+  sp_timer_t resid_time;
+  sp_timer_t dense_time;
+  sp_timer_t sparse_time;
+  sp_timer_t newcol_time;
+
   /* some algs handle dense modes separately */
   idx_t num_dense;
   bool isdense[MAX_NMODES];
@@ -108,10 +114,9 @@ typedef struct
 
   /* send/recv buffers */
   val_t * nbr2globs_buf;
-  val_t * nbr2globs_buf2;
   val_t * local2nbr_buf;
-  val_t * local2nbr_buf2;
 #endif
+
 } tc_ws;
 
 
