@@ -388,6 +388,15 @@ bool tc_converge(
 
 #ifdef SPLATT_USE_MPI
 
+int mpi_tc_distribute_coarse(
+    char const * const train_fname,
+    char const * const validate_fname,
+    idx_t const * const dims,
+    sptensor_t * * train_out,
+    sptensor_t * * validate_out,
+    rank_info * const rinfo);
+
+
 int mpi_tc_distribute_med(
     char const * const train_fname,
     char const * const validate_fname,

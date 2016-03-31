@@ -269,8 +269,19 @@ int splatt_tc_cmd(
   sptensor_t * validate = NULL;
 
   /* read + distribute tensors */
-  success = mpi_tc_distribute_med(args.ifnames[0], args.ifnames[1], NULL,
-      &train, &validate, &rinfo);
+  switch(args.which_alg) {
+  case SPLATT_TC_ALS:
+    success = mpi_tc_distribute_coarse(args.ifnames[0], args.ifnames[1],
+        NULL, &train, &validate, &rinfo);
+    break;
+  case SPLATT_TC_CCD:
+    success = mpi_tc_distribute_med(args.ifnames[0], args.ifnames[1], NULL,
+        &train, &validate, &rinfo);
+    break;
+  default:
+    fprintf(stderr, "SPLATT: alg not supported for distributed execution.\n");
+    return EXIT_FAILURE;
+  }
   if(success != SPLATT_SUCCESS) {
     return success;
   }
