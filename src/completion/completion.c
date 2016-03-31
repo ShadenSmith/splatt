@@ -504,9 +504,7 @@ tc_ws * tc_ws_alloc(
 
 #ifdef SPLATT_USE_MPI
   ws->nbr2globs_buf  = NULL;
-  ws->nbr2globs_buf2 = NULL;
   ws->local2nbr_buf  = NULL;
-  ws->local2nbr_buf2 = NULL;
 #endif
 
   return ws;
@@ -522,9 +520,7 @@ void tc_ws_free(
 
 #ifdef SPLATT_USE_MPI
   splatt_free(ws->nbr2globs_buf);
-  splatt_free(ws->nbr2globs_buf2);
   splatt_free(ws->local2nbr_buf);
-  splatt_free(ws->local2nbr_buf2);
   rank_free(*(ws->rinfo), ws->best_model->nmodes);
 #endif
 
