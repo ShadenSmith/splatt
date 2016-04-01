@@ -143,6 +143,7 @@ void tt_free(
   sptensor_t * tt);
 
 
+#define tt_density splatt_tt_density
 /**
 * @brief Compute the density of a sparse tensor, defined by nnz/(I*J*K).
 *
@@ -152,6 +153,46 @@ void tt_free(
 */
 double tt_density(
   sptensor_t const * const tt);
+
+
+
+#define tt_union splatt_tt_union
+/**
+* @brief Return a tensor that is the union of tt_a and tt_b, accounting for
+*        nonzero values too.
+*
+* @param tt_a A tensor to combine with tt_b.
+* @param tt_b A tensor to combine with tt_a.
+*
+* @return The union of tt_a and tt_b.
+*/
+sptensor_t * tt_union(
+  sptensor_t * const tt_a,
+  sptensor_t * const tt_b);
+
+
+#define tt_fill_dims splatt_tt_fill_dims
+/**
+* @brief Fill tt->dims based on nonzero indices. NOTE: any functions returning
+*        sptensor_t * should do this for you!
+*
+* @param tt The tensor to study.
+*/
+void tt_fill_dims(
+  sptensor_t * const tt);
+
+
+#define tt_copy splatt_tt_copy
+/**
+* @brief Allocate and return a deep copy of tt.
+*
+* @param tt The tensor to copy.
+*
+* @return A deep copy of tt.
+*/
+sptensor_t * tt_copy(
+  sptensor_t const * const tt);
+
 
 #define tt_remove_dups splatt_tt_remove_dups
 /**

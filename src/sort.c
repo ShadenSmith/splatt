@@ -861,6 +861,10 @@ void tt_sort_range(
   idx_t const start,
   idx_t const end)
 {
+  if(end <= start) {
+    return;
+  }
+
   idx_t * cmplt;
   if(dim_perm == NULL) {
     cmplt = (idx_t*) splatt_malloc(tt->nmodes * sizeof(idx_t));
