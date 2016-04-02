@@ -135,6 +135,13 @@ CTEST2(sort_tensor, par_sort)
 }
 
 
+CTEST2(sort_tensor, empty_sort)
+{
+  sptensor_t * tt = tt_alloc(0, SPLATT_MAX_NMODES);
+  tt_sort(tt, 0, NULL);
+}
+
+
 CTEST2(sort_tensor, tiled_sort)
 {
   idx_t tdims[MAX_NMODES];

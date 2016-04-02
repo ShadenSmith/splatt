@@ -625,6 +625,18 @@ int mpi_tc_distribute_coarse(
     sptensor_t * * validate_out,
     rank_info * const rinfo)
 {
+  rinfo->decomp = SPLATT_DECOMP_COARSE;
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    rinfo->dims_3d[m] = 1;
+  }
+
+  /* read initial tensor */
+  sptensor_t * train_buf = mpi_tt_read(train_fname, NULL, rinfo);
+  if(train_buf == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
+
+  *train_out = train_buf;
 
   return SPLATT_SUCCESS;
 }
