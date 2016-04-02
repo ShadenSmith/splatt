@@ -981,6 +981,10 @@ typedef struct
 
   vector<MPI_Request> requests;
     /* length 2*(npes-1)*(nmodes-1) array */
+  
+  // stats
+  vector<idx_t> comm_with_owner_vol, comm_with_leaser_vol;
+  idx_t epilogue_send_vol, epilogue_recv_vol;
 } sgd_comm_t;
 
 sgd_comm_t sgd_comm;
@@ -1521,15 +1525,12 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
 
 #define SPLATT_MEASURE_LOAD_IMBALANCE
 #ifdef SPLATT_MEASURE_LOAD_IMBALANCE
-  idx_t global_nnzs[npes][nstratum];
-  for(int p=0; p < npes; ++p) {
-    if(p == rank) {
-      for(int s=0; s < nstratum; ++s) {
-        global_nnzs[p][s] = nnzs[s];
-      }
-    }
-    MPI_Bcast(global_nnzs[p], nstratum, SPLATT_MPI_IDX, p, MPI_COMM_WORLD);
-  }
+  idx_t global_nnzs[npes*nstratum];
+  MPI_Gather(
+    nnzs, nstratum, SPLATT_MPI_IDX,
+    global_nnzs, nstratum, SPLATT_MPI_IDX,
+    0, MPI_COMM_WORLD);
+
   if(0 == rank) {
     double avg_total = 0;
     idx_t maximum_total = 0;
@@ -1537,13 +1538,15 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
       idx_t sum = 0;
       idx_t maximum = 0;
       for(int p=0; p < npes; ++p) {
-        sum += global_nnzs[p][s];
-        maximum = SS_MAX(maximum, global_nnzs[p][s]);
+        sum += global_nnzs[p*nstratum + s];
+        maximum = SS_MAX(maximum, global_nnzs[p*nstratum + s]);
       }
+
       double avg = (double)sum/npes;
+      //printf("stratum %d avg_nnz %g max_nnz %ld load_imbalance %g\n", s, avg, maximum, maximum/avg);
+      
       avg_total += avg;
       maximum_total += maximum;
-      //printf("stratum %d avg_nnz %g max_nnz %ld load_imbalance %g\n", s, avg, maximum, maximum/avg);
     }
     printf("total nnz_load_imbalance %g\n", maximum_total/avg_total);
   }
@@ -1797,6 +1800,9 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
     }
   }
 
+  sgd_comm->comm_with_owner_vol = vector<idx_t>(nstratum, 0),
+  sgd_comm->comm_with_leaser_vol = vector<idx_t>(nstratum, 0);
+
   for(int s=0; s < nstratum; ++s) {
     stratum_t *stratum = &sgd_comm->stratums[s];
 
@@ -1865,6 +1871,7 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
         assert(MPI_SUCCESS == ret);
 
         ++owner_request_cnt;
+        sgd_comm->comm_with_owner_vol[s] += len*nfactors*sizeof(val_t);
       }
 
       int leaser_layer = mode_info->leaser_layer;
@@ -1908,6 +1915,7 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
 
         ++leaser_request_cnt;
         buf_offset += len;
+        sgd_comm->comm_with_leaser_vol[s] += len*nfactors*sizeof(val_t);
       }
     }
     assert(owner_request_cnt == stratum->recv_from_owner_requests.size());
@@ -1922,9 +1930,10 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
     for(int p=0; p < npes; ++p) {
       if(p == rank) continue;
 
+      idx_t len = mode_info->external_to_global[p].size()*nfactors;
       int ret = MPI_Recv_init(
         model->factors[m] + (nlocalrows[m] + local_offset)*nfactors,
-        mode_info->external_to_global[p].size()*nfactors,
+        len,
         SPLATT_MPI_VAL,
         p,
         m,
@@ -1932,10 +1941,12 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
         &sgd_comm->requests[request_cnt]);
       assert(MPI_SUCCESS == ret);
       local_offset += mode_info->external_to_global[p].size();
+      sgd_comm->epilogue_recv_vol += len*sizeof(val_t);
 
+      len = mode_info->local_rows_to_send[p].size()*nfactors;
       ret = MPI_Send_init(
         sgd_comm->mode_infos[m].send_buf + remote_offset*nfactors,
-        mode_info->local_rows_to_send[p].size()*nfactors,
+        len,
         SPLATT_MPI_VAL,
         p,
         m,
@@ -1943,10 +1954,81 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
         &sgd_comm->requests[(npes - 1)*(nmodes - 1) + request_cnt]);
       assert(MPI_SUCCESS == ret);
       remote_offset += mode_info->local_rows_to_send[p].size();
+      sgd_comm->epilogue_send_vol += len*sizeof(val_t);
 
       ++request_cnt;
     }
   }
+
+#ifdef SPLATT_MEASURE_LOAD_IMBALANCE
+  idx_t
+    global_comm_with_owner_vols[npes*nstratum],
+    global_comm_with_leaser_vols[npes*nstratum],
+    global_epilogue_send_vols[npes],
+    global_epilogue_recv_vols[npes];
+
+  MPI_Gather(
+    &sgd_comm->comm_with_owner_vol[0], nstratum, SPLATT_MPI_IDX,
+    global_comm_with_owner_vols, nstratum, SPLATT_MPI_IDX,
+    0, MPI_COMM_WORLD);
+  MPI_Gather(
+    &sgd_comm->comm_with_leaser_vol[0], nstratum, SPLATT_MPI_IDX,
+    global_comm_with_leaser_vols, nstratum, SPLATT_MPI_IDX,
+    0, MPI_COMM_WORLD);
+
+  MPI_Gather(
+    &sgd_comm->epilogue_send_vol, 1, SPLATT_MPI_IDX,
+    global_epilogue_send_vols, 1, SPLATT_MPI_IDX,
+    0, MPI_COMM_WORLD);
+  MPI_Gather(
+    &sgd_comm->epilogue_recv_vol, 1, SPLATT_MPI_IDX,
+    global_epilogue_recv_vols, 1, SPLATT_MPI_IDX,
+    0, MPI_COMM_WORLD);
+
+  if(0 == rank) {
+    double avg_total = 0;
+    idx_t maximum_total = 0;
+    for(int s=0; s < nstratum; ++s) {
+      idx_t sum = 0;
+      idx_t maximum = 0;
+      for(int p=0; p < npes; ++p) {
+        idx_t vol =
+          global_comm_with_owner_vols[p*nstratum + s] +
+          global_comm_with_leaser_vols[p*nstratum + s];
+        sum += vol;
+        maximum = SS_MAX(maximum, vol);
+      }
+
+      double avg = (double)sum/npes;
+      //printf("stratum %d avg_comm_vol %g bytes max_comm_vol %ld bytes load_imbalance %g\n", s, avg, maximum, maximum/avg);
+
+      avg_total += avg;
+      maximum_total += maximum;
+    }
+
+    idx_t sum = 0;
+    idx_t maximum = 0;
+    for(int p=0; p < npes; ++p) {
+      idx_t vol =
+        global_epilogue_send_vols[p] +
+        global_epilogue_recv_vols[p];
+      sum += vol;
+      maximum = SS_MAX(maximum, vol);
+    }
+
+    double avg = (double)sum/npes;
+    //printf("epilogue avg_comm_vol %g bytes max_comm_vol %ld bytes load_imbalance %g\n", avg, maximum, maximum/avg);
+
+    avg_total += avg;
+    maximum_total += maximum;
+    printf("avg_comm_vol_per_epoch %g bytes comm_vol_load_imbalance %g\n", avg_total, maximum_total/avg_total);
+  }
+
+  /*for (int p=0; p < npes; ++p) {
+    if(p == rank) {
+    }
+  }*/
+#endif
 }
 
 static void p_free_stratum_mode_comm_with_leaser(stratum_mode_comm_with_leaser_t *leaser_comm)
@@ -2921,18 +3003,17 @@ void splatt_tc_sgd(
   }
 
 #ifdef SPLATT_MEASURE_LOAD_IMBALANCE
-  val_t global_compute_times[npes][nstratum][e];
-  for(int p=0; p < npes; ++p) {
-    for(int s=0; s < nstratum; ++s) {
-      assert(compute_times[s].size() == e);
-      if(p == rank) {
-        for(int i=0; i < e; ++i) {
-          global_compute_times[p][s][i] = compute_times[s][i];
-        }
-      }
-      MPI_Bcast(global_compute_times[p][s], e, SPLATT_MPI_VAL, p, MPI_COMM_WORLD);
+  val_t global_compute_times[npes*nstratum*e];
+  for(int s=0; s < nstratum; ++s) {
+    for(int i=0; i < e; ++i) {
+      global_compute_times[(rank*nstratum + s)*e + i] = compute_times[s][i];
     }
   }
+  MPI_Gather(
+    0 == rank ? MPI_IN_PLACE : global_compute_times + rank*nstratum*e,
+    nstratum*e, SPLATT_MPI_VAL,
+    global_compute_times, nstratum*e, SPLATT_MPI_VAL,
+    0, MPI_COMM_WORLD);
 
   if(rank == 0) {
     double avg_total = 0;
@@ -2944,8 +3025,8 @@ void splatt_tc_sgd(
         double sum = 0;
         double maximum = 0;
         for(int p=0; p < npes; ++p) {
-          sum += global_compute_times[p][s][i];
-          maximum = SS_MAX(maximum, global_compute_times[p][s][i]);
+          sum += global_compute_times[(p*nstratum + s)*e + i];
+          maximum = SS_MAX(maximum, global_compute_times[(p*nstratum + s)*e + i]);
         }
         double avg = (double)sum/npes;
         avg_stratum_total += avg;
