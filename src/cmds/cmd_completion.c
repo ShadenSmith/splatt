@@ -518,7 +518,7 @@ int splatt_tc_cmd(
 
   tt_free(validate);
   tt_free(train);
-  tc_model_free(model);
+  //tc_model_free(model);
 
   /* test rmse on best model found */
   if(args.ifnames[2] != NULL) {

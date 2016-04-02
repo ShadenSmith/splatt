@@ -1005,6 +1005,7 @@ static int p_find_stratum_of(const sptensor_t *tensor, idx_t idx, sgd_comm_t *sg
   return stratum;
 }
 
+/* took 211 seconds for amazon with 32 ranks in pcl-hsw3-6 */
 static void p_count_nnz_of_tiles(
   idx_t **nnzs, sgd_comm_t *sgd_comm, sptensor_t *train)
 {
@@ -1019,71 +1020,65 @@ static void p_count_nnz_of_tiles(
     (*nnzs)[s] = 0;
   }
 
-  vector<idx_t> *indices_per_stratum[nmodes];
-  for(int m=1; m < nmodes; ++m) {
-    indices_per_stratum[m] = new vector<idx_t>[nstratum];
-  }
-
   /* count nnz of each tile and each slice */
   double t = omp_get_wtime();
-  for(idx_t n=0; n < train->nnz; ++n) {
-    int s = p_find_stratum_of(train, n, sgd_comm);
-    for(int m=1; m < nmodes; ++m) {
-      indices_per_stratum[m][s].push_back(train->ind[m][n]);
+
+  for(int m=1; m < nmodes; ++m) {
+    vector<idx_t> indices_per_stratum[nstratum];
+
+    idx_t *hist = (idx_t *)splatt_malloc(sizeof(idx_t)*train->dims[m]);
+    par_memset(hist, 0, sizeof(idx_t)*train->dims[m]);
+
+    for(idx_t n=0; n < train->nnz; ++n) {
+      idx_t idx = train->ind[m][n];
+      assert(idx < train->dims[m]);
+      hist[idx]++;
+
+      int s = p_find_stratum_of(train, n, sgd_comm);
+      indices_per_stratum[s].push_back(idx);
+
+      if(1 == m) ++(*nnzs)[s];
     }
 
-    ++(*nnzs)[s];
-  }
-  if (0 == rank) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
-  t = omp_get_wtime();
-
-#pragma omp parallel for collapse(2)
-  for(int s=0; s < nstratum; ++s) {
-    for(int m=1; m < nmodes; ++m) {
+#pragma omp parallel for
+    for(int s=0; s < nstratum; ++s) {
       stratum_mode_t *mode_info = &sgd_comm->stratums[s].mode_infos[m];
       int owner_layer = mode_info->owner_layer;
       int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
       int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
 
-      map<idx_t, idx_t> nnzs_of_slice[owner_end - owner_begin];
-      assert(indices_per_stratum[m][s].size() == (*nnzs)[s]);
-      for(int i=0; i < indices_per_stratum[m][s].size(); ++i) {
-        idx_t idx = indices_per_stratum[m][s][i];
+      vector<idx_t> non_empty_slices[owner_end - owner_begin];
+      assert(indices_per_stratum[s].size() == (*nnzs)[s]);
+      for(int i=0; i < indices_per_stratum[s].size(); ++i) {
+        idx_t idx = indices_per_stratum[s][i];
         int owner = std::upper_bound(
           rinfo->layer_ptrs[m] + owner_begin,
           rinfo->layer_ptrs[m] + owner_end,
           idx) - rinfo->layer_ptrs[m] - 1;
         assert(owner >= owner_begin && owner < owner_end);
 
-        if(nnzs_of_slice[owner - owner_begin].find(idx) ==
-            nnzs_of_slice[owner - owner_begin].end()) {
-          nnzs_of_slice[owner - owner_begin][idx] = 1;
-        }
-        else {
-          ++nnzs_of_slice[owner - owner_begin][idx];
-        }
+        non_empty_slices[owner - owner_begin].push_back(idx);
       }
 
-      map<idx_t, idx_t>::iterator itr;
       for(int r=0; r < owner_end - owner_begin; ++r) {
+        sort(non_empty_slices[r].begin(), non_empty_slices[r].end());
+        idx_t len = unique(non_empty_slices[r].begin(), non_empty_slices[r].end()) - non_empty_slices[r].begin();
+
+
         stratum_mode_comm_with_owner_t *owner_comm = &mode_info->owner_comms[r];
 
-        owner_comm->nnzs_of_non_empty_slice[0].resize(nnzs_of_slice[r].size());
-        owner_comm->nnzs_of_non_empty_slice[1].resize(nnzs_of_slice[r].size());
-        idx_t i = 0;
-        for(itr = nnzs_of_slice[r].begin(); itr != nnzs_of_slice[r].end(); ++itr, ++i) {
-          owner_comm->nnzs_of_non_empty_slice[0][i] = itr->first;
-          owner_comm->nnzs_of_non_empty_slice[1][i] = itr->second;
-          assert(itr->second > 0);
+        owner_comm->nnzs_of_non_empty_slice[0].resize(len);
+        owner_comm->nnzs_of_non_empty_slice[1].resize(len);
+        for(idx_t i=0; i < len; ++i) {
+          owner_comm->nnzs_of_non_empty_slice[0][i] = non_empty_slices[r][i];
+          assert(hist[non_empty_slices[r][i]]);
+          owner_comm->nnzs_of_non_empty_slice[1][i] = hist[non_empty_slices[r][i]];
         }
       }
     }
+    
+    splatt_free(hist);
   }
-  for(int m=1; m < nmodes; ++m) {
-    delete[] indices_per_stratum[m];
-  }
-
-  if (0 == rank) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
 }
 
 /* took 744 seconds for amazon with 32 ranks in pcl-hsw3-6 */
@@ -2419,12 +2414,9 @@ void splatt_tc_sgd(
   t = omp_get_wtime();
 
   /* set up persistent communication */
-  if(rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
-  t = omp_get_wtime();
-
   p_setup_sgd_persistent_comm(&sgd_comm);
 
-  if(rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
+  if(rank == 0) printf("%s:%d p_setup_sgd_persistent_comm %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
   t = omp_get_wtime();
 
   timer_reset(&ws->shuffle_time);
