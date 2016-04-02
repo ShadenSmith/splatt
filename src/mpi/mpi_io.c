@@ -346,7 +346,6 @@ static sptensor_t * p_rearrange_coarse(
   idx_t * coarse_parts[MAX_NMODES];
 
   /* find start/end slices for my partition */
-  #pragma omp parallel for schedule(static, 1)
   for(idx_t m=0; m < nmodes; ++m) {
     /* copy ssizes[m] because a prefix sum will be performed */
     memcpy(weights, ssizes[m], dims[m] * sizeof(*weights));
@@ -384,10 +383,28 @@ static sptensor_t * p_rearrange_coarse(
 
     sptensor_t * tt_mode = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
 
+#ifdef SPLATT_DEBUG
+    /* sanity check on nnz */
+    idx_t ndups = tt_remove_dups(tt_mode);
+    assert(ndups == 0);
+    idx_t totnnz;
+    MPI_Reduce(&(tt_mode->nnz), &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM, 0,
+        rinfo->comm_3d);
+    if(rank == 0) {
+      assert(totnnz == rinfo->global_nnz);
+    }
+#endif
+
     /* save the new unioned tensor and clean up */
-    sptensor_t * tt_merge = tt_union(ret, tt_mode);
+    sptensor_t * tt_merged = tt_union(ret, tt_mode);
+
+#ifdef SPLATT_DEBUG
+    ndups = tt_remove_dups(tt_merged);
+    assert(ndups == 0);
+#endif
+
     tt_free(ret);
-    ret = tt_merge;
+    ret = tt_merged;
     tt_free(tt_mode);
   }
 
@@ -901,6 +918,7 @@ void mpi_filter_tt_1d(
   idx_t end)
 {
   assert(ftt != NULL);
+  printf("start filter [%lu, %lu)\n", start, end);
 
   for(idx_t m=0; m < ftt->nmodes; ++m) {
     ftt->dims[m] = tt->dims[m];
@@ -910,8 +928,9 @@ void mpi_filter_tt_1d(
   idx_t const olde = end;
   /* Adjust start and end if tt has been compressed. */
   assert(start != end);
+  /* TODO: change this linear search into a binary one */
   if(tt->indmap[mode] != NULL) {
-    /* TODO: change this linear search into a binary one */
+    printf("starting with dims: %lu\n", tt->dims[mode]);
     for(idx_t i=0; i < tt->dims[mode]; ++i) {
       if(tt->indmap[mode][i] == start) {
         start = i;
@@ -921,7 +940,12 @@ void mpi_filter_tt_1d(
         break;
       }
     }
+    printf("ended with dims: %lu\n", tt->dims[mode]);
+  } else{
+    printf("NOPE no indmap\n");
   }
+
+  printf("copying %lu nnz\n", tt->nnz);
 
   idx_t nnz = 0;
   for(idx_t n=0; n < tt->nnz; ++n) {
@@ -934,6 +958,8 @@ void mpi_filter_tt_1d(
     }
   }
 
+  printf("got %lu nnz -> mapping\n", nnz);
+
   /* update ftt dimensions and nnz */
   ftt->nnz = nnz;
   ftt->dims[mode] = end - start;
@@ -944,6 +970,8 @@ void mpi_filter_tt_1d(
     assert(ftt->ind[mode][n] < end);
     ftt->ind[mode][n] -= start;
   }
+
+  printf("creating new indmap\n");
 
   /* create new indmap for mode */
   for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -963,6 +991,8 @@ void mpi_filter_tt_1d(
     }
   }
 
+  printf("sanity check\n");
+
   /* sanity check */
   for(idx_t i=0; i < ftt->dims[mode]; ++i) {
     assert(i + start < end);
@@ -970,6 +1000,8 @@ void mpi_filter_tt_1d(
   for(idx_t n=0; n < ftt->nnz; ++n) {
     assert(ftt->ind[mode][n] < end - start);
   }
+
+  printf("end filter [%lu, %lu)\n", start, end);
 }
 
 
@@ -1345,6 +1377,5 @@ int mpi_determine_med_owner(
   MPI_Cart_rank(rinfo->comm_3d, coords, &owner);
   return owner;
 }
-
 
 

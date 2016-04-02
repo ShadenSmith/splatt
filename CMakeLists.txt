@@ -42,7 +42,7 @@ endif()
 # check for debug mode
 if (DEFINED DEBUG)
   message("Building in DEBUG mode. Assertions enabled.")
-  add_definitions(-DDEBUG=${DEBUG})
+  add_definitions(-DSPLATT_DEBUG)
   set(CMAKE_BUILD_TYPE Debug)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
@@ -50,6 +50,7 @@ else()
   message("Building in RELEASE mode.")
   set(CMAKE_BUILD_TYPE Release)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+  add_definitions(-DNDEBUG)
 endif()
 
 # find BLAS / LAPACK

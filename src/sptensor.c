@@ -184,7 +184,7 @@ sptensor_t * tt_union(
     /* if nnz are the same */
     bool same = true;
     /* if tt_a < tt_b */
-    bool asmaller = true;
+    bool asmaller = false;
 
     if(tt_a->vals[ptra] != tt_b->vals[ptrb]) {
       same = false;
@@ -192,10 +192,11 @@ sptensor_t * tt_union(
     for(idx_t m=0; m < nmodes; ++m) {
       if(tt_a->ind[m][ptra] != tt_b->ind[m][ptrb]) {
         same = false;
-      }
-      if(tt_a->ind[m][ptra] > tt_b->ind[m][ptrb]) {
-        asmaller = false;
-        same = false;
+        if(tt_a->ind[m][ptra] < tt_b->ind[m][ptrb]) {
+          asmaller = true;
+        } else {
+          asmaller = false;
+        }
         break;
       }
     }
@@ -235,10 +236,11 @@ sptensor_t * tt_union(
     for(idx_t m=0; m < nmodes; ++m) {
       if(tt_a->ind[m][ptra] != tt_b->ind[m][ptrb]) {
         same = false;
-      }
-      if(tt_a->ind[m][ptra] > tt_b->ind[m][ptrb]) {
-        asmaller = false;
-        same = false;
+        if(tt_a->ind[m][ptra] < tt_b->ind[m][ptrb]) {
+          asmaller = true;
+        } else {
+          asmaller = false;
+        }
         break;
       }
     }

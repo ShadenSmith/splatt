@@ -220,6 +220,9 @@ int splatt_mpi_cpd_cmd(
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
 
+    /* global nnz should be worst possible case */
+    assert(tt->nnz <= rinfo.global_nnz);
+
     /* coarse-grained forces us to use ALLMODE. override default opts. */
     args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
 
@@ -240,14 +243,18 @@ int splatt_mpi_cpd_cmd(
       /* fill csf[m] */
       csf_alloc_mode(tt_filtered, CSF_SORTED_MINUSONE, m, csf+m, args.opts);
 
+      printf("mode alloced (%lu nnz)\n", tt_filtered->nnz);
+
+#ifdef SPLATT_DEBUG
       /* sanity check on nnz */
       idx_t totnnz;
-      MPI_Reduce(&(csf[m].nnz), &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
-          MPI_COMM_WORLD);
-      if(rinfo.rank == 0) {
-        assert(totnnz == rinfo.global_nnz);
-      }
+      MPI_Allreduce(&(csf[m].nnz), &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+          rinfo.comm_3d);
+      assert(totnnz == rinfo.global_nnz);
+#endif
     } /* foreach mode */
+
+    printf("filtered\n");
 
     tt_free(tt_filtered);
 
