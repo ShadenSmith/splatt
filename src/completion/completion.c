@@ -630,13 +630,23 @@ int mpi_tc_distribute_coarse(
     rinfo->dims_3d[m] = 1;
   }
 
-  /* read initial tensor */
-  sptensor_t * train_buf = mpi_tt_read(train_fname, NULL, rinfo);
-  if(train_buf == NULL) {
+  /* distribute training tensor with a coarse-grained decomposition */
+  sptensor_t * train = mpi_tt_read(train_fname, NULL, rinfo);
+  if(train == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
+  *train_out = train;
+  printf("nnz loaded: %lu\n", train->nnz);
 
-  *train_out = train_buf;
+  /* simple distribution for validate tensor...
+   * TODO: redistribute to match training distribution */
+  sptensor_t * validate =mpi_simple_distribute(validate_fname, MPI_COMM_WORLD);
+  if(validate == NULL) {
+    tt_free(train);
+    *train_out = NULL;
+    return SPLATT_ERROR_BADINPUT;
+  }
+  *validate_out = validate;
 
   return SPLATT_SUCCESS;
 }

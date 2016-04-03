@@ -467,6 +467,38 @@ static void p_densemode_als_update(
 
 
 
+static void p_init_mpi(
+    sptensor_t const * const train,
+    tc_model * const model,
+    tc_ws * const ws)
+{
+  idx_t maxlocal2nbr = 0;
+  idx_t maxnbr2globs = 0;
+
+  for(idx_t m=0; m < train->nmodes; ++m) {
+    maxlocal2nbr = SS_MAX(maxlocal2nbr, ws->rinfo->nlocal2nbr[m]);
+    maxnbr2globs = SS_MAX(maxnbr2globs, ws->rinfo->nnbr2globs[m]);
+  }
+
+  ws->local2nbr_buf  = splatt_malloc(model->rank*maxlocal2nbr * sizeof(val_t));
+  ws->nbr2globs_buf  = splatt_malloc(model->rank*maxnbr2globs * sizeof(val_t));
+
+  /* get initial factors */
+  for(idx_t m=1; m < train->nmodes; ++m) {
+    matrix_t tmp;
+    tmp.I = model->dims[m];
+    tmp.J = model->rank;
+    tmp.vals = model->factors[m];
+
+    mpi_update_rows(ws->rinfo->indmap[m], ws->nbr2globs_buf, ws->local2nbr_buf,
+        &tmp, model->globmats[m], ws->rinfo, model->rank, m,
+        SPLATT_COMM_ALL2ALL);
+  }
+}
+
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -479,25 +511,39 @@ void splatt_tc_als(
     tc_ws * const ws)
 {
   idx_t const nmodes = train->nmodes;
-  idx_t const rank = model->rank;
+  idx_t const nfactors = model->rank;
+
+#ifdef SPLATT_USE_MPI
+  rank_info * rinfo = ws->rinfo;
+  int const rank = rinfo->rank;
+#else
+  int const rank = 0;
+#endif
+
 
   /* store dense modes redundantly among threads */
   thd_info * thd_densefactors = NULL;
   if(ws->num_dense > 0) {
     thd_densefactors = thd_init(ws->nthreads, 3,
-        ws->maxdense_dim * rank * sizeof(val_t), /* accum */
-        ws->maxdense_dim * rank * rank * sizeof(val_t), /* neqs */
+        ws->maxdense_dim * nfactors * sizeof(val_t), /* accum */
+        ws->maxdense_dim * nfactors * nfactors * sizeof(val_t), /* neqs */
         ws->maxdense_dim * sizeof(int)); /* nflush */
 
 
-    printf("REPLICATING MODES:");
-    for(idx_t m=0; m < nmodes; ++m) {
-      if(ws->isdense[m]) {
-        printf(" %"SPLATT_PF_IDX, m+1);
+    if(rank == 0) {
+      printf("REPLICATING MODES:");
+      for(idx_t m=0; m < nmodes; ++m) {
+        if(ws->isdense[m]) {
+          printf(" %"SPLATT_PF_IDX, m+1);
+        }
       }
+      printf("\n\n");
     }
-    printf("\n\n");
   }
+
+#ifdef SPLATT_USE_MPI
+  tt_remove_empty(train);
+#endif
 
   /* load-balanced partition each mode for threads */
   idx_t * parts[MAX_NMODES];
@@ -507,35 +553,77 @@ void splatt_tc_als(
   /* convert training data to CSF-ALLMODE */
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_NTHREADS] = ws->nthreads;
+  opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+
   for(idx_t m=0; m < nmodes; ++m) {
+#ifdef SPLATT_USE_MPI
+    /* tt has more nonzeros than any of the modes actually need, so we need
+     * to filter them first. */
+    sptensor_t * tt_filtered = mpi_filter_tt_1d(train, m,
+        rinfo->mat_start[m], rinfo->mat_end[m]);
+    assert(tt_filtered->dims[m] == rinfo->mat_end[m] - rinfo->mat_start[m]);
+
+    /* map to local tensor coordinates */
+    mpi_cpy_indmap(tt_filtered, rinfo, m);
+
+    /* setup communication structures */
+    mpi_find_owned(train, m, rinfo);
+    mpi_compute_ineed(rinfo, train, m, nfactors, 1);
+#endif
+
     if(ws->isdense[m]) {
       /* standard CSF allocation for sparse modes */
-      opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
       opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
       opts[SPLATT_OPTION_TILEDEPTH] = 1; /* don't tile dense mode */
-
+#ifdef SPLATT_USE_MPI
+      csf_alloc_mode(tt_filtered, CSF_SORTED_MINUSONE, m, csf+m, opts);
+#else
       csf_alloc_mode(train, CSF_SORTED_MINUSONE, m, csf+m, opts);
+#endif
+
       parts[m] = NULL;
 
     } else {
       /* standard CSF allocation for sparse modes */
-      opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
       opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+#ifdef SPLATT_USE_MPI
+      csf_alloc_mode(tt_filtered, CSF_SORTED_MINUSONE, m, csf+m, opts);
+#else
       csf_alloc_mode(train, CSF_SORTED_MINUSONE, m, csf+m, opts);
+#endif
+
       parts[m] = csf_partition_1d(csf+m, 0, ws->nthreads);
     }
+
+#ifdef SPLATT_USE_MPI
+    tt_free(tt_filtered);
+#ifdef SPLATT_DEBUG
+      /* sanity check on nnz */
+      idx_t totnnz;
+      MPI_Allreduce(&(csf[m].nnz), &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+          rinfo->comm_3d);
+      assert(totnnz == rinfo->global_nnz);
+#endif
+#endif
   }
+
+#ifdef SPLATT_USE_MPI
+  p_init_mpi(train, model, ws);
+#endif
 
   val_t prev_val_rmse = 0;
 
-  val_t const loss = tc_loss_sq(train, model, ws);
-  val_t const frobsq = tc_frob_sq(model, ws);
+  val_t loss = tc_loss_sq(train, model, ws);
+  val_t frobsq = tc_frob_sq(model, ws);
+#ifdef SPLATT_USE_MPI
+    MPI_Allreduce(MPI_IN_PLACE, &loss, 1, SPLATT_MPI_VAL, MPI_SUM,
+        ws->rinfo->comm_3d);
+#endif
   tc_converge(train, validate, model, loss, frobsq, 0, ws);
 
   sp_timer_t mode_timer;
   timer_reset(&mode_timer);
   timer_start(&ws->tc_time);
-
 
   for(idx_t e=1; e < ws->max_its+1; ++e) {
     #pragma omp parallel
@@ -561,18 +649,34 @@ void splatt_tc_als(
 
         #pragma omp master
         {
+#ifdef SPLATT_USE_MPI
+          matrix_t tmp;
+          tmp.I = model->dims[m];
+          tmp.J = model->rank;
+          tmp.vals = model->factors[m];
+          mpi_update_rows(ws->rinfo->indmap[m], ws->nbr2globs_buf,
+              ws->local2nbr_buf, &tmp, model->globmats[m], ws->rinfo,
+              model->rank, m, SPLATT_COMM_ALL2ALL);
+#endif
+
           timer_stop(&mode_timer);
-          printf("  mode: %"SPLATT_PF_IDX" time: %0.3fs\n", m+1,
-              mode_timer.seconds);
+          if(rank == 0) {
+            printf("  mode: %"SPLATT_PF_IDX" time: %0.3fs\n", m+1,
+                mode_timer.seconds);
+          }
         }
         #pragma omp barrier
-      }
+      } /* foreach mode */
     } /* end omp parallel */
 
 
     /* compute new obj value, print stats, and exit if converged */
-    val_t const loss = tc_loss_sq(train, model, ws);
-    val_t const frobsq = tc_frob_sq(model, ws);
+    val_t loss = tc_loss_sq(train, model, ws);
+    val_t frobsq = tc_frob_sq(model, ws);
+#ifdef SPLATT_USE_MPI
+    MPI_Allreduce(MPI_IN_PLACE, &loss, 1, SPLATT_MPI_VAL, MPI_SUM,
+        ws->rinfo->comm_3d);
+#endif
     if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
       break;
     }
