@@ -437,10 +437,10 @@ tc_ws * tc_ws_alloc(
       ws->regularization[m] = 5e-3;
       break;
     case SPLATT_TC_CCD:
-      ws->regularization[m] = 2e-1;
+      ws->regularization[m] = 1e2;
       break;
     case SPLATT_TC_ALS:
-      ws->regularization[m] = 2e-1;
+      ws->regularization[m] = 1e2;
       break;
     case SPLATT_TC_NALGS:
       break;
