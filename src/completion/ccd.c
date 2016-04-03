@@ -16,7 +16,7 @@
 /* It is faster to continually add/subtract to residual instead of recomputing
  * predictions. In practice this is fine, but set to 1 if we want to see. */
 #ifndef MEASURE_DRIFT
-#define MEASURE_DRIFT 1
+#define MEASURE_DRIFT 0
 #endif
 
 /* Use hardcoded 3-mode kernels when possible. Results in small speedups. */
@@ -1014,18 +1014,20 @@ static void p_transpose_model(
     tc_model * model)
 {
   idx_t const maxdim = model->dims[argmax_elem(model->dims, model->nmodes)];
-  printf("maxdim: %lu\n", maxdim);
 
   val_t * restrict buf = splatt_malloc(maxdim * model->rank * sizeof(*buf));
 
-  #pragma omp parallel
   for(idx_t m=0; m < model->nmodes; ++m) {
+#ifdef SPLATT_USE_MPI
+    idx_t const nrows = model->globmats[m]->I;
+    val_t * const restrict factor = model->globmats[m]->vals;
+#else
     idx_t const nrows = model->dims[m];
-    idx_t const ncols = model->rank;
     val_t * const restrict factor = model->factors[m];
+#endif
+    idx_t const ncols = model->rank;
 
     for(idx_t j=0; j < model->rank; ++j) {
-      #pragma omp for schedule(static)
       for(idx_t i=0; i < nrows; ++i) {
         buf[i + (j*nrows)] = factor[j + (i*ncols)];
       }
@@ -1050,6 +1052,8 @@ void splatt_tc_ccd(
 {
   idx_t const nmodes = train->nmodes;
   idx_t const nfactors = model->rank;
+
+  p_transpose_model(model);
 
 #ifdef SPLATT_USE_MPI
   int const rank = ws->rinfo->rank;
@@ -1081,8 +1085,6 @@ void splatt_tc_ccd(
       printf("\n\n");
     }
   }
-
-  p_transpose_model(model);
 
   /* convert training data to CSF-ONEMODE with full tiling */
   double * opts = splatt_default_opts();
@@ -1160,6 +1162,11 @@ void splatt_tc_ccd(
     } /* omp parallel */
 
 
+#ifdef SPLATT_USE_MPI
+    MPI_Allreduce(MPI_IN_PLACE, &loss, 1, SPLATT_MPI_VAL, MPI_SUM,
+        ws->rinfo->comm_3d);
+#endif
+
 #if MEASURE_DRIFT == 1
     val_t const gold = tc_loss_sq(train, model, ws);
     if(rank == 0) {
@@ -1169,11 +1176,6 @@ void splatt_tc_ccd(
 
     /* compute RMSE and adjust learning rate */
     frobsq = tc_frob_sq(model, ws);
-
-#ifdef SPLATT_USE_MPI
-    MPI_Allreduce(MPI_IN_PLACE, &loss, 1, SPLATT_MPI_VAL, MPI_SUM,
-        ws->rinfo->comm_3d);
-#endif
 
     if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
       break;

@@ -286,9 +286,6 @@ int splatt_tc_cmd(
     return success;
   }
 
-  return EXIT_SUCCESS;
-
-
 #else
   sptensor_t * train = tt_read(args.ifnames[0]);
   sptensor_t * validate = tt_read(args.ifnames[1]);
