@@ -1188,10 +1188,14 @@ void splatt_tc_ccd(
   fflush(stdout);
   MPI_Barrier(ws->rinfo->comm_3d);
   printf("  rank: %d residual %0.3fs dense: %0.3fs sparse: %0.3fs newcol: %0.3fs\n",
-    ws->rinfo->rank, ws->resid_time.seconds, ws->dense_time.seconds, ws->sparse_time.seconds, ws->newcol_time.seconds);
+    ws->rinfo->rank, ws->resid_time.seconds, ws->dense_time.seconds,
+    ws->sparse_time.seconds, ws->newcol_time.seconds);
+  fflush(stdout);
+  MPI_Barrier(ws->rinfo->comm_3d);
 #else
   printf("  residual %0.3fs dense: %0.3fs sparse: %0.3fs newcol: %0.3fs\n",
-    ws->resid_time.seconds, ws->dense_time.seconds, ws->sparse_time.seconds, ws->newcol_time.seconds);
+    ws->resid_time.seconds, ws->dense_time.seconds, ws->sparse_time.seconds,
+    ws->newcol_time.seconds);
 #endif
 
   p_transpose_model(model);

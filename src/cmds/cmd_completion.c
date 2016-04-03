@@ -301,8 +301,18 @@ int splatt_tc_cmd(
     mpi_global_stats(train, &rinfo, args.ifnames[0]);
   }
 
-  /* determine matrix distribution - this also calls tt_remove_empty() */
+  /* determine matrix distribution */
   permutation_t * perm = mpi_distribute_mats(&rinfo, train, rinfo.decomp);
+
+  /* XXX: Tensor completion code (right now) assumes this does not happen.
+   * TODO: Make all of the MPI coord system code less terrible. */
+#if 0
+  /* compress tensor to own local coordinate system */
+  tt_remove_empty(train);
+  for(idx_t m=0; m < train->nmodes; ++m) {
+    mpi_cpy_indmap(train, &rinfo, m);
+  }
+#endif
 
   for(idx_t m=0; m < train->nmodes; ++m) {
     /* index into local tensor to grab owned rows */
