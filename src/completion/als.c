@@ -466,6 +466,7 @@ static void p_densemode_als_update(
 
 
 
+#ifdef SPLATT_USE_MPI
 
 static void p_init_mpi(
     sptensor_t const * const train,
@@ -496,6 +497,18 @@ static void p_init_mpi(
   }
 }
 
+
+static void p_update_factor_all2all(
+    tc_model * const model,
+    tc_ws * const ws,
+    idx_t const mode)
+{
+
+
+}
+
+
+#endif
 
 
 
@@ -647,18 +660,12 @@ void splatt_tc_als(
 
         #pragma omp barrier
 
+#ifdef SPLATT_USE_MPI
+        p_update_factor_all2all(model, ws, m);
+#endif
+        #pragma omp barrier
         #pragma omp master
         {
-#ifdef SPLATT_USE_MPI
-          matrix_t tmp;
-          tmp.I = model->dims[m];
-          tmp.J = model->rank;
-          tmp.vals = model->factors[m];
-          mpi_update_rows(ws->rinfo->indmap[m], ws->nbr2globs_buf,
-              ws->local2nbr_buf, &tmp, model->globmats[m], ws->rinfo,
-              model->rank, m, SPLATT_COMM_ALL2ALL);
-#endif
-
           timer_stop(&mode_timer);
           if(rank == 0) {
             printf("  mode: %"SPLATT_PF_IDX" time: %0.3fs\n", m+1,
