@@ -293,7 +293,18 @@ static void p_mk_outerptr(
   idx_t const nnzend   = nnztile_ptr[tile_id+1];
   idx_t const nnz = nnzend - nnzstart;
 
-  assert(nnzstart < nnzend);
+  assert(nnzstart <= nnzend);
+  if(nnzstart == nnzend) {
+    idx_t nfibs = 0;
+    ct->pt[tile_id].nfibs[0] = nfibs;
+    csf_sparsity * const pt = ct->pt + tile_id;
+    pt->fptr[0] = splatt_malloc((nfibs + 1) * sizeof(**(pt->fptr)));
+    pt->fids[0] = NULL;
+
+    idx_t  * const restrict fp = pt->fptr[0];
+    fp[0] = 0;
+    return;
+  }
 
   /* the mode after accounting for dim_perm */
   idx_t const * const restrict ttind = tt->ind[ct->dim_perm[0]] + nnzstart;

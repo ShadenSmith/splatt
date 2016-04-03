@@ -1003,6 +1003,37 @@ static inline void p_compute_newcol(
 
 
 
+/**
+* @brief Transpose a model's factor matrices.
+*
+* @param model The model to transpose.
+*/
+static void p_transpose_model(
+    tc_model * model)
+{
+  idx_t const maxdim = model->dims[argmax_elem(model->dims, model->nmodes)];
+  printf("maxdim: %lu\n", maxdim);
+
+  val_t * restrict buf = splatt_malloc(maxdim * model->rank * sizeof(*buf));
+
+  #pragma omp parallel
+  for(idx_t m=0; m < model->nmodes; ++m) {
+    idx_t const nrows = model->dims[m];
+    idx_t const ncols = model->rank;
+    val_t * const restrict factor = model->factors[m];
+
+    for(idx_t j=0; j < model->rank; ++j) {
+      #pragma omp for schedule(static)
+      for(idx_t i=0; i < nrows; ++i) {
+        buf[i + (j*nrows)] = factor[j + (i*ncols)];
+      }
+    }
+
+    par_memcpy(factor, buf, nrows * ncols * sizeof(*factor));
+  }
+
+  splatt_free(buf);
+}
 
 
 /******************************************************************************
@@ -1048,6 +1079,8 @@ void splatt_tc_ccd(
       printf("\n\n");
     }
   }
+
+  p_transpose_model(model);
 
   /* convert training data to CSF-ONEMODE with full tiling */
   double * opts = splatt_default_opts();
@@ -1148,6 +1181,8 @@ void splatt_tc_ccd(
 
   /* print times */
 #ifdef SPLATT_USE_MPI
+  fflush(stdout);
+  MPI_Barrier(ws->rinfo->comm_3d);
   printf("  rank: %d residual %0.3fs dense: %0.3fs sparse: %0.3fs newcol: %0.3fs\n",
     ws->rinfo->rank, ws->resid_time.seconds, ws->dense_time.seconds, ws->sparse_time.seconds, ws->newcol_time.seconds);
 #else
@@ -1155,6 +1190,7 @@ void splatt_tc_ccd(
     ws->resid_time.seconds, ws->dense_time.seconds, ws->sparse_time.seconds, ws->newcol_time.seconds);
 #endif
 
+  p_transpose_model(model);
 
   /* cleanup */
   csf_free(csf, opts);
