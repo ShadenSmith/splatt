@@ -183,8 +183,8 @@ sptensor_t * tt_union(
   while(ptra < tt_a->nnz && ptrb < tt_b->nnz) {
     /* if nnz are the same */
     bool same = true;
-    /* if tt_a < tt_b */
-    bool asmaller = false;
+    /* if -1 if tt_a smaller, 0 for same sparsity, 1 for tt_b larger */
+    int order = 0;
 
     if(tt_a->vals[ptra] != tt_b->vals[ptrb]) {
       same = false;
@@ -193,9 +193,9 @@ sptensor_t * tt_union(
       if(tt_a->ind[m][ptra] != tt_b->ind[m][ptrb]) {
         same = false;
         if(tt_a->ind[m][ptra] < tt_b->ind[m][ptrb]) {
-          asmaller = true;
+          order = -1;
         } else {
-          asmaller = false;
+          order = 1;
         }
         break;
       }
@@ -206,7 +206,12 @@ sptensor_t * tt_union(
       ++ptra;
       ++ptrb;
     } else {
-      if(asmaller) {
+      /* if tt_a and tt_b have the same idx but different values */
+      if(order == 0) {
+        ++ptra;
+        ++ptrb;
+        ++uniq; /* account for both */
+      } else if(order == -1) {
         ++ptra;
       } else {
         ++ptrb;
@@ -227,8 +232,8 @@ sptensor_t * tt_union(
   while(ptra < tt_a->nnz && ptrb < tt_b->nnz) {
     /* if nnz are the same */
     bool same = true;
-    /* if tt_a < tt_b */
-    bool asmaller = true;
+    /* if -1 if tt_a smaller, 0 for same sparsity, 1 for tt_b larger */
+    int order = 0;
 
     if(tt_a->vals[ptra] != tt_b->vals[ptrb]) {
       same = false;
@@ -237,13 +242,14 @@ sptensor_t * tt_union(
       if(tt_a->ind[m][ptra] != tt_b->ind[m][ptrb]) {
         same = false;
         if(tt_a->ind[m][ptra] < tt_b->ind[m][ptrb]) {
-          asmaller = true;
+          order = -1;
         } else {
-          asmaller = false;
+          order = 1;
         }
         break;
       }
     }
+
 
     if(same) {
       /* just copy one */
@@ -255,7 +261,21 @@ sptensor_t * tt_union(
       ++ptra;
       ++ptrb;
     } else {
-      if(asmaller) {
+      if(order == 0) {
+        /* just grab both */
+        ret->vals[uniq] = tt_a->vals[ptra];
+        for(idx_t m=0; m < nmodes; ++m) {
+          ret->ind[m][uniq] = tt_a->ind[m][ptra];
+        }
+        ++uniq;
+
+        ret->vals[uniq] = tt_b->vals[ptrb];
+        for(idx_t m=0; m < nmodes; ++m) {
+          ret->ind[m][uniq] = tt_b->ind[m][ptrb];
+        }
+        ++ptra;
+        ++ptrb;
+      } else if(order == -1) {
         ret->vals[uniq] = tt_a->vals[ptra];
         for(idx_t m=0; m < nmodes; ++m) {
           ret->ind[m][uniq] = tt_a->ind[m][ptra];
@@ -423,7 +443,7 @@ sptensor_t * tt_alloc(
   tt->tiled = SPLATT_NOTILE;
 
   tt->nnz = nnz;
-  tt->vals = splatt_malloc(nnz * sizeof((tt->vals)));
+  tt->vals = splatt_malloc(nnz * sizeof(*(tt->vals)));
 
   tt->nmodes = nmodes;
   tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;

@@ -384,7 +384,7 @@ static sptensor_t * p_rearrange_coarse(
     sptensor_t * tt_mode = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
 
 #ifdef SPLATT_DEBUG
-    /* sanity check on nnz */
+    /* sanity check on nnz -- this can be expensive */
     idx_t ndups = tt_remove_dups(tt_mode);
     assert(ndups == 0);
     idx_t totnnz;
@@ -408,6 +408,7 @@ static sptensor_t * p_rearrange_coarse(
     tt_free(tt_mode);
   }
 
+  splatt_free(parts);
   for(idx_t m=0; m < nmodes; ++m) {
     splatt_free(coarse_parts[m]);
   }
@@ -910,27 +911,21 @@ sptensor_t * mpi_tt_read(
 }
 
 
-void mpi_filter_tt_1d(
-  idx_t const mode,
+sptensor_t * mpi_filter_tt_1d(
   sptensor_t const * const tt,
-  sptensor_t * const ftt,
+  idx_t const mode,
   idx_t start,
   idx_t end)
 {
-  assert(ftt != NULL);
-  printf("start filter [%lu, %lu)\n", start, end);
-
+  sptensor_t * ftt = tt_alloc(tt->nnz, tt->nmodes);
   for(idx_t m=0; m < ftt->nmodes; ++m) {
     ftt->dims[m] = tt->dims[m];
   }
 
-  idx_t const olds = start;
-  idx_t const olde = end;
   /* Adjust start and end if tt has been compressed. */
-  assert(start != end);
+  assert(start < end);
   /* TODO: change this linear search into a binary one */
   if(tt->indmap[mode] != NULL) {
-    printf("starting with dims: %lu\n", tt->dims[mode]);
     for(idx_t i=0; i < tt->dims[mode]; ++i) {
       if(tt->indmap[mode][i] == start) {
         start = i;
@@ -940,12 +935,7 @@ void mpi_filter_tt_1d(
         break;
       }
     }
-    printf("ended with dims: %lu\n", tt->dims[mode]);
-  } else{
-    printf("NOPE no indmap\n");
   }
-
-  printf("copying %lu nnz\n", tt->nnz);
 
   idx_t nnz = 0;
   for(idx_t n=0; n < tt->nnz; ++n) {
@@ -958,20 +948,17 @@ void mpi_filter_tt_1d(
     }
   }
 
-  printf("got %lu nnz -> mapping\n", nnz);
-
   /* update ftt dimensions and nnz */
   ftt->nnz = nnz;
   ftt->dims[mode] = end - start;
 
   /* now map mode coords to [0, end-start) */
+  #pragma omp parallel for schedule(static)
   for(idx_t n=0; n < ftt->nnz; ++n) {
     assert(ftt->ind[mode][n] >= start);
     assert(ftt->ind[mode][n] < end);
     ftt->ind[mode][n] -= start;
   }
-
-  printf("creating new indmap\n");
 
   /* create new indmap for mode */
   for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -983,6 +970,7 @@ void mpi_filter_tt_1d(
 
     /* mode indices are shifted. otherwise just copy */
     if(m == mode) {
+      #pragma omp parallel for
       for(idx_t i=0; i < ftt->dims[mode]; ++i) {
         ftt->indmap[mode][i] = tt->indmap[mode][i+start];
       }
@@ -990,8 +978,6 @@ void mpi_filter_tt_1d(
       par_memcpy(ftt->indmap[m], tt->indmap[m], tt->dims[m] * sizeof(idx_t));
     }
   }
-
-  printf("sanity check\n");
 
   /* sanity check */
   for(idx_t i=0; i < ftt->dims[mode]; ++i) {
@@ -1001,7 +987,7 @@ void mpi_filter_tt_1d(
     assert(ftt->ind[mode][n] < end - start);
   }
 
-  printf("end filter [%lu, %lu)\n", start, end);
+  return ftt;
 }
 
 

@@ -298,6 +298,19 @@ void rank_free(
 
   switch(rinfo.decomp) {
   case SPLATT_DECOMP_COARSE:
+    for(idx_t m=0; m < nmodes; ++m) {
+      free(rinfo.mat_ptrs[m]);
+
+      /* send/recv structures */
+      free(rinfo.nbr2globs_inds[m]);
+      free(rinfo.local2nbr_inds[m]);
+      free(rinfo.nbr2local_inds[m]);
+      free(rinfo.local2nbr_ptr[m]);
+      free(rinfo.nbr2globs_ptr[m]);
+      free(rinfo.local2nbr_disp[m]);
+      free(rinfo.nbr2globs_disp[m]);
+      free(rinfo.indmap[m]);
+    }
     break;
   case SPLATT_DECOMP_MEDIUM:
     MPI_Comm_free(&rinfo.comm_3d);
