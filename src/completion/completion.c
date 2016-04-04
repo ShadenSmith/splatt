@@ -128,6 +128,7 @@ val_t tc_rmse(
 #ifdef SPLATT_USE_MPI
   val_t loss = tc_loss_sq(test, model, ws);
 
+  /* TODO: this portion is untimed, so recompute it each time for now */
   idx_t global_nnz = test->nnz;
   MPI_Allreduce(MPI_IN_PLACE, &global_nnz, 1, SPLATT_MPI_IDX, MPI_SUM,
       ws->rinfo->comm_3d);
@@ -208,113 +209,6 @@ val_t tc_loss_sq(
       }
     }
   }
-
-#ifdef SPLATT_USE_MPI
-  MPI_Allreduce(MPI_IN_PLACE, &loss_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
-      ws->rinfo->comm_3d);
-#endif
-
-  return loss_obj;
-}
-
-
-
-val_t tc_loss_sq_csf(
-    splatt_csf const * const test,
-    tc_model const * const model,
-    tc_ws * const ws)
-{
-  /* not implemented for column major right now */
-  assert(model->which != SPLATT_TC_CCD);
-
-
-  idx_t const nmodes = test->nmodes;
-  idx_t const nfactors = model->rank;
-
-  /* grab factors */
-  val_t const * restrict mats[MAX_NMODES];
-  for(idx_t m=0; m < nmodes; ++m) {
-    mats[m] = (val_t const * restrict) model->factors[test->dim_perm[m]];
-  }
-  val_t const * const restrict lastmat = mats[nmodes-1];
-
-  val_t loss_obj = 0;
-  #pragma omp parallel reduction(+:loss_obj)
-  {
-    val_t * predictbuf[MAX_NMODES];
-    for(idx_t m=0; m < nmodes; ++m) {
-      predictbuf[m] = splatt_malloc(nfactors * sizeof(**predictbuf));
-    }
-
-    #pragma omp for schedule(dynamic, 1)
-    for(idx_t tile=0; tile < test->ntiles; ++tile) {
-
-      /* grab sparsity structure */
-      csf_sparsity const * const pt = test->pt + tile;
-      val_t * const restrict vals = pt->vals;
-      if(vals == NULL) {
-        continue;
-      }
-      idx_t const * const restrict * fp = (idx_t const * const *) pt->fptr;
-      idx_t const * const restrict * fids = (idx_t const * const *) pt->fids;
-      idx_t const * const restrict inds = fids[nmodes-1];
-
-      idx_t idxstack[MAX_NMODES];
-
-      /* foreach outer slice */
-      for(idx_t i=0; i < pt->nfibs[0]; ++i) {
-        idx_t out_id = (fids[0] == NULL) ? i : fids[0][i];
-
-        /* initialize first prediction portion */
-        for(idx_t f=0; f < nfactors; ++f) {
-          predictbuf[0][f] = mats[0][f + (out_id * nfactors)];
-        }
-
-        /* clear out stale data */
-        idxstack[0] = i;
-        for(idx_t m=1; m < nmodes-1; ++m) {
-          idxstack[m] = fp[m-1][idxstack[m-1]];
-        }
-
-        /* process each subtree */
-        idx_t depth = 0;
-        while(idxstack[1] < fp[0][i+1]) {
-          /* move down to nnz node while computing predicted value */
-          for(; depth < nmodes-2; ++depth) {
-            val_t const * const restrict mrow =
-                  mats[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-            for(idx_t f=0; f < nfactors; ++f) {
-              predictbuf[depth+1][f] = predictbuf[depth][f] * mrow[f];
-            }
-          }
-
-          /* process all nonzeros [start, end) */
-          idx_t const start = fp[depth][idxstack[depth]];
-          idx_t const end   = fp[depth][idxstack[depth]+1];
-          for(idx_t jj=start; jj < end; ++jj) {
-            /* computed predicted value and update residual */
-            val_t const * const restrict lastrow =
-                lastmat + (inds[jj] * nfactors);
-            val_t residual = vals[jj];
-            for(idx_t f=0; f < nfactors; ++f) {
-              residual -= predictbuf[depth][f] * lastrow[f];
-            }
-            loss_obj += residual * residual;
-          }
-
-          /* now move up to the next unprocessed subtree */
-          do {
-            ++idxstack[depth];
-            --depth;
-          } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
-        } /* foreach fiber subtree */
-      } /* foreach outer slice */
-    } /* foreach tile */
-
-    for(idx_t m=0; m < nmodes; ++m) {
-      splatt_free(predictbuf[m]);
-    }
-  } /* end omp parallel */
 
 #ifdef SPLATT_USE_MPI
   MPI_Allreduce(MPI_IN_PLACE, &loss_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
@@ -646,7 +540,6 @@ bool tc_converge(
     idx_t const epoch,
     tc_ws * const ws)
 {
-  val_t const obj = loss + frobsq;
 #ifdef SPLATT_USE_MPI
   val_t const train_rmse = sqrt(loss / ws->rinfo->global_nnz);
 #else
@@ -654,37 +547,16 @@ bool tc_converge(
 #endif
 
   timer_stop(&ws->tc_time);
+  val_t const val_rmse = tc_rmse(validate, model, ws);
 #ifdef SPLATT_USE_MPI
-  val_t const val_rmse = 0;
   if(ws->rinfo->rank == 0) {
     p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
   }
 #else
-  val_t const val_rmse = tc_rmse(validate, model, ws);
   p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
 #endif
 
-  /* TODO: make this not terrible */
   bool converged = false;
-#ifdef SPLATT_USE_MPI
-  if(train_rmse - ws->best_rmse < -(ws->tolerance)) {
-    ws->nbadepochs = 0;
-    ws->best_rmse = train_rmse;
-    ws->best_epoch = epoch;
-
-    /* save the best model */
-    for(idx_t m=0; m < model->nmodes; ++m) {
-      par_memcpy(ws->best_model->factors[m], model->factors[m],
-          model->dims[m] * model->rank * sizeof(**(model->factors)));
-      /* TODO copy globmats too */
-    }
-  } else {
-    ++ws->nbadepochs;
-    if(ws->nbadepochs == ws->max_badepochs) {
-      converged = true;
-    }
-  }
-#else
   if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
     ws->nbadepochs = 0;
     ws->best_rmse = val_rmse;
@@ -702,7 +574,6 @@ bool tc_converge(
       converged = true;
     }
   }
-#endif
 
   /* check for time limit */
   if(ws->max_seconds > 0 && ws->tc_time.seconds >= ws->max_seconds) {
@@ -746,13 +617,39 @@ int mpi_tc_distribute_coarse(
 
   /* simple distribution for validate tensor...
    * TODO: redistribute to match training distribution */
-  sptensor_t * validate =mpi_simple_distribute(validate_fname, MPI_COMM_WORLD);
-  if(validate == NULL) {
+  sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, MPI_COMM_WORLD);
+  if(val_tmp == NULL) {
     tt_free(train);
     *train_out = NULL;
     return SPLATT_ERROR_BADINPUT;
   }
+
+  idx_t const bigmode = argmax_elem(train->dims, train->nmodes);
+  idx_t * coarse_parts = calloc(rinfo->npes+1, sizeof(*coarse_parts));
+  coarse_parts[rinfo->rank] = rinfo->mat_start[bigmode];
+  MPI_Allreduce(MPI_IN_PLACE, coarse_parts, rinfo->npes, SPLATT_MPI_IDX,
+      MPI_SUM, rinfo->comm_3d);
+
+  /* redistribute along largest mode */
+  int * parts = splatt_malloc(val_tmp->nnz * sizeof(*parts));
+  #pragma omp parallel for schedule(static)
+  for(idx_t n=0; n < val_tmp->nnz; ++n) {
+    for(int p=0; p < rinfo->npes; ++p) {
+      if(coarse_parts[p] <= val_tmp->ind[bigmode][n]) {
+        parts[n] = p;
+        break;
+      }
+    }
+  }
+  free(coarse_parts);
+
+  /* rearrange validation nonzeros */
+  sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,
+      rinfo->comm_3d);
   *validate_out = validate;
+  tt_free(val_tmp);
+  *validate_out = validate;
+  splatt_free(parts);
 
   return SPLATT_SUCCESS;
 }

@@ -235,7 +235,8 @@ static void p_update_col_all2all(
 
 
 static void p_init_mpi(
-    sptensor_t const * const train,
+    sptensor_t * const train,
+    sptensor_t * const validate,
     tc_model * const model,
     tc_ws * const ws)
 {
@@ -244,8 +245,10 @@ static void p_init_mpi(
 
   /* recompute this stuff with nfactors = 1 due to column-major layout */
   for(idx_t m=0; m < train->nmodes; ++m) {
-    mpi_find_owned(train, m, ws->rinfo);
-    mpi_compute_ineed(ws->rinfo, train, m, 1, 3);
+    sptensor_t * both = tt_union(train, validate);
+    mpi_find_owned(both, m, ws->rinfo);
+    mpi_compute_ineed(ws->rinfo, both, m, 1, 3);
+    tt_free(both);
 
     maxlocal2nbr = SS_MAX(maxlocal2nbr, ws->rinfo->nlocal2nbr[m]);
     maxnbr2globs = SS_MAX(maxnbr2globs, ws->rinfo->nnbr2globs[m]);
@@ -1046,7 +1049,7 @@ static void p_transpose_model(
 
 void splatt_tc_ccd(
     sptensor_t * train,
-    sptensor_t const * const validate,
+    sptensor_t * const validate,
     tc_model * const model,
     tc_ws * const ws)
 {
@@ -1057,7 +1060,7 @@ void splatt_tc_ccd(
 
 #ifdef SPLATT_USE_MPI
   int const rank = ws->rinfo->rank;
-  p_init_mpi(train, model, ws);
+  p_init_mpi(train, validate, model, ws);
 #else
   int const rank = 0;
 #endif
@@ -1082,8 +1085,12 @@ void splatt_tc_ccd(
           printf(" %"SPLATT_PF_IDX, m+1);
         }
       }
-      printf("\n\n");
+      printf("\n");
     }
+  }
+
+  if(rank == 0) {
+    printf("\n");
   }
 
   /* convert training data to CSF-ONEMODE with full tiling */

@@ -137,7 +137,7 @@ void splatt_tc_sgd(
 
 void splatt_tc_als(
     sptensor_t * train,
-    sptensor_t const * const validate,
+    sptensor_t * const validate,
     tc_model * const model,
     tc_ws * const ws);
 
@@ -163,7 +163,7 @@ void splatt_tc_lbfgs(
 
 void splatt_tc_ccd(
     sptensor_t * train,
-    sptensor_t const * const validate,
+    sptensor_t * const validate,
     tc_model * const model,
     tc_ws * const ws);
 
@@ -253,13 +253,6 @@ val_t tc_mae(
 */
 val_t tc_loss_sq(
     sptensor_t const * const test,
-    tc_model const * const model,
-    tc_ws * const ws);
-
-
-
-val_t tc_loss_sq_csf(
-    splatt_csf const * const test,
     tc_model const * const model,
     tc_ws * const ws);
 
