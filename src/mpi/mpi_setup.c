@@ -35,7 +35,6 @@ static void p_fill_ineed_ptrs(
 
   int pdest = 0;
   /* count recvs for each process */
-  //for(idx_t i=0; i < tt->dims[m]; ++i) {
   for(idx_t s=0; s < nunique; ++s) {
     idx_t const i = slices[s];
     /* grab global index */
@@ -105,7 +104,6 @@ static void p_fill_ineed_inds(
   idx_t recvs = 0;
   int pdest = 0;
   /* count recvs for each process */
-  //for(idx_t i=0; i < tt->dims[m]; ++i) {
   for(idx_t s=0; s < nunique; ++s) {
     idx_t const i = slices[s];
     /* grab global index */

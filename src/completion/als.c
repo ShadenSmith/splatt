@@ -527,6 +527,7 @@ static void p_update_factor_all2all(
   /* fill send buffer */
   #pragma omp for
   for(idx_t s=0; s < nsends; ++s) {
+    assert(nbr2globs_inds[s] >= mat_start);
     idx_t const row = nbr2globs_inds[s] - mat_start;
     val_t * const restrict buf_row = nbr2globs_buf + (s * nfactors);
     val_t const * const restrict gmat_row = gmatv + (row * nfactors);
@@ -617,6 +618,10 @@ void splatt_tc_als(
   int const rank = 0;
 #endif
 
+  if(rank == 0) {
+    printf("BUFSIZE=%d\n", ALS_BUFSIZE);
+  }
+
   /* store dense modes redundantly among threads */
   thd_info * thd_densefactors = NULL;
   if(ws->num_dense > 0) {
@@ -636,6 +641,9 @@ void splatt_tc_als(
       printf("\n\n");
     }
   }
+
+  printf("model: (%lu %lu %lu)\n",
+      model->dims[0], model->dims[1], model->dims[2]);
 
   /* load-balanced partition each mode for threads */
   idx_t * parts[MAX_NMODES];
@@ -684,6 +692,10 @@ void splatt_tc_als(
 #else
       csf_alloc_mode(train, CSF_SORTED_MINUSONE, m, csf+m, opts);
 #endif
+
+    printf("filtered: (%lu %lu %lu) csf: (%lu %lu %lu)\n",
+        tt_filtered->dims[0], tt_filtered->dims[1], tt_filtered->dims[2],
+        (csf+m)->dims[0], (csf+m)->dims[1], (csf+m)->dims[2]);
 
       parts[m] = csf_partition_1d(csf+m, 0, ws->nthreads);
     }
