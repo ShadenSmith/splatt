@@ -1348,7 +1348,7 @@ int mpi_determine_med_owner(
     idx_t const id = ttbuf->ind[m][n];
     /* silly linear scan over each layer.
      * TODO: do a binary search */
-    for(int l=0; l <= rinfo->dims_3d[m]; ++l) {
+    for(int l=1; l <= rinfo->dims_3d[m]; ++l) {
       if(id < rinfo->layer_ptrs[m][l]) {
         coords[m] = l-1;
         break;
