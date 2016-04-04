@@ -426,16 +426,20 @@ static void p_densemode_als_update(
   #pragma omp master
 #ifdef SPLATT_USE_MPI
   SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[0], model->globmats[m]->vals);
+
+  idx_t const dense_slices = model->globmats[m]->I;
 #else
   SPLATT_VPTR_SWAP(thd_densefactors[0].scratch[0], model->factors[m]);
+
+  idx_t const dense_slices = model->dims[m];
 #endif
 
   /* TODO: this could be better by instead only initializing neqs with beta=0
    * and keeping track of which have been updated. */
   memset(thd_densefactors[tid].scratch[0], 0,
-      model->dims[m] * rank * sizeof(val_t));
+      dense_slices * rank * sizeof(val_t));
   memset(thd_densefactors[tid].scratch[1], 0,
-      model->dims[m] * rank * rank * sizeof(val_t));
+      dense_slices * rank * rank * sizeof(val_t));
 
   #pragma omp barrier
 
@@ -447,13 +451,13 @@ static void p_densemode_als_update(
 
   /* aggregate partial products */
   thd_reduce(thd_densefactors, 0,
-      model->dims[m] * rank, REDUCE_SUM);
+      dense_slices * rank, REDUCE_SUM);
 
   /* TODO: this could be better by using a custom reduction which only
    * operates on the upper triangular portion. OpenMP 4 declare reduction
    * would be good here? */
   thd_reduce(thd_densefactors, 1,
-      model->dims[m] * rank * rank, REDUCE_SUM);
+      dense_slices * rank * rank, REDUCE_SUM);
 
   /* save result to model */
   #pragma omp master
@@ -473,7 +477,7 @@ static void p_densemode_als_update(
 #endif
   val_t const reg = ws->regularization[m];
   #pragma omp for schedule(static, 1)
-  for(idx_t i=0; i < model->dims[m]; ++i) {
+  for(idx_t i=0; i < dense_slices; ++i) {
     val_t * const restrict neqs_i =
         (val_t *) thd_densefactors[0].scratch[1] + (i * rank * rank);
     /* add regularization */
