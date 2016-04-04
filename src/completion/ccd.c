@@ -264,6 +264,8 @@ static void p_init_mpi(
       p_update_col_all2all(model, ws, m, f);
     }
   }
+
+  timer_reset(&timers[TIMER_MPI_COMM]);
 }
 
 

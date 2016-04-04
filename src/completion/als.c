@@ -594,6 +594,7 @@ static void p_init_mpi(
   for(idx_t m=0; m < train->nmodes; ++m) {
     p_update_factor_all2all(model, ws, m);
   }
+  timer_reset(&timers[TIMER_MPI_COMM]);
 }
 
 
