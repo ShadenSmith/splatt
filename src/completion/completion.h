@@ -23,7 +23,7 @@
  * TODO: This should actually be a function of the number of nonzeros and
  * probably the number of threads/ranks.
  */
-#define DENSEMODE_THRESHOLD 300
+#define DENSEMODE_THRESHOLD 3
 
 /* swap two val_t pointers */
 #define SPLATT_VPTR_SWAP(x,y) \
@@ -256,6 +256,12 @@ val_t tc_loss_sq(
     tc_model const * const model,
     tc_ws * const ws);
 
+
+
+val_t tc_loss_sq_csf(
+    splatt_csf const * const test,
+    tc_model const * const model,
+    tc_ws * const ws);
 
 
 #define tc_frob_sq splatt_tc_frob_sq

@@ -385,8 +385,7 @@ static sptensor_t * p_rearrange_coarse(
 
 #ifdef SPLATT_DEBUG
     /* sanity check on nnz -- this can be expensive */
-    idx_t ndups = tt_remove_dups(tt_mode);
-    assert(ndups == 0);
+    assert(tt_remove_dups(tt_mode) == 0);
     idx_t totnnz;
     MPI_Reduce(&(tt_mode->nnz), &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM, 0,
         rinfo->comm_3d);
@@ -399,8 +398,7 @@ static sptensor_t * p_rearrange_coarse(
     sptensor_t * tt_merged = tt_union(ret, tt_mode);
 
 #ifdef SPLATT_DEBUG
-    ndups = tt_remove_dups(tt_merged);
-    assert(ndups == 0);
+    assert(tt_remove_dups(tt_merged) == 0);
 #endif
 
     tt_free(ret);

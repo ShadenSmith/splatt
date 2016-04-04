@@ -219,6 +219,113 @@ val_t tc_loss_sq(
 
 
 
+val_t tc_loss_sq_csf(
+    splatt_csf const * const test,
+    tc_model const * const model,
+    tc_ws * const ws)
+{
+  /* not implemented for column major right now */
+  assert(model->which != SPLATT_TC_CCD);
+
+
+  idx_t const nmodes = test->nmodes;
+  idx_t const nfactors = model->rank;
+
+  /* grab factors */
+  val_t const * restrict mats[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    mats[m] = (val_t const * restrict) model->factors[test->dim_perm[m]];
+  }
+  val_t const * const restrict lastmat = mats[nmodes-1];
+
+  val_t loss_obj = 0;
+  #pragma omp parallel reduction(+:loss_obj)
+  {
+    val_t * predictbuf[MAX_NMODES];
+    for(idx_t m=0; m < nmodes; ++m) {
+      predictbuf[m] = splatt_malloc(nfactors * sizeof(**predictbuf));
+    }
+
+    #pragma omp for schedule(dynamic, 1)
+    for(idx_t tile=0; tile < test->ntiles; ++tile) {
+
+      /* grab sparsity structure */
+      csf_sparsity const * const pt = test->pt + tile;
+      val_t * const restrict vals = pt->vals;
+      if(vals == NULL) {
+        continue;
+      }
+      idx_t const * const restrict * fp = (idx_t const * const *) pt->fptr;
+      idx_t const * const restrict * fids = (idx_t const * const *) pt->fids;
+      idx_t const * const restrict inds = fids[nmodes-1];
+
+      idx_t idxstack[MAX_NMODES];
+
+      /* foreach outer slice */
+      for(idx_t i=0; i < pt->nfibs[0]; ++i) {
+        idx_t out_id = (fids[0] == NULL) ? i : fids[0][i];
+
+        /* initialize first prediction portion */
+        for(idx_t f=0; f < nfactors; ++f) {
+          predictbuf[0][f] = mats[0][f + (out_id * nfactors)];
+        }
+
+        /* clear out stale data */
+        idxstack[0] = i;
+        for(idx_t m=1; m < nmodes-1; ++m) {
+          idxstack[m] = fp[m-1][idxstack[m-1]];
+        }
+
+        /* process each subtree */
+        idx_t depth = 0;
+        while(idxstack[1] < fp[0][i+1]) {
+          /* move down to nnz node while computing predicted value */
+          for(; depth < nmodes-2; ++depth) {
+            val_t const * const restrict mrow =
+                  mats[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
+            for(idx_t f=0; f < nfactors; ++f) {
+              predictbuf[depth+1][f] = predictbuf[depth][f] * mrow[f];
+            }
+          }
+
+          /* process all nonzeros [start, end) */
+          idx_t const start = fp[depth][idxstack[depth]];
+          idx_t const end   = fp[depth][idxstack[depth]+1];
+          for(idx_t jj=start; jj < end; ++jj) {
+            /* computed predicted value and update residual */
+            val_t const * const restrict lastrow =
+                lastmat + (inds[jj] * nfactors);
+            val_t residual = vals[jj];
+            for(idx_t f=0; f < nfactors; ++f) {
+              residual -= predictbuf[depth][f] * lastrow[f];
+            }
+            loss_obj += residual * residual;
+          }
+
+          /* now move up to the next unprocessed subtree */
+          do {
+            ++idxstack[depth];
+            --depth;
+          } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+        } /* foreach fiber subtree */
+      } /* foreach outer slice */
+    } /* foreach tile */
+
+    for(idx_t m=0; m < nmodes; ++m) {
+      splatt_free(predictbuf[m]);
+    }
+  } /* end omp parallel */
+
+#ifdef SPLATT_USE_MPI
+  MPI_Allreduce(MPI_IN_PLACE, &loss_obj, 1, SPLATT_MPI_VAL, MPI_SUM,
+      ws->rinfo->comm_3d);
+#endif
+
+  return loss_obj;
+}
+
+
+
 val_t tc_frob_sq(
     tc_model const * const model,
     tc_ws const * const ws)
@@ -636,7 +743,6 @@ int mpi_tc_distribute_coarse(
     return SPLATT_ERROR_BADINPUT;
   }
   *train_out = train;
-  printf("nnz loaded: %lu\n", train->nnz);
 
   /* simple distribution for validate tensor...
    * TODO: redistribute to match training distribution */

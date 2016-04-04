@@ -30,9 +30,14 @@ static void p_fill_ineed_ptrs(
   int * const nbr2globs_ptr = rinfo->nbr2globs_ptr[m];
   idx_t const * const mat_ptrs = rinfo->mat_ptrs[m];
 
+  idx_t nunique = 0;
+  idx_t * slices = tt_get_slices(tt, m, &nunique);
+
   int pdest = 0;
   /* count recvs for each process */
-  for(idx_t i=0; i < tt->dims[m]; ++i) {
+  //for(idx_t i=0; i < tt->dims[m]; ++i) {
+  for(idx_t s=0; s < nunique; ++s) {
+    idx_t const i = slices[s];
     /* grab global index */
     idx_t const gi = (tt->indmap[m] == NULL) ? i : tt->indmap[m][i];
     /* move to the next processor if necessary */
@@ -50,6 +55,8 @@ static void p_fill_ineed_ptrs(
       rinfo->nlocal2nbr[m] += 1;
     }
   }
+
+  splatt_free(slices);
 
   /* communicate local2nbr and receive nbr2globs */
   MPI_Alltoall(local2nbr_ptr, 1, MPI_INT, nbr2globs_ptr, 1, MPI_INT, comm);
@@ -92,9 +99,15 @@ static void p_fill_ineed_inds(
   idx_t * const nbr2local_inds = rinfo->nbr2local_inds[m];
 
   /* fill indices for local2nbr */
+  idx_t nunique = 0;
+  idx_t * slices = tt_get_slices(tt, m, &nunique);
+
   idx_t recvs = 0;
   int pdest = 0;
-  for(idx_t i=0; i < tt->dims[m]; ++i) {
+  /* count recvs for each process */
+  //for(idx_t i=0; i < tt->dims[m]; ++i) {
+  for(idx_t s=0; s < nunique; ++s) {
+    idx_t const i = slices[s];
     /* grab global index */
     idx_t const gi = (tt->indmap[m] == NULL) ? i : tt->indmap[m][i];
     /* move to the next processor if necessary */
@@ -108,6 +121,8 @@ static void p_fill_ineed_inds(
       ++recvs;
     }
   }
+
+  splatt_free(slices);
 
   rinfo->local2nbr_disp[m] = (int *) splatt_malloc(size * sizeof(int));
   rinfo->nbr2globs_disp[m] = (int *) splatt_malloc(size * sizeof(int));
