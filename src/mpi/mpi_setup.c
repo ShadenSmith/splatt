@@ -198,7 +198,7 @@ static void p_setup_fine(
 *
 * @param rinfo MPI rank information to fill in.
 */
-static void p_setup_3d(
+void p_setup_3d(
   rank_info * const rinfo)
 {
   int * const dims_3d = rinfo->dims_3d;

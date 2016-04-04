@@ -818,6 +818,9 @@ void p_fill_ssizes(
   idx_t ** const ssizes,
   rank_info const * const rinfo);
 
+void p_get_best_mpi_dim(
+  rank_info * const rinfo);
+
 } /* extern "C" */
 
 /**
@@ -897,15 +900,15 @@ typedef struct
  */
 typedef struct
 {
-  int owner_layer, leaser_layer;
+  int owner_stratum_layer, leaser_stratum_layer;
 
   vector<stratum_mode_comm_with_owner_t> owner_comms;
-    /* length = sgd_comm.stratum_layer_rank_ptrs[owner_layer + 1] -
-     * sgd_comm.stratum_layer_rank_ptrs[owner_layer]
+    /* length = sgd_comm.strautm_layer_rank_ptrs[owner_stratum_layer + 1] -
+     * sgd_comm.strautm_layer_rank_ptrs[owner_stratum_layer]
      */
   vector<stratum_mode_comm_with_leaser_t> leaser_comms;
-    /* length = sgd_comm.stratum_layer_rank_ptrs[leaser_layer + 1] -
-     * sgd_comm.stratum_layer_rank_ptrs[leaser_layer]
+    /* length = sgd_comm.strautm_layer_rank_ptrs[leaser_stratum_layer + 1] -
+     * sgd_comm.strautm_layer_rank_ptrs[leaser_stratum_layer]
      */
 
   // only valid when local and >= 1 leasers
@@ -948,7 +951,11 @@ typedef struct
 
   vector<vector<idx_t> > non_empty_slices;
 
-  vector<idx_t> stratum_layer_row_ptrs;
+  vector<idx_t> stratum_layer_rank_ptrs; /* indexed by stratum layer idx */
+  vector<idx_t> stratum_layer_row_ptrs; /* indexed by stratum layer idx */
+  vector<idx_t> rank_row_ptrs; /* layer rank to the beginning of row that it owns (index is in processor local) */
+
+  int my_layer; /* local layer idx */
 } sgd_comm_mode_t;
 
 typedef struct
@@ -969,7 +976,6 @@ typedef struct
   sgd_comm_mode_t mode_infos[MAX_NMODES];
 
   int my_stratum_layer;
-  vector<idx_t> stratum_layer_rank_ptrs;
 
   vector<MPI_Request> requests;
     /* length 2*(npes-1)*(nmodes-1) array */
@@ -981,11 +987,10 @@ typedef struct
 
 sgd_comm_t sgd_comm;
 
-static int p_find_stratum_of(const sptensor_t *tensor, idx_t idx, sgd_comm_t *sgd_comm)
+static int p_find_stratum_of(
+  const sptensor_t *tensor, idx_t idx, sgd_comm_t *sgd_comm)
 {
   rank_info *rinfo = sgd_comm->rinfo;
-  int rank = rinfo->rank;
-  int npes = rinfo->npes;
   int nmodes = tensor->nmodes;
   int nstratum_layer = sgd_comm->nstratum_layer;
 
@@ -993,11 +998,17 @@ static int p_find_stratum_of(const sptensor_t *tensor, idx_t idx, sgd_comm_t *sg
   for(int m=nmodes - 1; m >= 1; --m) {
     stratum *= nstratum_layer;
 
-    int owner_layer = std::upper_bound(
+    idx_t ind = tensor->ind[m][idx];
+    assert(ind >= sgd_comm->mode_infos[m].stratum_layer_row_ptrs[0]);
+    assert(ind < sgd_comm->mode_infos[m].stratum_layer_row_ptrs.back());
+    int owner_stratum_layer = std::upper_bound(
       sgd_comm->mode_infos[m].stratum_layer_row_ptrs.begin(),
       sgd_comm->mode_infos[m].stratum_layer_row_ptrs.end(),
-      tensor->ind[m][idx]) - sgd_comm->mode_infos[m].stratum_layer_row_ptrs.begin() - 1;
-    stratum += (owner_layer + nstratum_layer - sgd_comm->my_stratum_layer)%nstratum_layer;
+      ind) -
+      sgd_comm->mode_infos[m].stratum_layer_row_ptrs.begin() - 1;
+    assert(owner_stratum_layer < sgd_comm->nstratum);
+
+    stratum += (owner_stratum_layer + nstratum_layer - sgd_comm->my_stratum_layer)%nstratum_layer;
   }
 
   assert(stratum >= 0 && stratum < sgd_comm->nstratum);
@@ -1011,7 +1022,6 @@ static void p_count_nnz_of_tiles(
 {
   rank_info *rinfo = sgd_comm->rinfo;
   int npes = rinfo->npes;
-  int rank = rinfo->rank;
   int nstratum = sgd_comm->nstratum;
   int nmodes = train->nmodes;
 
@@ -1023,7 +1033,7 @@ static void p_count_nnz_of_tiles(
   /* count nnz of each tile and each slice */
   double t = omp_get_wtime();
 
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     vector<idx_t> indices_per_stratum[nstratum];
 
     idx_t *hist = (idx_t *)splatt_malloc(sizeof(idx_t)*train->dims[m]);
@@ -1037,39 +1047,51 @@ static void p_count_nnz_of_tiles(
       int s = p_find_stratum_of(train, n, sgd_comm);
       indices_per_stratum[s].push_back(idx);
 
-      if(1 == m) ++(*nnzs)[s];
+      if(0 == m) ++(*nnzs)[s];
     }
+
+    sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
 
 #pragma omp parallel for
     for(int s=0; s < nstratum; ++s) {
-      stratum_mode_t *mode_info = &sgd_comm->stratums[s].mode_infos[m];
-      int owner_layer = mode_info->owner_layer;
-      int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+      stratum_mode_t *stratum_mode_info = &sgd_comm->stratums[s].mode_infos[m];
+      int owner_stratum_layer = stratum_mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
+      int owner_begin = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer + 1];
+      assert(owner_end >= owner_begin);
 
       vector<idx_t> non_empty_slices[owner_end - owner_begin];
       assert(indices_per_stratum[s].size() == (*nnzs)[s]);
       for(int i=0; i < indices_per_stratum[s].size(); ++i) {
         idx_t idx = indices_per_stratum[s][i];
+        assert(idx >= mode_info->rank_row_ptrs[owner_begin]);
+        assert(idx < mode_info->rank_row_ptrs[owner_end]);
         int owner = std::upper_bound(
-          rinfo->layer_ptrs[m] + owner_begin,
-          rinfo->layer_ptrs[m] + owner_end,
-          idx) - rinfo->layer_ptrs[m] - 1;
+          &mode_info->rank_row_ptrs[owner_begin],
+          &mode_info->rank_row_ptrs[owner_end],
+          idx) - &mode_info->rank_row_ptrs[0] - 1;
         assert(owner >= owner_begin && owner < owner_end);
 
+        assert(idx >= mode_info->rank_row_ptrs[owner]);
+        assert(idx < mode_info->rank_row_ptrs[owner + 1]);
         non_empty_slices[owner - owner_begin].push_back(idx);
       }
 
       for(int r=0; r < owner_end - owner_begin; ++r) {
         sort(non_empty_slices[r].begin(), non_empty_slices[r].end());
-        idx_t len = unique(non_empty_slices[r].begin(), non_empty_slices[r].end()) - non_empty_slices[r].begin();
+        idx_t len =
+          unique(non_empty_slices[r].begin(), non_empty_slices[r].end()) -
+          non_empty_slices[r].begin();
 
-
-        stratum_mode_comm_with_owner_t *owner_comm = &mode_info->owner_comms[r];
+        stratum_mode_comm_with_owner_t *owner_comm =
+          &stratum_mode_info->owner_comms[r];
 
         owner_comm->nnzs_of_non_empty_slice[0].resize(len);
         owner_comm->nnzs_of_non_empty_slice[1].resize(len);
         for(idx_t i=0; i < len; ++i) {
+          assert(non_empty_slices[r][i] >= mode_info->rank_row_ptrs[owner_begin + r]);
+          assert(non_empty_slices[r][i] < mode_info->rank_row_ptrs[owner_begin + r + 1]);
           owner_comm->nnzs_of_non_empty_slice[0][i] = non_empty_slices[r][i];
           assert(hist[non_empty_slices[r][i]]);
           owner_comm->nnzs_of_non_empty_slice[1][i] = hist[non_empty_slices[r][i]];
@@ -1086,34 +1108,35 @@ static void p_find_non_empty_slices(
   sgd_comm_t *sgd_comm, const sptensor_t *validate)
 {
   rank_info *rinfo = sgd_comm->rinfo;
-  int rank = rinfo->rank;
   int npes = rinfo->npes;
   int nstratum = sgd_comm->nstratum;
   int nmodes = sgd_comm->model->nmodes;
 
   /* collect non-local indices and separate them by their owners */
   // iterate per mode even though it makes us to read the tensor multiple times to save memory
-  for(int m=1; m < nmodes; ++m) {
-    sgd_comm->mode_infos[m].non_empty_slices.resize(npes);
+  for(int m=0; m < nmodes; ++m) {
+    sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
+    mode_info->non_empty_slices.resize(npes);
 
-    for(int p=0; p < npes; ++p) {
-      if(p == rank) continue;
+    for(int p=0; p < rinfo->layer_size[m]; ++p) {
+      if(p == rinfo->layer_rank[m]) continue;
       vector<idx_t> indices_per_rank;
 
       for(int s=0; s < nstratum; ++s) {
-        stratum_mode_t *mode_info = &sgd_comm->stratums[s].mode_infos[m];
-        int owner_layer = mode_info->owner_layer;
+        stratum_mode_t *stratum_mode_info = &sgd_comm->stratums[s].mode_infos[m];
+        int owner_stratum_layer = stratum_mode_info->owner_stratum_layer;
+        assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
 
-        int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-        int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+        int owner_begin = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer];
+        int owner_end = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer + 1];
         int nranks_in_layer = owner_end - owner_begin;
         for(int r=0; r < nranks_in_layer; ++r) {
           int owner = owner_begin + r;
           if(owner == p) {
-            stratum_mode_comm_with_owner_t *owner_comm = &mode_info->owner_comms[r];
+            stratum_mode_comm_with_owner_t *owner_comm = &stratum_mode_info->owner_comms[r];
             for(idx_t i = 0; i < owner_comm->nnzs_of_non_empty_slice[0].size(); ++i) {
-              assert(owner_comm->nnzs_of_non_empty_slice[0][i] >= rinfo->layer_ptrs[m][p]);
-              assert(owner_comm->nnzs_of_non_empty_slice[0][i] < rinfo->layer_ptrs[m][p + 1]);
+              assert(owner_comm->nnzs_of_non_empty_slice[0][i] >= mode_info->rank_row_ptrs[p]);
+              assert(owner_comm->nnzs_of_non_empty_slice[0][i] < mode_info->rank_row_ptrs[p + 1]);
               indices_per_rank.push_back(owner_comm->nnzs_of_non_empty_slice[0][i]);
             }
           }
@@ -1122,18 +1145,18 @@ static void p_find_non_empty_slices(
 
       for(idx_t n=0; n < validate->nnz; ++n) {
         idx_t idx = validate->ind[m][n];
-        if(idx >= rinfo->layer_ptrs[m][p] && idx < rinfo->layer_ptrs[m][p + 1]) {
+        if(idx >= mode_info->rank_row_ptrs[p] && idx < mode_info->rank_row_ptrs[p + 1]) {
           indices_per_rank.push_back(idx);
         }
       }
 
       std::sort(indices_per_rank.begin(), indices_per_rank.end());
       idx_t len = std::unique(indices_per_rank.begin(), indices_per_rank.end()) - indices_per_rank.begin();
-      sgd_comm->mode_infos[m].non_empty_slices[p].resize(len);
+      mode_info->non_empty_slices[p].resize(len);
       for(idx_t i=0; i < len; ++i) {
-        assert(indices_per_rank[i] >= rinfo->layer_ptrs[m][p]);
-        assert(indices_per_rank[i] < rinfo->layer_ptrs[m][p + 1]);
-        sgd_comm->mode_infos[m].non_empty_slices[p][i] = indices_per_rank[i];
+        assert(indices_per_rank[i] >= mode_info->rank_row_ptrs[p]);
+        assert(indices_per_rank[i] < mode_info->rank_row_ptrs[p + 1]);
+        mode_info->non_empty_slices[p][i] = indices_per_rank[i];
       }
     } /* for each rank */
   } /* for each mode */
@@ -1151,16 +1174,17 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
   int nstratum = sgd_comm->nstratum;
 
   for(int s=0; s < nstratum; ++s) {
-    for(int m=1; m < nmodes; ++m) {
+    for(int m=0; m < nmodes; ++m) {
       stratum_mode_t *mode_info = &sgd_comm->stratums[s].mode_infos[m];
-      int owner_layer = mode_info->owner_layer;
-      int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+      int owner_stratum_layer = mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
+      int owner_begin = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer + 1];
       int nranks_in_layer = owner_end - owner_begin;
 
       for(int r=0; r < nranks_in_layer; ++r) {
         int owner = owner_begin + r;
-        if(owner == rank) continue;
+        if(owner == rinfo->layer_rank[m]) continue;
 
         stratum_mode_comm_with_owner_t *owner_comm =
           &mode_info->owner_comms[r];
@@ -1181,61 +1205,71 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
   MPI_Request send_request, recv_request;
 
   for(int s=0; s < nstratum; ++s) {
-    for(int m=1; m < nmodes; ++m) {
-      stratum_mode_t *mode_info = &sgd_comm->stratums[s].mode_infos[m];
+    for(int m=0; m < nmodes; ++m) {
+      int layer_rank = rinfo->layer_rank[m];
+      stratum_mode_t *stratum_mode_info = &sgd_comm->stratums[s].mode_infos[m];
+      sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
 
-      int owner_layer = mode_info->owner_layer;
-      int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+      int owner_stratum_layer = stratum_mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
+      int owner_begin = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer + 1];
       int nranks_in_owner_layer = owner_end - owner_begin;
 
       MPI_Request send_requests[nranks_in_owner_layer];
       idx_t send_lens[nranks_in_owner_layer];
       for(int r=0; r < nranks_in_owner_layer; ++r) {
         int owner = owner_begin + r;
-        if(owner == rank) continue;
+        assert(owner < rinfo->layer_size[m]);
+        if(owner == layer_rank) continue;
 
-        send_lens[r] = mode_info->owner_comms[r].nnzs_of_non_empty_slice[0].size();
+        send_lens[r] = stratum_mode_info->owner_comms[r].nnzs_of_non_empty_slice[0].size();
         MPI_Isend(
-          send_lens + r, 1, SPLATT_MPI_IDX, owner, m, MPI_COMM_WORLD, &send_requests[r]);
+          send_lens + r, 1, SPLATT_MPI_IDX, owner, m, rinfo->layer_comm[m], &send_requests[r]);
+        //if(1 == m && rinfo->coords_3d[m] == 0) printf("[%d:%d->%d] s=%d m=%d owner_stratum_layer=%d\n", rinfo->coords_3d[m], layer_rank, owner, s, m, owner_stratum_layer);
       }
 
-      int leaser_layer = mode_info->leaser_layer;
-      int leaser_begin = sgd_comm->stratum_layer_rank_ptrs[leaser_layer];
-      int leaser_end = sgd_comm->stratum_layer_rank_ptrs[leaser_layer + 1];
+      int leaser_stratum_layer = stratum_mode_info->leaser_stratum_layer;
+      assert(m == 0 && leaser_stratum_layer == 0 || leaser_stratum_layer < sgd_comm->nstratum_layer);
+      int leaser_begin = mode_info->stratum_layer_rank_ptrs[leaser_stratum_layer];
+      int leaser_end = mode_info->stratum_layer_rank_ptrs[leaser_stratum_layer + 1];
       int nranks_in_leaser_layer = leaser_end - leaser_begin;
 
       for(int r=0; r < nranks_in_leaser_layer; ++r) {
         int leaser = leaser_begin + r;
-        if(leaser == rank) continue;
+        assert(leaser < rinfo->layer_size[m]);
+        if(leaser == layer_rank) continue;
 
         idx_t recv_len = 0;
         MPI_Irecv(
           &recv_len, 1, SPLATT_MPI_IDX,
-          leaser, m, MPI_COMM_WORLD, &recv_request);
+          leaser, m, rinfo->layer_comm[m], &recv_request);
+        //if(1 == m && rinfo->coords_3d[m] == 0) printf("[%d:%d<-%d] s=%d m=%d leaser_stratum_layer=%d\n", rinfo->coords_3d[m], layer_rank, leaser, s, m, leaser_stratum_layer);
         MPI_Wait(&recv_request, MPI_STATUS_IGNORE);
+        //if(1 == m && rinfo->coords_3d[m] == 0) printf("![%d:%d<-%d] s=%d m=%d leaser_stratum_layer=%d\n", rinfo->coords_3d[m], layer_rank, leaser, s, m, leaser_stratum_layer);
 
         stratum_mode_comm_with_leaser_t *leaser_comm =
-          &mode_info->leaser_comms[r];
+          &stratum_mode_info->leaser_comms[r];
         leaser_comm->local_rows_to_send.resize(recv_len);
         leaser_comm->remote_hists = (idx_t *)splatt_malloc(sizeof(idx_t)*recv_len);
       }
 
       for(int r=0; r < nranks_in_owner_layer; ++r) {
         int owner = owner_begin + r;
-        if(owner == rank) continue;
+        assert(owner < rinfo->layer_size[m]);
+        if(owner == layer_rank) continue;
 
         MPI_Wait(&send_requests[r], MPI_STATUS_IGNORE);
 
         stratum_mode_comm_with_owner_t *owner_comm =
-          &mode_info->owner_comms[r];
+          &stratum_mode_info->owner_comms[r];
         MPI_Isend(
           &owner_comm->nnzs_of_non_empty_slice[0][0],
           send_lens[r],
           SPLATT_MPI_IDX,
           owner,
           m,
-          MPI_COMM_WORLD,
+          rinfo->layer_comm[m],
           &send_requests[r]);
       }
 
@@ -1243,9 +1277,10 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
 
       for(int r=0; r < nranks_in_leaser_layer; ++r) {
         int leaser = leaser_begin + r;
-        if(leaser == rank) continue;
+        assert(leaser < rinfo->layer_size[m]);
+        if(leaser == layer_rank) continue;
         stratum_mode_comm_with_leaser_t *leaser_comm =
-          &mode_info->leaser_comms[r];
+          &stratum_mode_info->leaser_comms[r];
 
         idx_t recv_len = leaser_comm->local_rows_to_send.size();
         MPI_Irecv(
@@ -1254,39 +1289,43 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
           SPLATT_MPI_IDX,
           leaser,
           m,
-          MPI_COMM_WORLD,
+          rinfo->layer_comm[m],
           &recv_request);
         MPI_Wait(&recv_request, MPI_STATUS_IGNORE);
 
         /* convert received global indices to local indices */
         for(idx_t i=0; i < recv_len; ++i) {
-          leaser_comm->local_rows_to_send[i] -= rinfo->layer_ptrs[m][rank];
+          assert(leaser_comm->local_rows_to_send[i] >= mode_info->rank_row_ptrs[layer_rank]);
+          assert(leaser_comm->local_rows_to_send[i] < mode_info->rank_row_ptrs[layer_rank + 1]);
+          leaser_comm->local_rows_to_send[i] -= mode_info->rank_row_ptrs[layer_rank];
         }
       }
 
       for(int r=0; r < nranks_in_owner_layer; ++r) {
         int owner = owner_begin + r;
-        if(owner == rank) continue;
+        assert(owner < rinfo->layer_size[m]);
+        if(owner == layer_rank) continue;
 
         MPI_Wait(&send_requests[r], MPI_STATUS_IGNORE);
 
         stratum_mode_comm_with_owner_t *owner_comm =
-          &mode_info->owner_comms[r];
+          &stratum_mode_info->owner_comms[r];
         MPI_Isend(
           &owner_comm->nnzs_of_non_empty_slice[1][0],
           send_lens[r],
           SPLATT_MPI_IDX,
           owner,
           m,
-          MPI_COMM_WORLD,
+          rinfo->layer_comm[m],
           &send_requests[r]);
       }
 
       for(int r=0; r < nranks_in_leaser_layer; ++r) {
         int leaser = leaser_begin + r;
-        if(leaser == rank) continue;
+        assert(leaser < rinfo->layer_size[m]);
+        if(leaser == layer_rank) continue;
         stratum_mode_comm_with_leaser_t *leaser_comm =
-          &mode_info->leaser_comms[r];
+          &stratum_mode_info->leaser_comms[r];
 
         MPI_Irecv(
           &leaser_comm->remote_hists[0],
@@ -1294,7 +1333,7 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
           SPLATT_MPI_IDX,
           leaser,
           m,
-          MPI_COMM_WORLD,
+          rinfo->layer_comm[m],
           &recv_request);
         MPI_Wait(&recv_request, MPI_STATUS_IGNORE);
 
@@ -1305,7 +1344,7 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
 
       for(int r=0; r < nranks_in_owner_layer; ++r) {
         int owner = owner_begin + r;
-        if(owner == rank) continue;
+        if(owner == layer_rank) continue;
         MPI_Wait(&send_requests[r], MPI_STATUS_IGNORE);
       }
       //printf("[%d] m=%d %s:%d\n", rank, m, __FILE__, __LINE__);
@@ -1317,25 +1356,28 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
 
   /* compute weights for reducing multiple updates */
   for(int s=0; s < nstratum; ++s) {
-    for(int m=1; m < nmodes; ++m) {
-      stratum_mode_t *mode_info = &sgd_comm->stratums[s].mode_infos[m];
+    for(int m=0; m < nmodes; ++m) {
+      int layer_rank = rinfo->layer_rank[m];
+      stratum_mode_t *stratum_mode_info = &sgd_comm->stratums[s].mode_infos[m];
+      sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
 
-      idx_t baserow = rinfo->layer_ptrs[m][rank];
-      idx_t nlocalrow = rinfo->layer_ptrs[m][rank + 1] - baserow;
+      idx_t baserow = mode_info->rank_row_ptrs[layer_rank];
+      idx_t nlocalrow = mode_info->rank_row_ptrs[layer_rank + 1] - baserow;
       vector<idx_t> hist(nlocalrow, 0);
 
-      int owner_layer = mode_info->owner_layer;
-      int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+      int owner_stratum_layer = stratum_mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
+      int owner_begin = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer + 1];
       int nranks_in_owner_layer = owner_end - owner_begin;
 
-      if(owner_layer == sgd_comm->my_stratum_layer &&
+      if(owner_stratum_layer == mode_info->my_layer &&
           nranks_in_owner_layer > 1) {
         for(int r=0; r < nranks_in_owner_layer; ++r) {
           int owner = owner_begin + r;
-          if(owner != rank) continue;
+          if(owner != layer_rank) continue;
           stratum_mode_comm_with_owner_t *owner_comm =
-            &mode_info->owner_comms[r];
+            &stratum_mode_info->owner_comms[r];
 
           for(idx_t i=0; i < owner_comm->nnzs_of_non_empty_slice[0].size(); ++i) {
             idx_t idx = owner_comm->nnzs_of_non_empty_slice[0][i] - baserow;
@@ -1345,18 +1387,19 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
         }
       }
 
-      int leaser_layer = mode_info->leaser_layer;
-      int leaser_begin = sgd_comm->stratum_layer_rank_ptrs[leaser_layer];
-      int leaser_end = sgd_comm->stratum_layer_rank_ptrs[leaser_layer + 1];
+      int leaser_stratum_layer = stratum_mode_info->leaser_stratum_layer;
+      assert(m == 0 && leaser_stratum_layer == 0 || leaser_stratum_layer < sgd_comm->nstratum_layer);
+      int leaser_begin = mode_info->stratum_layer_rank_ptrs[leaser_stratum_layer];
+      int leaser_end = mode_info->stratum_layer_rank_ptrs[leaser_stratum_layer + 1];
       int nranks_in_leaser_layer = leaser_end - leaser_begin;
 
       if(nranks_in_leaser_layer > 1 ||
-          leaser_layer == sgd_comm->my_stratum_layer) {
+          leaser_stratum_layer == mode_info->my_layer) {
         for(int r=0; r < nranks_in_leaser_layer; ++r) {
           int leaser = leaser_begin + r;
-          if(leaser == rank) continue;
+          if(leaser == layer_rank) continue;
           stratum_mode_comm_with_leaser_t *leaser_comm =
-            &mode_info->leaser_comms[r];
+            &stratum_mode_info->leaser_comms[r];
 
           idx_t len = leaser_comm->local_rows_to_send.size();
           leaser_comm->weight = (val_t *)splatt_malloc(sizeof(val_t)*len);
@@ -1376,33 +1419,33 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
         }
       }
 
-      if(owner_layer == sgd_comm->my_stratum_layer &&
+      if(owner_stratum_layer == mode_info->my_layer &&
           nranks_in_owner_layer > 1) {
         for(int r=0; r < nranks_in_owner_layer; ++r) {
           int owner = owner_begin + r;
-          if(owner != rank) continue;
+          if(owner != layer_rank) continue;
           stratum_mode_comm_with_owner_t *owner_comm =
-            &mode_info->owner_comms[r];
+            &stratum_mode_info->owner_comms[r];
           idx_t len = owner_comm->nnzs_of_non_empty_slice[0].size();
-          mode_info->local_weight = (val_t *)splatt_malloc(sizeof(val_t)*len);
+          stratum_mode_info->local_weight = (val_t *)splatt_malloc(sizeof(val_t)*len);
 
           for(idx_t i=0; i < len; ++i) {
             idx_t idx = owner_comm->nnzs_of_non_empty_slice[0][i] - baserow;
             assert(idx < nlocalrow);
-            mode_info->local_weight[i] =
+            stratum_mode_info->local_weight[i] =
               (val_t)owner_comm->nnzs_of_non_empty_slice[1][i]/hist[idx];
-            assert(std::isfinite(mode_info->local_weight[i]));
+            assert(std::isfinite(stratum_mode_info->local_weight[i]));
           }
         }
       }
 
       if(nranks_in_leaser_layer > 1 ||
-          leaser_layer == sgd_comm->my_stratum_layer) {
+          leaser_stratum_layer == mode_info->my_layer) {
         for(int r=0; r < nranks_in_leaser_layer; ++r) {
           int leaser = leaser_begin + r;
-          if(leaser == rank) continue;
+          if(leaser == layer_rank) continue;
           stratum_mode_comm_with_leaser_t *leaser_comm =
-            &mode_info->leaser_comms[r];
+            &stratum_mode_info->leaser_comms[r];
 
           for(idx_t i=0; i < leaser_comm->local_rows_to_send.size(); ++i) {
             idx_t idx = leaser_comm->local_rows_to_send[i];
@@ -1417,14 +1460,14 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
     }
   }
 
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
 
     mode_info->local_rows_to_send.resize(npes);
 
     idx_t i_base = 0;
-    for(int p=0; p < npes; ++p) {
-      if(p == rank) assert(mode_info->non_empty_slices[p].empty());
+    for(int p=0; p < rinfo->layer_size[m]; ++p) {
+      if(p == rinfo->layer_rank[m]) assert(mode_info->non_empty_slices[p].empty());
 
       for(idx_t i=0; i < mode_info->non_empty_slices[p].size(); ++i) {
         mode_info->global_to_external[mode_info->non_empty_slices[p][i]] = i + i_base;
@@ -1436,41 +1479,43 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
   if(rank == 0) printf("[%d] %s:%d %g sec.\n", rank, __FILE__, __LINE__, omp_get_wtime() - t);
   omp_get_wtime();
 
-  for(int p=0; p < npes; ++p) {
-    for(int m=1; m < nmodes; ++m) {
-      sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
+  for(int m=0; m < nmodes; ++m) {
+    int layer_rank = rinfo->layer_rank[m];
+    sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
+
+    for(int p=0; p < rinfo->layer_size[m]; ++p) {
 
       // FIXME: can do this with all-to-all
       idx_t send_len = mode_info->non_empty_slices[p].size();
       MPI_Isend(
-        &send_len, 1, SPLATT_MPI_IDX, p, m, MPI_COMM_WORLD, &send_request);
+        &send_len, 1, SPLATT_MPI_IDX, p, m, rinfo->layer_comm[m], &send_request);
 
       idx_t recv_len = 0;
       MPI_Irecv(
-        &recv_len, 1, SPLATT_MPI_IDX, p, m, MPI_COMM_WORLD, &recv_request);
+        &recv_len, 1, SPLATT_MPI_IDX, p, m, rinfo->layer_comm[m], &recv_request);
 
       MPI_Wait(&send_request, MPI_STATUS_IGNORE);
       MPI_Wait(&recv_request, MPI_STATUS_IGNORE);
 
-      if(p == rank) assert(recv_len == 0);
+      if(p == layer_rank) assert(recv_len == 0);
       mode_info->local_rows_to_send[p].resize(recv_len);
 
       MPI_Isend(
         &mode_info->non_empty_slices[p][0],
-        send_len, SPLATT_MPI_IDX, p, m, MPI_COMM_WORLD, &send_request);
+        send_len, SPLATT_MPI_IDX, p, m, rinfo->layer_comm[m], &send_request);
 
       MPI_Irecv(
         &mode_info->local_rows_to_send[p][0],
-        recv_len, SPLATT_MPI_IDX, p, m, MPI_COMM_WORLD, &recv_request);
+        recv_len, SPLATT_MPI_IDX, p, m, rinfo->layer_comm[m], &recv_request);
 
       MPI_Wait(&send_request, MPI_STATUS_IGNORE);
       MPI_Wait(&recv_request, MPI_STATUS_IGNORE);
 
       /* convert received global indices to local indices */
       for(idx_t i=0; i < mode_info->local_rows_to_send[p].size(); ++i) {
-        assert(mode_info->local_rows_to_send[p][i] >= rinfo->layer_ptrs[m][rank]);
-        assert(mode_info->local_rows_to_send[p][i] < rinfo->layer_ptrs[m][rank + 1]);
-        mode_info->local_rows_to_send[p][i] -= rinfo->layer_ptrs[m][rank];
+        assert(mode_info->local_rows_to_send[p][i] >= mode_info->rank_row_ptrs[layer_rank]);
+        assert(mode_info->local_rows_to_send[p][i] < mode_info->rank_row_ptrs[layer_rank + 1]);
+        mode_info->local_rows_to_send[p][i] -= mode_info->rank_row_ptrs[layer_rank];
       }
     }
   }
@@ -1526,26 +1571,29 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
 
   idx_t nlocalrows[nmodes];
   for(idx_t m=0; m < nmodes; ++m) {
-    nlocalrows[m] = rinfo->layer_ptrs[m][rank + 1] - rinfo->layer_ptrs[m][rank];
+    nlocalrows[m] =
+      sgd_comm->mode_infos[m].rank_row_ptrs[rinfo->layer_rank[m] + 1] -
+      sgd_comm->mode_infos[m].rank_row_ptrs[rinfo->layer_rank[m]];
   }
 
   idx_t base[nmodes][npes + 1];
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     for(int p=1; p <=npes; ++p) {
       base[m][p] = 0;
     }
     base[m][0] = nlocalrows[m];
   }
   for(int s=0; s < nstratum; ++s) {
-    for(int m=1; m < nmodes; ++m) {
+    for(int m=0; m < nmodes; ++m) {
       stratum_mode_t *mode_info = &sgd_comm->stratums[s].mode_infos[m];
-      int owner_layer = mode_info->owner_layer;
-      int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+      int owner_stratum_layer = mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
+      int owner_begin = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer + 1];
 
       for(int r=0; r < owner_end - owner_begin; ++r) {
         int owner = owner_begin + r;
-        if (owner != rank) {
+        if (owner != rinfo->layer_rank[m]) {
           base[m][owner + 1] = SS_MAX(
             base[m][owner + 1],
             mode_info->owner_comms[r].nnzs_of_non_empty_slice[0].size());
@@ -1553,7 +1601,7 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
       }
     }
   }
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     for(int p=0; p < npes; ++p) {
       base[m][p + 1] += base[m][p];
     }
@@ -1567,22 +1615,26 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
     tile->vals[nnzs[s]] = train->vals[n];
     tile->ind[0][nnzs[s]] = train->ind[0][n];
 
-    for(int m=1; m < nmodes; ++m) {
+    for(int m=0; m < nmodes; ++m) {
       stratum_mode_t *stratum_mode_info = &sgd_comm->stratums[s].mode_infos[m];
       sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
 
-      int owner_layer = stratum_mode_info->owner_layer;
-      int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+      int owner_stratum_layer = stratum_mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
+      int owner_begin = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer + 1];
 
       idx_t idx = train->ind[m][n];
+      assert(idx >= mode_info->rank_row_ptrs[owner_begin]);
+      assert(idx < mode_info->rank_row_ptrs[owner_end]);
       int owner = std::upper_bound(
-        rinfo->layer_ptrs[m] + owner_begin,
-        rinfo->layer_ptrs[m] + owner_end,
-        idx) - rinfo->layer_ptrs[m] - 1;
+        &mode_info->rank_row_ptrs[owner_begin],
+        &mode_info->rank_row_ptrs[owner_end],
+        idx) - &mode_info->rank_row_ptrs[0] - 1;
       assert(owner >= owner_begin && owner < owner_end);
 
-      if(owner != rank) {
+      int layer_rank = rinfo->layer_rank[m];
+      if(owner != layer_rank) {
         stratum_mode_comm_with_owner_t *owner_comm =
           &stratum_mode_info->owner_comms[owner - owner_begin];
         assert(owner_comm->global_to_external.find(idx) != owner_comm->global_to_external.end());
@@ -1593,18 +1645,19 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
       }
       else {
         /* convert global index to local index */
-        tile->ind[m][nnzs[s]] = idx - rinfo->layer_ptrs[m][rank];
+        tile->ind[m][nnzs[s]] = idx - mode_info->rank_row_ptrs[layer_rank];
 
-        assert(idx >= rinfo->layer_ptrs[m][rank]);
-        assert(idx < rinfo->layer_ptrs[m][rank + 1]);
-        sgd_comm->compact_train->ind[m][n] = idx - rinfo->layer_ptrs[m][rank];
+        assert(idx >= mode_info->rank_row_ptrs[layer_rank]);
+        assert(idx < mode_info->rank_row_ptrs[layer_rank + 1]);
+        sgd_comm->compact_train->ind[m][n] =
+          idx - mode_info->rank_row_ptrs[layer_rank];
       }
     }
 
     ++nnzs[s];
   }
   for(int s=0; s < nstratum; ++s) {
-    for(int m=1; m < nmodes; ++m) {
+    for(int m=0; m < nmodes; ++m) {
       for(int r=0; r < sgd_comm->stratums[s].mode_infos[m].owner_comms.size(); ++r) {
         sgd_comm->stratums[s].mode_infos[m].owner_comms[r].global_to_external.clear();
       }
@@ -1697,10 +1750,10 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
   int npes = rinfo->npes;
   int rank = rinfo->rank;
 
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     idx_t maximum = 0;
-    for(int p=0; p < npes; ++p) {
-      if(p != rank) {
+    for(int p=0; p < rinfo->layer_size[m]; ++p) {
+      if(p != rinfo->layer_rank[m]) {
         maximum += sgd_comm->mode_infos[m].local_rows_to_send[p].size();
       }
     }
@@ -1724,26 +1777,28 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
   idx_t nlocalrows[nmodes];
   for(idx_t m=0; m < nmodes; ++m) {
     nlocalrows[m] =
-      rinfo->layer_ptrs[m][rank + 1] - rinfo->layer_ptrs[m][rank];
+      sgd_comm->mode_infos[m].rank_row_ptrs[rinfo->layer_rank[m] + 1] -
+      sgd_comm->mode_infos[m].rank_row_ptrs[rinfo->layer_rank[m]];
   }
 
   idx_t base[nmodes][npes + 1];
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     for(int p=1; p <=npes; ++p) {
       base[m][p] = 0;
     }
     base[m][0] = nlocalrows[m];
   }
   for(int s=0; s < nstratum; ++s) {
-    for(int m=1; m < nmodes; ++m) {
+    for(int m=0; m < nmodes; ++m) {
       stratum_mode_t *mode_info = &sgd_comm->stratums[s].mode_infos[m];
-      int owner_layer = mode_info->owner_layer;
-      int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+      int owner_stratum_layer = mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
+      int owner_begin = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer + 1];
 
       for(int r=0; r < owner_end - owner_begin; ++r) {
         int owner = owner_begin + r;
-        if (owner != rank) {
+        if (owner != rinfo->layer_rank[m]) {
           base[m][owner + 1] = SS_MAX(
             base[m][owner + 1],
             mode_info->owner_comms[r].nnzs_of_non_empty_slice[0].size());
@@ -1752,7 +1807,7 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
       }
     }
   }
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     for(int p=0; p < npes; ++p) {
       base[m][p + 1] += base[m][p];
     }
@@ -1765,10 +1820,10 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
     stratum_t *stratum = &sgd_comm->stratums[s];
 
     int owner_request_cnt = 0, leaser_request_cnt = 0;
-    for(int m=1; m < nmodes; ++m) {
+    for(int m=0; m < nmodes; ++m) {
       stratum_mode_t *mode_info = &stratum->mode_infos[m];
-      if(mode_info->owner_layer == sgd_comm->my_stratum_layer) {
-        assert(mode_info->leaser_layer == sgd_comm->my_stratum_layer);
+      if(mode_info->owner_stratum_layer == sgd_comm->mode_infos[m].my_layer) {
+        assert(mode_info->leaser_stratum_layer == sgd_comm->mode_infos[m].my_layer);
         owner_request_cnt += mode_info->owner_comms.size() - 1;
         leaser_request_cnt += mode_info->leaser_comms.size() - 1;
       }
@@ -1785,18 +1840,21 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
 
     owner_request_cnt = 0;
     leaser_request_cnt = 0;
-    for(int m=1; m < nmodes; ++m) {
+    for(int m=0; m < nmodes; ++m) {
+      int layer_rank = rinfo->layer_rank[m];
       stratum_mode_t *mode_info = &stratum->mode_infos[m];
 
-      int owner_layer = mode_info->owner_layer;
-      int owner_begin = sgd_comm->stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm->stratum_layer_rank_ptrs[owner_layer + 1];
+      int owner_stratum_layer = mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm->nstratum_layer);
+      int owner_begin = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer + 1];
       int nranks_in_owner_layer = owner_end - owner_begin;
 
       for(int r=0; r < nranks_in_owner_layer; ++r) {
         int owner = owner_begin + r;
-        if(owner == rank) {
-          assert(owner_layer == sgd_comm->my_stratum_layer);
+        assert(owner < rinfo->layer_size[m]);
+        if(owner == layer_rank) {
+          assert(owner_stratum_layer == sgd_comm->mode_infos[m].my_layer);
           continue;
         }
 
@@ -1813,7 +1871,7 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
           SPLATT_MPI_VAL,
           owner,
           m,
-          MPI_COMM_WORLD,
+          rinfo->layer_comm[m],
           &stratum->recv_from_owner_requests[owner_request_cnt]);
         assert(MPI_SUCCESS == ret);
 
@@ -1824,7 +1882,7 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
           SPLATT_MPI_VAL,
           owner,
           m + nmodes,
-          MPI_COMM_WORLD,
+          rinfo->layer_comm[m],
           &stratum->send_to_owner_requests[owner_request_cnt]);
         assert(MPI_SUCCESS == ret);
 
@@ -1832,16 +1890,18 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
         sgd_comm->comm_with_owner_vol[s] += len*nfactors*sizeof(val_t);
       }
 
-      int leaser_layer = mode_info->leaser_layer;
-      int leaser_begin = sgd_comm->stratum_layer_rank_ptrs[leaser_layer];
-      int leaser_end = sgd_comm->stratum_layer_rank_ptrs[leaser_layer + 1];
+      int leaser_stratum_layer = mode_info->leaser_stratum_layer;
+      assert(m == 0 && leaser_stratum_layer == 0 || leaser_stratum_layer < sgd_comm->nstratum_layer);
+      int leaser_begin = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[leaser_stratum_layer];
+      int leaser_end = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[leaser_stratum_layer + 1];
       int nranks_in_leaser_layer = leaser_end - leaser_begin;
 
       idx_t buf_offset = 0;
       for(int r=0; r < nranks_in_leaser_layer; ++r) {
         int leaser = leaser_begin + r;
-        if(leaser == rank) {
-          assert(leaser_layer == sgd_comm->my_stratum_layer);
+        assert(leaser < rinfo->layer_size[m]);
+        if(leaser == layer_rank) {
+          assert(leaser_stratum_layer == sgd_comm->mode_infos[m].my_layer);
           continue;
         }
 
@@ -1856,7 +1916,7 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
           SPLATT_MPI_VAL,
           leaser,
           m,
-          MPI_COMM_WORLD,
+          rinfo->layer_comm[m],
           &stratum->send_to_leasers_requests[leaser_request_cnt]);
         assert(MPI_SUCCESS == ret);
 
@@ -1867,7 +1927,7 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
           SPLATT_MPI_VAL,
           leaser,
           m + nmodes,
-          MPI_COMM_WORLD,
+          rinfo->layer_comm[m],
           &stratum->recv_from_leasers_requests[leaser_request_cnt]);
         assert(MPI_SUCCESS == ret);
 
@@ -1880,13 +1940,23 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
     assert(leaser_request_cnt == stratum->recv_from_leasers_requests.size());
   }
 
-  sgd_comm->requests.resize(2*(npes - 1)*(nmodes - 1));
+  int nrequests = 0;
+  for(int m=0; m < nmodes; ++m) {
+    sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
+    for(int p=0; p < rinfo->layer_size[m]; ++p) {
+      if(p == rinfo->layer_rank[m]) continue;
+      nrequests++;
+    }
+  }
+  sgd_comm->requests.resize(2*nrequests);
+
   int request_cnt = 0;
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
+    int layer_rank = rinfo->layer_rank[m];
     sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
     idx_t local_offset = 0, remote_offset = 0;
-    for(int p=0; p < npes; ++p) {
-      if(p == rank) continue;
+    for(int p=0; p < rinfo->layer_size[m]; ++p) {
+      if(p == layer_rank) continue;
 
       idx_t len = mode_info->non_empty_slices[p].size()*nfactors;
       int ret = MPI_Recv_init(
@@ -1895,7 +1965,7 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
         SPLATT_MPI_VAL,
         p,
         m,
-        MPI_COMM_WORLD,
+        rinfo->layer_comm[m],
         &sgd_comm->requests[request_cnt]);
       assert(MPI_SUCCESS == ret);
       local_offset += mode_info->non_empty_slices[p].size();
@@ -1908,8 +1978,8 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
         SPLATT_MPI_VAL,
         p,
         m,
-        MPI_COMM_WORLD,
-        &sgd_comm->requests[(npes - 1)*(nmodes - 1) + request_cnt]);
+        rinfo->layer_comm[m],
+        &sgd_comm->requests[nrequests + request_cnt]);
       assert(MPI_SUCCESS == ret);
       remote_offset += mode_info->local_rows_to_send[p].size();
       sgd_comm->epilogue_send_vol += len*sizeof(val_t);
@@ -1975,17 +2045,12 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
     }
 
     double avg = (double)sum/npes;
-    //printf("epilogue avg_comm_vol %g bytes max_comm_vol %ld bytes load_imbalance %g\n", avg, maximum, maximum/avg);
+    printf("epilogue avg_comm_vol %g bytes max_comm_vol %ld bytes load_imbalance %g\n", avg, maximum, maximum/avg);
 
     avg_total += avg;
     maximum_total += maximum;
     printf("avg_comm_vol_per_epoch %g bytes comm_vol_load_imbalance %g\n", avg_total, maximum_total/avg_total);
   }
-
-  /*for (int p=0; p < npes; ++p) {
-    if(p == rank) {
-    }
-  }*/
 #endif
 }
 
@@ -2022,6 +2087,7 @@ static void p_free_sgd_comm_mode(sgd_comm_mode_t *mode_info)
   mode_info->local_rows_to_send.clear();
   mode_info->global_to_external.clear();
   mode_info->non_empty_slices.clear();
+  mode_info->stratum_layer_rank_ptrs.clear();
   mode_info->stratum_layer_row_ptrs.clear();
 
   splatt_free(mode_info->send_buf);
@@ -2031,7 +2097,7 @@ static void p_free_sgd_comm_mode(sgd_comm_mode_t *mode_info)
 static void p_free_stratum(stratum_t *stratum)
 {
   if(stratum->tile_csf) {
-    for(int m=1; m < stratum->tile_csf->nmodes; ++m) {
+    for(int m=0; m < stratum->tile_csf->nmodes; ++m) {
       p_free_stratum_mode(&stratum->mode_infos[m]);
     }
     csf_free_mode(stratum->tile_csf);
@@ -2039,7 +2105,7 @@ static void p_free_stratum(stratum_t *stratum)
   }
   else {
     assert(stratum->tile);
-    for(int m=1; m < stratum->tile->nmodes; ++m) {
+    for(int m=0; m < stratum->tile->nmodes; ++m) {
       p_free_stratum_mode(&stratum->mode_infos[m]);
     }
     tt_free(stratum->tile);
@@ -2075,14 +2141,14 @@ static void p_init_sgd_comm(
 
   /* adjust nstratum so that it is P'^(M-1) for some integer P' */
   int min_global_dim = INT_MAX;
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     min_global_dim = SS_MIN(min_global_dim, rinfo->global_dims[m]);
   }
   if(sgd_comm->nstratum == -1) {
     sgd_comm->nstratum_layer = SS_MIN(npes, min_global_dim);
   }
   else {
-    sgd_comm->nstratum_layer = SS_MIN(SS_MIN(floor(pow(sgd_comm->nstratum, 1./(nmodes - 1))), min_global_dim), npes);
+    sgd_comm->nstratum_layer = SS_MIN(SS_MIN(round(pow(sgd_comm->nstratum, 1./(nmodes - 1))), min_global_dim), npes);
   }
   sgd_comm->nstratum = 1;
   for(int m=1; m < nmodes; ++m) {
@@ -2093,36 +2159,63 @@ static void p_init_sgd_comm(
   }
   int nstratum_layer = sgd_comm->nstratum_layer;
 
-  /* setup layer info */
-  sgd_comm->stratum_layer_rank_ptrs.resize(nstratum_layer + 1);
   int ranks_per_stratum_layer = (npes + nstratum_layer - 1)/nstratum_layer;
-  for(int l=0; l < nstratum_layer; ++l) {
-    sgd_comm->stratum_layer_rank_ptrs[l] = SS_MIN(ranks_per_stratum_layer*l, npes);
-  }
-  sgd_comm->stratum_layer_rank_ptrs[nstratum_layer] = npes;
-  sgd_comm->my_stratum_layer = rank/ranks_per_stratum_layer;
+  rank_info per_stratum_layer_rinfo;
+  memcpy(&per_stratum_layer_rinfo, rinfo, sizeof(rank_info));
+  per_stratum_layer_rinfo.npes = ranks_per_stratum_layer;
+  per_stratum_layer_rinfo.global_dims[0] /= nstratum_layer;
+  p_get_best_mpi_dim(&per_stratum_layer_rinfo);
 
-  for(int m=1; m < nmodes; ++m) {
-    if(rinfo->global_dims[m] < npes) {
-      /* adjust layer ptr if dim is smaller than npes for better load balance */
-      idx_t dim_per_layer = (rinfo->global_dims[m] + nstratum_layer - 1)/nstratum_layer;
-      for(int l=0; l < nstratum_layer; ++l) {
-        for(int p=sgd_comm->stratum_layer_rank_ptrs[l]; p < sgd_comm->stratum_layer_rank_ptrs[l] + dim_per_layer; ++p) {
-          rinfo->layer_ptrs[m][p] = dim_per_layer*l + p - sgd_comm->stratum_layer_rank_ptrs[l];
-        }
-        for(int p=sgd_comm->stratum_layer_rank_ptrs[l] + dim_per_layer; p < sgd_comm->stratum_layer_rank_ptrs[l + 1]; ++p) {
-          rinfo->layer_ptrs[m][p] = dim_per_layer*(l + 1);
-        }
+  if(0 == rinfo->rank) {
+    printf("processor decomposition of each stratum layer is %d", per_stratum_layer_rinfo.dims_3d[0]);
+    for(int m=1; m < nmodes; ++m) {
+      printf("x%d", per_stratum_layer_rinfo.dims_3d[m]);
+    }
+    printf("\n");
+  }
+
+  /* setup layer info */
+  sgd_comm->my_stratum_layer =
+    rinfo->coords_3d[0]/per_stratum_layer_rinfo.dims_3d[0];
+  //printf("[%d] my_stratum_layer = %d\n", rank, sgd_comm->my_stratum_layer);
+
+  for(int m=0; m < nmodes; ++m) {
+    sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
+
+    int nlocal_layers = 0 == m ? 1 : nstratum_layer;
+    mode_info->stratum_layer_rank_ptrs.resize(nlocal_layers + 1);
+    mode_info->stratum_layer_row_ptrs.resize(nlocal_layers + 1);
+    int ranks_per_layer =
+      ranks_per_stratum_layer/per_stratum_layer_rinfo.dims_3d[m];
+    //printf("[%d] m=%d ranks_per_layer = %d\n", rank, m, ranks_per_layer);
+    mode_info->my_layer = rinfo->layer_rank[m]/ranks_per_layer;
+      /* local layer index */
+    //printf("[%d] m=%d my_layer = %d\n", rank, m, mode_info->my_layer);
+
+    int coord = rinfo->coords_3d[m];
+    //printf("[%d] m=%d my_coord = %d\n", rank, m, coord);
+    idx_t base = rinfo->layer_ptrs[m][ranks_per_layer*nlocal_layers*coord];
+
+    mode_info->rank_row_ptrs.resize(rinfo->layer_size[m] + 1);
+    assert(rinfo->layer_size[m] == SS_MIN(ranks_per_layer*nlocal_layers*(coord + 1), npes) - ranks_per_layer*nlocal_layers*coord);
+    for(int r=ranks_per_layer*nlocal_layers*coord; r <= SS_MIN(ranks_per_layer*nlocal_layers*(coord + 1), npes); ++r) {
+      // adjust rinfo->layer_ptrs to layer local indices
+      assert(rinfo->layer_ptrs[m][r] >= base);
+      mode_info->rank_row_ptrs[r - ranks_per_layer*nlocal_layers*coord] = rinfo->layer_ptrs[m][r] - base;
+    }
+
+    /*if(rinfo->global_dims[m] < npes) {
+      // TODO: adjust layer ptr if dim is smaller than npes for better balance
+    }
+    else */{
+      for(int l=0; l <= nlocal_layers; ++l) {
+        int r = SS_MIN(ranks_per_layer*(l + nlocal_layers*coord), npes);
+        mode_info->stratum_layer_rank_ptrs[l] = r - ranks_per_layer*nlocal_layers*coord;
+
+        mode_info->stratum_layer_row_ptrs[l] = mode_info->rank_row_ptrs[mode_info->stratum_layer_rank_ptrs[l]];
+        //printf("[%d] m=%d l=%d stratum_layer_rank_ptrs=%ld stratum_layer_row_ptrs=%ld\n", rank, m, l, mode_info->stratum_layer_rank_ptrs[l], mode_info->stratum_layer_row_ptrs[l]);
       }
     }
-  }
-  for(int m=1; m < nmodes; ++m) {
-    sgd_comm->mode_infos[m].stratum_layer_row_ptrs.resize(nstratum_layer + 1);
-    for(int l=0; l < nstratum_layer; ++l) {
-      sgd_comm->mode_infos[m].stratum_layer_row_ptrs[l] =
-        rinfo->layer_ptrs[m][sgd_comm->stratum_layer_rank_ptrs[l]];
-    }
-    sgd_comm->mode_infos[m].stratum_layer_row_ptrs[nstratum_layer] = rinfo->global_dims[m];
   }
 
   sgd_comm->rinfo = rinfo;
@@ -2134,22 +2227,37 @@ static void p_init_sgd_comm(
   for(int s=0; s < sgd_comm->nstratum; ++s) {
     stratum_t *stratum = &sgd_comm->stratums[s];
 
+    stratum_mode_t *mode_info = &stratum->mode_infos[0];
+
+    mode_info->owner_stratum_layer = 0;
+    int nranks_in_owner_layer =
+      sgd_comm->mode_infos[0].stratum_layer_rank_ptrs[mode_info->owner_stratum_layer + 1] -
+      sgd_comm->mode_infos[0].stratum_layer_rank_ptrs[mode_info->owner_stratum_layer];
+    mode_info->owner_comms.resize(nranks_in_owner_layer);
+
+    mode_info->leaser_stratum_layer = mode_info->owner_stratum_layer;
+    mode_info->leaser_comms.resize(nranks_in_owner_layer);
+
     int s_temp = s;
     for(int m=1; m < nmodes; ++m) {
-      stratum_mode_t *mode_info = &stratum->mode_infos[m];
+      mode_info = &stratum->mode_infos[m];
       int offset = s_temp%sgd_comm->nstratum_layer;
 
-      mode_info->owner_layer = (offset + sgd_comm->my_stratum_layer)%sgd_comm->nstratum_layer;
-      int nranks_in_owner_layer =
-        sgd_comm->stratum_layer_rank_ptrs[mode_info->owner_layer + 1] -
-        sgd_comm->stratum_layer_rank_ptrs[mode_info->owner_layer];
+      mode_info->owner_stratum_layer =
+        (offset + sgd_comm->my_stratum_layer)%nstratum_layer;
+      nranks_in_owner_layer =
+        sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[mode_info->owner_stratum_layer + 1] -
+        sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[mode_info->owner_stratum_layer];
       mode_info->owner_comms.resize(nranks_in_owner_layer);
 
-      mode_info->leaser_layer = (sgd_comm->nstratum_layer - offset + sgd_comm->my_stratum_layer)%sgd_comm->nstratum_layer;
+      mode_info->leaser_stratum_layer =
+        (nstratum_layer - offset + sgd_comm->my_stratum_layer)%nstratum_layer;
       int nranks_in_leaser_layer =
-        sgd_comm->stratum_layer_rank_ptrs[mode_info->leaser_layer + 1] -
-        sgd_comm->stratum_layer_rank_ptrs[mode_info->leaser_layer];
+        sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[mode_info->leaser_stratum_layer + 1] -
+        sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[mode_info->leaser_stratum_layer];
       mode_info->leaser_comms.resize(nranks_in_leaser_layer);
+
+      //printf("[%d] s=%d m=%d owner_stratum_layer=%d leaser_stratum_layer=%d\n", rank, s, m, mode_info->owner_stratum_layer, mode_info->leaser_stratum_layer);
 
       s_temp /= sgd_comm->nstratum_layer;
     }
@@ -2174,11 +2282,9 @@ static void p_free_sgd_comm(sgd_comm_t *sgd_comm)
 
   tt_free(sgd_comm->compact_validate);
 
-  for(int m=1; m < nmodes; ++m) {
+  for(int m=0; m < nmodes; ++m) {
     p_free_sgd_comm_mode(&sgd_comm->mode_infos[m]);
   }
-
-  sgd_comm->stratum_layer_rank_ptrs.clear();
 
   for(int i=0; i < sgd_comm->requests.size(); ++i) {
     MPI_Request_free(&sgd_comm->requests[i]);
@@ -2195,14 +2301,15 @@ val_t p_frob_sq(
   idx_t const nfactors = model->rank;
   int nmodes = model->nmodes;
   rank_info *rinfo = sgd_comm->rinfo;
-  int rank = rinfo->rank;
 
   val_t reg_obj = 0.;
 
   #pragma omp parallel reduction(+:reg_obj)
   {
     for(idx_t m=0; m < nmodes; ++m) {
-      idx_t nlocalrow = rinfo->layer_ptrs[m][rank + 1] - rinfo->layer_ptrs[m][rank];
+      sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
+      int layer_rank = rinfo->layer_rank[m];
+      idx_t nlocalrow = mode_info->rank_row_ptrs[layer_rank + 1] - mode_info->rank_row_ptrs[layer_rank];
 
       val_t accum = 0;
       val_t const * const restrict mat = model->factors[m];
@@ -2227,18 +2334,21 @@ val_t p_frob_sq(
 #ifndef NO_VALIDATE
 void sgd_save_best_model(tc_ws *ws)
 {
-  int npes = ws->rinfo->npes;
-  int rank = ws->rinfo->rank;
+  rank_info *rinfo = sgd_comm.rinfo;
+  int npes = rinfo->npes;
   int nmodes = ws->nmodes;
   int nfactors = ws->best_model->rank;
 
   for(idx_t m=0; m < nmodes; ++m) {
     sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
-    idx_t base = sgd_comm.rinfo->layer_ptrs[m][rank];
-    idx_t nlocalrow = sgd_comm.rinfo->layer_ptrs[m][rank + 1] - base;
+    int layer_rank = rinfo->layer_rank[m];
+    idx_t base = mode_info->rank_row_ptrs[layer_rank];
+    idx_t nlocalrow = mode_info->rank_row_ptrs[layer_rank + 1] - base;
 
     if(m == 0) {
-      par_memcpy(ws->best_model->factors[m], sgd_comm.model->factors[m], sizeof(val_t)*nlocalrow*nfactors);
+      par_memcpy(
+        ws->best_model->factors[m], sgd_comm.model->factors[m],
+        sizeof(val_t)*nlocalrow*nfactors);
     }
     else {
       par_memcpy(
@@ -2246,8 +2356,8 @@ void sgd_save_best_model(tc_ws *ws)
         sgd_comm.model->factors[m],
         sizeof(val_t)*nlocalrow*nfactors);
       idx_t offset = 0;
-      for(int p=0; p < npes; ++p) {
-        if(p == rank) continue;
+      for(int p=0; p < rinfo->layer_size[m]; ++p) {
+        if(p == layer_rank) continue;
 #pragma omp parallel for
         for(int i=0; i < mode_info->non_empty_slices[p].size(); ++i) {
           idx_t external_idx = nlocalrow + offset + i;
@@ -2278,23 +2388,8 @@ void splatt_tc_sgd(
   rank_info *rinfo = ws->rinfo;
 
   double t = omp_get_wtime();
-  /* count # nonzeros found in each index */
-  idx_t * ssizes[MAX_NMODES];
-  for(idx_t m=0; m < train->nmodes; ++m) {
-    ssizes[m] = (idx_t *) calloc(rinfo->global_dims[m], sizeof(idx_t));
-  }
-  p_fill_ssizes(train, ssizes, rinfo);
-
-  /* Find p*p*p decomposition */
   rank_info sgd_rinfo;
   memcpy(&sgd_rinfo, rinfo, sizeof(rank_info));
-  for(idx_t m=0; m < model->nmodes; ++m) {
-    sgd_rinfo.dims_3d[m] = sgd_rinfo.npes;
-    p_find_layer_boundaries(ssizes, m, &sgd_rinfo);
-  }
-  for(idx_t m=0; m < train->nmodes; ++m) {
-    free(ssizes[m]);
-  }
 
   int npes = rinfo->npes;
   int rank = rinfo->rank;
@@ -2303,19 +2398,18 @@ void splatt_tc_sgd(
   if(rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
   t = omp_get_wtime();
 
-
   sgd_comm.nstratum = ws->nstratum;
   p_init_sgd_comm(&sgd_comm, &sgd_rinfo, model);
 
   /* count nnz of each tile */
   idx_t *nnzs;
   p_count_nnz_of_tiles(&nnzs, &sgd_comm, train);
-  printf("[%d] %s:%d p_count_nnz_of_tiles %g\n", rank, __FILE__, __LINE__, omp_get_wtime() - t);
+  if(rank == 0) printf("[%d] %s:%d p_count_nnz_of_tiles %g\n", rank, __FILE__, __LINE__, omp_get_wtime() - t);
   t = omp_get_wtime();
 
   p_find_non_empty_slices(&sgd_comm, validate);
 
-  printf("[%d] %s:%d p_find_non_empty_slices %g\n", rank, __FILE__, __LINE__, omp_get_wtime() - t);
+  if(rank == 0) printf("[%d] %s:%d p_find_non_empty_slices %g\n", rank, __FILE__, __LINE__, omp_get_wtime() - t);
   t = omp_get_wtime();
 
   /* mapping from global to local compacted indices within each tile */
@@ -2339,17 +2433,18 @@ void splatt_tc_sgd(
   model_compacted->nmodes = train->nmodes;
 
   idx_t nlocalrows[nmodes];
-  for(idx_t m=0; m < nmodes; ++m) {
-    nlocalrows[m] = sgd_rinfo.layer_ptrs[m][rank + 1] - sgd_rinfo.layer_ptrs[m][rank];
-  }
-
   for(int m=0; m < train->nmodes; ++m) {
+    sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
+    int layer_rank = rinfo->layer_rank[m];
+    idx_t base = mode_info->rank_row_ptrs[layer_rank];
+    nlocalrows[m] = mode_info->rank_row_ptrs[layer_rank + 1] - base;
+
     idx_t bytes = train->dims[m] * nfactors * sizeof(**(model_compacted->factors));
     model_compacted->dims[m] = train->dims[m];
     if(m > 0) {
       bytes = 0;
-      for(int p=0; p < npes; ++p) {
-        if(p != rank) {
+      for(int p=0; p < rinfo->layer_size[m]; ++p) {
+        if(p != rinfo->layer_rank[m]) {
           bytes += sgd_comm.mode_infos[m].non_empty_slices[p].size();
         }
       }
@@ -2357,13 +2452,17 @@ void splatt_tc_sgd(
       model_compacted->dims[m] = bytes;
       bytes *= nfactors*sizeof(val_t);
     }
-    model_compacted->factors[m] = (val_t *)splatt_malloc(bytes);
+    model_compacted->factors[m] = (val_t *)splatt_malloc(bytes); // FIXME : not enough space
 
     if(0 == m) {
-      par_memcpy(model_compacted->factors[0], model->factors[0], sizeof(val_t)*nlocalrows[0]*nfactors);
+      par_memcpy(
+        model_compacted->factors[0], model->factors[0],
+        sizeof(val_t)*nlocalrows[0]*nfactors);
     }
     else {
-      par_memcpy(model_compacted->factors[m], model->factors[m] + sgd_rinfo.layer_ptrs[m][rank]*nfactors, sizeof(val_t)*nlocalrows[m]*nfactors);
+      par_memcpy(
+        model_compacted->factors[m], model->factors[m] + base*nfactors,
+        sizeof(val_t)*nlocalrows[m]*nfactors);
     }
 
     splatt_free(model->factors[m]);
@@ -2384,24 +2483,32 @@ void splatt_tc_sgd(
   for(idx_t n=0; n < validate->nnz; ++n) {
     int s = p_find_stratum_of(validate, n, &sgd_comm);
 
-    for(idx_t m=1; m < nmodes; ++m) {
+    for(idx_t m=0; m < nmodes; ++m) {
       sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
-      int owner_layer = sgd_comm.stratums[s].mode_infos[m].owner_layer;
-      int owner_begin = sgd_comm.stratum_layer_rank_ptrs[owner_layer];
-      int owner_end = sgd_comm.stratum_layer_rank_ptrs[owner_layer + 1];
+      int owner_stratum_layer = sgd_comm.stratums[s].mode_infos[m].owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm.nstratum_layer);
+      int owner_begin = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer];
+      int owner_end = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer + 1];
 
       idx_t idx = validate->ind[m][n];
+      assert(idx >= mode_info->rank_row_ptrs[owner_begin]);
+      assert(idx < mode_info->rank_row_ptrs[owner_end]);
       int owner = std::upper_bound(
-        sgd_rinfo.layer_ptrs[m] + owner_begin,
-        sgd_rinfo.layer_ptrs[m] + owner_end,
-        idx) - sgd_rinfo.layer_ptrs[m] - 1;
+        &mode_info->rank_row_ptrs[owner_begin],
+        &mode_info->rank_row_ptrs[owner_end],
+        idx) - &mode_info->rank_row_ptrs[0] - 1;
 
-      if(owner == rank) {
-        sgd_comm.compact_validate->ind[m][n] = idx - sgd_rinfo.layer_ptrs[m][rank];
+      int layer_rank = rinfo->layer_rank[m];
+      if(owner == layer_rank) {
+        sgd_comm.compact_validate->ind[m][n] =
+          idx - mode_info->rank_row_ptrs[layer_rank];
       }
       else {
-        assert(mode_info->global_to_external.find(idx) != mode_info->global_to_external.end());
-        sgd_comm.compact_validate->ind[m][n] = nlocalrows[m] + mode_info->global_to_external[idx];
+        assert(
+          mode_info->global_to_external.find(idx) !=
+          mode_info->global_to_external.end());
+        sgd_comm.compact_validate->ind[m][n] =
+          nlocalrows[m] + mode_info->global_to_external[idx];
       }
     }
   }
@@ -2446,6 +2553,48 @@ void splatt_tc_sgd(
   timer_reset(&testall1_time);
   timer_reset(&testall2_time);
   timer_reset(&testall3_time);
+
+  /* collect portions of model required for convergence check from the owners */
+  if(!sgd_comm.requests.empty()) {
+    //printf("[%d] %s:%d\n", rank, __FILE__, __LINE__);
+    MPI_Startall(sgd_comm.requests.size()/2, &sgd_comm.requests[0]);
+    //printf("[%d] %s:%d\n", rank, __FILE__, __LINE__);
+    for(int m=0; m < nmodes; ++m) {
+      int layer_rank = rinfo->layer_rank[m];
+      sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
+      idx_t base = mode_info->rank_row_ptrs[layer_rank];
+
+      idx_t offset = 0;
+      for(int p=0; p < rinfo->layer_size[m]; ++p) {
+        if(p == rinfo->layer_rank[m]) continue;
+
+#pragma omp parallel for
+        for(idx_t i=0; i < mode_info->local_rows_to_send[p].size(); ++i) {
+          idx_t local_idx = mode_info->local_rows_to_send[p][i];
+          for(int f=0; f < nfactors; ++f) {
+            mode_info->send_buf[(i + offset)*nfactors + f] =
+              model_compacted->factors[m][local_idx*nfactors + f];
+          }
+          assert(local_idx < nlocalrows[m]);
+        }
+        offset += mode_info->local_rows_to_send[p].size();
+      }
+    }
+
+    //printf("[%d] %s:%d\n", rank, __FILE__, __LINE__);
+    MPI_Startall(sgd_comm.requests.size()/2, &sgd_comm.requests[sgd_comm.requests.size()/2]);
+    //printf("[%d] %s:%d\n", rank, __FILE__, __LINE__);
+    MPI_Status statuses[sgd_comm.requests.size()];
+    if(MPI_SUCCESS != MPI_Waitall(
+      sgd_comm.requests.size(), &sgd_comm.requests[0], statuses)) {
+      for(int i = 0; i < sgd_comm.requests.size(); ++i) {
+        char estring[MPI_MAX_ERROR_STRING];
+        int len;
+        MPI_Error_string(statuses[i].MPI_ERROR, estring, &len);
+        printf("%d %s\n", i, estring);
+      }
+    }
+  }
 
   val_t loss = tc_loss_sq(sgd_comm.compact_train, model_compacted, ws);
   val_t frobsq = p_frob_sq(&sgd_comm, model_compacted, ws);
@@ -2497,18 +2646,19 @@ void splatt_tc_sgd(
 
       /* each owner compacts model rows before send */
       int request_idx = 0;
-      for(int m=1; m < nmodes; ++m) {
+      for(int m=0; m < nmodes; ++m) {
         stratum_mode_t *mode_info = &stratum->mode_infos[m];
-        int leaser_layer = mode_info->leaser_layer;
-        int leaser_begin = sgd_comm.stratum_layer_rank_ptrs[leaser_layer];
-        int leaser_end = sgd_comm.stratum_layer_rank_ptrs[leaser_layer + 1];
+        int leaser_stratum_layer = mode_info->leaser_stratum_layer;
+      assert(m == 0 && leaser_stratum_layer == 0 || leaser_stratum_layer < sgd_comm.nstratum_layer);
+        int leaser_begin = sgd_comm.mode_infos[m].stratum_layer_rank_ptrs[leaser_stratum_layer];
+        int leaser_end = sgd_comm.mode_infos[m].stratum_layer_rank_ptrs[leaser_stratum_layer + 1];
         int nranks_in_leaser_layer = leaser_end - leaser_begin;
 
         idx_t buf_offset = 0;
         for(int r=0; r < nranks_in_leaser_layer; ++r) {
           int leaser = leaser_begin + r;
-          if(leaser == rank) {
-            assert(leaser_layer == sgd_comm.my_stratum_layer);
+          if(leaser == rinfo->layer_rank[m]) {
+            assert(leaser_stratum_layer == sgd_comm.mode_infos[m].my_layer);
             continue;
           }
 
@@ -2779,20 +2929,22 @@ void splatt_tc_sgd(
 
       /* Scale local updates before reduction, if needed */
       timer_start(&scatter_time);
-      for(int m=1; m < nmodes; ++m) {
+      for(int m=0; m < nmodes; ++m) {
+        int layer_rank = rinfo->layer_rank[m];
         stratum_mode_t *mode_info = &stratum->mode_infos[m];
-        int owner_layer = mode_info->owner_layer;
-        int owner_begin = sgd_comm.stratum_layer_rank_ptrs[owner_layer];
-        int owner_end = sgd_comm.stratum_layer_rank_ptrs[owner_layer + 1];
+        int owner_stratum_layer = mode_info->owner_stratum_layer;
+      assert(m == 0 && owner_stratum_layer == 0 || owner_stratum_layer < sgd_comm.nstratum_layer);
+        int owner_begin = sgd_comm.mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer];
+        int owner_end = sgd_comm.mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer + 1];
         int nranks_in_owner_layer = owner_end - owner_begin;
-        if(owner_layer != sgd_comm.my_stratum_layer ||
+        if(owner_stratum_layer != sgd_comm.mode_infos[m].my_layer ||
           nranks_in_owner_layer == 1) {
           continue;
         }
 
         for(int r=0; r < nranks_in_owner_layer; ++r) {
           int owner = owner_begin + r;
-          if(owner != rank) continue;
+          if(owner != layer_rank) continue;
           stratum_mode_comm_with_owner_t *owner_comm =
             &mode_info->owner_comms[r];
           //printf("[%d] %s:%d %ld:%d\n", rank, __FILE__, __LINE__, stratum_perm[s], m);
@@ -2801,7 +2953,7 @@ void splatt_tc_sgd(
           for(idx_t i=0; i < owner_comm->nnzs_of_non_empty_slice[0].size(); ++i) {
             idx_t local_idx =
               owner_comm->nnzs_of_non_empty_slice[0][i] -
-              sgd_rinfo.layer_ptrs[m][rank];
+              sgd_comm.mode_infos[m].rank_row_ptrs[layer_rank];
             for(int f=0; f < nfactors; ++f) {
               //stream << " " << model_compacted->factors[m][local_idx*nfactors + f] << "*" << mode_info->local_weight;
               model_compacted->factors[m][local_idx*nfactors + f] *=
@@ -2816,18 +2968,19 @@ void splatt_tc_sgd(
 
       /* each owner scatters received compact data to their original locations */
       request_idx = 0;
-      for(int m=1; m < nmodes; ++m) {
+      for(int m=0; m < nmodes; ++m) {
         stratum_mode_t *mode_info = &stratum->mode_infos[m];
-        int leaser_layer = mode_info->leaser_layer;
-        int leaser_begin = sgd_comm.stratum_layer_rank_ptrs[leaser_layer];
-        int leaser_end = sgd_comm.stratum_layer_rank_ptrs[leaser_layer + 1];
+        int leaser_stratum_layer = mode_info->leaser_stratum_layer;
+        assert(m == 0 && leaser_stratum_layer == 0 || leaser_stratum_layer < sgd_comm.nstratum_layer);
+        int leaser_begin = sgd_comm.mode_infos[m].stratum_layer_rank_ptrs[leaser_stratum_layer];
+        int leaser_end = sgd_comm.mode_infos[m].stratum_layer_rank_ptrs[leaser_stratum_layer + 1];
         int nranks_in_leaser_layer = leaser_end - leaser_begin;
 
         idx_t buf_offset = 0;
         for(int r=0; r < nranks_in_leaser_layer; ++r) {
           int leaser = leaser_begin + r;
-          if(leaser == rank) {
-            assert(leaser_layer == sgd_comm.my_stratum_layer);
+          if(leaser == rinfo->layer_rank[m]) {
+            assert(leaser_stratum_layer == sgd_comm.mode_infos[m].my_layer);
             continue;
           }
 
@@ -2845,7 +2998,7 @@ void splatt_tc_sgd(
           idx_t len = leaser_comm->local_rows_to_send.size();
 
           if(nranks_in_leaser_layer > 1 ||
-              leaser_layer == sgd_comm.my_stratum_layer) {
+              leaser_stratum_layer == sgd_comm.mode_infos[m].my_layer) {
             assert(leaser_comm->local_rows_to_send.size() == len);
 #pragma omp parallel for
             for(idx_t i=0; i < len; ++i) {
@@ -2890,23 +3043,26 @@ void splatt_tc_sgd(
     } /* for each stratum */
 
     /* collect portions of model required for convergence check from the owners */
-    if((npes - 1)*(nmodes - 1) > 0) {
+    if(!sgd_comm.requests.empty()) {
       timer_start(&bcast_time);
       //printf("[%d] %s:%d\n", rank, __FILE__, __LINE__);
-      MPI_Startall((npes - 1)*(nmodes - 1), &sgd_comm.requests[0]);
+      MPI_Startall(sgd_comm.requests.size()/2, &sgd_comm.requests[0]);
       //printf("[%d] %s:%d\n", rank, __FILE__, __LINE__);
-      for(int m=1; m < nmodes; ++m) {
+      for(int m=0; m < nmodes; ++m) {
+        int layer_rank = rinfo->layer_rank[m];
         sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
-        idx_t base = sgd_rinfo.layer_ptrs[m][rank];
+        idx_t base = mode_info->rank_row_ptrs[layer_rank];
 
         idx_t offset = 0;
-        for(int p=0; p < npes; ++p) {
-          if(p == rank) continue;
+        for(int p=0; p < rinfo->layer_size[m]; ++p) {
+          if(p == layer_rank) continue;
+
 #pragma omp parallel for
           for(idx_t i=0; i < mode_info->local_rows_to_send[p].size(); ++i) {
             idx_t local_idx = mode_info->local_rows_to_send[p][i];
             for(int f=0; f < nfactors; ++f) {
-              mode_info->send_buf[(i + offset)*nfactors + f] = model_compacted->factors[m][local_idx*nfactors + f];
+              mode_info->send_buf[(i + offset)*nfactors + f] =
+                model_compacted->factors[m][local_idx*nfactors + f];
             }
             assert(local_idx < nlocalrows[m]);
           }
@@ -2915,9 +3071,9 @@ void splatt_tc_sgd(
       }
 
       //printf("[%d] %s:%d\n", rank, __FILE__, __LINE__);
-      MPI_Startall((npes - 1)*(nmodes - 1), &sgd_comm.requests[(npes - 1)*(nmodes - 1)]);
+      MPI_Startall(sgd_comm.requests.size()/2, &sgd_comm.requests[sgd_comm.requests.size()/2]);
       //printf("[%d] %s:%d\n", rank, __FILE__, __LINE__);
-      MPI_Waitall(2*(npes - 1)*(nmodes - 1), &sgd_comm.requests[0], MPI_STATUSES_IGNORE);
+      MPI_Waitall(sgd_comm.requests.size(), &sgd_comm.requests[0], MPI_STATUSES_IGNORE);
       timer_stop(&bcast_time);
     }
 

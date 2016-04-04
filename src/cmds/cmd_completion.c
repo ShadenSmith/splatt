@@ -253,65 +253,22 @@ static error_t parse_tc_opt(
 /* tie it all together */
 static struct argp tc_argp = {tc_options, parse_tc_opt, tc_args_doc, tc_doc};
 
-void tt_get_layer_dims(
-    FILE * fin,
-    idx_t * const outnmodes,
-    idx_t * const outnnz,
-    idx_t * outdims,
-    rank_info * rinfo)
-{
-  char * ptr = NULL;
-  idx_t nnz = 0;
-  char * line = NULL;
-  ssize_t read;
-  size_t len = 0;
+/* defined in mpi_io.c */
+void p_get_best_mpi_dim(
+  rank_info * const rinfo);
 
-  /* first count modes in tensor */
-  idx_t nmodes = 0;
-  while((read = getline(&line, &len, fin)) != -1) {
-    if(read > 1 && line[0] != '#') {
-      /* get nmodes from first nnz line */
-      ptr = strtok(line, " \t");
-      while(ptr != NULL) {
-        ++nmodes;
-        ptr = strtok(NULL, " \t");
-      }
-      break;
-    }
-  }
-  --nmodes;
+void p_find_layer_boundaries(
+  idx_t ** const ssizes,
+  idx_t const mode,
+  rank_info * const rinfo);
 
-  for(idx_t m=0; m < nmodes; ++m) {
-    outdims[m] = 0;
-  }
+void p_fill_ssizes(
+  sptensor_t const * const tt,
+  idx_t ** const ssizes,
+  rank_info const * const rinfo);
 
-  /* fill in tensor dimensions */
-  rewind(fin);
-  while((read = getline(&line, &len, fin)) != -1) {
-    /* skip empty and commented lines */
-    if(read > 1 && line[0] != '#') {
-      ptr = line;
-      bool skip = false;
-      for(idx_t m=0; m < nmodes; ++m) {
-        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
-        if(m == 0 && (ind < rinfo->layer_starts[0] || ind >= rinfo->layer_ends[0])) {
-          skip = true;
-        }
-        outdims[m] = (ind + 1 > outdims[m]) ? ind + 1 : outdims[m];
-      }
-      /* skip over tensor val */
-      strtod(ptr, &ptr);
-      if (!skip) ++nnz;
-    }
-  }
-  *outnnz = nnz;
-  *outnmodes = nmodes;
-
-  outdims[0] = rinfo->layer_ends[0] - rinfo->layer_starts[0];
-
-  rewind(fin);
-  free(line);
-}
+void p_setup_3d(
+  rank_info * const rinfo);
 
 /******************************************************************************
  * SPLATT-COMPLETE
@@ -338,19 +295,129 @@ int splatt_tc_cmd(
   srand(args.seed + rinfo.rank);
 
 #ifdef SPLATT_USE_MPI
-  /* decompose train tensor into px1x1 */
-  rinfo.decomp = SPLATT_DECOMP_MEDIUM;
-  rinfo.dims_3d[0] = rinfo.npes;
-  for(idx_t d=1; d < MAX_NMODES; ++d) {
-    rinfo.dims_3d[d] = 1;
+  if(0 == rinfo.rank) {
+    // only support binary file
+    FILE *fin = fopen(args.ifnames[0], "r");
+    if(fin == NULL) {
+      fprintf(stderr, "SPLATT ERROR: failed to open '%s'\n", args.ifnames[0]);
+      return -1;
+    }
+    bin_header header;
+    read_binary_header(fin, &header);
+    fill_binary_idx(&rinfo.nmodes, 1, &header, fin);
+    fill_binary_idx(rinfo.global_dims, rinfo.nmodes, &header, fin);
+    fclose(fin);
   }
-  for(idx_t m=0; m < MAX_NMODES; ++m) {
-    rinfo.layer_starts[m] = 0;
+  MPI_Bcast(&rinfo.nmodes, 1, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
+  MPI_Bcast(rinfo.global_dims, rinfo.nmodes, SPLATT_MPI_IDX, 0, MPI_COMM_WORLD);
+  int nmodes = rinfo.nmodes;
+
+  /* Find p*p*p decomposition */
+  rank_info fine_rinfo;
+  memcpy(&fine_rinfo, &rinfo, sizeof(rank_info));
+  idx_t * ssizes[MAX_NMODES];
+  for(idx_t m=0; m < nmodes; ++m) {
+    ssizes[m] = (idx_t *)calloc(fine_rinfo.global_dims[m], sizeof(idx_t));
+    fine_rinfo.layer_starts[m] = 0;
+    fine_rinfo.coords_3d[m] = rinfo.rank;
+    fine_rinfo.dims_3d[m] = rinfo.npes;
+  }
+  fine_rinfo.comm_3d = MPI_COMM_WORLD;
+  sptensor_t * train_buf = mpi_simple_distribute(args.ifnames[0], MPI_COMM_WORLD);
+  MPI_Allreduce(&train_buf->nnz, &fine_rinfo.global_nnz, 1, SPLATT_MPI_IDX, MPI_SUM, MPI_COMM_WORLD);
+  //printf("[%d] train_buf->nnz=%ld train_buf->global_nnz=%ld\n", rinfo.rank, train_buf->nnz, fine_rinfo.global_nnz);
+  p_fill_ssizes(train_buf, ssizes, &fine_rinfo);
+  for(idx_t m=0; m < nmodes; ++m) {
+    p_find_layer_boundaries(ssizes, m, &fine_rinfo);
+    free(ssizes[m]);
   }
 
+  /* Find stratum decomposition */
+  int min_global_dim = INT_MAX;
+  for(int m=1; m < nmodes; ++m) {
+    min_global_dim = SS_MIN(min_global_dim, rinfo.global_dims[m]);
+  }
+
+  int nstratum_layer = -1;
+  if(args.nstratum == -1) {
+    nstratum_layer = SS_MIN(rinfo.npes, min_global_dim);
+  }
+  else {
+    nstratum_layer = SS_MIN(SS_MIN(floor(pow(args.nstratum, 1./(nmodes - 1))), min_global_dim), rinfo.npes);
+  }
+  args.nstratum = 1;
+  for(int m=1; m < nmodes; ++m) {
+    args.nstratum *= nstratum_layer;
+  }
+  if(rinfo.rank == 0) {
+    printf("Using %d^%d=%ld stratums\n", nstratum_layer, nmodes - 1, args.nstratum);
+  }
+
+  int p_per_stratum = (rinfo.npes + nstratum_layer - 1)/nstratum_layer;
+  rank_info per_stratum_layer_rinfo;
+  memcpy(&per_stratum_layer_rinfo, &rinfo, sizeof(rank_info));
+  per_stratum_layer_rinfo.npes = p_per_stratum;
+  per_stratum_layer_rinfo.global_dims[0] /= nstratum_layer;
+  p_get_best_mpi_dim(&per_stratum_layer_rinfo);
+
+  if(0 == rinfo.rank) {
+    printf("processor decomposition of each stratum layer is %d", per_stratum_layer_rinfo.dims_3d[0]);
+    for(int m=1; m < nmodes; ++m) {
+      printf("x%d", per_stratum_layer_rinfo.dims_3d[m]);
+    }
+    printf("\n");
+  }
+
+  /* get processor decomposition */
+  rinfo.dims_3d[0] = SS_MIN(per_stratum_layer_rinfo.dims_3d[0]*nstratum_layer, rinfo.npes);
+  rinfo.layer_ptrs[0] = (idx_t *)splatt_malloc(sizeof(idx_t)*(rinfo.dims_3d[0] + 1));
+  for(int l=0; l <= rinfo.dims_3d[0]; ++l) {
+    int nsharers = p_per_stratum/per_stratum_layer_rinfo.dims_3d[0];
+    rinfo.layer_ptrs[0][l] = fine_rinfo.layer_ptrs[0][SS_MIN(nsharers*l, rinfo.npes)];
+    //printf("[%d] rinfo.layer_ptrs[%d][%d] = %ld %d\n", rinfo.rank, 0, l, rinfo.layer_ptrs[0][l], SS_MIN(nsharers*l, rinfo.npes));
+  }
+  for(int m=1; m < nmodes; ++m) {
+    rinfo.dims_3d[m] = per_stratum_layer_rinfo.dims_3d[m];
+    rinfo.layer_ptrs[m] = (idx_t *)splatt_malloc(sizeof(idx_t)*(rinfo.dims_3d[m] + 1));
+    int nsharers = p_per_stratum/per_stratum_layer_rinfo.dims_3d[m];
+    for(int l=0; l <= rinfo.dims_3d[m]; ++l) {
+      rinfo.layer_ptrs[m][l] = fine_rinfo.layer_ptrs[m][SS_MIN(nstratum_layer*nsharers*l, rinfo.npes)];
+      //printf("[%d] rinfo.layer_ptrs[%d][%d] = %ld %d\n", rinfo.rank, m, l, rinfo.layer_ptrs[m][l], SS_MIN(nstratum_layer*nsharers*l, rinfo.npes));
+    }
+  }
+  p_setup_3d(&rinfo);
+  for(int m=0; m < nmodes; ++m) {
+    rinfo.layer_starts[m] = rinfo.layer_ptrs[m][rinfo.coords_3d[m]];
+    rinfo.layer_ends[m] = rinfo.layer_ptrs[m][rinfo.coords_3d[m] + 1];
+    //printf("[%d] m=%d %ld-%ld\n", rinfo.rank, m, rinfo.layer_starts[m], rinfo.layer_ends[m]);
+  }
+  if(0 == rinfo.rank) {
+    printf("total processor decomposition is %d", rinfo.dims_3d[0]);
+    for(int m=1; m < nmodes; ++m) {
+      printf("x%d", rinfo.dims_3d[m]);
+    }
+    printf("\n");
+  }
+
+  /* load matrix following processor decomposition */
   double t = omp_get_wtime();
-  sptensor_t * train = mpi_tt_read(args.ifnames[0], NULL, &rinfo);
-  if(rinfo.rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
+  rinfo.global_nnz = fine_rinfo.global_nnz;
+  sptensor_t * train = mpi_rearrange_by_rinfo(
+    train_buf, &rinfo, MPI_COMM_WORLD);
+#pragma omp parallel for
+  for(idx_t n=0; n < train->nnz; ++n) {
+    for(int m=0; m < nmodes; ++m) {
+      assert(train->ind[m][n] >= rinfo.layer_starts[m]);
+      assert(train->ind[m][n] < rinfo.layer_ends[m]);
+      train->ind[m][n] -= rinfo.layer_starts[m];
+    }
+  }
+  for(int m=0; m < nmodes; ++m) {
+    train->dims[m] = rinfo.layer_ends[m] - rinfo.layer_starts[m];
+  }
+  //printf("[%d] train->nnz=%ld train->nnz=%ld\n", rinfo.rank, train->nnz, rinfo.global_nnz);
+  tt_free(train_buf);
+  //if(rinfo.rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
   t = omp_get_wtime();
 
   /* decompose validate tensor with the same partitioning used for train */
@@ -358,13 +425,18 @@ int splatt_tc_cmd(
   sptensor_t * validate_buf = mpi_simple_distribute(args.ifnames[1], MPI_COMM_WORLD);
   sptensor_t * validate = mpi_rearrange_by_rinfo(validate_buf, &rinfo, MPI_COMM_WORLD);
   tt_free(validate_buf);
-  if(rinfo.rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
-
-  validate->dims[0] = rinfo.layer_ends[0] - rinfo.layer_starts[0];
+  //if(rinfo.rank == 0) printf("%s:%d %g\n", __FILE__, __LINE__, omp_get_wtime() - t);
 
 #pragma omp parallel for
   for(idx_t n=0; n < validate->nnz; ++n) {
-    validate->ind[0][n] -= rinfo.layer_starts[0];
+    for(int m=0; m < nmodes; ++m) {
+      assert(validate->ind[m][n] >= rinfo.layer_starts[m]);
+      assert(validate->ind[m][n] < rinfo.layer_ends[m]);
+      validate->ind[m][n] -= rinfo.layer_starts[m];
+    }
+  }
+  for(int m=0; m < nmodes; ++m) {
+    validate->dims[m] = rinfo.layer_ends[m] - rinfo.layer_starts[m];
   }
 
   idx_t global_validate_nnz = validate->nnz;
@@ -379,7 +451,6 @@ int splatt_tc_cmd(
   if(train == NULL || validate == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
-  idx_t const nmodes = train->nmodes;
 
   /* print basic tensor stats */
 #ifdef SPLATT_USE_MPI
@@ -475,6 +546,11 @@ int splatt_tc_cmd(
     if(rinfo.rank==0) {
       printf("ALG=SGD rand_per_iteration=%d nstratum=%d csf=%d\n\n", ws->rand_per_iteration, ws->nstratum, ws->csf);
     }
+    for(int m=0; m < nmodes; ++m) {
+      idx_t *temp = rinfo.layer_ptrs[m];
+      rinfo.layer_ptrs[m] = fine_rinfo.layer_ptrs[m];
+      fine_rinfo.layer_ptrs[m] = temp;
+    }
     ws->rinfo = &rinfo;
     ws->global_validate_nnz = global_validate_nnz;
     splatt_tc_sgd(train, validate, model, ws);
@@ -504,11 +580,11 @@ int splatt_tc_cmd(
     //printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
         //ws->best_rmse, mae, ws->best_epoch);
   }
-  splatt_free(rinfo.send_reqs);
-  splatt_free(rinfo.recv_reqs);
-  splatt_free(rinfo.stats);
+  //splatt_free(rinfo.send_reqs);
+  //splatt_free(rinfo.recv_reqs);
+  //splatt_free(rinfo.stats);
   for(idx_t m=0; m < nmodes; ++m) {
-    splatt_free(rinfo.layer_ptrs[m]);
+    splatt_free(fine_rinfo.layer_ptrs[m]);
   }
 #else
   printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);
