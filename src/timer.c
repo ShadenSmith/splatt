@@ -49,7 +49,7 @@ static char const * const timer_names[] = {
 
 /* definition of global timers[] */
 sp_timer_t timers[TIMER_NTIMERS];
-int timer_lvl = TIMER_LVL1;
+int timer_lvl = TIMER_LVL2;
 
 
 /******************************************************************************

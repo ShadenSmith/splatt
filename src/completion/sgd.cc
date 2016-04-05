@@ -953,7 +953,6 @@ typedef struct
 
   vector<idx_t> stratum_layer_rank_ptrs; /* indexed by stratum layer idx */
   vector<idx_t> stratum_layer_row_ptrs; /* indexed by stratum layer idx */
-  vector<idx_t> rank_row_ptrs; /* layer rank to the beginning of row that it owns (index is in processor local) */
 
   int my_layer; /* local layer idx */
 } sgd_comm_mode_t;
@@ -1065,16 +1064,16 @@ static void p_count_nnz_of_tiles(
       assert(indices_per_stratum[s].size() == (*nnzs)[s]);
       for(int i=0; i < indices_per_stratum[s].size(); ++i) {
         idx_t idx = indices_per_stratum[s][i];
-        assert(idx >= mode_info->rank_row_ptrs[owner_begin]);
-        assert(idx < mode_info->rank_row_ptrs[owner_end]);
+        assert(idx >= rinfo->mat_ptrs[m][owner_begin]);
+        assert(idx < rinfo->mat_ptrs[m][owner_end]);
         int owner = std::upper_bound(
-          &mode_info->rank_row_ptrs[owner_begin],
-          &mode_info->rank_row_ptrs[owner_end],
-          idx) - &mode_info->rank_row_ptrs[0] - 1;
+          &rinfo->mat_ptrs[m][owner_begin],
+          &rinfo->mat_ptrs[m][owner_end],
+          idx) - &rinfo->mat_ptrs[m][0] - 1;
         assert(owner >= owner_begin && owner < owner_end);
 
-        assert(idx >= mode_info->rank_row_ptrs[owner]);
-        assert(idx < mode_info->rank_row_ptrs[owner + 1]);
+        assert(idx >= rinfo->mat_ptrs[m][owner]);
+        assert(idx < rinfo->mat_ptrs[m][owner + 1]);
         non_empty_slices[owner - owner_begin].push_back(idx);
       }
 
@@ -1090,8 +1089,8 @@ static void p_count_nnz_of_tiles(
         owner_comm->nnzs_of_non_empty_slice[0].resize(len);
         owner_comm->nnzs_of_non_empty_slice[1].resize(len);
         for(idx_t i=0; i < len; ++i) {
-          assert(non_empty_slices[r][i] >= mode_info->rank_row_ptrs[owner_begin + r]);
-          assert(non_empty_slices[r][i] < mode_info->rank_row_ptrs[owner_begin + r + 1]);
+          assert(non_empty_slices[r][i] >= rinfo->mat_ptrs[m][owner_begin + r]);
+          assert(non_empty_slices[r][i] < rinfo->mat_ptrs[m][owner_begin + r + 1]);
           owner_comm->nnzs_of_non_empty_slice[0][i] = non_empty_slices[r][i];
           assert(hist[non_empty_slices[r][i]]);
           owner_comm->nnzs_of_non_empty_slice[1][i] = hist[non_empty_slices[r][i]];
@@ -1135,8 +1134,8 @@ static void p_find_non_empty_slices(
           if(owner == p) {
             stratum_mode_comm_with_owner_t *owner_comm = &stratum_mode_info->owner_comms[r];
             for(idx_t i = 0; i < owner_comm->nnzs_of_non_empty_slice[0].size(); ++i) {
-              assert(owner_comm->nnzs_of_non_empty_slice[0][i] >= mode_info->rank_row_ptrs[p]);
-              assert(owner_comm->nnzs_of_non_empty_slice[0][i] < mode_info->rank_row_ptrs[p + 1]);
+              assert(owner_comm->nnzs_of_non_empty_slice[0][i] >= rinfo->mat_ptrs[m][p]);
+              assert(owner_comm->nnzs_of_non_empty_slice[0][i] < rinfo->mat_ptrs[m][p + 1]);
               indices_per_rank.push_back(owner_comm->nnzs_of_non_empty_slice[0][i]);
             }
           }
@@ -1145,7 +1144,7 @@ static void p_find_non_empty_slices(
 
       for(idx_t n=0; n < validate->nnz; ++n) {
         idx_t idx = validate->ind[m][n];
-        if(idx >= mode_info->rank_row_ptrs[p] && idx < mode_info->rank_row_ptrs[p + 1]) {
+        if(idx >= rinfo->mat_ptrs[m][p] && idx < rinfo->mat_ptrs[m][p + 1]) {
           indices_per_rank.push_back(idx);
         }
       }
@@ -1154,8 +1153,8 @@ static void p_find_non_empty_slices(
       idx_t len = std::unique(indices_per_rank.begin(), indices_per_rank.end()) - indices_per_rank.begin();
       mode_info->non_empty_slices[p].resize(len);
       for(idx_t i=0; i < len; ++i) {
-        assert(indices_per_rank[i] >= mode_info->rank_row_ptrs[p]);
-        assert(indices_per_rank[i] < mode_info->rank_row_ptrs[p + 1]);
+        assert(indices_per_rank[i] >= rinfo->mat_ptrs[m][p]);
+        assert(indices_per_rank[i] < rinfo->mat_ptrs[m][p + 1]);
         mode_info->non_empty_slices[p][i] = indices_per_rank[i];
       }
     } /* for each rank */
@@ -1295,9 +1294,9 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
 
         /* convert received global indices to local indices */
         for(idx_t i=0; i < recv_len; ++i) {
-          assert(leaser_comm->local_rows_to_send[i] >= mode_info->rank_row_ptrs[layer_rank]);
-          assert(leaser_comm->local_rows_to_send[i] < mode_info->rank_row_ptrs[layer_rank + 1]);
-          leaser_comm->local_rows_to_send[i] -= mode_info->rank_row_ptrs[layer_rank];
+          assert(leaser_comm->local_rows_to_send[i] >= rinfo->mat_ptrs[m][layer_rank]);
+          assert(leaser_comm->local_rows_to_send[i] < rinfo->mat_ptrs[m][layer_rank + 1]);
+          leaser_comm->local_rows_to_send[i] -= rinfo->mat_ptrs[m][layer_rank];
         }
       }
 
@@ -1361,8 +1360,8 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
       stratum_mode_t *stratum_mode_info = &sgd_comm->stratums[s].mode_infos[m];
       sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
 
-      idx_t baserow = mode_info->rank_row_ptrs[layer_rank];
-      idx_t nlocalrow = mode_info->rank_row_ptrs[layer_rank + 1] - baserow;
+      idx_t baserow = rinfo->mat_ptrs[m][layer_rank];
+      idx_t nlocalrow = rinfo->mat_ptrs[m][layer_rank + 1] - baserow;
       vector<idx_t> hist(nlocalrow, 0);
 
       int owner_stratum_layer = stratum_mode_info->owner_stratum_layer;
@@ -1513,9 +1512,9 @@ static void p_map_global_to_local(sgd_comm_t *sgd_comm)
 
       /* convert received global indices to local indices */
       for(idx_t i=0; i < mode_info->local_rows_to_send[p].size(); ++i) {
-        assert(mode_info->local_rows_to_send[p][i] >= mode_info->rank_row_ptrs[layer_rank]);
-        assert(mode_info->local_rows_to_send[p][i] < mode_info->rank_row_ptrs[layer_rank + 1]);
-        mode_info->local_rows_to_send[p][i] -= mode_info->rank_row_ptrs[layer_rank];
+        assert(mode_info->local_rows_to_send[p][i] >= rinfo->mat_ptrs[m][layer_rank]);
+        assert(mode_info->local_rows_to_send[p][i] < rinfo->mat_ptrs[m][layer_rank + 1]);
+        mode_info->local_rows_to_send[p][i] -= rinfo->mat_ptrs[m][layer_rank];
       }
     }
   }
@@ -1532,7 +1531,7 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
 
 #define SPLATT_MEASURE_LOAD_IMBALANCE
 #ifdef SPLATT_MEASURE_LOAD_IMBALANCE
-  idx_t global_nnzs[npes*nstratum];
+  idx_t *global_nnzs = (idx_t *)splatt_malloc(sizeof(idx_t)*npes*nstratum);
   MPI_Gather(
     nnzs, nstratum, SPLATT_MPI_IDX,
     global_nnzs, nstratum, SPLATT_MPI_IDX,
@@ -1557,6 +1556,8 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
     }
     printf("total nnz_load_imbalance %g\n", maximum_total/avg_total);
   }
+
+  splatt_free(global_nnzs);
 #endif
 
   /* allocate a tile for each stratum */
@@ -1572,8 +1573,8 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
   idx_t nlocalrows[nmodes];
   for(idx_t m=0; m < nmodes; ++m) {
     nlocalrows[m] =
-      sgd_comm->mode_infos[m].rank_row_ptrs[rinfo->layer_rank[m] + 1] -
-      sgd_comm->mode_infos[m].rank_row_ptrs[rinfo->layer_rank[m]];
+      rinfo->mat_ptrs[m][rinfo->layer_rank[m] + 1] -
+      rinfo->mat_ptrs[m][rinfo->layer_rank[m]];
   }
 
   idx_t base[nmodes][npes + 1];
@@ -1625,12 +1626,12 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
       int owner_end = sgd_comm->mode_infos[m].stratum_layer_rank_ptrs[owner_stratum_layer + 1];
 
       idx_t idx = train->ind[m][n];
-      assert(idx >= mode_info->rank_row_ptrs[owner_begin]);
-      assert(idx < mode_info->rank_row_ptrs[owner_end]);
+      assert(idx >= rinfo->mat_ptrs[m][owner_begin]);
+      assert(idx < rinfo->mat_ptrs[m][owner_end]);
       int owner = std::upper_bound(
-        &mode_info->rank_row_ptrs[owner_begin],
-        &mode_info->rank_row_ptrs[owner_end],
-        idx) - &mode_info->rank_row_ptrs[0] - 1;
+        &rinfo->mat_ptrs[m][owner_begin],
+        &rinfo->mat_ptrs[m][owner_end],
+        idx) - &rinfo->mat_ptrs[m][0] - 1;
       assert(owner >= owner_begin && owner < owner_end);
 
       int layer_rank = rinfo->layer_rank[m];
@@ -1645,12 +1646,12 @@ static void p_populate_tiles(tc_ws *ws, sptensor_t *train, sgd_comm_t *sgd_comm,
       }
       else {
         /* convert global index to local index */
-        tile->ind[m][nnzs[s]] = idx - mode_info->rank_row_ptrs[layer_rank];
+        tile->ind[m][nnzs[s]] = idx - rinfo->mat_ptrs[m][layer_rank];
 
-        assert(idx >= mode_info->rank_row_ptrs[layer_rank]);
-        assert(idx < mode_info->rank_row_ptrs[layer_rank + 1]);
+        assert(idx >= rinfo->mat_ptrs[m][layer_rank]);
+        assert(idx < rinfo->mat_ptrs[m][layer_rank + 1]);
         sgd_comm->compact_train->ind[m][n] =
-          idx - mode_info->rank_row_ptrs[layer_rank];
+          idx - rinfo->mat_ptrs[m][layer_rank];
       }
     }
 
@@ -1777,8 +1778,8 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
   idx_t nlocalrows[nmodes];
   for(idx_t m=0; m < nmodes; ++m) {
     nlocalrows[m] =
-      sgd_comm->mode_infos[m].rank_row_ptrs[rinfo->layer_rank[m] + 1] -
-      sgd_comm->mode_infos[m].rank_row_ptrs[rinfo->layer_rank[m]];
+      rinfo->mat_ptrs[m][rinfo->layer_rank[m] + 1] -
+      rinfo->mat_ptrs[m][rinfo->layer_rank[m]];
   }
 
   idx_t base[nmodes][npes + 1];
@@ -2162,9 +2163,22 @@ static void p_init_sgd_comm(
   int ranks_per_stratum_layer = (npes + nstratum_layer - 1)/nstratum_layer;
   rank_info per_stratum_layer_rinfo;
   memcpy(&per_stratum_layer_rinfo, rinfo, sizeof(rank_info));
+#define SGD_1D
+#ifdef SGD_1D
+  if(0 == rinfo->rank) printf("%s:%d\n", __FILE__, __LINE__);
+  per_stratum_layer_rinfo.dims_3d[0] = ranks_per_stratum_layer;
+  for(int m=1; m < nmodes; ++m) {
+    per_stratum_layer_rinfo.dims_3d[m] = 1;
+  }
+#else
   per_stratum_layer_rinfo.npes = ranks_per_stratum_layer;
+  /*per_stratum_layer_rinfo.global_dims[0] = 1;
+  for(int m=1; m < nmodes; ++m) {
+    per_stratum_layer_rinfo.global_dims[m] = nstratum_layer;
+  }*/
   per_stratum_layer_rinfo.global_dims[0] /= nstratum_layer;
   p_get_best_mpi_dim(&per_stratum_layer_rinfo);
+#endif
 
   if(0 == rinfo->rank) {
     printf("processor decomposition of each stratum layer is %d", per_stratum_layer_rinfo.dims_3d[0]);
@@ -2194,15 +2208,8 @@ static void p_init_sgd_comm(
 
     int coord = rinfo->coords_3d[m];
     //printf("[%d] m=%d my_coord = %d\n", rank, m, coord);
-    idx_t base = rinfo->layer_ptrs[m][ranks_per_layer*nlocal_layers*coord];
 
-    mode_info->rank_row_ptrs.resize(rinfo->layer_size[m] + 1);
     assert(rinfo->layer_size[m] == SS_MIN(ranks_per_layer*nlocal_layers*(coord + 1), npes) - ranks_per_layer*nlocal_layers*coord);
-    for(int r=ranks_per_layer*nlocal_layers*coord; r <= SS_MIN(ranks_per_layer*nlocal_layers*(coord + 1), npes); ++r) {
-      // adjust rinfo->layer_ptrs to layer local indices
-      assert(rinfo->layer_ptrs[m][r] >= base);
-      mode_info->rank_row_ptrs[r - ranks_per_layer*nlocal_layers*coord] = rinfo->layer_ptrs[m][r] - base;
-    }
 
     /*if(rinfo->global_dims[m] < npes) {
       // TODO: adjust layer ptr if dim is smaller than npes for better balance
@@ -2212,7 +2219,7 @@ static void p_init_sgd_comm(
         int r = SS_MIN(ranks_per_layer*(l + nlocal_layers*coord), npes);
         mode_info->stratum_layer_rank_ptrs[l] = r - ranks_per_layer*nlocal_layers*coord;
 
-        mode_info->stratum_layer_row_ptrs[l] = mode_info->rank_row_ptrs[mode_info->stratum_layer_rank_ptrs[l]];
+        mode_info->stratum_layer_row_ptrs[l] = rinfo->mat_ptrs[m][mode_info->stratum_layer_rank_ptrs[l]];
         //printf("[%d] m=%d l=%d stratum_layer_rank_ptrs=%ld stratum_layer_row_ptrs=%ld\n", rank, m, l, mode_info->stratum_layer_rank_ptrs[l], mode_info->stratum_layer_row_ptrs[l]);
       }
     }
@@ -2309,7 +2316,7 @@ val_t p_frob_sq(
     for(idx_t m=0; m < nmodes; ++m) {
       sgd_comm_mode_t *mode_info = &sgd_comm->mode_infos[m];
       int layer_rank = rinfo->layer_rank[m];
-      idx_t nlocalrow = mode_info->rank_row_ptrs[layer_rank + 1] - mode_info->rank_row_ptrs[layer_rank];
+      idx_t nlocalrow = rinfo->mat_ptrs[m][layer_rank + 1] - rinfo->mat_ptrs[m][layer_rank];
 
       val_t accum = 0;
       val_t const * const restrict mat = model->factors[m];
@@ -2342,8 +2349,8 @@ void sgd_save_best_model(tc_ws *ws)
   for(idx_t m=0; m < nmodes; ++m) {
     sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
     int layer_rank = rinfo->layer_rank[m];
-    idx_t base = mode_info->rank_row_ptrs[layer_rank];
-    idx_t nlocalrow = mode_info->rank_row_ptrs[layer_rank + 1] - base;
+    idx_t base = rinfo->mat_ptrs[m][layer_rank];
+    idx_t nlocalrow = rinfo->mat_ptrs[m][layer_rank + 1] - base;
 
     if(m == 0) {
       par_memcpy(
@@ -2436,8 +2443,8 @@ void splatt_tc_sgd(
   for(int m=0; m < train->nmodes; ++m) {
     sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
     int layer_rank = rinfo->layer_rank[m];
-    idx_t base = mode_info->rank_row_ptrs[layer_rank];
-    nlocalrows[m] = mode_info->rank_row_ptrs[layer_rank + 1] - base;
+    idx_t base = rinfo->mat_ptrs[m][layer_rank];
+    nlocalrows[m] = rinfo->mat_ptrs[m][layer_rank + 1] - base;
 
     idx_t bytes = train->dims[m] * nfactors * sizeof(**(model_compacted->factors));
     model_compacted->dims[m] = train->dims[m];
@@ -2491,17 +2498,17 @@ void splatt_tc_sgd(
       int owner_end = mode_info->stratum_layer_rank_ptrs[owner_stratum_layer + 1];
 
       idx_t idx = validate->ind[m][n];
-      assert(idx >= mode_info->rank_row_ptrs[owner_begin]);
-      assert(idx < mode_info->rank_row_ptrs[owner_end]);
+      assert(idx >= rinfo->mat_ptrs[m][owner_begin]);
+      assert(idx < rinfo->mat_ptrs[m][owner_end]);
       int owner = std::upper_bound(
-        &mode_info->rank_row_ptrs[owner_begin],
-        &mode_info->rank_row_ptrs[owner_end],
-        idx) - &mode_info->rank_row_ptrs[0] - 1;
+        &rinfo->mat_ptrs[m][owner_begin],
+        &rinfo->mat_ptrs[m][owner_end],
+        idx) - &rinfo->mat_ptrs[m][0] - 1;
 
       int layer_rank = rinfo->layer_rank[m];
       if(owner == layer_rank) {
         sgd_comm.compact_validate->ind[m][n] =
-          idx - mode_info->rank_row_ptrs[layer_rank];
+          idx - rinfo->mat_ptrs[m][layer_rank];
       }
       else {
         assert(
@@ -2562,7 +2569,7 @@ void splatt_tc_sgd(
     for(int m=0; m < nmodes; ++m) {
       int layer_rank = rinfo->layer_rank[m];
       sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
-      idx_t base = mode_info->rank_row_ptrs[layer_rank];
+      idx_t base = rinfo->mat_ptrs[m][layer_rank];
 
       idx_t offset = 0;
       for(int p=0; p < rinfo->layer_size[m]; ++p) {
@@ -2953,7 +2960,7 @@ void splatt_tc_sgd(
           for(idx_t i=0; i < owner_comm->nnzs_of_non_empty_slice[0].size(); ++i) {
             idx_t local_idx =
               owner_comm->nnzs_of_non_empty_slice[0][i] -
-              sgd_comm.mode_infos[m].rank_row_ptrs[layer_rank];
+              rinfo->mat_ptrs[m][layer_rank];
             for(int f=0; f < nfactors; ++f) {
               //stream << " " << model_compacted->factors[m][local_idx*nfactors + f] << "*" << mode_info->local_weight;
               model_compacted->factors[m][local_idx*nfactors + f] *=
@@ -3051,7 +3058,7 @@ void splatt_tc_sgd(
       for(int m=0; m < nmodes; ++m) {
         int layer_rank = rinfo->layer_rank[m];
         sgd_comm_mode_t *mode_info = &sgd_comm.mode_infos[m];
-        idx_t base = mode_info->rank_row_ptrs[layer_rank];
+        idx_t base = rinfo->mat_ptrs[m][layer_rank];
 
         idx_t offset = 0;
         for(int p=0; p < rinfo->layer_size[m]; ++p) {

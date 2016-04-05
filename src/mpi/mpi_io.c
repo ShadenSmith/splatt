@@ -558,7 +558,7 @@ void p_fill_ssizes(
 #pragma omp parallel for
     for(idx_t n=0; n < tt->nnz; ++n) {
 #pragma omp atomic
-      ssizes[m][rinfo->layer_starts[m] + ind[n]] += 1;
+      ssizes[m][ind[n]] += 1;
     }
 
     /* reduce to get total slice counts */

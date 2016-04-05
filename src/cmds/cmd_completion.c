@@ -356,9 +356,22 @@ int splatt_tc_cmd(
   int p_per_stratum = (rinfo.npes + nstratum_layer - 1)/nstratum_layer;
   rank_info per_stratum_layer_rinfo;
   memcpy(&per_stratum_layer_rinfo, &rinfo, sizeof(rank_info));
+#define SGD_1D
+#ifdef SGD_1D
+  if(0 == rinfo.rank) printf("%s:%d\n", __FILE__, __LINE__);
+  per_stratum_layer_rinfo.dims_3d[0] = p_per_stratum;
+  for(int m=1; m < nmodes; ++m) {
+    per_stratum_layer_rinfo.dims_3d[m] = 1;
+  }
+#else
   per_stratum_layer_rinfo.npes = p_per_stratum;
+  /*per_stratum_layer_rinfo.global_dims[0] = 1;
+  for(int m=1; m < nmodes; ++m) {
+    per_stratum_layer_rinfo.global_dims[m] = nstratum_layer;
+  }*/
   per_stratum_layer_rinfo.global_dims[0] /= nstratum_layer;
   p_get_best_mpi_dim(&per_stratum_layer_rinfo);
+#endif
 
   if(0 == rinfo.rank) {
     printf("processor decomposition of each stratum layer is %d", per_stratum_layer_rinfo.dims_3d[0]);
@@ -547,9 +560,12 @@ int splatt_tc_cmd(
       printf("ALG=SGD rand_per_iteration=%d nstratum=%d csf=%d\n\n", ws->rand_per_iteration, ws->nstratum, ws->csf);
     }
     for(int m=0; m < nmodes; ++m) {
-      idx_t *temp = rinfo.layer_ptrs[m];
-      rinfo.layer_ptrs[m] = fine_rinfo.layer_ptrs[m];
-      fine_rinfo.layer_ptrs[m] = temp;
+      rinfo.mat_ptrs[m] = (idx_t *)splatt_malloc(sizeof(idx_t)*(rinfo.layer_size[m] + 1));
+      for(int p=0; p <= rinfo.layer_size[m]; ++p) {
+        rinfo.mat_ptrs[m][p] =
+          fine_rinfo.layer_ptrs[m][rinfo.layer_size[m]*rinfo.coords_3d[m] + p] -
+          fine_rinfo.layer_ptrs[m][rinfo.layer_size[m]*rinfo.coords_3d[m]];
+      }
     }
     ws->rinfo = &rinfo;
     ws->global_validate_nnz = global_validate_nnz;
