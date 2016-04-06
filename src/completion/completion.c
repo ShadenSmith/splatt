@@ -672,9 +672,7 @@ int mpi_tc_distribute_med(
     }
   } else {
     rinfo->decomp = SPLATT_DECOMP_MEDIUM;
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      rinfo->dims_3d[m] = dims[m];
-    }
+    memcpy(rinfo->dims_3d, dims, MAX_NMODES * sizeof(*(rinfo->dims_3d)));
   }
 
   /* distribute training tensor with a medium-grained decomposition */
@@ -686,7 +684,7 @@ int mpi_tc_distribute_med(
 
   /* simple distribution for validate tensor...we will redistribute to match
    * training distribution */
-  sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, MPI_COMM_WORLD);
+  sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, rinfo->comm_3d);
   if(val_tmp == NULL) {
     tt_free(train);
     *train_out = NULL;
@@ -707,19 +705,17 @@ int mpi_tc_distribute_med(
 
   /* now map validation indices to layer coordinates and fill in dims */
   #pragma omp parallel
-  {
-    for(idx_t m=0; m < validate->nmodes; ++m) {
-      #pragma omp master
-      validate->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+  for(idx_t m=0; m < validate->nmodes; ++m) {
+    #pragma omp master
+    validate->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
 
-      #pragma omp for schedule(static) nowait
-      for(idx_t n=0; n < validate->nnz; ++n) {
-        assert(validate->ind[m][n] >= rinfo->layer_starts[m]);
-        assert(validate->ind[m][n] < rinfo->layer_ends[m]);
-        validate->ind[m][n] -= rinfo->layer_starts[m];
-      }
+    #pragma omp for schedule(static) nowait
+    for(idx_t n=0; n < validate->nnz; ++n) {
+      assert(validate->ind[m][n] >= rinfo->layer_starts[m]);
+      assert(validate->ind[m][n] < rinfo->layer_ends[m]);
+      validate->ind[m][n] -= rinfo->layer_starts[m];
     }
-  } /* omp parallel */
+  }
 
   return SPLATT_SUCCESS;
 }

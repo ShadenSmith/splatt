@@ -304,15 +304,8 @@ int splatt_tc_cmd(
   /* determine matrix distribution */
   permutation_t * perm = mpi_distribute_mats(&rinfo, train, rinfo.decomp);
 
-  /* XXX: Tensor completion code (right now) assumes this does not happen.
-   * TODO: Make all of the MPI coord system code less terrible. */
-#if 0
-  /* compress tensor to own local coordinate system */
-  tt_remove_empty(train);
-  for(idx_t m=0; m < train->nmodes; ++m) {
-    mpi_cpy_indmap(train, &rinfo, m);
-  }
-#endif
+  /* apply same permutation to validation tensor */
+  perm_apply(validate, perm->perms);
 
   /* allocate model */
   tc_model * model = mpi_tc_model_alloc(train, args.nfactors, args.which_alg,

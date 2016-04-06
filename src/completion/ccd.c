@@ -1078,10 +1078,6 @@ void splatt_tc_ccd(
   int const rank = 0;
 #endif
 
-  printf("val dims: (%lu %lu %lu) model (%lu %lu %lu)\n",
-      validate->dims[0], validate->dims[1], validate->dims[2],
-      model->dims[0], model->dims[1], model->dims[2]);
-
   if(rank == 0) {
     printf("INNER ITS: %"SPLATT_PF_IDX"\n", ws->num_inner);
     printf("USING 3MODE OPTS: %d\n", USE_3MODE_OPT);
