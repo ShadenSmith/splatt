@@ -514,7 +514,6 @@ static void p_update_factor_all2all(
       rinfo->nowned[m] * nfactors * sizeof(*matv));
 
   if(rinfo->layer_size[mode] == 1) {
-    assert(false);
     return;
   }
 
@@ -659,13 +658,13 @@ void splatt_tc_als(
   opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
 
 #ifdef SPLATT_USE_MPI
+  sptensor_t * both = tt_union(train, validate);
   for(idx_t m=0; m < nmodes; ++m) {
-    sptensor_t * both = tt_union(train, validate);
     /* setup communication structures */
-    mpi_find_owned(both, m, rinfo);
+    mpi_find_owned(train, m, rinfo);
     mpi_compute_ineed(rinfo, both, m, nfactors, 1);
-    tt_free(both);
   }
+  tt_free(both);
 #endif
 
   for(idx_t m=0; m < nmodes; ++m) {

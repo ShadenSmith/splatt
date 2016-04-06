@@ -629,13 +629,15 @@ int mpi_tc_distribute_coarse(
   coarse_parts[rinfo->rank] = rinfo->mat_start[bigmode];
   MPI_Allreduce(MPI_IN_PLACE, coarse_parts, rinfo->npes, SPLATT_MPI_IDX,
       MPI_SUM, rinfo->comm_3d);
+  coarse_parts[rinfo->npes] = train->dims[bigmode];
 
   /* redistribute along largest mode */
   int * parts = splatt_malloc(val_tmp->nnz * sizeof(*parts));
+  idx_t const * const bigind = val_tmp->ind[bigmode];
   #pragma omp parallel for schedule(static)
   for(idx_t n=0; n < val_tmp->nnz; ++n) {
     for(int p=0; p < rinfo->npes; ++p) {
-      if(coarse_parts[p] <= val_tmp->ind[bigmode][n]) {
+      if(coarse_parts[p+1] > bigind[n]) {
         parts[n] = p;
         break;
       }
@@ -644,11 +646,9 @@ int mpi_tc_distribute_coarse(
   free(coarse_parts);
 
   /* rearrange validation nonzeros */
-  sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,
-      rinfo->comm_3d);
+  sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,rinfo->comm_3d);
   *validate_out = validate;
   tt_free(val_tmp);
-  *validate_out = validate;
   splatt_free(parts);
 
   return SPLATT_SUCCESS;

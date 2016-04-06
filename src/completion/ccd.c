@@ -244,15 +244,17 @@ static void p_init_mpi(
   idx_t maxnbr2globs = 0;
 
   /* recompute this stuff with nfactors = 1 due to column-major layout */
+  sptensor_t * both = tt_union(train, validate);
   for(idx_t m=0; m < train->nmodes; ++m) {
-    sptensor_t * both = tt_union(train, validate);
-    mpi_find_owned(both, m, ws->rinfo);
+    mpi_find_owned(train, m, ws->rinfo);
+
+    /* setup comm structures based on union of train and validate */
     mpi_compute_ineed(ws->rinfo, both, m, 1, 3);
-    tt_free(both);
 
     maxlocal2nbr = SS_MAX(maxlocal2nbr, ws->rinfo->nlocal2nbr[m]);
     maxnbr2globs = SS_MAX(maxnbr2globs, ws->rinfo->nnbr2globs[m]);
   }
+  tt_free(both);
 
   ws->local2nbr_buf  = splatt_malloc(2*maxlocal2nbr * sizeof(val_t));
   ws->nbr2globs_buf  = splatt_malloc(2*maxnbr2globs * sizeof(val_t));
