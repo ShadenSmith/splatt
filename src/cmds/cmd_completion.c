@@ -314,16 +314,6 @@ int splatt_tc_cmd(
   }
 #endif
 
-  /* XXX */
-#if 0
-  for(idx_t m=0; m < train->nmodes; ++m) {
-    /* index into local tensor to grab owned rows */
-    mpi_find_owned(train, m, &rinfo);
-    /* determine isend and ineed lists */
-    mpi_compute_ineed(&rinfo, train, m, args.nfactors, 3);
-  }
-#endif
-
   /* allocate model */
   tc_model * model = mpi_tc_model_alloc(train, args.nfactors, args.which_alg,
       perm, &rinfo);

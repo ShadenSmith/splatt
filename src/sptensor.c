@@ -202,6 +202,9 @@ sptensor_t * tt_union(
     }
 
     if(same) {
+      printf("A: (%lu %lu %lu %0.1f) B: (%lu %lu %lu %0.1f)\n",
+          tt_a->ind[0][ptra], tt_a->ind[1][ptra], tt_a->ind[2][ptra], tt_a->vals[ptra],
+          tt_b->ind[0][ptrb], tt_b->ind[1][ptrb], tt_b->ind[2][ptrb], tt_b->vals[ptrb]);
       /* just copy one */
       ++ptra;
       ++ptrb;

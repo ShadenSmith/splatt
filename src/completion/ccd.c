@@ -243,16 +243,25 @@ static void p_init_mpi(
   idx_t maxlocal2nbr = 0;
   idx_t maxnbr2globs = 0;
 
-  /* recompute this stuff with nfactors = 1 due to column-major layout */
+  assert(tt_remove_dups(train) == 0);
+  assert(tt_remove_dups(validate) == 0);
+
+  /* compute comm structures with nfactors = 1 due to column-major layout */
   sptensor_t * both = tt_union(train, validate);
+  assert(both->nnz == train->nnz + validate->nnz);
+
   for(idx_t m=0; m < train->nmodes; ++m) {
-    mpi_find_owned(train, m, ws->rinfo);
+    mpi_find_owned(both, m, ws->rinfo);
 
     /* setup comm structures based on union of train and validate */
     mpi_compute_ineed(ws->rinfo, both, m, 1, 3);
 
     maxlocal2nbr = SS_MAX(maxlocal2nbr, ws->rinfo->nlocal2nbr[m]);
     maxnbr2globs = SS_MAX(maxnbr2globs, ws->rinfo->nnbr2globs[m]);
+
+    assert(train->indmap[m] == NULL);
+    assert(validate->indmap[m] == NULL);
+    assert(both->indmap[m] == NULL);
   }
   tt_free(both);
 
@@ -1068,6 +1077,10 @@ void splatt_tc_ccd(
 #else
   int const rank = 0;
 #endif
+
+  printf("val dims: (%lu %lu %lu) model (%lu %lu %lu)\n",
+      validate->dims[0], validate->dims[1], validate->dims[2],
+      model->dims[0], model->dims[1], model->dims[2]);
 
   if(rank == 0) {
     printf("INNER ITS: %"SPLATT_PF_IDX"\n", ws->num_inner);

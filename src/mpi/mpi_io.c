@@ -879,19 +879,17 @@ sptensor_t * mpi_tt_read(
 
     /* now map tensor indices to local (layer) coordinates and fill in dims */
     #pragma omp parallel
-    {
-      for(idx_t m=0; m < ttbuf->nmodes; ++m) {
-        #pragma omp master
-        tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+    for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+      #pragma omp master
+      tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
 
-        #pragma omp for schedule(static) nowait
-        for(idx_t n=0; n < tt->nnz; ++n) {
-          assert(tt->ind[m][n] >= rinfo->layer_starts[m]);
-          assert(tt->ind[m][n] < rinfo->layer_ends[m]);
-          tt->ind[m][n] -= rinfo->layer_starts[m];
-        }
+      #pragma omp for schedule(static) nowait
+      for(idx_t n=0; n < tt->nnz; ++n) {
+        assert(tt->ind[m][n] >= rinfo->layer_starts[m]);
+        assert(tt->ind[m][n] < rinfo->layer_ends[m]);
+        tt->ind[m][n] -= rinfo->layer_starts[m];
       }
-    } /* omp parallel */
+    }
     break;
 
   case SPLATT_DECOMP_FINE:
@@ -1148,16 +1146,7 @@ sptensor_t * mpi_simple_distribute(
     fclose(fin);
   }
 
-  /* set dims info */
-  #pragma omp parallel for schedule(static, 1)
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    idx_t const * const inds = tt->ind[m];
-    idx_t dim = 1 +inds[0];
-    for(idx_t n=1; n < tt->nnz; ++n) {
-      dim = SS_MAX(dim, 1 + inds[n]);
-    }
-    tt->dims[m] = dim;
-  }
+  tt_fill_dims(tt);
 
 
   return tt;
