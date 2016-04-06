@@ -682,6 +682,8 @@ int mpi_tc_distribute_med(
     return SPLATT_ERROR_BADINPUT;
   }
 
+  rinfo->decomp = SPLATT_DECOMP_MEDIUM;
+
   /* simple distribution for validate tensor...we will redistribute to match
    * training distribution */
   sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, rinfo->comm_3d);
