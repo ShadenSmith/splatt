@@ -731,7 +731,8 @@ double mpi_cpd_als_iterate(
 
       /* invert normal equations (Cholesky factorization) for new factor */
       par_memcpy(globmats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
-      mat_solve_normals(m, nmodes, aTa, globmats[m], 0.);
+      mat_solve_normals(m, nmodes, aTa, globmats[m],
+          opts[SPLATT_OPTION_REGULARIZE]);
 
       /* normalize columns and extract lambda */
       if(it == 0) {
