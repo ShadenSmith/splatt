@@ -98,6 +98,7 @@ typedef enum
   /* high level options */
   SPLATT_OPTION_NTHREADS,   /* Number of OpenMP threads to use. */
   SPLATT_OPTION_TOLERANCE,  /* Threshold for convergence. */
+  SPLATT_OPTION_REGULARIZE, /* Regularization parameter. */
   SPLATT_OPTION_NITER,      /* Maximum number of iterations to perform. */
   SPLATT_OPTION_VERBOSITY,  /* Verbosity level */
 

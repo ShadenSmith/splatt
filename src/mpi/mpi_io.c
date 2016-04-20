@@ -148,42 +148,6 @@ static int * p_distribute_parts(
 }
 
 
-/**
-* @brief Map a nonzero to an MPI rank based on the layer boundaries.
-*
-* @param ttbuf The sparse tensor.
-* @param n The index of the nonzero.
-* @param rinfo MPI rank information (uses dims_3d and layer_ptrs).
-*
-* @return The MPI rank that owns ttbuf[n].
-*/
-static int p_determine_owner(
-  sptensor_t * const ttbuf,
-  idx_t const n,
-  rank_info * const rinfo)
-{
-  int coords[MAX_NMODES];
-
-  /* determine the coordinates of the owner rank */
-  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
-    idx_t const id = ttbuf->ind[m][n];
-    /* silly linear scan over each layer.
-     * TODO: do a binary search */
-    for(int l=0; l <= rinfo->dims_3d[m]; ++l) {
-      if(id < rinfo->layer_ptrs[m][l]) {
-        coords[m] = l-1;
-        break;
-      }
-    }
-  }
-
-  /* translate that to an MPI rank */
-  int owner;
-  MPI_Cart_rank(rinfo->comm_3d, coords, &owner);
-  return owner;
-}
-
-
 
 
 static void p_find_my_slices_1d(
@@ -498,7 +462,7 @@ static sptensor_t * p_rearrange_medium(
 
   #pragma omp parallel for schedule(static)
   for(idx_t n=0; n < ttbuf->nnz; ++n) {
-    parts[n] = p_determine_owner(ttbuf, n, rinfo);
+    parts[n] = mpi_determine_med_owner(ttbuf, n, rinfo);
   }
 
   sptensor_t * tt = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
@@ -592,7 +556,10 @@ static void p_get_best_mpi_dim(
     /* find dim furthest from target */
     for(idx_t m=0; m < rinfo->nmodes; ++m) {
       /* distance is current - target */
-      diffs[m] = (rinfo->global_dims[m] / rinfo->dims_3d[m]) - target;
+      idx_t const curr = rinfo->global_dims[m] / rinfo->dims_3d[m];
+      /* avoid underflow */
+      diffs[m] = (curr > target) ? (curr - target) : 0;
+
       if(diffs[m] > diffs[furthest]) {
         furthest = m;
       }
@@ -809,6 +776,7 @@ sptensor_t * mpi_tt_read(
       MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(ttbuf->dims, &(rinfo->global_dims), ttbuf->nmodes,
       SPLATT_MPI_IDX, MPI_MAX, MPI_COMM_WORLD);
+
 
   /* first compute MPI dimension if not specified by the user */
   if(rinfo->decomp == DEFAULT_MPI_DISTRIBUTION) {
@@ -1294,5 +1262,35 @@ sptensor_t * mpi_rearrange_by_part(
 
   return tt;
 }
+
+
+int mpi_determine_med_owner(
+  sptensor_t * const ttbuf,
+  idx_t const n,
+  rank_info * const rinfo)
+{
+  int coords[MAX_NMODES];
+
+  assert(rinfo->decomp == SPLATT_DECOMP_MEDIUM);
+
+  /* determine the coordinates of the owner rank */
+  for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+    idx_t const id = ttbuf->ind[m][n];
+    /* silly linear scan over each layer.
+     * TODO: do a binary search */
+    for(int l=0; l <= rinfo->dims_3d[m]; ++l) {
+      if(id < rinfo->layer_ptrs[m][l]) {
+        coords[m] = l-1;
+        break;
+      }
+    }
+  }
+
+  /* translate that to an MPI rank */
+  int owner;
+  MPI_Cart_rank(rinfo->comm_3d, coords, &owner);
+  return owner;
+}
+
 
 

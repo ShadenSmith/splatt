@@ -17,6 +17,7 @@ static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
   "splatt-cpd -- Compute the CPD of a sparse tensor.\n";
 
+#define TT_REG 251
 #define TT_SEED 252
 #define TT_NOWRITE 253
 #define TT_TOL 254
@@ -24,6 +25,7 @@ static char cpd_doc[] =
 static struct argp_option cpd_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
   {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
+  {"reg", TT_REG, "REGULARIZATION", 0, "regularization parameter (default: 0)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
@@ -80,6 +82,9 @@ static error_t parse_cpd_opt(
   case TT_TOL:
     args->opts[SPLATT_OPTION_TOLERANCE] = atof(arg);
     break;
+  case TT_REG:
+    args->opts[SPLATT_OPTION_REGULARIZE] = atof(arg);
+    break;
   case 't':
     args->opts[SPLATT_OPTION_NTHREADS] = (double) atoi(arg);
     omp_set_num_threads((int)args->opts[SPLATT_OPTION_NTHREADS]);
@@ -98,6 +103,7 @@ static error_t parse_cpd_opt(
     args->nfactors = atoi(arg);
     break;
   case TT_SEED:
+    args->opts[SPLATT_OPTION_RANDSEED] = atoi(arg);
     srand(atoi(arg));
     break;
 
@@ -167,7 +173,7 @@ int splatt_cpd_cmd(
     return ret;
   }
 
-  printf("Final fit: %"SPLATT_PF_VAL"\n", factored.fit);
+  printf("Final fit: %0.5"SPLATT_PF_VAL"\n", factored.fit);
 
   /* write output */
   if(args.write == 1) {

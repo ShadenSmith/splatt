@@ -238,12 +238,19 @@ void cpd_stats(
   /* header */
   printf("Factoring "
          "------------------------------------------------------\n");
-  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
-      nfactors,
-      (idx_t) opts[SPLATT_OPTION_NITER],
-      opts[SPLATT_OPTION_TOLERANCE]);
-  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) opts[SPLATT_OPTION_NTHREADS]);
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e "
+         "REG=%0.1e ",
+      nfactors, (idx_t) opts[SPLATT_OPTION_NITER],
+      opts[SPLATT_OPTION_TOLERANCE], opts[SPLATT_OPTION_REGULARIZE]);
 
+
+  if(opts[SPLATT_OPTION_RANDSEED] == SPLATT_VAL_OFF) {
+    printf("SEED=time ");
+  } else {
+    printf("SEED=%d ", (int) opts[SPLATT_OPTION_RANDSEED]);
+  }
+
+  printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) opts[SPLATT_OPTION_NTHREADS]);
   printf("\n");
 
   /* CSF allocation */
@@ -323,10 +330,10 @@ void mpi_cpd_stats(
   /* header */
   printf("Factoring "
          "------------------------------------------------------\n");
-  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e ",
-      nfactors,
-      (idx_t) opts[SPLATT_OPTION_NITER],
-      opts[SPLATT_OPTION_TOLERANCE]);
+  printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" TOL=%0.1e "
+         "REG=%0.1e ",
+      nfactors, (idx_t) opts[SPLATT_OPTION_NITER],
+      opts[SPLATT_OPTION_TOLERANCE], opts[SPLATT_OPTION_REGULARIZE]);
   printf("RANKS=%d THREADS=%"SPLATT_PF_IDX" ", rinfo->npes,
       (idx_t) opts[SPLATT_OPTION_NTHREADS]);
 

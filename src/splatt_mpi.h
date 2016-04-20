@@ -310,6 +310,23 @@ sptensor_t * mpi_rearrange_by_part(
   MPI_Comm comm);
 
 
+#define mpi_determine_med_owner splatt_mpi_determine_med_owner
+/**
+* @brief Map a nonzero to an MPI rank based on the medium-grained layer
+*        boundaries.
+*
+* @param ttbuf The sparse tensor.
+* @param n The index of the nonzero.
+* @param rinfo MPI rank information (uses dims_3d and layer_ptrs).
+*
+* @return The MPI rank that owns ttbuf[n].
+*/
+int mpi_determine_med_owner(
+  sptensor_t * const ttbuf,
+  idx_t const n,
+  rank_info * const rinfo);
+
+
 #define mpi_filter_tt_1d splatt_mpi_filter_tt_1d
 /**
 * @brief Run nonzeros from tt through filter to 'ftt'. This is 1D filtering,

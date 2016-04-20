@@ -330,7 +330,8 @@ double cpd_als_iterate(
       mat_matmul(m1, aTa[MAX_NMODES], mats[m]);
 #else
       par_memcpy(mats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
-      mat_solve_normals(m, nmodes, aTa, mats[m], 0.);
+      mat_solve_normals(m, nmodes, aTa, mats[m],
+          opts[SPLATT_OPTION_REGULARIZE]);
 #endif
 
       /* normalize columns and extract lambda */
