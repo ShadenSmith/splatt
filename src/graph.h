@@ -68,6 +68,7 @@ typedef struct
   adj_t * eptr; /** Adjacency list pointer. */
   adj_t * eind; /** Adjacency list. */
 
+  adj_t nvwgts;
   wgt_t * vwgts; /** Vertex weights. */
   wgt_t * ewgts; /** Edge weights. */
 } splatt_graph;

@@ -56,11 +56,11 @@ static void p_create_fptr(
 
   /* allocate fiber structure */
   ft->nfibs = nfibs;
-  ft->fptr = (idx_t *) malloc((nfibs+1) * sizeof(idx_t));
-  ft->fids = (idx_t *) malloc(nfibs * sizeof(idx_t));
+  ft->fptr = (idx_t *) splatt_malloc((nfibs+1) * sizeof(idx_t));
+  ft->fids = (idx_t *) splatt_malloc(nfibs * sizeof(idx_t));
   if(ft->tiled != SPLATT_NOTILE) {
     /* temporary and will be replaced later */
-    ft->sids = (idx_t *) malloc(nfibs * sizeof(idx_t));
+    ft->sids = (idx_t *) splatt_malloc(nfibs * sizeof(idx_t));
   }
 
   /* initialize boundary values */
@@ -105,7 +105,7 @@ static void p_create_syncptr(
   idx_t const nfibs = ft->nfibs;
 
   ft->sptr = NULL; /* not needed */
-  ft->slabptr = (idx_t *) malloc((nslabs+1) * sizeof(idx_t));
+  ft->slabptr = (idx_t *) splatt_malloc((nslabs+1) * sizeof(idx_t));
 
   ft->slabptr[0] = 0;
   idx_t slab = 1;
@@ -132,7 +132,7 @@ static void p_create_slabptr(
   idx_t const tsize = TILE_SIZES[0];
   idx_t const nslabs = tt->dims[mode] / tsize + (tt->dims[mode] % tsize != 0);
 
-  ft->slabptr = (idx_t *) malloc((nslabs+1) * sizeof(idx_t));
+  ft->slabptr = (idx_t *) splatt_malloc((nslabs+1) * sizeof(idx_t));
 
   idx_t const nfibs = ft->nfibs;
   /* count slices */
@@ -142,8 +142,8 @@ static void p_create_slabptr(
       ++slices;
     }
   }
-  idx_t * sptr = (idx_t *) malloc((slices+1) * sizeof(idx_t)); /* sliceptr */
-  idx_t * sids = (idx_t *) malloc(slices * sizeof(idx_t)); /* to replace old */
+  idx_t * sptr = (idx_t *) splatt_malloc((slices+1) * sizeof(idx_t)); /* sliceptr */
+  idx_t * sids = (idx_t *) splatt_malloc(slices * sizeof(idx_t)); /* to replace old */
 
   sptr[0] = 0;
   sids[0] = ft->sids[0];
@@ -183,7 +183,7 @@ static void p_create_sliceptr(
   idx_t const nmodes = tt->nmodes;
 
   idx_t const nslices = ft->dims[mode];
-  ft->sptr = (idx_t *) malloc((nslices+1) * sizeof(idx_t));
+  ft->sptr = (idx_t *) splatt_malloc((nslices+1) * sizeof(idx_t));
   ft->nslcs = nslices;
 
   /* permuted tt->ind makes things a bit easier */
@@ -248,12 +248,12 @@ void ften_alloc(
   fib_mode_order(tt->dims, tt->nmodes, mode, ft->dim_perm);
 
   /* allocate modal data */
-  ft->inds = (idx_t *) malloc(ft->nnz * sizeof(idx_t));
-  ft->vals = (val_t *) malloc(ft->nnz * sizeof(val_t));
+  ft->inds = (idx_t *) splatt_malloc(ft->nnz * sizeof(idx_t));
+  ft->vals = (val_t *) splatt_malloc(ft->nnz * sizeof(val_t));
 
   tt_sort(tt, mode, ft->dim_perm);
   if(tile != SPLATT_NOTILE) {
-    ft->tiled = 1;
+    ft->tiled = tile;
     tt_tile(tt, ft->dim_perm);
   }
 
@@ -278,7 +278,7 @@ void ften_alloc(
 
   /* copy indmap if necessary */
   if(tt->indmap[mode] != NULL) {
-    ft->indmap = (idx_t *) malloc(ft->dims[mode] * sizeof(idx_t));
+    ft->indmap = (idx_t *) splatt_malloc(ft->dims[mode] * sizeof(idx_t));
     memcpy(ft->indmap, tt->indmap[mode], ft->dims[mode] * sizeof(idx_t));
   } else {
     ft->indmap = NULL;

@@ -60,7 +60,7 @@ static error_t parse_check_opt(
 static struct argp check_argp =
   {check_options, parse_check_opt, check_args_doc, check_doc};
 
-void splatt_check(
+int splatt_check(
   int argc,
   char ** argv)
 {
@@ -72,6 +72,9 @@ void splatt_check(
 
   print_header();
   sptensor_t * tt = tt_read(args.ifname);
+  if(tt == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
 
   idx_t const rnnz = tt_remove_dups(tt);
   idx_t const rslices = tt_remove_empty(tt);
@@ -97,7 +100,7 @@ void splatt_check(
           }
           FILE * fout = fopen(buf, "w");
           for(idx_t i=0; i < tt->dims[m]; ++i) {
-            fprintf(fout, "%"SPLATT_PF_IDX"\n", map[i]);
+            fprintf(fout, "%"SPLATT_PF_IDX"\n", 1+map[i]);
           }
           fclose(fout);
           free(buf);
@@ -107,5 +110,7 @@ void splatt_check(
   } /* if errors */
 
   tt_free(tt);
+
+  return EXIT_SUCCESS;
 }
 

@@ -149,6 +149,7 @@ void bench_csf(
   sp_timer_t modetime;
 
   double * cpd_opts = splatt_default_opts();
+  cpd_opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
   cpd_opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
   cpd_opts[SPLATT_OPTION_NTHREADS] = threads[nruns-1];
 
@@ -159,16 +160,15 @@ void bench_csf(
     TILE_SIZES[0] * nfactors * sizeof(val_t) + 64,
     (tt->nmodes * nfactors * sizeof(val_t)) + 64);
 
-  splatt_csf * cs = splatt_csf_alloc(tt, cpd_opts);
+  splatt_csf * cs = csf_alloc(tt, cpd_opts);
 
-#if 0
   printf("** CSF **\n");
-  unsigned long cs_bytes = csf_storage(cs);
+  unsigned long cs_bytes = csf_storage(cs, cpd_opts);
   char * bstr = bytes_str(cs_bytes);
   printf("CSF-STORAGE: %s\n\n", bstr);
   free(bstr);
 
-  stats_csf(&cs);
+  stats_csf(cs);
   printf("\n");
 
   timer_start(&timers[TIMER_MISC]);
@@ -186,7 +186,7 @@ void bench_csf(
       /* time each mode */
       for(idx_t m=0; m < tt->nmodes; ++m) {
         timer_fstart(&modetime);
-        mttkrp_csf(&cs, mats, m, thds, nthreads);
+        mttkrp_csf(cs, mats, m, thds, cpd_opts);
         timer_stop(&modetime);
         printf("  mode %" SPLATT_PF_IDX " %0.3fs\n", m+1, modetime.seconds);
         if(opts->write && t == nruns-1 && i == 0) {
@@ -211,13 +211,12 @@ void bench_csf(
   timer_stop(&timers[TIMER_MISC]);
 
   /* clean up */
-  csf_free(&cs, cpd_opts);
+  csf_free(cs, cpd_opts);
   thd_free(thds, threads[nruns-1]);
   free(cpd_opts);
 
   /* fix any matrices that we shuffled */
   p_shuffle_mats(mats, opts->perm->iperms, tt->nmodes);
-#endif
 }
 
 void bench_giga(
@@ -236,7 +235,7 @@ void bench_giga(
   sp_timer_t itertime;
   sp_timer_t modetime;
   thd_info * thds = thd_init(threads[nruns-1], 0);
-  val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
+  val_t * scratch = (val_t *) splatt_malloc(tt->nnz * sizeof(val_t));
 
   matrix_t * colmats[MAX_NMODES+1];
 
@@ -382,7 +381,7 @@ void bench_ttbox(
   thd_info * thds = thd_init(threads[nruns-1], 0);
 
   printf("** TTBOX **\n");
-  val_t * scratch = (val_t *) malloc(tt->nnz * sizeof(val_t));
+  val_t * scratch = (val_t *) splatt_malloc(tt->nnz * sizeof(val_t));
 
   timer_start(&timers[TIMER_TTBOX]);
   for(idx_t t=0; t < nruns; ++t) {

@@ -114,6 +114,9 @@ void tt_convert(
   splatt_convert_type const type)
 {
   sptensor_t * tt = tt_read(ifname);
+  if(tt == NULL) {
+    return;
+  }
   stats_tt(tt, ifname, STATS_BASIC, 0, NULL);
 
   timer_start(&timers[TIMER_CONVERT]);
@@ -130,6 +133,12 @@ void tt_convert(
     break;
   case CNV_FIB_SPMAT:
     p_convert_fib_mat(tt, mode, ofname);
+    break;
+  case CNV_BINARY:
+    tt_write_binary(tt, ofname);
+    break;
+  case CNV_COORD:
+    tt_write(tt, ofname);
     break;
   default:
     fprintf(stderr, "SPLATT ERROR: convert type not implemented.\n");

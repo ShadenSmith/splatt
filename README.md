@@ -2,8 +2,8 @@ The Surprisingly ParalleL spArse Tensor Toolkit
 ===============================================
 
 SPLATT is a library and C API for sparse tensor factorization. SPLATT supports
-shared-memory parallelism with OpenMP and (soon) distributed-memory parallelism
-with MPI.
+shared-memory parallelism with OpenMP and distributed-memory parallelism with
+MPI.
 
 
 Tensor Format
@@ -82,6 +82,33 @@ Adding '-t 4' instructs SPLATT to use four OpenMP threads during the
 computation. SPLATT will use all available CPU cores by default.  The matrix
 factors are written to `modeN.mat` and lambda, the vector for scaling, is
 written to `lambda.mat`.
+
+
+Distributed-Memory Computation
+------------------------------
+SPLATT can optionally be built with support for distributed-memory systems via
+MPI. To add MPI support, simply add "--mpi" to the configuration step:
+
+    $ ./configure --mpi && make
+
+After building with MPI, `splatt-cpd` can be used as before. Careful
+consideration should be given to the mapping of MPI ranks to nodes, because
+each SPLATT process will by default use all available CPU cores. We recommend
+mapping one rank per node. The necessary parameters to `mpirun` vary based
+on the MPI implementation. For example, OpenMPI supports:
+
+### Example 3
+
+    $ mpirun -pernode -np 16 splatt cpd mytensor.tns -r 25
+
+This would fully utilize 16 nodes to compute a rank-25 CPD of `mytensor.tns`.
+To alternatively use one MPI rank per core:
+
+### Example 3
+
+    $ mpirun -np 128 splatt cpd mytensor.tns -r 25 -t 1
+
+This would use 128 processes, with each using only one OpenMP thread.
 
 
 C/C++ API

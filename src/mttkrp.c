@@ -10,8 +10,52 @@
 #include <omp.h>
 
 
+
+/******************************************************************************
+ * MUTEX FUNCTIONS
+ *****************************************************************************/
+
 #define NLOCKS 1024
-static omp_lock_t locks[NLOCKS];
+static omp_lock_t locks[NLOCKS*16];
+static bool locks_initialized = false;
+
+
+/**
+* @brief Initialize all OpenMP locks.
+*/
+static void p_init_locks()
+{
+  if (!locks_initialized) {
+    for(int i=0; i < NLOCKS; ++i) {
+      omp_init_lock(locks + (i*16));
+    }
+    locks_initialized = true;
+  }
+}
+
+/**
+* @brief Set a lock based on some id.
+*
+* @param id The lock to set.
+*/
+static inline void p_splatt_set_lock(
+    int id)
+{
+  int i = (id % NLOCKS) * 16;
+  omp_set_lock(locks + i);
+}
+
+/**
+* @brief Release a lock based on some id.
+*
+* @param id The lock to release.
+*/
+static inline void p_splatt_unset_lock(
+    int id)
+{
+  int i = (id % NLOCKS) * 16;
+  omp_unset_lock(locks + i);
+}
 
 
 /******************************************************************************
@@ -30,13 +74,13 @@ int splatt_mttkrp(
   /* fill matrix pointers  */
   matrix_t * mats[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
-    mats[m] = (matrix_t *) malloc(sizeof(matrix_t));
+    mats[m] = (matrix_t *) splatt_malloc(sizeof(matrix_t));
     mats[m]->I = tensors->dims[m];
     mats[m]->J = ncolumns,
     mats[m]->rowmajor = 1;
     mats[m]->vals = matrices[m];
   }
-  mats[MAX_NMODES] = (matrix_t *) malloc(sizeof(matrix_t));
+  mats[MAX_NMODES] = (matrix_t *) splatt_malloc(sizeof(matrix_t));
   mats[MAX_NMODES]->I = tensors->dims[mode];
   mats[MAX_NMODES]->J = ncolumns;
   mats[MAX_NMODES]->rowmajor = 1;
@@ -118,11 +162,11 @@ static inline void p_csf_process_fiber_lock(
   for(idx_t jj=start; jj < end; ++jj) {
     val_t * const restrict leafrow = leafmat + (inds[jj] * nfactors);
     val_t const v = vals[jj];
-    omp_set_lock(locks + (inds[jj] % NLOCKS));
+    p_splatt_set_lock(inds[jj]);
     for(idx_t f=0; f < nfactors; ++f) {
       leafrow[f] += v * accumbuf[f];
     }
-    omp_unset_lock(locks + (inds[jj] % NLOCKS));
+    p_splatt_unset_lock(inds[jj]);
   }
 }
 
@@ -403,11 +447,11 @@ static void p_csf_mttkrp_internal3(
 
       /* write to fiber row */
       val_t * const restrict ov = ovals  + (fids[f] * nfactors);
-      omp_set_lock(locks + (fids[f] % NLOCKS));
+      p_splatt_set_lock(fids[f]);
       for(idx_t r=0; r < nfactors; ++r) {
         ov[r] += rv[r] * accumF[r];
       }
-      omp_unset_lock(locks + (fids[f] % NLOCKS));
+      p_splatt_unset_lock(fids[f]);
     }
   }
 }
@@ -457,11 +501,11 @@ static void p_csf_mttkrp_leaf3(
       for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
         val_t const v = vals[jj];
         val_t * const restrict ov = ovals + (inds[jj] * nfactors);
-        omp_set_lock(locks + (inds[jj] % NLOCKS));
+        p_splatt_set_lock(inds[jj]);
         for(idx_t r=0; r < nfactors; ++r) {
           ov[r] += v * accumF[r];
         }
-        omp_unset_lock(locks + (inds[jj] % NLOCKS));
+        p_splatt_unset_lock(inds[jj]);
       }
     }
   }
@@ -1035,9 +1079,9 @@ static void p_csf_mttkrp_internal(
           fp, fids, vals, mvals, nmodes, nfactors);
 
       val_t * const restrict outbuf = ovals + (noderow * nfactors);
-      omp_set_lock(locks + (noderow % NLOCKS));
+      p_splatt_set_lock(noderow);
       p_add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
-      omp_unset_lock(locks + (noderow % NLOCKS));
+      p_splatt_unset_lock(noderow);
 
       /* backtrack to next unfinished node */
       do {
@@ -1210,6 +1254,8 @@ void mttkrp_csf(
   thd_info * const thds,
   double const * const opts)
 {
+  p_init_locks();
+
   /* clear output matrix */
   matrix_t * const M = mats[MAX_NMODES];
   M->I = tensors[0].dims[mode];
@@ -1624,7 +1670,7 @@ void mttkrp_stream(
 
   idx_t const nmodes = tt->nmodes;
 
-  val_t * accum = (val_t *) malloc(nfactors * sizeof(val_t));
+  val_t * accum = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
 
   val_t * mvals[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {

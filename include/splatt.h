@@ -76,8 +76,8 @@
  * VERSION
  *****************************************************************************/
 #define SPLATT_VER_MAJOR     1
-#define SPLATT_VER_MINOR     0
-#define SPLATT_VER_SUBMINOR  0
+#define SPLATT_VER_MINOR     1
+#define SPLATT_VER_SUBMINOR  1
 
 
 
@@ -98,6 +98,7 @@ typedef enum
   /* high level options */
   SPLATT_OPTION_NTHREADS,   /* Number of OpenMP threads to use. */
   SPLATT_OPTION_TOLERANCE,  /* Threshold for convergence. */
+  SPLATT_OPTION_REGULARIZE, /* Regularization parameter. */
   SPLATT_OPTION_NITER,      /* Maximum number of iterations to perform. */
   SPLATT_OPTION_VERBOSITY,  /* Verbosity level */
 
@@ -542,6 +543,10 @@ int splatt_ttmc(
 
 
 #ifdef SPLATT_USE_MPI
+/*
+ * TODO: There is currently no MPI support for factorization. That is due in
+ *       version 1.2.x.
+ */
 
 /**
 * @brief Read a tensor from a file, distribute among an MPI communicator, and
@@ -589,6 +594,7 @@ int splatt_mpi_coord_load(
     double const * const options,
     MPI_Comm comm);
 #endif
+
 
 #ifdef __cplusplus
 }

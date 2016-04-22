@@ -109,7 +109,7 @@ static struct argp tucker_argp =
 /******************************************************************************
  * SPLATT TUCKER
  *****************************************************************************/
-void splatt_tucker_cmd(
+int splatt_tucker_cmd(
   int argc,
   char ** argv)
 {
@@ -123,7 +123,7 @@ void splatt_tucker_cmd(
   sptensor_t * tt = NULL;
   tt = tt_read(args.ifname);
   if(tt == NULL) {
-    return;
+    return EXIT_FAILURE;
   }
 
   splatt_verbosity_type which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
@@ -151,7 +151,7 @@ void splatt_tucker_cmd(
   int ret = splatt_tucker_als(nfactors, nmodes, csf, args.opts, &factored);
   if(ret != SPLATT_SUCCESS) {
     fprintf(stderr, "splatt_tucker_als returned %d. Aborting.\n", ret);
-    exit(1);
+    return EXIT_FAILURE;
   }
 
   /* write output */
@@ -179,5 +179,7 @@ void splatt_tucker_cmd(
   /* output + cleanup */
   splatt_free_tucker(&factored);
   free(args.opts);
+
+  return EXIT_SUCCESS;
 }
 

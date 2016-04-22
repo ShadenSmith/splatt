@@ -7,6 +7,7 @@
 #include "../sptensor.h"
 #include "../stats.h"
 #include "../cpd.h"
+#include <omp.h>
 
 
 /******************************************************************************
@@ -16,16 +17,20 @@ static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
   "splatt-cpd -- Compute the CPD of a sparse tensor.\n";
 
+#define TT_REG 251
+#define TT_SEED 252
 #define TT_NOWRITE 253
 #define TT_TOL 254
 #define TT_TILE 255
 static struct argp_option cpd_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
   {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
+  {"reg", TT_REG, "REGULARIZATION", 0, "regularization parameter (default: 0)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file"},
+  {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   { 0 }
 };
@@ -77,11 +82,15 @@ static error_t parse_cpd_opt(
   case TT_TOL:
     args->opts[SPLATT_OPTION_TOLERANCE] = atof(arg);
     break;
+  case TT_REG:
+    args->opts[SPLATT_OPTION_REGULARIZE] = atof(arg);
+    break;
   case 't':
     args->opts[SPLATT_OPTION_NTHREADS] = (double) atoi(arg);
+    omp_set_num_threads((int)args->opts[SPLATT_OPTION_NTHREADS]);
     break;
   case 'v':
-    timer_lvl = TIMER_LVL2;
+    timer_inc_verbose();
     args->opts[SPLATT_OPTION_VERBOSITY] += 1;
     break;
   case TT_TILE:
@@ -92,6 +101,10 @@ static error_t parse_cpd_opt(
     break;
   case 'r':
     args->nfactors = atoi(arg);
+    break;
+  case TT_SEED:
+    args->opts[SPLATT_OPTION_RANDSEED] = atoi(arg);
+    srand(atoi(arg));
     break;
 
   case ARGP_KEY_ARG:
@@ -117,7 +130,7 @@ static struct argp cpd_argp =
 /******************************************************************************
  * SPLATT-CPD
  *****************************************************************************/
-void splatt_cpd_cmd(
+int splatt_cpd_cmd(
   int argc,
   char ** argv)
 {
@@ -132,7 +145,7 @@ void splatt_cpd_cmd(
 
   tt = tt_read(args.ifname);
   if(tt == NULL) {
-    return;
+    return SPLATT_ERROR_BADINPUT;
   }
 
   /* print basic tensor stats? */
@@ -157,10 +170,10 @@ void splatt_cpd_cmd(
   int ret = splatt_cpd_als(csf, args.nfactors, args.opts, &factored);
   if(ret != SPLATT_SUCCESS) {
     fprintf(stderr, "splatt_cpd_als returned %d. Aborting.\n", ret);
-    exit(1);
+    return ret;
   }
 
-  printf("Final fit: %"SPLATT_PF_VAL"\n", factored.fit);
+  printf("Final fit: %0.5"SPLATT_PF_VAL"\n", factored.fit);
 
   /* write output */
   if(args.write == 1) {
@@ -188,5 +201,6 @@ void splatt_cpd_cmd(
   /* free factor matrix allocations */
   splatt_free_kruskal(&factored);
 
+  return EXIT_SUCCESS;
 }
 

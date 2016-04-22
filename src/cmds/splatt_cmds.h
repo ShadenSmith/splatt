@@ -44,52 +44,54 @@ static inline void print_header(void)
 #endif
 }
 
-static inline void cmd_not_implemented(int argc, char ** argv)
-{
-  print_header();
-  printf("SPLATT: command '%s' is not yet implemented.\n", argv[0]);
-}
 
 
 /******************************************************************************
- * SPLATT COMMANDS
+ * SPLATT COMMAND PROTOTYPES
  *****************************************************************************/
-
-/* prototypes */
 #ifdef SPLATT_USE_MPI
-void splatt_mpi_cpd_cmd(int argc, char ** argv);
+int splatt_mpi_cpd_cmd(int argc, char ** argv);
 #else
-void splatt_cpd_cmd(int argc, char ** argv);
+int splatt_cpd_cmd(int argc, char ** argv);
 #endif
-void splatt_tucker_cmd(int argc, char ** argv);
-void splatt_bench(int argc, char ** argv);
-void splatt_check(int argc, char ** argv);
-void splatt_convert(int argc, char ** argv);
-void splatt_reorder(int argc, char ** argv);
-void splatt_stats(int argc, char ** argv);
+int splatt_bench(int argc, char ** argv);
+int splatt_check(int argc, char ** argv);
+int splatt_convert(int argc, char ** argv);
+int splatt_reorder(int argc, char ** argv);
+int splatt_stats(int argc, char ** argv);
+int splatt_tucker_cmd(int argc, char ** argv);
 
 
-typedef struct splatt_cmd
+
+
+/******************************************************************************
+ * SPLATT COMMAND STRINGS
+ *****************************************************************************/
+/* typedef function pointer, called splatt_cmd_func */
+typedef int (* splatt_cmd_func)(int argc, char ** argv);
+typedef struct
 {
-  char * ch_cmd;
-  void (*func)(int, char**);
-} splatt_cmd;
+  char * cmd_str;
+  splatt_cmd_func func;
+} cmd_struct;
 
-static struct splatt_cmd cmds[] =
-{
+
+static cmd_struct const splatt_cmds[] = {
 #ifdef SPLATT_USE_MPI
-  { "cpd",     splatt_mpi_cpd_cmd },
+  { "cpd", splatt_mpi_cpd_cmd },
 #else
-  { "cpd",     splatt_cpd_cmd },
+  { "cpd", splatt_cpd_cmd },
 #endif
-  { "tucker",  splatt_tucker_cmd},
-  { "bench",   splatt_bench },
-  { "check",   splatt_check },
+
+  { "tucker", splatt_tucker_cmd },
+  { "bench", splatt_bench },
+  { "check", splatt_check },
   { "convert", splatt_convert },
   { "reorder", splatt_reorder },
-  { "stats",   splatt_stats },
-  { "help",    NULL },
-  { NULL,      NULL },
+  { "stats", splatt_stats },
+  { "help", NULL},
+
+  { NULL, NULL }
 };
 
 #endif

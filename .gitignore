@@ -8,6 +8,10 @@
 
 build/
 
+# tensors
+*.tns
+*.bin
+
 mode*.mat
 lambda.mat
 core.mat

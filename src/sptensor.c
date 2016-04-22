@@ -100,7 +100,7 @@ idx_t * tt_get_slices(
   *nunique = found;
 
   /* now copy unique slices */
-  idx_t * slices = (idx_t *) malloc(found * sizeof(idx_t));
+  idx_t * slices = (idx_t *) splatt_malloc(found * sizeof(idx_t));
   idx_t ptr = 0;
   for(idx_t i=0; i < maxrange; ++i) {
     if(slice_mkrs[i] == 1) {
@@ -111,6 +111,24 @@ idx_t * tt_get_slices(
   free(slice_mkrs);
 
   return slices;
+}
+
+
+idx_t * tt_get_hist(
+  sptensor_t const * const tt,
+  idx_t const mode)
+{
+  idx_t * restrict hist = splatt_malloc(tt->dims[mode] * sizeof(*hist));
+  memset(hist, 0, tt->dims[mode] * sizeof(*hist));
+
+  idx_t const * const restrict inds = tt->ind[mode];
+  #pragma omp parallel for schedule(static)
+  for(idx_t x=0; x < tt->nnz; ++x) {
+    #pragma omp atomic
+    ++hist[inds[x]];
+  }
+
+  return hist;
 }
 
 
@@ -126,7 +144,6 @@ idx_t tt_remove_dups(
     /* if the two nnz are the same, average them */
     if(p_same_coord(tt, newnnz, nnz)) {
       tt->vals[newnnz] += tt->vals[nnz];
-      tt->vals[newnnz] /= 2;
     } else {
       /* new another nnz */
       ++newnnz;
@@ -160,7 +177,7 @@ idx_t tt_remove_empty(
     maxdim = tt->dims[m] > maxdim ? tt->dims[m] : maxdim;
   }
   /* slice counts */
-  idx_t * scounts = (idx_t *) malloc(maxdim * sizeof(idx_t));
+  idx_t * scounts = (idx_t *) splatt_malloc(maxdim * sizeof(idx_t));
 
   for(idx_t m=0; m < nmodes; ++m) {
     dim_sizes[m] = 0;
@@ -191,7 +208,7 @@ idx_t tt_remove_empty(
       }
     }
 
-    tt->indmap[m] = (idx_t *) malloc(dim_sizes[m] * sizeof(idx_t));
+    tt->indmap[m] = (idx_t *) splatt_malloc(dim_sizes[m] * sizeof(idx_t));
 
     /* relabel all indices in mode m */
     tt->dims[m] = dim_sizes[m];
@@ -216,8 +233,7 @@ idx_t tt_remove_empty(
 sptensor_t * tt_read(
   char const * const ifname)
 {
-  sptensor_t * tt = tt_read_file(ifname);
-  return tt;
+  return tt_read_file(ifname);
 }
 
 
@@ -225,19 +241,19 @@ sptensor_t * tt_alloc(
   idx_t const nnz,
   idx_t const nmodes)
 {
-  sptensor_t * tt = (sptensor_t*) malloc(sizeof(sptensor_t));
+  sptensor_t * tt = (sptensor_t*) splatt_malloc(sizeof(sptensor_t));
   tt->tiled = SPLATT_NOTILE;
 
   tt->nnz = nnz;
-  tt->vals = (val_t*) malloc(nnz * sizeof(val_t));
+  tt->vals = (val_t*) splatt_malloc(nnz * sizeof(val_t));
 
   tt->nmodes = nmodes;
   tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
 
-  tt->dims = (idx_t*) malloc(nmodes * sizeof(idx_t));
-  tt->ind = (idx_t**) malloc(nmodes * sizeof(idx_t*));
+  tt->dims = (idx_t*) splatt_malloc(nmodes * sizeof(idx_t));
+  tt->ind = (idx_t**) splatt_malloc(nmodes * sizeof(idx_t*));
   for(idx_t m=0; m < nmodes; ++m) {
-    tt->ind[m] = (idx_t*) malloc(nnz * sizeof(idx_t));
+    tt->ind[m] = (idx_t*) splatt_malloc(nnz * sizeof(idx_t));
     tt->indmap[m] = NULL;
   }
 
@@ -260,13 +276,13 @@ void tt_fill(
   tt->nmodes = nmodes;
   tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
 
-  tt->dims = (idx_t*) malloc(nmodes * sizeof(idx_t));
+  tt->dims = (idx_t*) splatt_malloc(nmodes * sizeof(idx_t));
   for(idx_t m=0; m < nmodes; ++m) {
     tt->indmap[m] = NULL;
 
-    tt->dims[m] = inds[m][0];
+    tt->dims[m] = 1 + inds[m][0];
     for(idx_t i=1; i < nnz; ++i) {
-      tt->dims[m] = SS_MAX(tt->dims[m], inds[m][i]);
+      tt->dims[m] = SS_MAX(tt->dims[m], 1 + inds[m][i]);
     }
   }
 }

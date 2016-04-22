@@ -40,7 +40,7 @@ int splatt_cpd_als(
   }
   mats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
 
-  val_t * lambda = (val_t *) malloc(nfactors * sizeof(val_t));
+  val_t * lambda = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
 
   /* do the factorization! */
   factored->fit = cpd_als_iterate(tensors, mats, lambda, nfactors, &rinfo,
@@ -125,22 +125,27 @@ static val_t p_kruskal_norm(
   val_t norm_mats = 0;
 
   /* use aTa[MAX_NMODES] as scratch space */
-  for(idx_t x=0; x < rank*rank; ++x) {
-    av[x] = 1.;
+  for(idx_t i=0; i < rank; ++i) {
+    for(idx_t j=i; j < rank; ++j) {
+      av[j + (i*rank)] = 1.;
+    }
   }
 
   /* aTa[MAX_NMODES] = hada(aTa) */
   for(idx_t m=0; m < nmodes; ++m) {
     val_t const * const restrict atavals = aTa[m]->vals;
-    for(idx_t x=0; x < rank*rank; ++x) {
-      av[x] *= atavals[x];
+    for(idx_t i=0; i < rank; ++i) {
+      for(idx_t j=i; j < rank; ++j) {
+        av[j + (i*rank)] *= atavals[j + (i*rank)];
+      }
     }
   }
 
   /* now compute lambda^T * aTa[MAX_NMODES] * lambda */
   for(idx_t i=0; i < rank; ++i) {
-    for(idx_t j=0; j < rank; ++j) {
-      norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j];
+    norm_mats += av[i+(i*rank)] * lambda[i] * lambda[i];
+    for(idx_t j=i+1; j < rank; ++j) {
+      norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j] * 2;
     }
   }
 
@@ -287,6 +292,7 @@ double cpd_als_iterate(
   matrix_t * aTa[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
     aTa[m] = mat_alloc(nfactors, nfactors);
+    memset(aTa[m]->vals, 0, nfactors * nfactors * sizeof(val_t));
     mat_aTa(mats[m], aTa[m], rinfo, thds, nthreads);
   }
   /* used as buffer space */
@@ -316,12 +322,17 @@ double cpd_als_iterate(
       mttkrp_csf(tensors, mats, m, thds, opts);
       timer_stop(&timers[TIMER_MTTKRP]);
 
+#if 0
       /* M2 = (CtC .* BtB .* ...)^-1 */
       calc_gram_inv(m, nmodes, aTa);
-
       /* A = M1 * M2 */
       memset(mats[m]->vals, 0, mats[m]->I * nfactors * sizeof(val_t));
       mat_matmul(m1, aTa[MAX_NMODES], mats[m]);
+#else
+      par_memcpy(mats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
+      mat_solve_normals(m, nmodes, aTa, mats[m],
+          opts[SPLATT_OPTION_REGULARIZE]);
+#endif
 
       /* normalize columns and extract lambda */
       if(it == 0) {
@@ -379,7 +390,7 @@ void cpd_post_process(
   idx_t const nthreads,
   rank_info * const rinfo)
 {
-  val_t * tmp =  malloc(nfactors * sizeof(*tmp));
+  val_t * tmp =  splatt_malloc(nfactors * sizeof(*tmp));
 
   /* normalize each matrix and adjust lambda */
   for(idx_t m=0; m < nmodes; ++m) {

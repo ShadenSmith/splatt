@@ -130,9 +130,9 @@ CTEST2(matrix, ata)
     memset(gold->vals, 0, F * F * sizeof(val_t));
     mat_matmul(At, A, gold);
 
-    /* compare */
+    /* compare upper triangular */
     for(idx_t i=0; i < F; ++i) {
-      for(idx_t j=0; j < F; ++j) {
+      for(idx_t j=i; j < F; ++j) {
         ASSERT_DBL_NEAR_TOL(gold->vals[j+(i*F)], B->vals[j+(i*F)], 1e-12);
       }
     }

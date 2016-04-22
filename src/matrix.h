@@ -161,7 +161,7 @@ void mat_aTa_hada(
 
 #define mat_aTa splatt_mat_aTa
 /**
-* @brief Compute A^T * A with a nice row-major pattern.
+* @brief Compute the upper-triangular portion of A^T * A.
 *
 * @param A The input matrix.
 * @param ret The output matrix, A^T * A.
@@ -190,6 +190,13 @@ void calc_gram_inv(
   idx_t const nmodes,
   matrix_t ** aTa);
 
+
+void mat_solve_normals(
+  idx_t const mode,
+  idx_t const nmodes,
+	matrix_t * * ata,
+  matrix_t * rhs,
+  val_t const reg);
 
 #define mat_normalize splatt_mat_normalize
 /**

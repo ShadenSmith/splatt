@@ -19,20 +19,29 @@ static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
   "splatt-cpd -- Compute the CPD of a sparse tensor.\n";
 
+#define TT_REG 251
+#define TT_SEED 252
 #define TT_NOWRITE 253
 #define TT_TOL 254
 #define TT_TILE 255
 static struct argp_option cpd_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
   {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
+  {"reg", TT_REG, "REGULARIZATION", 0, "regularization parameter (default: 0)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
+  {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
-  {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution "
-                                 "(default: 3)"},
-  {"partition", 'p', "FILE", 0, "MPI: partitioning for fine-grained"},
+  {"distribute", 'd', "DIM", 0, "MPI: dimension of data distribution. "
+                                 "Medium-grained decomposition is the default,"
+                                 " and SPLATT will determine a good dimension.\n"
+                                 "\t-d 1 to use coarse-grained\n"
+                                 "\t-d IxJxK to specify medium-grained (default)\n"
+                                 "\t-d f to use fine-grained (-p required)\n"
+                                 },
+  {"partition", 'p', "FILE", 0, "MPI: partitioning file for fine-grained"},
   { 0 }
 };
 
@@ -92,11 +101,15 @@ static error_t parse_cpd_opt(
   case TT_TOL:
     args->opts[SPLATT_OPTION_TOLERANCE] = atof(arg);
     break;
+  case TT_REG:
+    args->opts[SPLATT_OPTION_REGULARIZE] = atof(arg);
+    break;
   case 't':
     args->opts[SPLATT_OPTION_NTHREADS] = (double) atoi(arg);
     break;
   case 'v':
     args->opts[SPLATT_OPTION_VERBOSITY] += 1;
+    timer_inc_verbose();
     break;
   case TT_TILE:
     args->opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
@@ -130,6 +143,9 @@ static error_t parse_cpd_opt(
   case 'p':
     args->pfname = arg;
     break;
+  case TT_SEED:
+    srand(atoi(arg));
+    break;
 
   case ARGP_KEY_ARG:
     if(args->ifname != NULL) {
@@ -156,7 +172,7 @@ static struct argp cpd_argp =
  * SPLATT-CPD
  *****************************************************************************/
 
-void splatt_mpi_cpd_cmd(
+int splatt_mpi_cpd_cmd(
   int argc,
   char ** argv)
 {
@@ -173,7 +189,7 @@ void splatt_mpi_cpd_cmd(
   MPI_Comm_size(MPI_COMM_WORLD, &rinfo.npes);
 
   rinfo.decomp = args.decomp;
-  for(int d=0; d < MAX_NMODES; ++d) {
+  for(idx_t d=0; d < MAX_NMODES; ++d) {
     rinfo.dims_3d[d] = SS_MAX(args.mpi_dims[d], 1);
   }
 
@@ -182,6 +198,9 @@ void splatt_mpi_cpd_cmd(
   }
 
   tt = mpi_tt_read(args.ifname, args.pfname, &rinfo);
+  if(tt == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
 
   /* In the default setting, mpi_tt_read will set rinfo distribution.
    * Copy that back into args. TODO: make this less dumb. */
@@ -202,7 +221,7 @@ void splatt_mpi_cpd_cmd(
    * don't belong in each ftensor */
   if(rinfo.decomp == SPLATT_DECOMP_COARSE) {
     /* XXX  TODO */
-    csf = malloc(tt->nmodes * sizeof(*csf));
+    csf = splatt_malloc(tt->nmodes * sizeof(*csf));
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
 
@@ -267,6 +286,7 @@ void splatt_mpi_cpd_cmd(
   /* M, the result matrix is stored at mats[MAX_NMODES] */
   matrix_t * mats[MAX_NMODES+1];
   matrix_t * globmats[MAX_NMODES];
+
   for(idx_t m=0; m < nmodes; ++m) {
     /* ft[:] have different dimensionalities for 1D but ft[m+1] is guaranteed
      * to have the full dimensionality
@@ -277,15 +297,15 @@ void splatt_mpi_cpd_cmd(
     }
     max_dim = SS_MAX(max_dim, dim);
 
-    mats[m] = mat_rand(dim, args.nfactors);
+    /* actual factor */
+    globmats[m] = mpi_mat_rand(m, args.nfactors, perm, &rinfo);
 
-    /* for actual factor matrix */
-    globmats[m] = mat_rand(rinfo.mat_end[m] - rinfo.mat_start[m],
-        args.nfactors);
+    /* for MTTKRP */
+    mats[m] = mat_alloc(dim, args.nfactors);
   }
   mats[MAX_NMODES] = mat_alloc(max_dim, args.nfactors);
 
-  val_t * lambda = (val_t *) malloc(args.nfactors * sizeof(val_t));
+  val_t * lambda = (val_t *) splatt_malloc(args.nfactors * sizeof(val_t));
 
   mpi_cpd_stats(csf, args.nfactors, args.opts, &rinfo);
 
@@ -313,6 +333,7 @@ void splatt_mpi_cpd_cmd(
 
   perm_free(perm);
   rank_free(rinfo, nmodes);
+  return EXIT_SUCCESS;
 }
 
 #endif

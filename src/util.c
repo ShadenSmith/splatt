@@ -3,6 +3,8 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
+#include <omp.h>
+
 #include "base.h"
 #include "util.h"
 
@@ -50,8 +52,7 @@ char * bytes_str(
   }
   char * ret = NULL;
   if(asprintf(&ret, "%0.2f%s", size, suffix[suff]) == -1) {
-    fprintf(stderr, "SPLATT: asprintf failed with%"SPLATT_PF_IDX" bytes.\n",
-        bytes);
+    fprintf(stderr, "SPLATT: asprintf failed with %zu bytes.\n", bytes);
     ret = NULL;
   }
   return ret;
@@ -85,4 +86,56 @@ idx_t argmin_elem(
   }
   return mkr;
 }
+
+
+int * get_primes(
+  int N,
+  int * nprimes)
+{
+  int size = 10;
+  int * p = (int *) splatt_malloc(size * sizeof(int));
+  int np = 0;
+
+  while(N != 1) {
+    int i;
+    for(i=2; i <= N; ++i) {
+      if(N % i == 0) {
+        /* found the next prime */
+        break;
+      }
+    }
+
+    /* realloc if necessary */
+    if(size == np) {
+      p = (int *) realloc(p, size * 2 * sizeof(int));
+    }
+
+    p[np++] = i;
+    N /= i;
+  }
+
+  *nprimes = np;
+  return p;
+}
+
+
+
+void par_memcpy(
+    void * const restrict dst,
+    void const * const restrict src,
+    size_t const bytes)
+{
+  #pragma omp parallel
+  {
+    int nthreads = omp_get_num_threads();
+    int tid = omp_get_thread_num();
+
+    size_t n_per_thread = (bytes + nthreads - 1)/nthreads;
+    size_t n_begin = SS_MIN(n_per_thread * tid, bytes);
+    size_t n_end = SS_MIN(n_begin + n_per_thread, bytes);
+
+    memcpy((char *)dst + n_begin, (char *)src + n_begin, n_end - n_begin);
+  }
+}
+
 

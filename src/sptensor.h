@@ -80,6 +80,17 @@ sptensor_t * tt_alloc(
 
 
 #define tt_fill splatt_tt_fill
+/**
+* @brief Store inds/vals info into tt and determine dimension information.
+*        NOTE: This only stores the pointers directly, does not allocate
+*        memory!
+*
+* @param tt The tensor to fill.
+* @param nnz The length of inds/vals.
+* @param nmodes The number of modes in the tensor.
+* @param inds A 2D array of indices. The x'th nnz is found at ind[0][x], ...
+* @param vals An array of values.
+*/
 void tt_fill(
   sptensor_t * const tt,
   idx_t const nnz,
@@ -105,6 +116,21 @@ idx_t * tt_get_slices(
   sptensor_t const * const tt,
   idx_t const mode,
   idx_t * nunique);
+
+
+#define tt_get_hist splatt_tt_get_hist
+/**
+* @brief Return a histogram counting nonzeros appearing in indices of a given
+*        mode.
+*
+* @param tt The sparse tensor to make a histogram from.
+* @param mode Which mode we are counting.
+*
+* @return An array of length tt->dims[m].
+*/
+idx_t * tt_get_hist(
+  sptensor_t const * const tt,
+  idx_t const mode);
 
 
 #define tt_free splatt_tt_free

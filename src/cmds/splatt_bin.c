@@ -26,30 +26,32 @@ char const *argp_program_bug_address = "Shaden Smith <shaden@cs.umn.edu>";
  * SPLATT CMDS
  *****************************************************************************/
 
-static splatt_cmd read_cmd(char const * const str)
+static splatt_cmd_func read_cmd(char const * const str)
 {
-  int pt = 0;
-  while(cmds[pt].ch_cmd != NULL) {
-    if(strcmp(str, cmds[pt].ch_cmd) == 0) {
-      return cmds[pt];
+  int x = 0;
+  while(splatt_cmds[x].cmd_str != NULL) {
+    if(strcmp(str, splatt_cmds[x].cmd_str) == 0) {
+      return splatt_cmds[x].func;
     }
-    ++pt;
+    ++x;
   }
-  return cmds[pt];
+  return NULL;
 }
+
+
 
 static error_t parse_cmd(
   int key,
   char * arg,
   struct argp_state * state)
 {
-  splatt_cmd * cmd_arg = state->input;
+  cmd_struct * args = state->input;
   switch(key) {
   case ARGP_KEY_ARG:
     if(state->arg_num == 0) {
-      cmd_arg->ch_cmd = arg;
-      cmd_arg->func = read_cmd(arg).func;
-      if(cmd_arg->func == NULL) {
+      args->cmd_str = arg;
+      args->func = read_cmd(arg);
+      if(args->func == NULL) {
         argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
       }
     }
@@ -64,11 +66,6 @@ static error_t parse_cmd(
 }
 static struct argp cmd_argp = { 0, parse_cmd, cmd_args_doc, cmd_doc };
 
-static inline void print_footer(void)
-{
-  report_times();
-  printf("****************************************************************\n");
-}
 
 
 /******************************************************************************
@@ -95,12 +92,12 @@ int main(
   timer_start(&timers[TIMER_ALL]);
 
   /* parse argv[0:1] */
-  splatt_cmd args;
+  cmd_struct args;
   int nargs = argc > 1 ? 2 : 1;
   argp_parse(&cmd_argp, nargs, argv, ARGP_IN_ORDER, 0, &args);
 
   /* execute the cmd! */
-  args.func(argc-1, argv+1);
+  int ret = args.func(argc-1, argv+1);
 
 #ifdef SPLATT_USE_MPI
   /* all done */
@@ -109,13 +106,14 @@ int main(
 
   timer_stop(&timers[TIMER_ALL]);
   if(rank == 0) {
-    print_footer();
+    report_times();
+    printf("****************************************************************\n");
   }
 
 #ifdef SPLATT_USE_MPI
   MPI_Finalize();
 #endif
 
-  return EXIT_SUCCESS;
+  return ret;
 }
 

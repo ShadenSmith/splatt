@@ -7,6 +7,7 @@
 #include "../timer.h"
 #include "../thd_info.h"
 #include "../tile.h"
+#include "../util.h"
 
 #include <math.h>
 #include <omp.h>
@@ -127,22 +128,27 @@ static val_t p_kruskal_norm(
   val_t norm_mats = 0;
 
   /* use aTa[MAX_NMODES] as scratch space */
-  for(idx_t x=0; x < rank*rank; ++x) {
-    av[x] = 1.;
+  for(idx_t i=0; i < rank; ++i) {
+    for(idx_t j=i; j < rank; ++j) {
+      av[j + (i*rank)] = 1.;
+    }
   }
 
   /* aTa[MAX_NMODES] = hada(aTa) */
   for(idx_t m=0; m < nmodes; ++m) {
     val_t const * const restrict atavals = aTa[m]->vals;
-    for(idx_t x=0; x < rank*rank; ++x) {
-      av[x] *= atavals[x];
+    for(idx_t i=0; i < rank; ++i) {
+      for(idx_t j=i; j < rank; ++j) {
+        av[j + (i*rank)] *= atavals[j + (i*rank)];
+      }
     }
   }
 
   /* now compute lambda^T * aTa[MAX_NMODES] * lambda */
   for(idx_t i=0; i < rank; ++i) {
-    for(idx_t j=0; j < rank; ++j) {
-      norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j];
+    norm_mats += av[i+(i*rank)] * lambda[i] * lambda[i];
+    for(idx_t j=i+1; j < rank; ++j) {
+      norm_mats += av[j+(i*rank)] * lambda[i] * lambda[j] * 2;
     }
   }
 
@@ -220,7 +226,7 @@ static void p_flush_glob_to_local(
 
   assert(start + nowned <= localmat->I);
 
-  memcpy(localmat->vals + (start*nfactors),
+  par_memcpy(localmat->vals + (start*nfactors),
          globalmat->vals,
          nowned * nfactors * sizeof(val_t));
 }
@@ -657,8 +663,8 @@ double mpi_cpd_als_iterate(
   maxlocal2nbr *= nfactors;
   maxnbr2globs *= nfactors;
 
-  val_t * local2nbr_buf = (val_t *) malloc(maxlocal2nbr * sizeof(val_t));
-  val_t * nbr2globs_buf = (val_t *) malloc(maxnbr2globs * sizeof(val_t));
+  val_t * local2nbr_buf = (val_t *) splatt_malloc(maxlocal2nbr * sizeof(val_t));
+  val_t * nbr2globs_buf = (val_t *) splatt_malloc(maxnbr2globs * sizeof(val_t));
   if(rinfo->decomp != SPLATT_DECOMP_COARSE) {
     m1 = mat_alloc(maxdim, nfactors);
   }
@@ -710,7 +716,7 @@ double mpi_cpd_als_iterate(
       m1->I = globmats[m]->I;
       m1ptr->I = globmats[m]->I;
 
-    if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
+      if(rinfo->decomp != SPLATT_DECOMP_COARSE && rinfo->layer_size[m] > 1) {
         m1 = m1ptr;
         /* add my partial multiplications to globmats[m] */
         mpi_add_my_partials(rinfo->indmap[m], mats[MAX_NMODES], m1, rinfo,
@@ -723,12 +729,10 @@ double mpi_cpd_als_iterate(
         m1 = mats[MAX_NMODES];
       }
 
-      /* M2 = (CtC .* BtB .* ...)^-1 */
-      calc_gram_inv(m, nmodes, aTa);
-
-      /* A = M1 * M2 */
-      memset(globmats[m]->vals, 0, globmats[m]->I * nfactors * sizeof(val_t));
-      mat_matmul(m1, aTa[MAX_NMODES], globmats[m]);
+      /* invert normal equations (Cholesky factorization) for new factor */
+      par_memcpy(globmats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
+      mat_solve_normals(m, nmodes, aTa, globmats[m],
+          opts[SPLATT_OPTION_REGULARIZE]);
 
       /* normalize columns and extract lambda */
       if(it == 0) {
@@ -774,7 +778,7 @@ double mpi_cpd_als_iterate(
 
   /* POST PROCESSING */
   /* normalize each mat and adjust lambda */
-  val_t * tmp = (val_t *) malloc(nfactors * sizeof(val_t));
+  val_t * tmp = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
   for(idx_t m=0; m < nmodes; ++m) {
     mat_normalize(globmats[m], tmp, MAT_NORM_2, rinfo, thds, nthreads);
     for(idx_t f=0; f < nfactors; ++f) {
@@ -881,7 +885,7 @@ void mpi_add_my_partials(
   idx_t const goffset = (indmap == NULL) ?
       start - mat_start : indmap[start] - mat_start;
 
-  memcpy(globmat->vals + (goffset * nfactors),
+  par_memcpy(globmat->vals + (goffset * nfactors),
          localmat->vals + (start * nfactors),
          nowned * nfactors * sizeof(val_t));
   timer_stop(&timers[TIMER_MPI_PARTIALS]);
