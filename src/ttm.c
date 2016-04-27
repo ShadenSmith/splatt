@@ -803,3 +803,83 @@ idx_t tenout_dim(
 }
 
 
+void ttmc_fill_flop_tbl(
+    sptensor_t * const tt,
+    idx_t const * const nfactors,
+    idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES])
+{
+  /* just assume no tiling... */
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+
+  /* foreach CSF rep */
+  for(idx_t i=0; i < tt->nmodes; ++i) {
+    splatt_csf csf;
+    csf_alloc_mode(tt, CSF_SORTED_MINUSONE, i, &csf, opts);
+
+    /* foreach mode of computation */
+    for(idx_t j=0; j < tt->nmodes; ++j) {
+
+      /* total size of output */
+      idx_t ncols = 1;
+      for(idx_t m=0; m < tt->nmodes; ++m) {
+        if(m != j) {
+          ncols *= nfactors[m];
+        }
+      }
+
+      idx_t flops = 0;
+
+      /* foreach tile */
+      for(idx_t tile=0; tile < csf.ntiles; ++tile) {
+        idx_t out_size = nfactors[csf.dim_perm[0]];
+
+        printf("\nfibs: [%lu %lu %lu]\n",
+            csf.pt[tile].nfibs[0], csf.pt[tile].nfibs[1], csf.pt[tile].nfibs[2]);
+        printf("perm: [%lu %lu %lu]\n",
+            csf.dim_perm[0], csf.dim_perm[1], csf.dim_perm[2]);
+
+        idx_t const depth = csf_mode_depth(j, csf.dim_perm, tt->nmodes);
+
+
+        /* move down tree */
+        for(idx_t d=1; d < depth; ++d) {
+          out_size *= nfactors[csf.dim_perm[d]];
+          printf("down (%lu): %lu x %lu\n", d, csf.pt[tile].nfibs[d], out_size);
+          flops += csf.pt[tile].nfibs[d] * out_size;
+        }
+
+        out_size = 1;
+
+        /* move up tree */
+        for(idx_t d=tt->nmodes-1; d > depth; --d) {
+          out_size *= nfactors[csf.dim_perm[d]];
+          printf("up   (%lu): %lu x %lu\n", d, csf.pt[tile].nfibs[d], out_size);
+          flops += csf.pt[tile].nfibs[d] * out_size;
+        }
+
+        /* final join if internal mode */
+        if(depth > 0) {
+          printf("out  (%lu): %lu x %lu\n", j, csf.pt[tile].nfibs[depth], ncols);
+          flops += csf.pt[tile].nfibs[j] * ncols;
+        }
+
+      } /* end foreach tile */
+
+      table[i][j] = flops;
+      printf("%lu ", flops);
+    } /* end foreach column */
+
+    printf("\n");
+
+    csf_free_mode(&csf);
+  }
+  splatt_free_opts(opts);
+  printf("\n");
+}
+
+
+
+
+
+

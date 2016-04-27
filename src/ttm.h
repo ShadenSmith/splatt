@@ -109,4 +109,20 @@ idx_t tenout_dim(
     idx_t const * const dims);
 
 
+/**
+* @brief Fill at able with flop counts for TTMc (assuming no caching). The
+*        table must have SPLATT_MAX_NMODES^2 rows and columns. table[i][j]
+*        stores the number of flops required to compute splatt_ttmc for the
+*        j'th mode, if the mode-i CSF is stored.
+*
+* @param tt The sparse tensor we are factoring.
+* @param nfactors The rank to use for each mode.
+* @param table The nmodes x nmodes table to fill. Should be declared
+*               idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES].
+*/
+void ttmc_fill_flop_tbl(
+    sptensor_t * const tt,
+    idx_t const * const nfactors,
+    idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES]);
+
 #endif
