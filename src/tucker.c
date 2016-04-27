@@ -292,8 +292,9 @@ static void p_alloc_tucker_ws(
   /* fill #cols in TTMc output */
   p_compute_ncols(nfactors, nmodes, ws->gten_cols);
 
+  p_print_cache_size(ws, tensors, nfactors, opts);
+  printf("\n\n");
   p_print_cache_size2(ws, tensors, nfactors, opts);
-  return;
 
   /* SVD allocations */
   alloc_svd_ws(&(ws->sws), nmodes, tensors->dims, ws->gten_cols);
@@ -432,7 +433,6 @@ double tucker_hooi_iterate(
 
   tucker_ws ws;
   p_alloc_tucker_ws(&ws, nfactors, tensors, opts);
-  return SPLATT_SUCCESS;
 
   /* allocate the TTMc output */
   idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
