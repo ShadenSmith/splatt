@@ -843,9 +843,11 @@ void ttmc_fill_flop_tbl(
 
   /* flops if we used just CSF-1 or CSF-A */
   idx_t csf1[MAX_NMODES];
+  idx_t csf2[MAX_NMODES];
   idx_t csfa[MAX_NMODES];
 
   idx_t const smallest_mode = argmin_elem(tt->dims, tt->nmodes);
+  idx_t const largest_mode = argmax_elem(tt->dims, tt->nmodes);
 
   /* foreach CSF rep */
   for(idx_t i=0; i < tt->nmodes; ++i) {
@@ -905,9 +907,17 @@ void ttmc_fill_flop_tbl(
 
         if(i == smallest_mode) {
           csf1[j] = flops;
+          if(j != largest_mode) {
+            csf2[j] = flops;
+          }
         }
         if(i == j) {
           csfa[i] = flops;
+
+          /* csf-2 uses special leaf mode */
+          if(i == largest_mode) {
+            csf2[j] = flops;
+          }
         }
 
       } /* end foreach tile */
@@ -936,6 +946,13 @@ void ttmc_fill_flop_tbl(
   for(idx_t m=0; m < tt->nmodes; ++m) {
     printf("%0.3e  ", (double)csf1[m]);
     total += csf1[m];
+  }
+  printf(" = %0.3e\n", (double)total);
+  total = 0;
+  printf("CSF-2:  ");
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    printf("%0.3e  ", (double)csf2[m]);
+    total += csf2[m];
   }
   printf(" = %0.3e\n", (double)total);
 
