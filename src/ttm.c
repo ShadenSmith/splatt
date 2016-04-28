@@ -930,6 +930,7 @@ void ttmc_fill_flop_tbl(
 
   idx_t total;
 
+  /* csf-1 and csf-a */
   total = 0;
   printf("CSF-1:  ");
   for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -951,6 +952,7 @@ void ttmc_fill_flop_tbl(
     mode_used[m] = false;
   }
 
+  /* handpick best modes */
   printf("CUSTM:  ");
   total = 0;
   /* foreach mode */
@@ -970,15 +972,29 @@ void ttmc_fill_flop_tbl(
   }
   printf(" = %0.3e\n", (double) total);
 
+
+
+  /* coordinate form */
   total = 0;
   printf("COORD:  ");
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    printf("%0.3e  ", (double)tt->nnz * ncols[m]);
-    total += tt->nnz * ncols[m];
+     /* first compute nested kronecker products cost */
+    idx_t nnzflops = ncols[m]; /* cost of update */
+    idx_t accum = 1;
+    for(idx_t d=tt->nmodes; d-- != 0; ) {
+      if(d != m) {
+        accum *= nfactors[d];
+        /* cost of kron at depth d */
+        nnzflops += accum;
+      }
+    }
+    printf("%0.3e  ", (double)tt->nnz * nnzflops);
+    total += tt->nnz * nnzflops;
   }
   printf(" = %0.3e\n", (double)total);
   printf("\n");
 
+  /* print CSF needed */
   printf("CUSTOM MODES:");
   for(idx_t m=0; m < tt->nmodes; ++m) {
     if(mode_used[m]) {
