@@ -691,60 +691,78 @@ void ttmc_stream(
     idx_t const mode,
     double const * const opts)
 {
-  /* clear out stale results */
-  p_clear_tenout(tenout, mats, tt->nmodes, mode, tt->dims);
+  idx_t const nmodes = tt->nmodes;
 
-  omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
+  /* clear out stale results */
+  p_clear_tenout(tenout, mats, nmodes, mode, tt->dims);
 
   val_t const * const restrict vals = tt->vals;
   val_t * mvals[MAX_NMODES];
   idx_t nfactors[MAX_NMODES];
 
-  idx_t ncols = 1;
-  for(idx_t m=0; m < tt->nmodes; ++m) {
+  idx_t total_cols = 1;
+
+  /* number of columns accumulated by the m-th mode (counting backwards) */
+  idx_t ncols[MAX_NMODES+1];
+  ncols[nmodes] = 1;
+  val_t * buffers[MAX_NMODES];
+
+  for(idx_t m=nmodes; m-- != 0; ) {
     nfactors[m] = mats[m]->J;
     mvals[m] = mats[m]->vals;
 
+    /* allocate buffer */
     if(m != mode) {
-      ncols *= nfactors[m];
+      total_cols *= nfactors[m];
+      ncols[m] = ncols[m+1] * nfactors[m];
+      buffers[m] = splatt_malloc(ncols[m] * sizeof(**buffers));
+    } else {
+      ncols[m] = ncols[m+1];
+      buffers[m] = NULL;
+    }
+  }
+  assert(total_cols == ncols[0]);
+
+  /* the last mode we accumulate with */
+  idx_t const last_mode = (mode == nmodes-1) ? nmodes-2 : nmodes-1;
+
+  for(idx_t n=0; n < tt->nnz; ++n) {
+    val_t * const restrict outrow = tenout + (tt->ind[mode][n] * total_cols);
+
+    /* initialize buffer with nonzero value */
+    val_t * curr_buff = buffers[last_mode];
+    idx_t buff_size = nfactors[last_mode];
+    val_t const * const restrict last_row =
+        mvals[last_mode] + (tt->ind[last_mode][n] * nfactors[last_mode]);
+    for(idx_t f=0; f < nfactors[last_mode]; ++f) {
+      curr_buff[f] = vals[n] * last_row[f];
+    }
+
+    /* now do nmodes-1 kronecker products */
+    for(idx_t m=last_mode; m-- != 0; ) {
+      if(m == mode) {
+        continue;
+      }
+
+      /* outer product */
+      p_twovec_outer_prod(
+          mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
+          curr_buff, buff_size,
+          buffers[m]);
+
+      /* next buffer */
+      curr_buff = buffers[m];
+      buff_size *= nfactors[m];
+    }
+
+    /* now write to output */
+    for(idx_t f=0; f < total_cols; ++f) {
+      outrow[f] += curr_buff[f];
     }
   }
 
-  idx_t const nmodes = tt->nmodes;
-
-  for(idx_t n=0; n < tt->nnz; ++n) {
-    val_t * const restrict outrow = tenout + (tt->ind[mode][n] * ncols);
-
-    /* foreach entry in the output 'slice' */
-    for(idx_t f=0; f < ncols; ++f) {
-
-      val_t accum = vals[n];
-
-      /* we will modify this */
-      idx_t colnum = f;
-
-      /* we will map f to its (m-1)-dimensional coordinate which gives us its
-       * column ids for each mat[m].
-       *
-       * start from the last mode and work backwards */
-      idx_t col_id = f;
-      for(idx_t m=nmodes; m-- != 0; ) {
-        if(m == mode) {
-          continue;
-        }
-
-        /* compute column id for mats[m] and update colnum */
-        col_id = colnum % nfactors[m];
-        colnum /= nfactors[m];
-
-        val_t const * const restrict inrow = mvals[m] +
-            (tt->ind[m][n] * nfactors[m]);
-        accum *= inrow[col_id];
-      }
-
-      /* now write accum to output */
-      outrow[f] += accum;
-    }
+  for(idx_t m=0; m < nmodes; ++m) {
+    splatt_free(buffers[m]);
   }
 }
 
@@ -806,14 +824,14 @@ idx_t tenout_dim(
 void ttmc_fill_flop_tbl(
     sptensor_t * const tt,
     idx_t const * const nfactors,
-    idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES])
+    idx_t table[MAX_NMODES][MAX_NMODES])
 {
   /* just assume no tiling... */
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
 
   /* total size of output */
-  idx_t ncols[SPLATT_MAX_NMODES];
+  idx_t ncols[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     ncols[m] = 1;
     for(idx_t d=0; d < tt->nmodes; ++d) {
@@ -824,8 +842,8 @@ void ttmc_fill_flop_tbl(
   }
 
   /* flops if we used just CSF-1 or CSF-A */
-  idx_t csf1[SPLATT_MAX_NMODES];
-  idx_t csfa[SPLATT_MAX_NMODES];
+  idx_t csf1[MAX_NMODES];
+  idx_t csfa[MAX_NMODES];
 
   idx_t const smallest_mode = argmin_elem(tt->dims, tt->nmodes);
 
@@ -928,7 +946,7 @@ void ttmc_fill_flop_tbl(
   }
   printf(" = %0.3e\n", (double)total);
 
-  bool mode_used[SPLATT_MAX_NMODES];
+  bool mode_used[MAX_NMODES];
   for(idx_t m=0; m < tt->nmodes; ++m) {
     mode_used[m] = false;
   }
