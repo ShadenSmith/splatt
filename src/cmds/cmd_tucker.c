@@ -142,7 +142,7 @@ int splatt_tucker_cmd(
 
   idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
   ttmc_fill_flop_tbl(tt, nfactors, table);
-  return;
+  return EXIT_SUCCESS;
 
   /* XXX update when TTM is ready */
   //args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
