@@ -812,41 +812,57 @@ void ttmc_fill_flop_tbl(
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
 
+  /* total size of output */
+  idx_t ncols[SPLATT_MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ncols[m] = 1;
+    for(idx_t d=0; d < tt->nmodes; ++d) {
+      if(d != m) {
+        ncols[m] *= nfactors[d];
+      }
+    }
+  }
+
+  /* flops if we used just CSF-1 or CSF-A */
+  idx_t csf1[SPLATT_MAX_NMODES];
+  idx_t csfa[SPLATT_MAX_NMODES];
+
+  idx_t const smallest_mode = argmin_elem(tt->dims, tt->nmodes);
+
   /* foreach CSF rep */
   for(idx_t i=0; i < tt->nmodes; ++i) {
+    printf("MODE-%lu:  ", i);
+
     splatt_csf csf;
     csf_alloc_mode(tt, CSF_SORTED_MINUSONE, i, &csf, opts);
 
     /* foreach mode of computation */
     for(idx_t j=0; j < tt->nmodes; ++j) {
 
-      /* total size of output */
-      idx_t ncols = 1;
-      for(idx_t m=0; m < tt->nmodes; ++m) {
-        if(m != j) {
-          ncols *= nfactors[m];
-        }
-      }
-
       idx_t flops = 0;
+
+#define PRINT_STUFF 0
 
       /* foreach tile */
       for(idx_t tile=0; tile < csf.ntiles; ++tile) {
         idx_t out_size = nfactors[csf.dim_perm[0]];
 
+#if PRINT_STUFF
         printf("\nfibs: [%lu %lu %lu]\n",
             csf.pt[tile].nfibs[0], csf.pt[tile].nfibs[1], csf.pt[tile].nfibs[2]);
         printf("perm: [%lu %lu %lu]\n",
             csf.dim_perm[0], csf.dim_perm[1], csf.dim_perm[2]);
+#endif
 
         idx_t const depth = csf_mode_depth(j, csf.dim_perm, tt->nmodes);
-
 
         /* move down tree */
         for(idx_t d=1; d < depth; ++d) {
           out_size *= nfactors[csf.dim_perm[d]];
-          printf("down (%lu): %lu x %lu\n", d, csf.pt[tile].nfibs[d], out_size);
           flops += csf.pt[tile].nfibs[d] * out_size;
+#if PRINT_STUFF
+          printf("down (%lu): %lu x %lu\n", d, csf.pt[tile].nfibs[d], out_size);
+#endif
         }
 
         out_size = 1;
@@ -854,32 +870,105 @@ void ttmc_fill_flop_tbl(
         /* move up tree */
         for(idx_t d=tt->nmodes-1; d > depth; --d) {
           out_size *= nfactors[csf.dim_perm[d]];
-          printf("up   (%lu): %lu x %lu\n", d, csf.pt[tile].nfibs[d], out_size);
           flops += csf.pt[tile].nfibs[d] * out_size;
+#if PRINT_STUFF
+          printf("up   (%lu): %lu x %lu\n", d, csf.pt[tile].nfibs[d], out_size);
+#endif
         }
 
-        /* final join if internal mode */
+        /* final join if internal/leaf mode */
         if(depth > 0) {
-          printf("out  (%lu): %lu x %lu\n", j, csf.pt[tile].nfibs[depth], ncols);
-          flops += csf.pt[tile].nfibs[j] * ncols;
+          flops += csf.pt[tile].nfibs[j] * ncols[j];
+#if PRINT_STUFF
+          printf("comb (%lu): %lu x %lu\n", j, csf.pt[tile].nfibs[depth], ncols[j]);
+#endif
+        }
+
+
+        if(i == smallest_mode) {
+          csf1[j] = flops;
+        }
+        if(i == j) {
+          csfa[i] = flops;
         }
 
       } /* end foreach tile */
 
       table[i][j] = flops;
-      printf("%lu ", flops);
+      printf("%0.3e  ", (double)flops);
     } /* end foreach column */
 
-    printf("\n");
+    idx_t total = 0;
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      total += table[i][m];
+    }
+    printf(" = %0.3e\n", (double)total);
 
     csf_free_mode(&csf);
   }
   splatt_free_opts(opts);
   printf("\n");
+
+
+  idx_t total;
+
+  total = 0;
+  printf("CSF-1:  ");
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    printf("%0.3e  ", (double)csf1[m]);
+    total += csf1[m];
+  }
+  printf(" = %0.3e\n", (double)total);
+
+  total = 0;
+  printf("CSF-A:  ");
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    printf("%0.3e  ", (double)csfa[m]);
+    total += csfa[m];
+  }
+  printf(" = %0.3e\n", (double)total);
+
+  bool mode_used[SPLATT_MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    mode_used[m] = false;
+  }
+
+  printf("CUSTM:  ");
+  total = 0;
+  /* foreach mode */
+  for(idx_t j=0; j < tt->nmodes; ++j) {
+    idx_t best = 0;
+    /* foreach csf */
+    for(idx_t i=0; i < tt->nmodes; ++i) {
+      if(table[i][j] <= table[best][j]) {
+        best = i;
+      }
+    }
+
+    mode_used[best] = true;
+
+    total += table[best][j];
+    printf("%0.3e  ", (double) table[best][j]);
+  }
+  printf(" = %0.3e\n", (double) total);
+
+  total = 0;
+  printf("COORD:  ");
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    printf("%0.3e  ", (double)tt->nnz * ncols[m]);
+    total += tt->nnz * ncols[m];
+  }
+  printf(" = %0.3e\n", (double)total);
+  printf("\n");
+
+  printf("CUSTOM MODES:");
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    if(mode_used[m]) {
+      printf(" %lu", m);
+    }
+  }
+  printf("\n");
+
 }
-
-
-
-
 
 
