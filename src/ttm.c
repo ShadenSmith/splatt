@@ -724,7 +724,8 @@ void ttmc_stream(
   assert(total_cols == ncols[0]);
 
   /* the last mode we accumulate with */
-  idx_t const last_mode = (mode == nmodes-1) ? nmodes-2 : nmodes-1;
+  idx_t const first_mode = (mode == 0) ? 1 : 0;
+  idx_t const last_mode  = (mode == nmodes-1) ? nmodes-2 : nmodes-1;
 
   for(idx_t n=0; n < tt->nnz; ++n) {
     val_t * const restrict outrow = tenout + (tt->ind[mode][n] * total_cols);
@@ -744,20 +745,23 @@ void ttmc_stream(
         continue;
       }
 
-      /* outer product */
-      p_twovec_outer_prod(
-          mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
-          curr_buff, buff_size,
-          buffers[m]);
+      if(m != first_mode) {
+        /* outer product */
+        p_twovec_outer_prod(
+            mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
+            curr_buff, buff_size,
+            buffers[m]);
+      } else {
+        /* accumulate into output on the first mode (last to be processed) */
+        p_twovec_outer_prod_accum(
+            mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
+            curr_buff, buff_size,
+            outrow);
+      }
 
       /* next buffer */
       curr_buff = buffers[m];
       buff_size *= nfactors[m];
-    }
-
-    /* now write to output */
-    for(idx_t f=0; f < total_cols; ++f) {
-      outrow[f] += curr_buff[f];
     }
   }
 
