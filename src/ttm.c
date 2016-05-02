@@ -79,6 +79,32 @@ int splatt_ttmc(
  *****************************************************************************/
 
 /**
+* @brief Count the number of columns in the output of ttmc with 'mode'
+*
+* @param nfactors The # columns in each of the factors.
+* @param nmodes The number of modes in the factorization (and length of
+*               'nfactors').
+* @param mode The mode we are interested in.
+*
+* @return The prod(nfactors[:]) / nfactors[mode].
+*/
+static inline idx_t p_ttmc_outncols(
+    idx_t const * const nfactors,
+    idx_t const nmodes,
+    idx_t const mode)
+{
+  /* total size of output */
+  idx_t ncols = 1;
+  for(idx_t m = 0; m < nmodes; ++m) {
+    if(m != mode) {
+      ncols *= nfactors[m];
+    }
+  }
+  return ncols;
+}
+
+
+/**
 * @brief Compute (rowA^T rowB) into row-major 'out'. Any former values in 'out'
 *        are overwritten.
 *
@@ -810,14 +836,8 @@ idx_t tenout_dim(
 
   /* compute the size for each mode and maintain max */
   for(idx_t m=0; m < nmodes; ++m) {
-    idx_t nrows = dims[m];
-    idx_t ncols = 1;
-    for(idx_t m2=0; m2 < nmodes; ++m2) {
-      if(m == m2) {
-        continue;
-      }
-      ncols *= nfactors[m2];
-    }
+    idx_t const nrows = dims[m];
+    idx_t const ncols = p_ttmc_outncols(nfactors, nmodes, m);
     maxdim = SS_MAX(maxdim, nrows * ncols);
   }
 
@@ -833,17 +853,6 @@ void ttmc_fill_flop_tbl(
   /* just assume no tiling... */
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
-
-  /* total size of output */
-  idx_t ncols[MAX_NMODES];
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    ncols[m] = 1;
-    for(idx_t d=0; d < tt->nmodes; ++d) {
-      if(d != m) {
-        ncols[m] *= nfactors[d];
-      }
-    }
-  }
 
   /* flops if we used just CSF-1 or CSF-A */
   idx_t csf1[MAX_NMODES];
@@ -863,60 +872,7 @@ void ttmc_fill_flop_tbl(
     /* foreach mode of computation */
     for(idx_t j=0; j < tt->nmodes; ++j) {
 
-      idx_t const depth = csf_mode_depth(j, csf.dim_perm, tt->nmodes);
-
-#define PRINT_TRAVERSAL 0
-#if PRINT_TRAVERSAL
-      printf("\n\ndepth: %lu\n", depth);
-#endif
-
-
-
-      idx_t flops = 0;
-
-
-      /* foreach tile */
-      for(idx_t tile=0; tile < csf.ntiles; ++tile) {
-        idx_t out_size = nfactors[csf.dim_perm[0]];
-
-#if PRINT_TRAVERSAL
-        printf("fibs: [%lu %lu %lu]\n",
-            csf.pt[tile].nfibs[0], csf.pt[tile].nfibs[1], csf.pt[tile].nfibs[2]);
-        printf("perm: [%lu %lu %lu]\n",
-            csf.dim_perm[0], csf.dim_perm[1], csf.dim_perm[2]);
-#endif
-
-        /* move down tree */
-        for(idx_t d=1; d < depth; ++d) {
-          out_size *= nfactors[csf.dim_perm[d]];
-          flops += csf.pt[tile].nfibs[d] * out_size;
-#if PRINT_TRAVERSAL
-          printf("down (%lu): %lu x %lu [%0.3e tot]\n", d, csf.pt[tile].nfibs[d], out_size, (double)flops);
-#endif
-        }
-
-        out_size = 1;
-
-        /* move up tree */
-        /* nmodes -> depth (exclusive) */
-        for(idx_t d=tt->nmodes; d-- != depth+1; ) {
-          out_size *= nfactors[csf.dim_perm[d]];
-          flops += csf.pt[tile].nfibs[d] * out_size;
-#if PRINT_TRAVERSAL
-          printf("up   (%lu): %lu x %lu [%0.3e tot]\n", d, csf.pt[tile].nfibs[d], out_size, (double)flops);
-#endif
-        }
-
-        /* final join if internal/leaf mode */
-        if(depth > 0) {
-          flops += csf.pt[tile].nfibs[depth] * ncols[j];
-#if PRINT_TRAVERSAL
-          printf("comb (%lu): %lu x %lu [%0.3e tot]\n", j, csf.pt[tile].nfibs[depth], ncols[j], (double) flops);
-#endif
-        }
-      } /* end foreach tile */
-
-
+      idx_t const flops = ttmc_csf_count_flops(&csf, j, nfactors);
       /* store result */
       table[i][j] = flops;
       printf("%0.3e  ", (double)flops);
@@ -1009,18 +965,9 @@ void ttmc_fill_flop_tbl(
   total = 0;
   printf("COORD:  ");
   for(idx_t m=0; m < tt->nmodes; ++m) {
-     /* first compute nested kronecker products cost */
-    idx_t nnzflops = 0;
-    idx_t accum = 1;
-    for(idx_t d=tt->nmodes; d-- != 0; ) {
-      if(d != m) {
-        accum *= nfactors[d];
-        /* cost of kron at depth d */
-        nnzflops += accum;
-      }
-    }
-    printf("%0.3e  ", (double)tt->nnz * nnzflops);
-    total += tt->nnz * nnzflops;
+    idx_t const coord_flops = ttmc_coord_count_flops(tt, m, nfactors);
+    printf("%0.3e  ", (double)coord_flops);
+    total += coord_flops;
   }
   printf(" = %0.3e\n", (double)total);
   printf("\n");
@@ -1037,3 +984,61 @@ void ttmc_fill_flop_tbl(
 }
 
 
+idx_t ttmc_csf_count_flops(
+    splatt_csf const * const csf,
+    idx_t const mode,
+    idx_t const * const nfactors)
+{
+  idx_t const depth = csf_mode_depth(mode, csf->dim_perm, csf->nmodes);
+
+  idx_t flops = 0;
+
+  /* foreach tile */
+  for(idx_t tile=0; tile < csf->ntiles; ++tile) {
+    idx_t out_size = nfactors[csf->dim_perm[0]];
+
+    /* move down tree */
+    for(idx_t d=1; d < depth; ++d) {
+      out_size *= nfactors[csf->dim_perm[d]];
+      flops += csf->pt[tile].nfibs[d] * out_size;
+    }
+
+    out_size = 1;
+
+    /* move up tree */
+    /* nmodes -> depth (exclusive) */
+    for(idx_t d=csf->nmodes; d-- != depth+1; ) {
+      out_size *= nfactors[csf->dim_perm[d]];
+      flops += csf->pt[tile].nfibs[d] * out_size;
+    }
+
+    /* final join if internal/leaf mode */
+    if(depth > 0) {
+      out_size = p_ttmc_outncols(nfactors, csf->nmodes, mode);
+      flops += csf->pt[tile].nfibs[depth] * out_size;
+    }
+  } /* end foreach tile */
+
+  return flops;
+}
+
+
+
+idx_t ttmc_coord_count_flops(
+    sptensor_t const * const tt,
+    idx_t const mode,
+    idx_t const * const nfactors)
+{
+  /* first compute nested kronecker products cost */
+  idx_t nnzflops = 0;
+  idx_t accum = 1;
+  for(idx_t m=tt->nmodes; m-- != 0; ) {
+    if(m != mode) {
+      accum *= nfactors[m];
+      /* cost of kron at depth d */
+      nnzflops += accum;
+    }
+  }
+
+  return tt->nnz * nnzflops;
+}

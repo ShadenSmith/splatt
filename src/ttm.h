@@ -125,4 +125,40 @@ void ttmc_fill_flop_tbl(
     idx_t const * const nfactors,
     idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES]);
 
+
+
+#define ttmc_csf_count_flops splatt_ttmc_csf_count_flops
+/**
+* @brief Count the number of floating point operations required to perform
+*        a TTMc operation with a CSF tensor on given mode.
+*
+* @param csf The CSF tensor we are using.
+* @param mode The mode of interest.
+* @param nfactors The ranks of the factorization.
+*
+* @return The number of floating point operations.
+*/
+idx_t ttmc_csf_count_flops(
+    splatt_csf const * const csf,
+    idx_t const mode,
+    idx_t const * const nfactors);
+
+
+#define ttmc_coord_count_flops splatt_ttmc_coord_count_flops
+/**
+* @brief Count the number of floating point operations required to perform
+*        a TTMc operation with a coordinate tensor on given mode.
+*
+* @param tt The coordinate tensor we are using.
+* @param mode The mode of interest.
+* @param nfactors The ranks of the factorization.
+*
+* @return The number of floating point operations.
+*/
+idx_t ttmc_coord_count_flops(
+    sptensor_t const * const tt,
+    idx_t const mode,
+    idx_t const * const nfactors);
+
+
 #endif
