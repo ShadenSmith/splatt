@@ -20,8 +20,16 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
 # ALL LIBRARIES -- will concatenate to this
+set(SPLATT_LIBS splatt m rt)
+
+# setup Fortran
 enable_language(Fortran)
-set(SPLATT_LIBS splatt m rt gfortran)
+if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+  set(SPLATT_LIBS ${SPLATT_LIBS} ifcore)
+else()
+  set(SPLATT_LIBS ${SPLATT_LIBS} gfortran)
+endif()
+
 
 # check for MPI mode
 if (DEFINED USE_MPI)
