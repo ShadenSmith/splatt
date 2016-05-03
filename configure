@@ -50,12 +50,8 @@ show_help() {
 
   echo "LIBRARY OPTIONS:"
 # BLAS
-  echo "  --with-blas-dir=<dir>"
-  echo "    Set the directory to search for BLAS. NOTE: not compatible with --with-blas-lib."
   echo "  --with-blas-lib=<lib>"
   echo "    Set the BLAS library (e.g., /usr/.../libblas.so)."
-  echo "  --with-lapack-dir=<dir>"
-  echo "    Set the directory to search for LAPACK. NOTE: not compatible with --with-lapack-lib."
   echo "  --with-lapack-lib=<lib>"
   echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
 
