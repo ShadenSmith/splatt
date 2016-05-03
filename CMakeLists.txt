@@ -49,6 +49,16 @@ else()
 endif()
 
 
+
+# BLAS/LAPACK
+if (DOWNLOAD_BLAS_LAPACK)
+  message("Downloading generic BLAS/LAPACK libraries.")
+  message("  NOTE: performance may suffer.")
+  execute_process(COMMAND ${CMAKE_SOURCE_DIR}/scripts/download-blas-lapack.sh ${CMAKE_BINARY_DIR})
+  set(USER_LAPACK_LIB ${CMAKE_BINARY_DIR}/lapack/lib/liblapack.a)
+  set(USER_BLAS_LIB ${CMAKE_BINARY_DIR}/lapack/lib/libblas.a)
+endif()
+
 if (DEFINED USER_LAPACK_LIB)
   message("Using user supplied LAPACK=${USER_LAPACK_LIB}")
   set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_LAPACK_LIB})

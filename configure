@@ -54,6 +54,8 @@ show_help() {
   echo "    Set the BLAS library (e.g., /usr/.../libblas.so)."
   echo "  --with-lapack-lib=<lib>"
   echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
+  echo "  --download-blas-lapack"
+  echo "    Download generic BLAS/LAPACK libraries (with possible performance loss!)"
 
   echo "  --mpi"
   echo "    Build with MPI support"
@@ -135,6 +137,9 @@ for i in "${@}"; do
     ;;
     --with-lapack-lib=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_LIB=${i#*=}"
+    ;;
+    --download-blas-lapack)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DDOWNLOAD_BLAS_LAPACK=TRUE"
     ;;
 
 
