@@ -1,5 +1,5 @@
 project(CSPLATT)
-cmake_minimum_required(VERSION 2.6.0)
+cmake_minimum_required(VERSION 2.8.0)
 
 # Get version string from git repo if possible
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
@@ -48,21 +48,56 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 endif()
 
-# find BLAS / LAPACK
-find_package(BLAS REQUIRED)
-if( BLAS_FOUND )
-  add_definitions(-DSPLATT_USE_BLAS=1)
+
+function(search_blas)
+  message("Searching for BLAS...")
+  find_package(BLAS REQUIRED)
   include_directories(${BLAS_INCLUDE_DIR})
   set(SPLATT_LIBS ${SPLATT_LIBS} ${BLAS_LIBRARIES})
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-  message("USING BLAS LIBS: " ${BLAS_LIBRARIES})
+  message("FOUND BLAS LIBS: " ${BLAS_LIBRARIES})
+endfunction()
+
+
+# find BLAS / LAPACK
+if (DEFINED USER_BLAS_DIR)
+  #set(BLAS_DIR ${USER_BLAS_DIR})
+  set(CMAKE_PREFIX_PATH ${USER_BLAS_DIR} ${CMAKE_PREFIX_PATH})
+  message("PREFIX: ${CMAKE_PREFIX_PATH}")
+  message("Using directory for BLAS search: ${USER_BLAS_DIR}")
+  find_library(BLAS
+      NAMES blas libblas libblas.a
+      NO_DEFAULT_PATH
+      PATH "${USER_BLAS_DIR}/lib/")
+  find_library(LAPACK
+      NAMES lapack liblapack liblapack.a
+      NO_DEFAULT_PATH
+      PATH "${USER_BLAS_DIR}/lib/")
+  message("Found ${BLAS}")
+
+else()
+  if (DEFINED USER_BLAS_LIB)
+    message("Using user supplied BLAS=${USER_BLAS_LIB}")
+    set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_BLAS_LIB})
+  # auto find BLAS
+  else()
+    search_blas()
+  endif()
 endif()
-find_package(LAPACK REQUIRED)
-if( LAPACK_FOUND )
-  set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
-  message("USING LAPACK LIBS: " ${LAPACK_LIBRARIES})
+
+if (DEFINED USER_LAPACK_LIB)
+  message("Using user supplied LAPACK=${USER_LAPACK_LIB}")
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_LAPACK_LIB})
+# auto find LAPACK
+else()
+  message("Searching for LAPACK...")
+  #find_package(LAPACK REQUIRED)
+  #set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
+  #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
+  #message("FOUND LAPACK LIBS: " ${LAPACK_LIBRARIES})
 endif()
+
+
 
 # check for MT-Metis support
 if (DEFINED USE_MTMETIS)

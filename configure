@@ -1,5 +1,7 @@
 #!/bin/bash
 # Copyright 2014-2015, Dominique LaSalle. Used with permission.
+# Modified by Shaden Smith, 2015-2016.
+
 
 
 ###############################################################################
@@ -28,11 +30,35 @@ abspath() {
 show_help() {
   echo "USAGE: configure [options]"
   echo ""
-  echo "OPTIONS:"
-  echo "  --prefix=<prefix>"
-  echo "    Set the install prefix."
+
+  echo "COMPILATION OPTIONS:"
   echo "  --cc=<cc>"
   echo "    Set the C compiler to use."
+  echo "  --cxx=<cxx>"
+  echo "    Set the C++ compiler to use."
+  echo "  --debug"
+  echo "    Build with debugging symbols, assertions, and turn optimizations off."
+  echo "  --dev"
+  echo "    Build in development mode. Warnings and extra logging enabled."
+  echo ""
+
+  echo "INSTALLATION OPTIONS:"
+  echo "  --prefix=<prefix>"
+  echo "    Set the installation prefix."
+  echo ""
+
+
+  echo "LIBRARY OPTIONS:"
+# BLAS
+  echo "  --with-blas-dir=<dir>"
+  echo "    Set the directory to search for BLAS. NOTE: not compatible with --with-blas-lib."
+  echo "  --with-blas-lib=<lib>"
+  echo "    Set the BLAS library (e.g., /usr/.../libblas.so)."
+  echo "  --with-lapack-dir=<dir>"
+  echo "    Set the directory to search for LAPACK. NOTE: not compatible with --with-lapack-lib."
+  echo "  --with-lapack-lib=<lib>"
+  echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
+
   echo "  --mpi"
   echo "    Build with MPI support"
   echo "  --mtmetis"
@@ -41,10 +67,6 @@ show_help() {
   echo "    Build with PaToH hypergraph partitioning (must be previously installed)."
   echo "  --ashado"
   echo "    Build with Ashado hypergraph partitioning (must be previously installed)."
-  echo "  --debug"
-  echo "    Build with debugging symbols, assertions, and turn optimizations off."
-  echo "  --dev"
-  echo "    Build in development mode. Warnings and extra logging enabled."
   echo ""
 }
 
@@ -71,26 +93,16 @@ for i in "${@}"; do
     show_help
     exit 0
     ;;
-    # MPI support
-    --mpi)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
-    ;;
-    --mtmetis)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
-    ;;
-    --patoh)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"
-    ;;
-    --ashado)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_ASHADO=1"
-    ;;
-    # prefix
-    --prefix=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
-    ;;
+
+
+    ## COMPILE OPTIONS
     # cc
     --cc=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=${i#*=}"
+    ;;
+    # cxx
+    --cxx=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=${i#*=}"
     ;;
     # debug
     --debug)
@@ -100,6 +112,47 @@ for i in "${@}"; do
     --dev)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
     ;;
+    # MPI support
+    --mpi)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    ;;
+
+
+    ## INSTALL OPTIONS
+    # prefix
+    --prefix=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
+    ;;
+
+
+    ## LIBRARY OPTIONS
+
+    # BLAS/LAPACK
+    --with-blas-dir=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_DIR=${i#*=}"
+    ;;
+    --with-blas-lib=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_LIB=${i#*=}"
+    ;;
+    --with-lapack-dir=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_DIR=${i#*=}"
+    ;;
+    --with-lapack-lib=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_LIB=${i#*=}"
+    ;;
+
+
+    --mtmetis)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
+    ;;
+    --patoh)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"
+    ;;
+    --ashado)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_ASHADO=1"
+    ;;
+
+
     # bad argument
     *)
     die "Unknown option '${i}'"
@@ -108,9 +161,18 @@ for i in "${@}"; do
 done
 
 
+
+
+
+
+
+
+
+
+
 # check if cmake exists
 if [[ ! -x "${CMAKE}" ]]; then
-  die "Could not find usable cmake: '${CMAKE}'" 
+  die "Could not find usable cmake: '${CMAKE}'"
 else
   echo "Found CMAKE: '${CMAKE}'"
 fi
@@ -122,7 +184,7 @@ if [[ -d "${BUILDDIR}" ]]; then
 fi
 
 
-# create build directory 
+# create build directory
 mkdir -vp "${BUILDDIR}" || \
     die "Failed to create build directory: '${BUILDDIR}'"
 
