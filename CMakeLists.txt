@@ -1,5 +1,5 @@
 project(CSPLATT)
-cmake_minimum_required(VERSION 2.6.0)
+cmake_minimum_required(VERSION 2.8.0)
 
 # Get version string from git repo if possible
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
@@ -19,12 +19,16 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
-
-# to find BLAS/LAPACK
-enable_language(Fortran)
-
 # ALL LIBRARIES -- will concatenate to this
-set(SPLATT_LIBS splatt m rt gfortran)
+set(SPLATT_LIBS splatt m rt)
+
+# setup Fortran
+enable_language(Fortran)
+if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+  set(SPLATT_LIBS ${SPLATT_LIBS} ifcore)
+else()
+  set(SPLATT_LIBS ${SPLATT_LIBS} gfortran)
+endif()
 
 # check for MPI mode
 if (DEFINED USE_MPI)
@@ -52,21 +56,43 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 endif()
 
-# find BLAS / LAPACK
-find_package(BLAS REQUIRED)
-if( BLAS_FOUND )
-  add_definitions(-DSPLATT_USE_BLAS=1)
+
+
+# BLAS/LAPACK
+if (DEFINED DOWNLOAD_BLAS_LAPACK)
+  message("Downloading generic BLAS/LAPACK libraries.")
+  message("  NOTE: performance may suffer.")
+  execute_process(COMMAND ${CMAKE_SOURCE_DIR}/scripts/download-blas-lapack.sh ${CMAKE_BINARY_DIR})
+  set(USER_LAPACK_LIB ${CMAKE_BINARY_DIR}/lapack/lib/liblapack.a)
+  set(USER_BLAS_LIB ${CMAKE_BINARY_DIR}/lapack/lib/libblas.a)
+
+  # avoid annoying warning
+  set(SPLATT_NOWARN ${DOWNLOAD_BLAS_LAPACK})
+endif()
+
+if (DEFINED USER_LAPACK_LIB)
+  message("Using user supplied LAPACK=${USER_LAPACK_LIB}")
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_LAPACK_LIB})
+# auto find LAPACK
+else()
+  find_package(LAPACK REQUIRED)
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
+  message("FOUND LAPACK LIBS: " ${LAPACK_LIBRARIES})
+endif()
+
+if (DEFINED USER_BLAS_LIB)
+  message("Using user supplied BLAS=${USER_BLAS_LIB}")
+  set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_BLAS_LIB})
+# auto find BLAS
+else()
+  find_package(BLAS REQUIRED)
   include_directories(${BLAS_INCLUDE_DIR})
   set(SPLATT_LIBS ${SPLATT_LIBS} ${BLAS_LIBRARIES})
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-  message("USING BLAS LIBS: " ${BLAS_LIBRARIES})
+  message("FOUND BLAS LIBS: " ${BLAS_LIBRARIES})
 endif()
-find_package(LAPACK REQUIRED)
-if( LAPACK_FOUND )
-  set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
-  message("USING LAPACK LIBS: " ${LAPACK_LIBRARIES})
-endif()
+
 
 # check for MT-Metis support
 if (DEFINED USE_MTMETIS)

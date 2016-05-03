@@ -135,7 +135,8 @@ double cpd_als_iterate(
       timer_stop(&timers[TIMER_MTTKRP]);
 
       par_memcpy(mats[m]->vals, m1->vals, m1->I * nfactors * sizeof(val_t));
-      mat_solve_normals(m, nmodes, aTa, mats[m], 0.);
+      mat_solve_normals(m, nmodes, aTa, mats[m],
+          opts[SPLATT_OPTION_REGULARIZE]);
 
       /* normalize columns and extract lambda */
       if(it == 0) {
