@@ -1,6 +1,6 @@
 
 project(CSPLATT_TEST)
-cmake_minimum_required(VERSION 2.6.0)
+cmake_minimum_required(VERSION 2.8.0)
 
 add_definitions(-DSPLATT_TEST_DATASETS="${CMAKE_CURRENT_SOURCE_DIR}/tensors/")
 add_definitions(-DSPLATT_TEST_GRAPHS="${CMAKE_CURRENT_SOURCE_DIR}/graphs/")
