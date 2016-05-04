@@ -15,8 +15,6 @@
 #include "stats.h"
 #include "util.h"
 
-#include <omp.h>
-
 static void p_log_mat(
   char const * const ofname,
   matrix_t const * const mat,
@@ -87,7 +85,7 @@ void bench_splatt(
   /* for each # threads */
   for(idx_t t=0; t < nruns; ++t) {
     idx_t const nthreads = threads[t];
-    omp_set_num_threads(nthreads);
+    splatt_omp_set_num_threads(nthreads);
     if(nruns > 1) {
       printf("## THREADS %" SPLATT_PF_IDX "\n", nthreads);
     }
@@ -176,7 +174,7 @@ void bench_csf(
   /* for each # threads */
   for(idx_t t=0; t < nruns; ++t) {
     idx_t const nthreads = threads[t];
-    omp_set_num_threads(nthreads);
+    splatt_omp_set_num_threads(nthreads);
     if(nruns > 1) {
       printf("## THREADS %" SPLATT_PF_IDX "\n", nthreads);
     }
@@ -250,7 +248,7 @@ void bench_giga(
   timer_start(&timers[TIMER_GIGA]);
   for(idx_t t=0; t < nruns; ++t) {
     idx_t const nthreads = threads[t];
-    omp_set_num_threads(nthreads);
+    splatt_omp_set_num_threads(nthreads);
     if(nruns > 1) {
       printf("## THREADS %"SPLATT_PF_IDX"\n", nthreads);
     }
@@ -322,7 +320,7 @@ void bench_coord(
   /* for each # threads */
   for(idx_t t=0; t < nruns; ++t) {
     idx_t const nthreads = threads[t];
-    omp_set_num_threads(nthreads);
+    splatt_omp_set_num_threads(nthreads);
     if(nruns > 1) {
       printf("## THREADS %" SPLATT_PF_IDX "\n", nthreads);
     }
@@ -386,7 +384,7 @@ void bench_ttbox(
   timer_start(&timers[TIMER_TTBOX]);
   for(idx_t t=0; t < nruns; ++t) {
     idx_t const nthreads = threads[t];
-    omp_set_num_threads(nthreads);
+    splatt_omp_set_num_threads(nthreads);
     if(nruns > 1) {
       printf("## THREADS %"SPLATT_PF_IDX"\n", nthreads);
     }

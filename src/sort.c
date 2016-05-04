@@ -6,8 +6,7 @@
 #include "sort.h"
 #include "timer.h"
 #include "io.h"
-
-#include <omp.h>
+#include "thd_info.h"
 
 
 /******************************************************************************
@@ -710,12 +709,12 @@ static void p_counting_sort_hybrid(
   val_t * new_vals = splatt_malloc(tt->nnz * sizeof(*new_vals));
 
   idx_t * histogram_array = splatt_malloc(
-      (nslices * omp_get_max_threads() + 1) * sizeof(*histogram_array));
+      (nslices * splatt_omp_get_max_threads() + 1) * sizeof(*histogram_array));
 
   #pragma omp parallel
   {
-    int nthreads = omp_get_num_threads();
-    int tid = omp_get_thread_num();
+    int nthreads = splatt_omp_get_num_threads();
+    int tid = splatt_omp_get_thread_num();
 
     idx_t * histogram = histogram_array + (nslices * tid);
     memset(histogram, 0, nslices * sizeof(idx_t));

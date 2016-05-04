@@ -6,8 +6,8 @@
 #include "../io.h"
 #include "../sptensor.h"
 #include "../stats.h"
+#include "../thd_info.h"
 #include "../cpd.h"
-#include <omp.h>
 
 
 /******************************************************************************
@@ -87,7 +87,7 @@ static error_t parse_cpd_opt(
     break;
   case 't':
     args->opts[SPLATT_OPTION_NTHREADS] = (double) atoi(arg);
-    omp_set_num_threads((int)args->opts[SPLATT_OPTION_NTHREADS]);
+    splatt_omp_set_num_threads((int)args->opts[SPLATT_OPTION_NTHREADS]);
     break;
   case 'v':
     timer_inc_verbose();

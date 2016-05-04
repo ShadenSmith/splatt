@@ -8,6 +8,10 @@
 #include "base.h"
 #include "timer.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include <stdarg.h>
 
 
@@ -35,6 +39,60 @@ typedef enum
   REDUCE_MAX,
   REDUCE_ERR
 } splatt_reduce_type;
+
+
+
+/******************************************************************************
+ * OPENMP WRAPPER FUNCTIONS
+ *****************************************************************************/
+
+#ifdef _OPENMP
+static inline void splatt_omp_set_num_threads(
+    int num_threads)
+{
+  omp_set_num_threads(num_threads);
+}
+
+static inline int splatt_omp_get_thread_num()
+{
+  return omp_get_thread_num();
+}
+
+static inline int splatt_omp_get_max_threads()
+{
+  return omp_get_max_threads();
+}
+
+static inline int splatt_omp_get_num_threads()
+{
+  return omp_get_num_threads();
+}
+
+#else
+static inline void splatt_omp_set_num_threads(
+    int num_threads)
+{
+  /* do nothing */
+}
+
+static inline int splatt_omp_get_thread_num()
+{
+  return 0;
+}
+
+
+static inline int splatt_omp_get_max_threads()
+{
+  return 1;
+}
+
+static inline int splatt_omp_get_num_threads()
+{
+  return 1;
+}
+#endif
+
+
 
 
 /******************************************************************************

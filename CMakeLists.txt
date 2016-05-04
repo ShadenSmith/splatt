@@ -1,4 +1,5 @@
 project(CSPLATT)
+
 cmake_minimum_required(VERSION 2.8.0)
 
 # Get version string from git repo if possible
@@ -14,10 +15,15 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
 endif()
 
 
-find_package(OpenMP REQUIRED)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+find_package(OpenMP)
+if(${OPENMP_FOUND})
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+else()
+  message("OpenMP runtime not found! SPLATT will not be multithreaded.")
+endif()
+
 
 # ALL LIBRARIES -- will concatenate to this
 set(SPLATT_LIBS splatt m rt)
@@ -60,8 +66,8 @@ endif()
 
 # BLAS/LAPACK
 if (DEFINED DOWNLOAD_BLAS_LAPACK)
-  message("Downloading generic BLAS/LAPACK libraries.")
-  message("  NOTE: performance may suffer.")
+  message(WARNING "Downloading generic BLAS/LAPACK libraries.")
+  message(WARNING "  NOTE: performance may suffer.")
   execute_process(COMMAND ${CMAKE_SOURCE_DIR}/scripts/download-blas-lapack.sh ${CMAKE_BINARY_DIR})
   set(USER_LAPACK_LIB ${CMAKE_BINARY_DIR}/lapack/lib/liblapack.a)
   set(USER_BLAS_LIB ${CMAKE_BINARY_DIR}/lapack/lib/libblas.a)
@@ -75,10 +81,14 @@ if (DEFINED USER_LAPACK_LIB)
   set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_LAPACK_LIB})
 # auto find LAPACK
 else()
-  find_package(LAPACK REQUIRED)
+  find_package(LAPACK)
   set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
-  message("FOUND LAPACK LIBS: " ${LAPACK_LIBRARIES})
+  if(${LAPACK_FOUND})
+    message("FOUND LAPACK LIBS: " ${LAPACK_LIBRARIES})
+  else()
+    message(FATAL_ERROR "Could not find LAPACK library. Run `./configure --help`  for assistance.")
+  endif()
 endif()
 
 if (DEFINED USER_BLAS_LIB)
@@ -86,11 +96,15 @@ if (DEFINED USER_BLAS_LIB)
   set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_BLAS_LIB})
 # auto find BLAS
 else()
-  find_package(BLAS REQUIRED)
+  find_package(BLAS)
   include_directories(${BLAS_INCLUDE_DIR})
   set(SPLATT_LIBS ${SPLATT_LIBS} ${BLAS_LIBRARIES})
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-  message("FOUND BLAS LIBS: " ${BLAS_LIBRARIES})
+  if(${BLAS_FOUND})
+    message("FOUND BLAS LIBS: " ${BLAS_LIBRARIES})
+  else()
+    message(FATAL_ERROR "Could not find BLAS library. Run `./configure --help`  for assistance.")
+  endif()
 endif()
 
 
