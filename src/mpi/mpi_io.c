@@ -546,7 +546,7 @@ static void p_get_best_mpi_dim(
     /* reset mpi dims */
     rinfo->dims_3d[m] = 1;
   }
-  int target = total_size / rinfo->npes;
+  idx_t target = total_size / (idx_t)rinfo->npes;
 
   long diffs[MAX_NMODES];
 

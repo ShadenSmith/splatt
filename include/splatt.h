@@ -49,7 +49,7 @@
   #define SPLATT_PF_IDX PRIu64
   #define SPLATT_MPI_IDX MPI_UINT64_T
 #else
-  #error *** Incorrect user-supplied value of SPLATT_IDX_TYPEWIDTH ***
+  #error "*** Incorrect user-supplied value of SPLATT_IDX_TYPEWIDTH ***"
 #endif
 
 
@@ -68,7 +68,7 @@
   #define SPLATT_MPI_VAL MPI_DOUBLE
 
 #else
-  #error *** Incorrect user-supplied value of SPLATT_VAL_TYPEWIDTH ***
+  #error "*** Incorrect user-supplied value of SPLATT_VAL_TYPEWIDTH ***"
 #endif
 
 

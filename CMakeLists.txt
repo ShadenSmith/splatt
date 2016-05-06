@@ -37,6 +37,13 @@ else()
 endif()
 
 
+
+
+if (DEFINED MPICC)
+  message("Using user supplied mpicc=${MPICC}")
+  set(${MPI_C_COMPILER} ${MPICC})
+endif()
+
 # check for MPI mode
 if (DEFINED USE_MPI)
   message("Building with MPI support.")
@@ -45,9 +52,16 @@ if (DEFINED USE_MPI)
   include_directories(SYSTEM ${MPI_INCLUDE_PATH})
   file(GLOB MPI_SOURCES src/mpi/*.c)
   set(SPLATT_LIBS ${SPLATT_LIBS} ${MPI_C_LIBRARIES})
+
+  message("MPI_C_COMPILER: ${MPI_C_COMPILER}")
+  message("MPI_CXX_COMPILER: ${MPI_CXX_COMPILER}")
+  message("MPI_C_LIBRARIES: ${MPI_C_LIBRARIES}")
+  message("MPI_INCLUDE_PATH: ${MPI_INCLUDE_PATH}")
+  message("MPIEXEC: ${MPIEXEC}")
 else()
   set(MPI_SOURCES "")
 endif()
+
 
 # check for debug mode
 if (DEFINED DEBUG)
@@ -62,6 +76,16 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 endif()
 
+
+# type widths
+if (DEFINED SPLATT_IDX_WIDTH)
+  add_definitions(-DSPLATT_IDX_TYPEWIDTH=${SPLATT_IDX_WIDTH})
+  message("Using ${SPLATT_IDX_WIDTH}-bit integers.")
+endif()
+if (DEFINED SPLATT_VAL_WIDTH)
+  add_definitions(-DSPLATT_VAL_TYPEWIDTH=${SPLATT_VAL_WIDTH})
+  message("Using ${SPLATT_VAL_WIDTH}-bit floats.")
+endif()
 
 
 # BLAS/LAPACK
