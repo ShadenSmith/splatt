@@ -62,10 +62,12 @@ CTEST2(tile_dense, no_missing_nnz)
     ASSERT_EQUAL(0, cksums[m]);
   }
 
+  val_t valsum2 = 0;
   for(idx_t x=0; x < data->tt->nnz; ++x) {
-    valsum -= data->tt->vals[x];
+    valsum2 += data->tt->vals[x];
   }
-  ASSERT_DBL_NEAR_TOL(0, valsum, 1.5e-9);
+
+  ASSERT_DBL_NEAR_TOL(valsum, valsum2, 1.5e-9);
 }
 
 
