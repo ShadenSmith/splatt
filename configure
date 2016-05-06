@@ -162,6 +162,10 @@ for i in "${@}"; do
 
 
     # MPI support
+    --with-mpi)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    ;;
+    # deprecated mpi flag
     --mpi)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
     ;;
