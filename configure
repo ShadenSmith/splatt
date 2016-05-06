@@ -42,10 +42,10 @@ show_help() {
   echo "  --dev"
   echo "    Build in development mode. Warnings and extra logging enabled."
 
-  echo "  --idx-width={32,64}"
-  echo "    Use 32 or 64 bit integers."
-  echo "  --val-width={32,64}"
-  echo "    Use 32 or 64 floating point values."
+  echo "  --with-index-size={32,64}"
+  echo "    Use 32 or 64 bit integers (default: 64)."
+  echo "  --with-precision={single,double}"
+  echo "    Use single or double precision floating point values (default: double)."
   echo ""
 
   echo "INSTALLATION OPTIONS:"
@@ -127,10 +127,10 @@ for i in "${@}"; do
     --dev)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
     ;;
-    --idx-width=*)
+    --with-index-size=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=${i#*=}"
     ;;
-    --val-width=*)
+    --with-precision=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=${i#*=}"
     ;;
 
