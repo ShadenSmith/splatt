@@ -87,7 +87,7 @@ idx_t * tt_get_slices(
   idx_t const maxrange = 1 + maxidx - minidx;
 
   /* mark slices which are present and count uniques */
-  idx_t * slice_mkrs = (idx_t *) calloc(maxrange, sizeof(idx_t));
+  idx_t * slice_mkrs = calloc(maxrange, sizeof(*slice_mkrs));
   idx_t found = 0;
   for(idx_t n=0; n < nnz; ++n) {
     assert(inds[n] >= minidx);
@@ -100,7 +100,7 @@ idx_t * tt_get_slices(
   *nunique = found;
 
   /* now copy unique slices */
-  idx_t * slices = (idx_t *) splatt_malloc(found * sizeof(idx_t));
+  idx_t * slices = splatt_malloc(found * sizeof(*slices));
   idx_t ptr = 0;
   for(idx_t i=0; i < maxrange; ++i) {
     if(slice_mkrs[i] == 1) {
@@ -177,11 +177,11 @@ idx_t tt_remove_empty(
     maxdim = tt->dims[m] > maxdim ? tt->dims[m] : maxdim;
   }
   /* slice counts */
-  idx_t * scounts = (idx_t *) splatt_malloc(maxdim * sizeof(idx_t));
+  idx_t * scounts = splatt_malloc(maxdim * sizeof(*scounts));
 
   for(idx_t m=0; m < nmodes; ++m) {
     dim_sizes[m] = 0;
-    memset(scounts, 0, maxdim * sizeof(idx_t));
+    memset(scounts, 0, maxdim * sizeof(*scounts));
 
     /* Fill in indmap */
     for(idx_t n=0; n < tt->nnz; ++n) {
@@ -208,7 +208,7 @@ idx_t tt_remove_empty(
       }
     }
 
-    tt->indmap[m] = (idx_t *) splatt_malloc(dim_sizes[m] * sizeof(idx_t));
+    tt->indmap[m] = splatt_malloc(dim_sizes[m] * sizeof(**tt->indmap));
 
     /* relabel all indices in mode m */
     tt->dims[m] = dim_sizes[m];
@@ -221,7 +221,7 @@ idx_t tt_remove_empty(
     }
   }
 
-  free(scounts);
+  splatt_free(scounts);
   return nremoved;
 }
 
@@ -241,19 +241,19 @@ sptensor_t * tt_alloc(
   idx_t const nnz,
   idx_t const nmodes)
 {
-  sptensor_t * tt = (sptensor_t*) splatt_malloc(sizeof(sptensor_t));
+  sptensor_t * tt = (sptensor_t*) splatt_malloc(sizeof(*tt));
   tt->tiled = SPLATT_NOTILE;
 
   tt->nnz = nnz;
-  tt->vals = (val_t*) splatt_malloc(nnz * sizeof(val_t));
+  tt->vals = splatt_malloc(nnz * sizeof(*tt->vals));
 
   tt->nmodes = nmodes;
   tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
 
-  tt->dims = (idx_t*) splatt_malloc(nmodes * sizeof(idx_t));
-  tt->ind = (idx_t**) splatt_malloc(nmodes * sizeof(idx_t*));
+  tt->dims = splatt_malloc(nmodes * sizeof(*tt->dims));
+  tt->ind  = splatt_malloc(nmodes * sizeof(*tt->ind));
   for(idx_t m=0; m < nmodes; ++m) {
-    tt->ind[m] = (idx_t*) splatt_malloc(nnz * sizeof(idx_t));
+    tt->ind[m] = splatt_malloc(nnz * sizeof(**tt->ind));
     tt->indmap[m] = NULL;
   }
 
@@ -276,7 +276,7 @@ void tt_fill(
   tt->nmodes = nmodes;
   tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
 
-  tt->dims = (idx_t*) splatt_malloc(nmodes * sizeof(idx_t));
+  tt->dims = splatt_malloc(nmodes * sizeof(*tt->dims));
   for(idx_t m=0; m < nmodes; ++m) {
     tt->indmap[m] = NULL;
 
@@ -294,14 +294,14 @@ void tt_free(
 {
   tt->nnz = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    free(tt->ind[m]);
-    free(tt->indmap[m]);
+    splatt_free(tt->ind[m]);
+    splatt_free(tt->indmap[m]);
   }
   tt->nmodes = 0;
-  free(tt->dims);
-  free(tt->ind);
-  free(tt->vals);
-  free(tt);
+  splatt_free(tt->dims);
+  splatt_free(tt->ind);
+  splatt_free(tt->vals);
+  splatt_free(tt);
 }
 
 spmatrix_t * tt_unfold(
