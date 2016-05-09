@@ -75,4 +75,18 @@ CTEST2(api, csf_load)
 }
 
 
+CTEST2(api, version_major)
+{
+  ASSERT_EQUAL(SPLATT_VER_MAJOR, splatt_version_major());
+}
+
+CTEST2(api, version_minor)
+{
+  ASSERT_EQUAL(SPLATT_VER_MINOR, splatt_version_minor());
+}
+
+CTEST2(api, version_subminor)
+{
+  ASSERT_EQUAL(SPLATT_VER_SUBMINOR, splatt_version_subminor());
+}
 

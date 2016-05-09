@@ -298,6 +298,35 @@ typedef struct splatt_csf
 extern "C" {
 #endif
 
+
+/*
+ * VERSION API
+ */
+
+/**
+* @brief Return the major version number of SPLATT. Matching major versions are
+*        guaranteed to have backwards-compatible APIs.
+*
+* @return The major version number of SPLATT.
+*/
+int splatt_version_major(void);
+
+/**
+* @brief Return the minor version number of SPLATT.
+*
+* @return The minor version number of SPLATT.
+*/
+int splatt_version_minor(void);
+
+/**
+* @brief Return the subminor version number of SPLATT.
+*
+* @return The subminor version number of SPLATT.
+*/
+int splatt_version_subminor(void);
+
+
+
 /*
  * OPTIONS API
  */
