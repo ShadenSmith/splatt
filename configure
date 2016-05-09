@@ -46,8 +46,11 @@ show_help() {
   echo "    Use 32 or 64 bit integers (default: 64)."
   echo "  --with-precision={single,double}"
   echo "    Use single or double precision floating point values (default: double)."
-  echo ""
 
+  echo "  --max-modes=<#>"
+  echo "    Set the maxmimum number of tensor modes (default: 8)."
+
+  echo ""
   echo "LIBRARY OPTIONS"
   echo "==============="
   #echo ""
@@ -69,22 +72,14 @@ show_help() {
   echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
   echo "  --download-blas-lapack"
   echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
-  echo ""
 
+  echo ""
   echo "INSTALLATION OPTIONS:"
   echo "====================:"
   echo "  --prefix=<prefix>"
   echo "    Set the installation prefix."
   echo ""
 
-
-
-#  echo "  --mtmetis"
-#  echo "    Build with MT-Metis graph partitioning (must be previously installed)."
-#  echo "  --patoh"
-#  echo "    Build with PaToH hypergraph partitioning (must be previously installed)."
-#  echo "  --ashado"
-#  echo "    Build with Ashado hypergraph partitioning (must be previously installed)."
   echo "Please report bugs to <shaden@cs.umn.edu>."
   echo "SPLATT home page: <http://cs.umn.edu/~splatt/>."
 }
@@ -136,6 +131,9 @@ for i in "${@}"; do
     --with-precision=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=${i#*=}"
     ;;
+    --max-modes=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
+    ;;
 
     ## INSTALL OPTIONS
     # prefix
@@ -180,6 +178,7 @@ for i in "${@}"; do
     ;;
 
 
+    # deprecated
     --mtmetis)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
     ;;
