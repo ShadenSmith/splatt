@@ -10,7 +10,6 @@
 #include "../util.h"
 
 #include <math.h>
-#include <omp.h>
 
 /**
 * @brief Resets serial and MPI timers that were activated during some CPD
@@ -70,7 +69,7 @@ static val_t p_tt_kruskal_inner(
   val_t myinner = 0;
   #pragma omp parallel reduction(+:myinner)
   {
-    int const tid = omp_get_thread_num();
+    int const tid = splatt_omp_get_thread_num();
     val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
 
     for(idx_t r=0; r < rank; ++r) {
@@ -643,7 +642,7 @@ double mpi_cpd_als_iterate(
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
-  omp_set_num_threads(nthreads);
+  splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 3,
     (nfactors * nfactors * sizeof(val_t)) + 64,
     (TILE_SIZES[0] * nfactors * sizeof(val_t)) + 64,

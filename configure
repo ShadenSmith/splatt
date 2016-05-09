@@ -48,13 +48,6 @@ show_help() {
   echo "    Use single or double precision floating point values (default: double)."
   echo ""
 
-  echo "INSTALLATION OPTIONS:"
-  echo "====================:"
-  echo "  --prefix=<prefix>"
-  echo "    Set the installation prefix."
-  echo ""
-
-
   echo "LIBRARY OPTIONS"
   echo "==============="
   #echo ""
@@ -64,6 +57,8 @@ show_help() {
   echo "    Build with MPI support. Let CMake auto-detect MPI environment."
   echo "  --with-mpicc=<cc>"
   echo "    Set the MPI C compiler. Other configuration options may be determined by CMake."
+  echo "  --with-mpicxx=<cxx>"
+  echo "    Set the MPI C++ compiler. Other configuration options may be determined by CMake."
   echo ""
 
   # BLAS
@@ -75,6 +70,14 @@ show_help() {
   echo "  --download-blas-lapack"
   echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
   echo ""
+
+  echo "INSTALLATION OPTIONS:"
+  echo "====================:"
+  echo "  --prefix=<prefix>"
+  echo "    Set the installation prefix."
+  echo ""
+
+
 
 #  echo "  --mtmetis"
 #  echo "    Build with MT-Metis graph partitioning (must be previously installed)."
@@ -171,6 +174,9 @@ for i in "${@}"; do
     ;;
     --with-mpicc=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICC=${i#*=}"
+    ;;
+    --with-mpicxx=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICXX=${i#*=}"
     ;;
 
 

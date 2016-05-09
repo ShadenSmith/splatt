@@ -41,7 +41,12 @@ endif()
 
 if (DEFINED MPICC)
   message("Using user supplied mpicc=${MPICC}")
-  set(${MPI_C_COMPILER} ${MPICC})
+  set(MPI_C_COMPILER ${MPICC})
+endif()
+
+if (DEFINED MPICXX)
+  message("Using user supplied mpicxx=${MPICXX}")
+  set(MPI_CXX_COMPILER ${MPICC})
 endif()
 
 # check for MPI mode
