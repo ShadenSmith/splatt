@@ -1,3 +1,13 @@
+/**
+* @file api_factorization.h
+* @brief Functinos for performing tensor factorizations.
+* @author Shaden Smith <shaden@cs.umn.edu>
+* @version 2.0.0
+* @date 2016-05-10
+*/
+
+
+
 #ifndef SPLATT_SPLATT_FACTORIZATION_H
 #define SPLATT_SPLATT_FACTORIZATION_H
 
@@ -21,10 +31,8 @@ extern "C" {
 /**
 * @brief Compute the CPD using alternating least squares.
 *
-* @param nfactors The rank of the decomposition to perform.
-* @param nmodes The number of modes in the tensor. Optimizations are currently
-*               only present for nmodes=3.
 * @param tensors An array of splatt_csf created by SPLATT.
+* @param nfactors The rank of the decomposition to perform.
 * @param options Options array for SPLATT.
 * @param[out] factored The factored tensor in Kruskal format.
 *

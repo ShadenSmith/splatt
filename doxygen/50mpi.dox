@@ -61,7 +61,7 @@ number of OpenMP threads should be throttled with the `-t <nthreads>` flag.
 
 \subsection mpidist Selecting the Decomposition Dimensions
 By default, \splatt uses a medium-grained decomposition of the tensor which
-is formed by intersecting 1D partitions of each tensor mode \cite smith2015dms.
+is formed by intersecting 1D partitions of each tensor mode \cite smith2016dms.
 \splatt will attempt to find an assignment of ranks that leads to a small
 communication volume. If you wish to use a custom decomposition dimension, we
 provide a `-d` flag.

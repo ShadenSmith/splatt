@@ -1,3 +1,13 @@
+/**
+* @file api_kruskal.h
+* @brief Functions for manipulating tensors stored in Kruskal form (after CPD).
+* @author Shaden Smith <shaden@cs.umn.edu>
+* @version 2.0.0
+* @date 2016-05-10
+*/
+
+
+
 #ifndef SPLATT_SPLATT_KRUSKAL_H
 #define SPLATT_SPLATT_KRUSKAL_H
 

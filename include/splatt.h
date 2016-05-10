@@ -1,3 +1,13 @@
+/**
+* @file splatt.h
+* @brief Entry point and main include of SPLATT API.
+* @author Shaden Smith <shaden@cs.umn.edu>
+* @version 2.0.0
+* @date 2016-05-10
+*/
+
+
+
 #ifndef SPLATT_SPLATT_H
 #define SPLATT_SPLATT_H
 
@@ -15,23 +25,13 @@
 #endif
 
 
-/******************************************************************************
- * VERSION
- *****************************************************************************/
-#define SPLATT_VER_MAJOR     1
-#define SPLATT_VER_MINOR     1
-#define SPLATT_VER_SUBMINOR  1
-
-
 
 
 
 /******************************************************************************
- * SPLATT MODULES
+ * TYPES & MACROS
  *****************************************************************************/
 
-
-/* types & structures */
 #include "splatt/types.h"
 #include "splatt/constants.h"
 #include "splatt/structs.h"

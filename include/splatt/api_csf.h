@@ -1,3 +1,13 @@
+/**
+* @file api_csf.h
+* @brief Functions for manipulating tensors stored in CSF form.
+* @author Shaden Smith <shaden@cs.umn.edu>
+* @version 2.0.0
+* @date 2016-05-10
+*/
+
+
+
 #ifndef SPLATT_SPLATT_CSF_H
 #define SPLATT_SPLATT_CSF_H
 
@@ -64,8 +74,8 @@ int splatt_csf_convert(
 /**
 * @brief Free all memory allocated for a tensor in CSF form.
 *
-* @param csf The tensor(s) to free.
-* @param opts opts[SPLATT_OPTION_CSF_ALLOC] tells us how many tensors are
+* @param tensors The tensor(s) to free.
+* @param options opts[SPLATT_OPTION_CSF_ALLOC] tells us how many tensors are
 *             allocated.
 */
 void splatt_free_csf(

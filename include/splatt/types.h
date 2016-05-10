@@ -1,3 +1,13 @@
+/**
+* @file types.h
+* @brief Primitive data types used by SPLATT.
+* @author Shaden Smith <shaden@cs.umn.edu>
+* @version 2.0.0
+* @date 2016-05-10
+*/
+
+
+
 #ifndef SPLATT_SPLATT_TYPES_H
 #define SPLATT_SPLATT_TYPES_H
 

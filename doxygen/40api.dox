@@ -49,7 +49,9 @@ array of type `double` to set various options.
 <!-- ----------------------------------------------------------------------------- -->
 \section api-data Data Structures
 
-\subpage api_struct_list
+\subpage api_csf_list
+
+\subpage api_kruskal_list
 
 
 <!-- ----------------------------------------------------------------------------- -->
@@ -58,8 +60,8 @@ array of type `double` to set various options.
 \subpage api_fact_list
 
 <!-- ----------------------------------------------------------------------------- -->
-\section api-ops Tensor Operations
+\section api-ops Tensor Kernels
 
-\subpage api_op_list
+\subpage api_kernel_list
 
 */
