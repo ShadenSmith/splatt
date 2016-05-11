@@ -8,7 +8,9 @@
 /* API includes */
 #include "../include/splatt.h"
 
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 
 CTEST_DATA(api)
@@ -39,7 +41,11 @@ CTEST2(api, opts_alloc)
   ASSERT_NOT_NULL(opts);
 
   /* test defaults */
-  ASSERT_EQUAL(omp_get_num_procs(), (int) opts[SPLATT_OPTION_NTHREADS]);
+#ifdef _OPENMP
+  ASSERT_EQUAL(omp_get_max_threads(), (int) opts[SPLATT_OPTION_NTHREADS]);
+#else
+  ASSERT_EQUAL(1, (int) opts[SPLATT_OPTION_NTHREADS]);
+#endif
 
   splatt_free_opts(opts);
 }
@@ -69,4 +75,18 @@ CTEST2(api, csf_load)
 }
 
 
+CTEST2(api, version_major)
+{
+  ASSERT_EQUAL(SPLATT_VER_MAJOR, splatt_version_major());
+}
+
+CTEST2(api, version_minor)
+{
+  ASSERT_EQUAL(SPLATT_VER_MINOR, splatt_version_minor());
+}
+
+CTEST2(api, version_subminor)
+{
+  ASSERT_EQUAL(SPLATT_VER_SUBMINOR, splatt_version_subminor());
+}
 

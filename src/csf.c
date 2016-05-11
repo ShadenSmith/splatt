@@ -777,7 +777,6 @@ void csf_alloc_mode(
 val_t csf_frobsq(
     splatt_csf const * const tensor)
 {
-  idx_t const nmodes = tensor->nmodes;
   val_t norm = 0;
   #pragma omp parallel reduction(+:norm)
   {
@@ -787,14 +786,14 @@ val_t csf_frobsq(
         continue;
       }
 
-      idx_t const nnz = tensor->pt[t].nfibs[nmodes-1];
+      idx_t const nnz = tensor->pt[t].nfibs[tensor->nmodes-1];
 
-      #pragma omp for nowait
+      #pragma omp for schedule(static) nowait
       for(idx_t n=0; n < nnz; ++n) {
         norm += vals[n] * vals[n];
       }
     }
-  }
+  } /* end omp parallel */
 
   return norm;
 }

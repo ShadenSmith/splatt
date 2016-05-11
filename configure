@@ -31,41 +31,63 @@ show_help() {
   echo "USAGE: configure [options]"
   echo ""
 
-  echo "COMPILATION OPTIONS:"
+  echo "COMPILATION OPTIONS"
+  echo "==================="
+
+  echo "  --build-dir=<dir>"
+  echo "    Set the build directory (default: ./build/<arch>/)."
   echo "  --cc=<cc>"
-  echo "    Set the C compiler to use."
-  echo "  --cxx=<cxx>"
-  echo "    Set the C++ compiler to use."
+  echo "    Set the C compiler."
+  #echo "  --cxx=<cxx>"
+  #echo "    Set the C++ compiler."
   echo "  --debug"
-  echo "    Build with debugging symbols, assertions, and turn optimizations off."
+  echo "    Turn off optimizations and build with debugging symbols and assertions."
   echo "  --dev"
   echo "    Build in development mode. Warnings and extra logging enabled."
+
+  echo ""
+  echo "  --with-index-size={32,64}"
+  echo "    Use 32 or 64 bit integers (default: 64)."
+  echo "  --with-precision={single,double}"
+  echo "    Use single or double precision floating point values (default: double)."
+
+  echo ""
+  echo "  --max-modes=<#>"
+  echo "    Set the maxmimum number of tensor modes (default: 8)."
+
+  echo ""
+  echo "LIBRARY OPTIONS"
+  echo "==============="
+
+  # MPI
+  echo "  --with-mpi"
+  echo "    Build with MPI support. Let CMake auto-detect MPI environment."
+  echo "  --with-mpicc=<cc>"
+  echo "    Set the MPI C compiler. Other configuration options may be determined by CMake."
+  #echo "  --with-mpicxx=<cxx>"
+  #echo "    Set the MPI C++ compiler. Other configuration options may be determined by CMake."
   echo ""
 
-  echo "INSTALLATION OPTIONS:"
-  echo "  --prefix=<prefix>"
-  echo "    Set the installation prefix."
-  echo ""
-
-
-  echo "LIBRARY OPTIONS:"
-# BLAS
+  # BLAS/LAPACK
+  echo "If you are unhappy with the auto-detected BLAS/LAPACK libraries:"
   echo "  --with-blas-lib=<lib>"
   echo "    Set the BLAS library (e.g., /usr/.../libblas.so)."
   echo "  --with-lapack-lib=<lib>"
   echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
   echo "  --download-blas-lapack"
-  echo "    Download generic BLAS/LAPACK libraries (with possible performance loss!)"
+  echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
 
-  echo "  --mpi"
-  echo "    Build with MPI support"
-  echo "  --mtmetis"
-  echo "    Build with MT-Metis graph partitioning (must be previously installed)."
-  echo "  --patoh"
-  echo "    Build with PaToH hypergraph partitioning (must be previously installed)."
-  echo "  --ashado"
-  echo "    Build with Ashado hypergraph partitioning (must be previously installed)."
   echo ""
+  echo "INSTALLATION OPTIONS:"
+  echo "====================:"
+  echo "  --prefix=<prefix>"
+  echo "    Set the installation prefix."
+  echo "  --build-shared-lib"
+  echo "    Build a shared library instead of static."
+  echo ""
+
+  echo "Please report bugs to <shaden@cs.umn.edu>."
+  echo "SPLATT home page: <http://cs.umn.edu/~splatt/>."
 }
 
 
@@ -92,7 +114,6 @@ for i in "${@}"; do
     exit 0
     ;;
 
-
     ## COMPILE OPTIONS
     # cc
     --cc=*)
@@ -110,16 +131,18 @@ for i in "${@}"; do
     --dev)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
     ;;
-    # MPI support
-    --mpi)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    --build-dir=*)
+    BUILDDIR="${i#*=}"
     ;;
 
-
-    ## INSTALL OPTIONS
-    # prefix
-    --prefix=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
+    --with-index-size=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=${i#*=}"
+    ;;
+    --with-precision=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=${i#*=}"
+    ;;
+    --max-modes=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
     ;;
 
 
@@ -143,6 +166,35 @@ for i in "${@}"; do
     ;;
 
 
+    # MPI support
+    --with-mpi)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    ;;
+    # deprecated mpi flag
+    --mpi)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    ;;
+    --with-mpicc=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICC=${i#*=}"
+    ;;
+    --with-mpicxx=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICXX=${i#*=}"
+    ;;
+
+
+
+    ## INSTALL OPTIONS
+    # prefix
+    --prefix=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
+    ;;
+    --build-shared-lib)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED_LIBS=TRUE"
+    ;;
+
+
+
+    # deprecated
     --mtmetis)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
     ;;

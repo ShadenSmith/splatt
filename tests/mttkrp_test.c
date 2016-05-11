@@ -9,7 +9,6 @@
 #include "ctest/ctest.h"
 
 #include "splatt_test.h"
-#include <omp.h>
 
 
 static void __compare_mats(
@@ -116,7 +115,7 @@ CTEST_TEARDOWN(mttkrp)
 CTEST2(mttkrp, splatt)
 {
   idx_t const nthreads = 7;
-  omp_set_num_threads(nthreads);
+  splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 1,
     (data->nfactors * data->nfactors * sizeof(val_t)) + 64);
 

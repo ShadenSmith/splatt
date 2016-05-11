@@ -145,7 +145,7 @@ CTEST2(csf_one_init, normsq)
   val_t mynorm = csf_frobsq(csf);
   csf_free(csf, data->opts);
 
-  ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1e-10);
+  ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1e-9);
 }
 
 

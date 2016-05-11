@@ -8,7 +8,10 @@
 #include "ctest/ctest.h"
 
 #include "splatt_test.h"
+
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 
 /**
@@ -78,7 +81,9 @@ CTEST_TEARDOWN(sort_tensor)
 
 CTEST2(sort_tensor, full_sort)
 {
+#ifdef _OPENMP
   omp_set_num_threads(2);
+#endif
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
 
@@ -94,6 +99,7 @@ CTEST2(sort_tensor, full_sort)
   }
 }
 
+#ifdef _OPENMP
 CTEST2(sort_tensor, par_sort)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {
@@ -133,6 +139,7 @@ CTEST2(sort_tensor, par_sort)
     tt_free(test);
   }
 }
+#endif
 
 
 CTEST2(sort_tensor, tiled_sort)
@@ -219,6 +226,7 @@ CTEST2(sort_idx, qsort)
 }
 
 
+#ifdef _OPENMP
 CTEST2(sort_idx, par_sort)
 {
   idx_t * test = splatt_malloc(data->N * sizeof(*test));
@@ -261,3 +269,4 @@ CTEST2(sort_idx, par_sort)
 
   splatt_free(test);
 }
+#endif

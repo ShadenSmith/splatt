@@ -273,7 +273,7 @@ idx_t * tt_densetile(
     tsizes[m] = SS_MAX(tt->dims[m] / tile_dims[m], 1);
   }
 
-  idx_t * tcounts = (idx_t *) calloc(ntiles+2, sizeof(idx_t));
+  idx_t * tcounts = calloc(ntiles+2, sizeof(*tcounts));
 
   /* count tile sizes (in nnz) */
   idx_t coord[MAX_NMODES];
@@ -312,9 +312,9 @@ idx_t * tt_densetile(
   }
 
   /* copy data into old struct */
-  memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(val_t));
+  memcpy(tt->vals, newtt->vals, tt->nnz * sizeof(*tt->vals));
   for(idx_t m=0; m < nmodes; ++m) {
-    memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(idx_t));
+    memcpy(tt->ind[m], newtt->ind[m], tt->nnz * sizeof(**tt->ind));
   }
   tt_free(newtt);
 

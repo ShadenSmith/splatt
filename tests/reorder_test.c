@@ -34,8 +34,6 @@ CTEST2(reorder, shuffle)
 {
   memcpy(data->buffer, data->fororder, data->N * sizeof(*data->buffer));
 
-  printf("\n");
-
   /* do this 10 times */
   for(idx_t e=0; e < 10; ++e) {
     shuffle_idx(data->buffer, data->N);

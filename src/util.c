@@ -3,9 +3,9 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include <omp.h>
 
 #include "base.h"
+#include "thd_info.h"
 #include "util.h"
 
 
@@ -127,8 +127,8 @@ void par_memcpy(
 {
   #pragma omp parallel
   {
-    int nthreads = omp_get_num_threads();
-    int tid = omp_get_thread_num();
+    int nthreads = splatt_omp_get_num_threads();
+    int tid = splatt_omp_get_thread_num();
 
     size_t n_per_thread = (bytes + nthreads - 1)/nthreads;
     size_t n_begin = SS_MIN(n_per_thread * tid, bytes);
