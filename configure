@@ -33,6 +33,9 @@ show_help() {
 
   echo "COMPILATION OPTIONS"
   echo "==================="
+
+  echo "  --build-dir=<dir>"
+  echo "    Set the build directory (default: ./build/<arch>/)."
   echo "  --cc=<cc>"
   echo "    Set the C compiler."
   #echo "  --cxx=<cxx>"
@@ -42,18 +45,19 @@ show_help() {
   echo "  --dev"
   echo "    Build in development mode. Warnings and extra logging enabled."
 
+  echo ""
   echo "  --with-index-size={32,64}"
   echo "    Use 32 or 64 bit integers (default: 64)."
   echo "  --with-precision={single,double}"
   echo "    Use single or double precision floating point values (default: double)."
 
+  echo ""
   echo "  --max-modes=<#>"
   echo "    Set the maxmimum number of tensor modes (default: 8)."
 
   echo ""
   echo "LIBRARY OPTIONS"
   echo "==============="
-  #echo ""
 
   # MPI
   echo "  --with-mpi"
@@ -64,7 +68,7 @@ show_help() {
   #echo "    Set the MPI C++ compiler. Other configuration options may be determined by CMake."
   echo ""
 
-  # BLAS
+  # BLAS/LAPACK
   echo "If you are unhappy with the auto-detected BLAS/LAPACK libraries:"
   echo "  --with-blas-lib=<lib>"
   echo "    Set the BLAS library (e.g., /usr/.../libblas.so)."
@@ -78,7 +82,7 @@ show_help() {
   echo "====================:"
   echo "  --prefix=<prefix>"
   echo "    Set the installation prefix."
-  echo "  --build-shared"
+  echo "  --build-shared-lib"
   echo "    Build a shared library instead of static."
   echo ""
 
@@ -127,6 +131,10 @@ for i in "${@}"; do
     --dev)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
     ;;
+    --build-dir=*)
+    BUILDDIR="${i#*=}"
+    ;;
+
     --with-index-size=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=${i#*=}"
     ;;
@@ -180,7 +188,7 @@ for i in "${@}"; do
     --prefix=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
     ;;
-    --build-shared)
+    --build-shared-lib)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED_LIBS=TRUE"
     ;;
 
