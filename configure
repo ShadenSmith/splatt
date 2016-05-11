@@ -181,7 +181,7 @@ for i in "${@}"; do
     CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
     ;;
     --build-shared)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED=1"
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED_LIBS=TRUE"
     ;;
 
 
