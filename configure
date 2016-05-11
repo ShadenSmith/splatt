@@ -78,6 +78,8 @@ show_help() {
   echo "====================:"
   echo "  --prefix=<prefix>"
   echo "    Set the installation prefix."
+  echo "  --build-shared"
+  echo "    Build a shared library instead of static."
   echo ""
 
   echo "Please report bugs to <shaden@cs.umn.edu>."
@@ -135,12 +137,6 @@ for i in "${@}"; do
     CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
     ;;
 
-    ## INSTALL OPTIONS
-    # prefix
-    --prefix=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
-    ;;
-
 
     ## LIBRARY OPTIONS
 
@@ -176,6 +172,18 @@ for i in "${@}"; do
     --with-mpicxx=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICXX=${i#*=}"
     ;;
+
+
+
+    ## INSTALL OPTIONS
+    # prefix
+    --prefix=*)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
+    ;;
+    --build-shared)
+    CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED=1"
+    ;;
+
 
 
     # deprecated
