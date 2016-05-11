@@ -35,8 +35,8 @@ show_help() {
   echo "==================="
   echo "  --cc=<cc>"
   echo "    Set the C compiler."
-  echo "  --cxx=<cxx>"
-  echo "    Set the C++ compiler."
+  #echo "  --cxx=<cxx>"
+  #echo "    Set the C++ compiler."
   echo "  --debug"
   echo "    Turn off optimizations and build with debugging symbols and assertions."
   echo "  --dev"
@@ -60,8 +60,8 @@ show_help() {
   echo "    Build with MPI support. Let CMake auto-detect MPI environment."
   echo "  --with-mpicc=<cc>"
   echo "    Set the MPI C compiler. Other configuration options may be determined by CMake."
-  echo "  --with-mpicxx=<cxx>"
-  echo "    Set the MPI C++ compiler. Other configuration options may be determined by CMake."
+  #echo "  --with-mpicxx=<cxx>"
+  #echo "    Set the MPI C++ compiler. Other configuration options may be determined by CMake."
   echo ""
 
   # BLAS
