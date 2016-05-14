@@ -765,7 +765,8 @@ void csf_alloc_mode(
 val_t csf_frobsq(
     splatt_csf const * const tensor)
 {
-  val_t norm = 0;
+  /* accumulate into double to help with some precision loss */
+  double norm = 0;
   #pragma omp parallel reduction(+:norm)
   {
     for(idx_t t=0; t < tensor->ntiles; ++t) {
@@ -783,6 +784,6 @@ val_t csf_frobsq(
     }
   } /* end omp parallel */
 
-  return norm;
+  return (val_t) norm;
 }
 
