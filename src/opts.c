@@ -46,3 +46,27 @@ void splatt_free_opts(
   free(opts);
 }
 
+
+
+splatt_cpd_opts * splatt_default_cpd_opts(void)
+{
+  splatt_cpd_opts * opts = splatt_malloc(sizeof(*opts));
+
+  opts->rank = 10;
+  opts->tolerance = 1e-5;
+  opts->max_iterations = 50;
+
+  opts->verbosity = SPLATT_VERBOSITY_LOW;
+
+  return opts;
+}
+
+
+void splatt_free_cpd_opts(
+    splatt_cpd_opts * opts)
+{
+  splatt_free(opts);
+}
+
+
+
