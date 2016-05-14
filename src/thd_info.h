@@ -53,6 +53,11 @@ static inline void splatt_omp_set_num_threads(
   omp_set_num_threads(num_threads);
 }
 
+static inline int splatt_omp_in_parallel()
+{
+  return omp_in_parallel();
+}
+
 static inline int splatt_omp_get_thread_num()
 {
   return omp_get_thread_num();
@@ -80,6 +85,10 @@ static inline int splatt_omp_get_thread_num()
   return 0;
 }
 
+static inline int splatt_omp_in_parallel()
+{
+  return 0;
+}
 
 static inline int splatt_omp_get_max_threads()
 {
