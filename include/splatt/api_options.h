@@ -43,6 +43,8 @@ double * splatt_default_opts(void);
 void  splatt_free_opts(
     double * opts);
 
+
+
 /** @} */
 
 

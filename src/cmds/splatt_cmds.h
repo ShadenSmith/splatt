@@ -60,6 +60,7 @@ int splatt_reorder(int argc, char ** argv);
 int splatt_stats(int argc, char ** argv);
 
 
+int splatt_cpd_cmd2(int argc, char ** argv);
 
 
 /******************************************************************************
@@ -78,7 +79,8 @@ static cmd_struct const splatt_cmds[] = {
 #ifdef SPLATT_USE_MPI
   { "cpd", splatt_mpi_cpd_cmd },
 #else
-  { "cpd", splatt_cpd_cmd },
+  //{ "cpd", splatt_cpd_cmd },
+  { "cpd", splatt_cpd_cmd2 },
 #endif
 
   { "bench", splatt_bench },
