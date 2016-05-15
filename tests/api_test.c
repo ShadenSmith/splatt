@@ -48,6 +48,14 @@ CTEST2(api, opts_alloc)
 #endif
 
   splatt_free_opts(opts);
+
+  splatt_global_opts * gopts = splatt_alloc_global_opts();
+#ifdef _OPENMP
+  ASSERT_EQUAL(omp_get_max_threads(), gopts->num_threads);
+#else
+  ASSERT_EQUAL(1, gopts->num_threads);
+#endif
+  splatt_free_global_opts(gopts);
 }
 
 
@@ -56,9 +64,12 @@ CTEST2(api, par_opts_alloc)
   #pragma omp parallel num_threads(5)
   {
     double * opts = splatt_default_opts();
-
     ASSERT_EQUAL(1, (int) opts[SPLATT_OPTION_NTHREADS]);
     splatt_free_opts(opts);
+
+    splatt_global_opts * gopts = splatt_alloc_global_opts();
+    ASSERT_EQUAL(1, gopts->num_threads);
+    splatt_free_global_opts(gopts);
   }
 }
 

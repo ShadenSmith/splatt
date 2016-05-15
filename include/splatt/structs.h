@@ -104,6 +104,4 @@ typedef struct splatt_csf
 
 
 
-
-
 #endif

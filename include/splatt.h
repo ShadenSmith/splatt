@@ -38,6 +38,8 @@
  * API FUNCTIONS
  *****************************************************************************/
 
+#include "splatt/global_options.h"
+#include "splatt/cpd.h"
 #include "splatt/api_csf.h"
 #include "splatt/api_factorization.h"
 #include "splatt/api_kernels.h"

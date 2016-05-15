@@ -27,15 +27,11 @@ double * splatt_default_opts(void)
   opts[SPLATT_OPTION_DECOMP] = SPLATT_DECOMP_MEDIUM;
   opts[SPLATT_OPTION_COMM]   = SPLATT_COMM_ALL2ALL;
 
-#ifdef _OPENMP
-  if(omp_in_parallel()) {
+  if(splatt_omp_in_parallel()) {
     opts[SPLATT_OPTION_NTHREADS]  = 1;
   } else {
     opts[SPLATT_OPTION_NTHREADS]  = splatt_omp_get_max_threads();
   }
-#else
-  opts[SPLATT_OPTION_NTHREADS] = 1;
-#endif
 
   return opts;
 }
@@ -48,25 +44,26 @@ void splatt_free_opts(
 
 
 
-splatt_cpd_opts * splatt_default_cpd_opts(void)
+
+
+splatt_global_opts * splatt_alloc_global_opts(void)
 {
-  splatt_cpd_opts * opts = splatt_malloc(sizeof(*opts));
+  splatt_global_opts * gopts = splatt_malloc(sizeof(*gopts));
 
-  opts->rank = 10;
-  opts->tolerance = 1e-5;
-  opts->max_iterations = 50;
+  gopts->num_threads = 1;
+  if(!splatt_omp_in_parallel()) {
+    gopts->num_threads = splatt_omp_get_max_threads();
+  }
 
-  opts->verbosity = SPLATT_VERBOSITY_LOW;
+  gopts->verbosity = SPLATT_VERBOSITY_LOW;
 
-  return opts;
+  return gopts;
 }
 
 
-void splatt_free_cpd_opts(
-    splatt_cpd_opts * opts)
+void splatt_free_global_opts(
+    splatt_global_opts * opts)
 {
   splatt_free(opts);
 }
-
-
 

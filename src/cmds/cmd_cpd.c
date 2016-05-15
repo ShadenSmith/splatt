@@ -204,3 +204,40 @@ int splatt_cpd_cmd(
   return EXIT_SUCCESS;
 }
 
+
+
+int splatt_cpd_cmd2(
+  int argc,
+  char ** argv)
+{
+  print_header();
+
+  splatt_global_opts * glob_opts = splatt_alloc_global_opts();
+  splatt_cpd_opts * cpd_opts = splatt_alloc_cpd_opts();
+
+  sptensor_t * tt = tt_read(argv[1]);
+  stats_tt(tt, argv[1], STATS_BASIC, 0, NULL);
+
+  double * dopts = splatt_default_opts();
+
+  splatt_csf * csf = splatt_csf_alloc(tt, dopts);
+  tt_free(tt);
+
+  idx_t const rank = 10;
+  splatt_kruskal * factored = splatt_alloc_cpd(csf, rank);
+
+  splatt_cpd(csf, rank, cpd_opts, glob_opts, factored);
+
+
+  /* cleanup */
+  splatt_free_kruskal(factored);
+  splatt_free_opts(dopts);
+  splatt_free_cpd_opts(cpd_opts);
+  splatt_free_global_opts(glob_opts);
+
+  return EXIT_SUCCESS;
+}
+
+
+
+
