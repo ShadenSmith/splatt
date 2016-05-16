@@ -71,12 +71,15 @@ matrix_t * mat_mkptr(
 * @param A The SPD matrix A.
 */
 void mat_cholesky(
-  matrix_t const * const A);
+    matrix_t const * const A);
 
 
 void mat_solve_cholesky(
     matrix_t * const cholesky,
     matrix_t * const rhs);
+
+val_t mat_trace(
+    matrix_t const * const A);
 
 
 #define mat_matmul splatt_mat_matmul
@@ -155,6 +158,7 @@ void calc_gram_inv(
 
 void mat_form_gram(
     matrix_t * * aTa,
+    matrix_t * out_mat,
     idx_t nmodes,
     idx_t mode);
 

@@ -41,12 +41,18 @@ typedef enum
   SPLATT_CON_NUMCONS
 } splatt_constraint_type;
 
+
 typedef struct
 {
   /* convergence */
   splatt_val_t tolerance;
   splatt_idx_t max_iterations;
+  /* inner ADMM solves */
+  splatt_val_t inner_tolerance;
   splatt_idx_t max_inner_iterations;
+
+  /* constraints */
+
 } splatt_cpd_opts;
 
 

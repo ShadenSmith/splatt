@@ -77,7 +77,7 @@ static void p_mat_2norm(
       timer_stop(&timers[TIMER_MPI_COMM]);
       timer_stop(&timers[TIMER_MPI_NORM]);
 #else
-      memcpy(lambda, mylambda, J * sizeof(val_t));
+      memcpy(lambda, mylambda, J * sizeof(*lambda));
 #endif
     }
 
@@ -95,7 +95,7 @@ static void p_mat_2norm(
         vals[j+(i*J)] /= lambda[j];
       }
     }
-  } /* end omp for */
+  } /* end omp parallel */
 }
 
 
@@ -306,22 +306,34 @@ void mat_solve_cholesky(
 {
   int N = (int) cholesky->I;
 
-  /* Cholesky factorization */
-  char uplo = 'L';
-  int order = N;
+  /* Solve against rhs */
+  char tri = 'L';
   int lda = N;
   int info;
-
-  /* Solve against rhs */
   int nrhs = (int) rhs->I;
   int ldb = N;
-  LAPACK_DPOTRS(&uplo, &order, &nrhs, cholesky->vals, &lda, rhs->vals, &ldb,
-      &info);
+  LAPACK_DPOTRS(&tri, &N, &nrhs, cholesky->vals, &lda, rhs->vals, &ldb, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
   }
 }
 
+
+val_t mat_trace(
+    matrix_t const * const A)
+{
+  assert(A->I == A->J);
+
+  idx_t const N = A->I;
+  val_t const * const restrict vals = A->vals;
+
+  val_t trace = 0.;
+  for(idx_t i=0; i < N; ++i) {
+    trace += vals[i + (i*N)];
+  }
+
+  return trace;
+}
 
 
 void mat_aTa_hada(
@@ -495,11 +507,12 @@ void mat_normalize(
 
 void mat_form_gram(
     matrix_t * * aTa,
+    matrix_t * out_mat,
     idx_t nmodes,
     idx_t mode)
 {
-  idx_t const N= aTa[mode]->J;
-  val_t * const restrict gram = aTa[mode]->vals;
+  idx_t const N = aTa[mode]->J;
+  val_t * const restrict gram = out_mat->vals;
 
   #pragma omp parallel
   {
