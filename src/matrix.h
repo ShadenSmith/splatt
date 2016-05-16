@@ -69,11 +69,14 @@ matrix_t * mat_mkptr(
 * @brief Compute the Cholesky factorization of A.
 *
 * @param A The SPD matrix A.
-* @param L The lower-triangular result.
 */
 void mat_cholesky(
-  matrix_t const * const A,
-  matrix_t * const L);
+  matrix_t const * const A);
+
+
+void mat_solve_cholesky(
+    matrix_t * const cholesky,
+    matrix_t * const rhs);
 
 
 #define mat_matmul splatt_mat_matmul

@@ -254,7 +254,7 @@ void mat_syminv(
   matrix_t * L = mat_alloc(N, N);
 
   /* do a Cholesky factorization on A */
-  mat_cholesky(A, L);
+  //mat_cholesky(A, L);
 
   /* setup identity matrix */
   memset(A->vals, 0, N*N*sizeof(val_t));
@@ -281,34 +281,47 @@ void mat_syminv(
 
 
 void mat_cholesky(
-  matrix_t const * const A,
-  matrix_t * const L)
+  matrix_t const * const A)
 {
   /* check dimensions */
   assert(A->I == A->J);
-  assert(A->I == L->J);
-  assert(L->I == L->J);
 
-  idx_t const N = A->I;
-  val_t const * const restrict av = A->vals;
-  val_t * const restrict lv = L->vals;
-
-  memset(lv, 0, N*N*sizeof(val_t));
-  for (idx_t i = 0; i < N; ++i) {
-    for (idx_t j = 0; j <= i; ++j) {
-      val_t inner = 0;
-      for (idx_t k = 0; k < j; ++k) {
-        inner += lv[k+(i*N)] * lv[k+(j*N)];
-      }
-
-      if(i == j) {
-        lv[j+(i*N)] = sqrt(av[i+(i*N)] - inner);
-      } else {
-        lv[j+(i*N)] = 1.0 / lv[j+(j*N)] * (av[j+(i*N)] - inner);
-      }
-    }
+  /* Cholesky factorization */
+  int N = (int) A->I;
+  val_t * const restrict neqs = A->vals;
+  char uplo = 'L';
+  int order = N;
+  int lda = N;
+  int info;
+  LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
+  if(info) {
+    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
 }
+
+
+void mat_solve_cholesky(
+    matrix_t * const cholesky,
+    matrix_t * const rhs)
+{
+  int N = (int) cholesky->I;
+
+  /* Cholesky factorization */
+  char uplo = 'L';
+  int order = N;
+  int lda = N;
+  int info;
+
+  /* Solve against rhs */
+  int nrhs = (int) rhs->I;
+  int ldb = N;
+  LAPACK_DPOTRS(&uplo, &order, &nrhs, cholesky->vals, &lda, rhs->vals, &ldb,
+      &info);
+  if(info) {
+    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
+  }
+}
+
 
 
 void mat_aTa_hada(
