@@ -373,9 +373,7 @@ void mat_aTa_hada(
 void mat_aTa(
   matrix_t const * const A,
   matrix_t * const ret,
-  rank_info * const rinfo,
-  thd_info * const thds,
-  idx_t const nthreads)
+  rank_info * const rinfo)
 {
   timer_start(&timers[TIMER_ATA]);
   /* check matrix dimensions */
@@ -483,6 +481,42 @@ void mat_normalize(
   }
   timer_stop(&timers[TIMER_MATNORM]);
 }
+
+
+void mat_form_gram(
+    matrix_t * * aTa,
+    idx_t nmodes,
+    idx_t mode)
+{
+  idx_t const N= aTa[mode]->J;
+  val_t * const restrict gram = aTa[mode]->vals;
+
+  #pragma omp parallel
+  {
+    /* first initialize */
+    #pragma omp for schedule(static, 1)
+    for(idx_t i=0; i < N; ++i) {
+      for(idx_t j=i; j < N; ++j) {
+        gram[j+(i*N)] = 1.;
+      }
+    }
+
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(m == mode) {
+        continue;
+      }
+
+      val_t const * const restrict mat = aTa[m]->vals;
+      #pragma omp for schedule(static, 1) nowait
+      for(idx_t i=0; i < N; ++i) {
+        for(idx_t j=i; j < N; ++j) {
+          gram[j+(i*N)] *= mat[j+(i*N)];
+        }
+      }
+    }
+  } /* omp parallel */
+}
+
 
 
 void mat_solve_normals(
@@ -603,6 +637,27 @@ matrix_t * mat_rand(
 
   return mat;
 }
+
+
+
+matrix_t * mat_mkptr(
+    val_t * const data,
+    idx_t rows,
+    idx_t cols,
+    int rowmajor)
+{
+  matrix_t * mat = splatt_malloc(sizeof(*mat));
+
+  /* store data */
+  mat->I = rows;
+  mat->J = cols;
+  mat->rowmajor = rowmajor;
+  mat->vals = data;
+
+  return mat;
+}
+
+
 
 void mat_free(
   matrix_t * mat)

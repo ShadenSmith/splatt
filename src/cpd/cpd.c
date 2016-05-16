@@ -46,7 +46,7 @@ splatt_error_type splatt_cpd(
   splatt_omp_set_num_threads(global_opts->num_threads);
   cpd_ws * ws = cpd_alloc_ws(tensor, rank, cpd_opts, global_opts);
 
-  cpd_iterate(tensor, ws, cpd_opts, global_opts, factored);
+  cpd_iterate(tensor, rank, ws, cpd_opts, global_opts, factored);
 
   /* clean up workspace */
   cpd_free_ws(ws);
@@ -62,7 +62,7 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
 
   /* defaults */
   opts->tolerance = 1e-5;
-  opts->max_iterations = 50;
+  opts->max_iterations = 5;
 
   return opts;
 }
@@ -95,6 +95,9 @@ splatt_kruskal * splatt_alloc_cpd(
 }
 
 
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -102,16 +105,51 @@ splatt_kruskal * splatt_alloc_cpd(
 
 double cpd_iterate(
     splatt_csf const * const tensor,
+    idx_t const rank,
     cpd_ws * const ws,
     splatt_cpd_opts const * const cpd_opts,
     splatt_global_opts const * const global_opts,
     splatt_kruskal * factored)
 {
-  double fit = 1.;
+  idx_t const nmodes = tensor->nmodes;
 
   /* TODO: fix MTTKRP interface */
   matrix_t * mats[MAX_NMODES+1];
+  for(idx_t m=0; m < tensor->nmodes; ++m) {
+    mats[m] = mat_mkptr(factored->factors[m], tensor->dims[m], rank, 1);
+  }
+  mats[MAX_NMODES] = ws->mttkrp_buf;
 
+  printf("CPD time\n");
+
+  /* initialite aTa values */
+  for(idx_t m=0; m < nmodes; ++m) {
+    mat_aTa(mats[m], ws->aTa[m], NULL);
+  }
+
+  /* TODO: CSF opts */
+  double * opts = splatt_default_opts();
+
+  /* foreach outer iteration */
+  for(idx_t it=0; it < cpd_opts->max_iterations; ++it) {
+    /* foreach AO step */
+    for(idx_t m=0; m < nmodes; ++m) {
+      mttkrp_csf(tensor, mats, m, ws->thds, opts);
+
+      mat_form_gram(ws->aTa, nmodes, m);
+
+      /* ADMM solve for constraints */
+
+    }
+  }
+
+  free(opts);
+
+  for(idx_t m=0; m < tensor->nmodes; ++m) {
+    splatt_free(mats[m]);
+  }
+
+  double fit = 1.;
   return fit;
 }
 

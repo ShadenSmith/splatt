@@ -44,6 +44,26 @@ typedef enum
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+
+#define mat_mkptr splatt_mat_mkptr
+/**
+* @brief Fill a dense matrix with a SHALLOW COPY of the existing data.
+*
+* @param data The data to copy into the matrix structure.
+* @param I The number of rows in the matrix.
+* @param J The number of cols in the matrix.
+* @param rowmajor If the matrix is row major.
+*
+* @return A pointer to the created struct.
+*/
+matrix_t * mat_mkptr(
+    val_t * const data,
+    idx_t rows,
+    idx_t cols,
+    int rowmajor);
+
+
+
 #define mat_cholesky splatt_mat_cholesky
 /**
 * @brief Compute the Cholesky factorization of A.
@@ -107,14 +127,12 @@ void mat_aTa_hada(
 *
 * @param A The input matrix.
 * @param ret The output matrix, A^T * A.
-* @param thds Data structure for thread scratch space.
+* @param rinfo MPI communication info.
 */
 void mat_aTa(
   matrix_t const * const A,
   matrix_t * const ret,
-  rank_info * const rinfo,
-  thd_info * const thds,
-  idx_t const nthreads);
+  rank_info * const rinfo);
 
 #define calc_gram_inv splatt_calc_gram_inv
 /**
@@ -131,6 +149,11 @@ void calc_gram_inv(
   idx_t const nmodes,
   matrix_t ** aTa);
 
+
+void mat_form_gram(
+    matrix_t * * aTa,
+    idx_t nmodes,
+    idx_t mode);
 
 void mat_solve_normals(
   idx_t const mode,
