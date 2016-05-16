@@ -66,10 +66,11 @@ int splatt_cpd_als(
 void splatt_free_kruskal(
     splatt_kruskal * factored)
 {
-  free(factored->lambda);
+  splatt_free(factored->lambda);
   for(idx_t m=0; m < factored->nmodes; ++m) {
-    free(factored->factors[m]);
+    splatt_free(factored->factors[m]);
   }
+  splatt_free(factored);
 }
 
 

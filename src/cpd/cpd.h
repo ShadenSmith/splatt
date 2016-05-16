@@ -28,6 +28,7 @@ typedef struct
   idx_t nmodes;
   matrix_t * aTa[MAX_NMODES];
   matrix_t * aTa_buf;
+  matrix_t * gram;
 
   matrix_t * mttkrp_buf;
 
@@ -50,6 +51,12 @@ val_t cpd_norm(
     cpd_ws const * const ws,
     val_t const * const restrict column_weights);
 
+
+val_t cpd_innerprod(
+    idx_t lastmode,
+    cpd_ws const * const ws,
+    matrix_t * * mats,
+    val_t const * const restrict column_weights);
 
 double cpd_iterate(
     splatt_csf const * const tensor,

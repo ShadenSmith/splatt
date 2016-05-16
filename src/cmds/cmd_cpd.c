@@ -223,7 +223,8 @@ int splatt_cpd_cmd2(
   splatt_csf * csf = splatt_csf_alloc(tt, dopts);
   tt_free(tt);
 
-  idx_t const rank = 3;
+  srand(0);
+  idx_t const rank = 5;
   splatt_kruskal * factored = splatt_alloc_cpd(csf, rank);
 
   splatt_cpd(csf, rank, cpd_opts, glob_opts, factored);

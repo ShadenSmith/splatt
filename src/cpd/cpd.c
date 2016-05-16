@@ -65,8 +65,10 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
 
   /* defaults */
   opts->tolerance = 1e-5;
-  opts->max_iterations = 5;
-  opts->max_inner_iterations = 2;
+  opts->max_iterations = 10;
+
+  opts->inner_tolerance = 1e-2;
+  opts->max_inner_iterations = 10;
 
   return opts;
 }
@@ -86,6 +88,8 @@ splatt_kruskal * splatt_alloc_cpd(
 {
   splatt_kruskal * cpd = splatt_malloc(sizeof(*csf));
 
+  cpd->nmodes = csf->nmodes;
+
   cpd->lambda = splatt_malloc(rank * sizeof(*cpd->lambda));
   for(idx_t m=0; m < csf->nmodes; ++m) {
     cpd->factors[m] = splatt_malloc(csf->dims[m] * rank *
@@ -97,9 +101,6 @@ splatt_kruskal * splatt_alloc_cpd(
 
   return cpd;
 }
-
-#include "../io.h"
-
 
 
 
@@ -122,6 +123,15 @@ double cpd_iterate(
   matrix_t * mats[MAX_NMODES+1];
   for(idx_t m=0; m < tensor->nmodes; ++m) {
     mats[m] = mat_mkptr(factored->factors[m], tensor->dims[m], rank, 1);
+
+    /* initialize matrices to be non-negative with unit columns */
+    for(idx_t i=0; i < tensor->dims[m] * rank; ++i) {
+      mats[m]->vals[i] = fabs(mats[m]->vals[i]);
+    }
+    mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
+
+    /* duals should be 0 */
+    memset(ws->duals[m]->vals, 0, tensor->dims[m] * rank * sizeof(val_t));
   }
   mats[MAX_NMODES] = ws->mttkrp_buf;
 
@@ -135,46 +145,72 @@ double cpd_iterate(
   /* TODO: CSF opts */
   double * opts = splatt_default_opts();
 
+  /* for tracking convergence */
   double oldfit = 0.;
   double fit = 0.;
+  double const ttnormsq = csf_frobsq(tensor);
+
+  /* timers */
+  sp_timer_t itertime;
+  sp_timer_t modetime[MAX_NMODES];
+  timer_start(&timers[TIMER_CPD]);
 
   /* foreach outer iteration */
   for(idx_t it=0; it < cpd_opts->max_iterations; ++it) {
+    timer_fstart(&itertime);
     /* foreach AO step */
     for(idx_t m=0; m < nmodes; ++m) {
+      timer_fstart(&modetime[m]);
       mttkrp_csf(tensor, mats, m, ws->thds, opts);
 
       /* TODO: fix MTTKRP output and save last one only */
-      par_memcpy(ws->mttkrp_buf->vals, mats[m]->vals,
-          tensor->dims[m] * rank * sizeof(*ws->mttkrp_buf->vals));
-
-      mat_form_gram(ws->aTa, nmodes, m);
+      par_memcpy(mats[m]->vals, ws->mttkrp_buf->vals,
+          tensor->dims[m] * rank * sizeof(val_t));
 
       /* ADMM solve for constraints */
-      idx_t const num_inner = admm_inner(m, mats, ws, cpd_opts, global_opts);
-
-      /* normalize columns and extract lambda */
-      if(it == 0) {
-        mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
-      } else {
-        mat_normalize(mats[m], factored->lambda, MAT_NORM_MAX, NULL, ws->thds);
-      }
+      admm_inner(m, mats, factored->lambda, ws, cpd_opts, global_opts);
 
       /* prepare aTa for next mode */
       mat_aTa(mats[m], ws->aTa[m], NULL);
+
+      timer_stop(&modetime[m]);
     } /* foreach mode */
 
     /* calculate outer convergence */
-    val_t const norm = cpd_norm(ws, factored->lambda);
+    double const norm = cpd_norm(ws, factored->lambda);
+    double const inner = cpd_innerprod(nmodes-1, ws, mats, factored->lambda);
+    double const residual = sqrt(ttnormsq + norm - (2 * inner));
+    fit = 1 - (residual / sqrt(ttnormsq));
 
+    timer_stop(&itertime);
+
+    /* print progress */
+    if(global_opts->verbosity > SPLATT_VERBOSITY_NONE) {
+      printf("  its = %3"SPLATT_PF_IDX" (%0.3"SPLATT_PF_VAL"s)  "
+             "fit = %0.5"SPLATT_PF_VAL"  delta = %+0.4e\n",
+          it+1, itertime.seconds, fit, fit - oldfit);
+      if(global_opts->verbosity > SPLATT_VERBOSITY_LOW) {
+        for(idx_t m=0; m < nmodes; ++m) {
+          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs)\n", m+1,
+              modetime[m].seconds);
+        }
+      }
+    }
+
+    /* terminate if converged */
+    if(it > 0 && fabs(fit - oldfit) < cpd_opts->tolerance) {
+      break;
+    }
+    oldfit = fit;
   }
 
-  free(opts);
+  splatt_free(opts);
   for(idx_t m=0; m < tensor->nmodes; ++m) {
     /* only free ptr */
     splatt_free(mats[m]);
   }
 
+  timer_stop(&timers[TIMER_CPD]);
   return fit;
 }
 
@@ -196,6 +232,7 @@ cpd_ws * cpd_alloc_ws(
     ws->aTa[m] = mat_alloc(rank, rank);
   }
   ws->aTa_buf = mat_alloc(rank, rank);
+  ws->gram = mat_alloc(rank, rank);
 
   ws->nthreads = global_opts->num_threads;
   ws->thds =  thd_init(ws->nthreads, 3,
@@ -208,6 +245,10 @@ cpd_ws * cpd_alloc_ws(
   ws->mttkrp_buf = mat_alloc(maxdim, rank);
 
   /* TODO: AO-ADMM constructs for constraints */
+  for(idx_t m=0; m < nmodes; ++m) {
+    ws->auxil[m] = mat_alloc(tensor->dims[m], rank);
+    ws->duals[m] = mat_alloc(tensor->dims[m], rank);
+  }
 
   return ws;
 }
@@ -219,13 +260,17 @@ void cpd_free_ws(
 {
   mat_free(ws->mttkrp_buf);
   mat_free(ws->aTa_buf);
+  mat_free(ws->gram);
   for(idx_t m=0; m < ws->nmodes; ++m) {
     mat_free(ws->aTa[m]);
 
     /* if constraints, free auxil/dual */
+    mat_free(ws->auxil[m]);
+    mat_free(ws->duals[m]);
   }
 
   thd_free(ws->thds, ws->nthreads);
+  splatt_free(ws);
 }
 
 
@@ -235,8 +280,6 @@ val_t cpd_norm(
 {
   idx_t const rank = ws->aTa[0]->J;
   val_t * const restrict scratch = ws->aTa_buf->vals;
-
-  val_t norm = 0;
 
   /* initialize scratch space */
   for(idx_t i=0; i < rank; ++i) {
@@ -256,6 +299,7 @@ val_t cpd_norm(
   }
 
   /* now compute weights^T * aTa[MAX_NMODES] * weights */
+  val_t norm = 0;
   for(idx_t i=0; i < rank; ++i) {
     norm += scratch[i+(i*rank)] * column_weights[i] * column_weights[i];
     for(idx_t j=i+1; j < rank; ++j) {
@@ -265,3 +309,48 @@ val_t cpd_norm(
 
   return fabs(norm);
 }
+
+
+val_t cpd_innerprod(
+    idx_t lastmode,
+    cpd_ws const * const ws,
+    matrix_t * * mats,
+    val_t const * const restrict column_weights)
+{
+  idx_t const nrows = mats[lastmode]->I;
+  idx_t const rank = mats[0]->J;
+
+  val_t const * const newmat = mats[lastmode]->vals;
+  val_t const * const mttkrp = ws->mttkrp_buf->vals;
+
+  val_t myinner = 0;
+  #pragma omp parallel reduction(+:myinner)
+  {
+    int const tid = splatt_omp_get_thread_num();
+    val_t * const restrict accumF = ws->thds[tid].scratch[0];
+
+    for(idx_t r=0; r < rank; ++r) {
+      accumF[r] = 0.;
+    }
+
+    /* Hadamard product with newest factor and previous MTTKRP */
+    #pragma omp for schedule(static)
+    for(idx_t i=0; i < nrows; ++i) {
+      val_t const * const restrict newmat_row = newmat + (i*rank);
+      val_t const * const restrict mttkrp_row = mttkrp + (i*rank);
+      for(idx_t r=0; r < rank; ++r) {
+        accumF[r] += newmat_row[r] * mttkrp_row[r];
+      }
+    }
+
+    /* accumulate everything into 'myinner' */
+    for(idx_t r=0; r < rank; ++r) {
+      myinner += accumF[r] * column_weights[r];
+    }
+  } /* end omp parallel -- reduce myinner */
+
+  /* TODO AllReduce for MPI support */
+
+  return myinner;
+}
+
