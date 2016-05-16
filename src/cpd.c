@@ -292,7 +292,7 @@ double cpd_als_iterate(
   for(idx_t m=0; m < nmodes; ++m) {
     aTa[m] = mat_alloc(nfactors, nfactors);
     memset(aTa[m]->vals, 0, nfactors * nfactors * sizeof(val_t));
-    mat_aTa(mats[m], aTa[m], rinfo, thds, nthreads);
+    mat_aTa(mats[m], aTa[m], rinfo);
   }
   /* used as buffer space */
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
@@ -341,7 +341,7 @@ double cpd_als_iterate(
       }
 
       /* update A^T*A */
-      mat_aTa(mats[m], aTa[m], rinfo, thds, nthreads);
+      mat_aTa(mats[m], aTa[m], rinfo);
       timer_stop(&modetime[m]);
     } /* foreach mode */
 
