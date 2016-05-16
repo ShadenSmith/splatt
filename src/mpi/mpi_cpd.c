@@ -735,9 +735,9 @@ double mpi_cpd_als_iterate(
 
       /* normalize columns and extract lambda */
       if(it == 0) {
-        mat_normalize(globmats[m], lambda, MAT_NORM_2, rinfo, thds, nthreads);
+        mat_normalize(globmats[m], lambda, MAT_NORM_2, rinfo, thds);
       } else {
-        mat_normalize(globmats[m], lambda, MAT_NORM_MAX, rinfo, thds,nthreads);
+        mat_normalize(globmats[m], lambda, MAT_NORM_MAX, rinfo, thds);
       }
 
       /* send updated rows to neighbors */
@@ -745,7 +745,7 @@ double mpi_cpd_als_iterate(
           globmats[m], rinfo, nfactors, m, opts[SPLATT_OPTION_COMM]);
 
       /* update A^T*A */
-      mat_aTa(globmats[m], aTa[m], rinfo, thds, nthreads);
+      mat_aTa(globmats[m], aTa[m], rinfo, thds);
       timer_stop(&modetime[m]);
     } /* foreach mode */
 

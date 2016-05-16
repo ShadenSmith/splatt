@@ -13,6 +13,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "cpd.h"
+#include "admm.h"
 
 #include "../csf.h"
 #include "../mttkrp.h"
@@ -94,6 +95,7 @@ splatt_kruskal * splatt_alloc_cpd(
   return cpd;
 }
 
+#include "../io.h"
 
 
 
@@ -123,7 +125,7 @@ double cpd_iterate(
   printf("CPD time\n");
 
   /* initialite aTa values */
-  for(idx_t m=0; m < nmodes; ++m) {
+  for(idx_t m=1; m < nmodes; ++m) {
     mat_aTa(mats[m], ws->aTa[m], NULL);
   }
 
@@ -139,7 +141,17 @@ double cpd_iterate(
       mat_form_gram(ws->aTa, nmodes, m);
 
       /* ADMM solve for constraints */
+      admm_inner(m, mats, ws, cpd_opts, global_opts);
 
+      /* normalize columns and extract lambda */
+      if(it == 0) {
+        mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
+      } else {
+        mat_normalize(mats[m], factored->lambda, MAT_NORM_MAX, NULL, ws->thds);
+      }
+
+      /* prepare aTa for next mode */
+      mat_aTa(mats[m], ws->aTa[m], NULL);
     }
   }
 

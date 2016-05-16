@@ -335,9 +335,9 @@ double cpd_als_iterate(
 
       /* normalize columns and extract lambda */
       if(it == 0) {
-        mat_normalize(mats[m], lambda, MAT_NORM_2, rinfo, thds, nthreads);
+        mat_normalize(mats[m], lambda, MAT_NORM_2, rinfo, thds);
       } else {
-        mat_normalize(mats[m], lambda, MAT_NORM_MAX, rinfo, thds,nthreads);
+        mat_normalize(mats[m], lambda, MAT_NORM_MAX, rinfo, thds);
       }
 
       /* update A^T*A */
@@ -393,7 +393,7 @@ void cpd_post_process(
 
   /* normalize each matrix and adjust lambda */
   for(idx_t m=0; m < nmodes; ++m) {
-    mat_normalize(mats[m], tmp, MAT_NORM_2, rinfo, thds, nthreads);
+    mat_normalize(mats[m], tmp, MAT_NORM_2, rinfo, thds);
     for(idx_t f=0; f < nfactors; ++f) {
       lambda[f] *= tmp[f];
     }
