@@ -461,12 +461,9 @@ void mat_normalize(
   val_t * const restrict lambda,
   splatt_mat_norm const which,
   rank_info * const rinfo,
-  thd_info * const thds,
-  idx_t const nthreads)
+  thd_info * const thds)
 {
   timer_start(&timers[TIMER_MATNORM]);
-
-  splatt_omp_set_num_threads(nthreads);
 
   switch(which) {
   case MAT_NORM_2:

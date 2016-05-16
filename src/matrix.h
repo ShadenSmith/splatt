@@ -178,8 +178,7 @@ void mat_normalize(
   val_t * const restrict lambda,
   splatt_mat_norm const which,
   rank_info * const rinfo,
-  thd_info * const thds,
-  idx_t const nthreads);
+  thd_info * const thds);
 
 
 #define mat_rand splatt_mat_rand
