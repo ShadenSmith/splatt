@@ -64,6 +64,7 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
   /* defaults */
   opts->tolerance = 1e-5;
   opts->max_iterations = 5;
+  opts->max_inner_iterations = 2;
 
   return opts;
 }
@@ -138,10 +139,14 @@ double cpd_iterate(
     for(idx_t m=0; m < nmodes; ++m) {
       mttkrp_csf(tensor, mats, m, ws->thds, opts);
 
+      /* TODO: fix MTTKRP output and save last one only */
+      par_memcpy(ws->mttkrp_buf->vals, mats[m]->vals,
+          tensor->dims[m] * rank * sizeof(*ws->mttkrp_buf->vals));
+
       mat_form_gram(ws->aTa, nmodes, m);
 
       /* ADMM solve for constraints */
-      admm_inner(m, mats, ws, cpd_opts, global_opts);
+      idx_t const num_inner = admm_inner(m, mats, ws, cpd_opts, global_opts);
 
       /* normalize columns and extract lambda */
       if(it == 0) {
@@ -152,7 +157,9 @@ double cpd_iterate(
 
       /* prepare aTa for next mode */
       mat_aTa(mats[m], ws->aTa[m], NULL);
-    }
+    } /* foreach mode */
+
+    /* calculate outer convergence */
   }
 
   free(opts);

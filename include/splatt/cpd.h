@@ -46,6 +46,7 @@ typedef struct
   /* convergence */
   splatt_val_t tolerance;
   splatt_idx_t max_iterations;
+  splatt_idx_t max_inner_iterations;
 } splatt_cpd_opts;
 
 
