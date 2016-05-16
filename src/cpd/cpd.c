@@ -12,6 +12,8 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
+#include <math.h>
+
 #include "cpd.h"
 #include "admm.h"
 
@@ -133,6 +135,9 @@ double cpd_iterate(
   /* TODO: CSF opts */
   double * opts = splatt_default_opts();
 
+  double oldfit = 0.;
+  double fit = 0.;
+
   /* foreach outer iteration */
   for(idx_t it=0; it < cpd_opts->max_iterations; ++it) {
     /* foreach AO step */
@@ -160,15 +165,16 @@ double cpd_iterate(
     } /* foreach mode */
 
     /* calculate outer convergence */
+    val_t const norm = cpd_norm(ws, factored->lambda);
+
   }
 
   free(opts);
-
   for(idx_t m=0; m < tensor->nmodes; ++m) {
+    /* only free ptr */
     splatt_free(mats[m]);
   }
 
-  double fit = 1.;
   return fit;
 }
 
@@ -189,6 +195,7 @@ cpd_ws * cpd_alloc_ws(
   for(idx_t m=0; m < nmodes; ++m) {
     ws->aTa[m] = mat_alloc(rank, rank);
   }
+  ws->aTa_buf = mat_alloc(rank, rank);
 
   ws->nthreads = global_opts->num_threads;
   ws->thds =  thd_init(ws->nthreads, 3,
@@ -211,6 +218,7 @@ void cpd_free_ws(
     cpd_ws * const ws)
 {
   mat_free(ws->mttkrp_buf);
+  mat_free(ws->aTa_buf);
   for(idx_t m=0; m < ws->nmodes; ++m) {
     mat_free(ws->aTa[m]);
 
@@ -221,3 +229,39 @@ void cpd_free_ws(
 }
 
 
+val_t cpd_norm(
+    cpd_ws const * const ws,
+    val_t const * const restrict column_weights)
+{
+  idx_t const rank = ws->aTa[0]->J;
+  val_t * const restrict scratch = ws->aTa_buf->vals;
+
+  val_t norm = 0;
+
+  /* initialize scratch space */
+  for(idx_t i=0; i < rank; ++i) {
+    for(idx_t j=i; j < rank; ++j) {
+      scratch[j + (i*rank)] = 1.;
+    }
+  }
+
+  /* scratch = hada(aTa) */
+  for(idx_t m=0; m < ws->nmodes; ++m) {
+    val_t const * const restrict atavals = ws->aTa[m]->vals;
+    for(idx_t i=0; i < rank; ++i) {
+      for(idx_t j=i; j < rank; ++j) {
+        scratch[j + (i*rank)] *= atavals[j + (i*rank)];
+      }
+    }
+  }
+
+  /* now compute weights^T * aTa[MAX_NMODES] * weights */
+  for(idx_t i=0; i < rank; ++i) {
+    norm += scratch[i+(i*rank)] * column_weights[i] * column_weights[i];
+    for(idx_t j=i+1; j < rank; ++j) {
+      norm += scratch[j+(i*rank)] * column_weights[i] * column_weights[j] * 2;
+    }
+  }
+
+  return fabs(norm);
+}

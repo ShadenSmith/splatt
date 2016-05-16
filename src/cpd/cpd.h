@@ -27,6 +27,7 @@ typedef struct
 {
   idx_t nmodes;
   matrix_t * aTa[MAX_NMODES];
+  matrix_t * aTa_buf;
 
   matrix_t * mttkrp_buf;
 
@@ -44,6 +45,11 @@ typedef struct
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
+
+val_t cpd_norm(
+    cpd_ws const * const ws,
+    val_t const * const restrict column_weights);
+
 
 double cpd_iterate(
     splatt_csf const * const tensor,
