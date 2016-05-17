@@ -15,6 +15,7 @@ static char const * const timer_names[] = {
   [TIMER_CPD]       = "CPD",
   [TIMER_IO]        = "IO",
   [TIMER_MTTKRP]    = "MTTKRP",
+  [TIMER_ADMM]      = "ADMM",
   [TIMER_INV]       = "INVERSE",
   [TIMER_SPLATT]    = "SPLATT",
   [TIMER_GIGA]      = "GIGA",

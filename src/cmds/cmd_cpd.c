@@ -215,20 +215,29 @@ int splatt_cpd_cmd2(
   splatt_global_opts * glob_opts = splatt_alloc_global_opts();
   splatt_cpd_opts * cpd_opts = splatt_alloc_cpd_opts();
 
+  if(argc < 3) {
+    printf("usage: %s <tensor> <rank> [seed]\n", argv[0]);
+    return EXIT_FAILURE;
+  }
+
   sptensor_t * tt = tt_read(argv[1]);
   stats_tt(tt, argv[1], STATS_BASIC, 0, NULL);
 
   double * dopts = splatt_default_opts();
+  timer_inc_verbose();
 
   splatt_csf * csf = splatt_csf_alloc(tt, dopts);
   tt_free(tt);
 
   srand(time(NULL));
-  idx_t const rank = 5;
+  if(argc > 3) {
+    srand(atoi(argv[3]));
+  }
+
+  idx_t const rank = atoi(argv[2]);
   splatt_kruskal * factored = splatt_alloc_cpd(csf, rank);
 
   splatt_cpd(csf, rank, cpd_opts, glob_opts, factored);
-
 
   /* write output */
   if(true) {
