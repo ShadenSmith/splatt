@@ -55,7 +55,7 @@ splatt_global_opts * splatt_alloc_global_opts(void)
     gopts->num_threads = splatt_omp_get_max_threads();
   }
 
-  gopts->verbosity = SPLATT_VERBOSITY_LOW;
+  gopts->verbosity = SPLATT_VERBOSITY_HIGH;
 
   return gopts;
 }

@@ -64,8 +64,8 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
   splatt_cpd_opts * opts = splatt_malloc(sizeof(*opts));
 
   /* defaults */
-  opts->tolerance = 1e-5;
-  opts->max_iterations = 10;
+  opts->tolerance = 1e-6;
+  opts->max_iterations = 200;
 
   opts->inner_tolerance = 1e-2;
   opts->max_inner_iterations = 10;
@@ -129,9 +129,6 @@ double cpd_iterate(
       mats[m]->vals[i] = fabs(mats[m]->vals[i]);
     }
     mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
-
-    /* duals should be 0 */
-    memset(ws->duals[m]->vals, 0, tensor->dims[m] * rank * sizeof(val_t));
   }
   mats[MAX_NMODES] = ws->mttkrp_buf;
 
@@ -155,6 +152,8 @@ double cpd_iterate(
   sp_timer_t modetime[MAX_NMODES];
   timer_start(&timers[TIMER_CPD]);
 
+  idx_t inner_its[MAX_NMODES];
+
   /* foreach outer iteration */
   for(idx_t it=0; it < cpd_opts->max_iterations; ++it) {
     timer_fstart(&itertime);
@@ -168,7 +167,8 @@ double cpd_iterate(
           tensor->dims[m] * rank * sizeof(val_t));
 
       /* ADMM solve for constraints */
-      admm_inner(m, mats, factored->lambda, ws, cpd_opts, global_opts);
+      inner_its[m] = admm_inner(m, mats, factored->lambda, ws, cpd_opts,
+          global_opts);
 
       /* prepare aTa for next mode */
       mat_aTa(mats[m], ws->aTa[m], NULL);
@@ -191,8 +191,9 @@ double cpd_iterate(
           it+1, itertime.seconds, fit, fit - oldfit);
       if(global_opts->verbosity > SPLATT_VERBOSITY_LOW) {
         for(idx_t m=0; m < nmodes; ++m) {
-          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs)\n", m+1,
-              modetime[m].seconds);
+          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs) "
+                 "[%3"SPLATT_PF_IDX" ADMM its]\n", m+1,
+              modetime[m].seconds, inner_its[m]);
         }
       }
     }
@@ -248,6 +249,9 @@ cpd_ws * cpd_alloc_ws(
   for(idx_t m=0; m < nmodes; ++m) {
     ws->auxil[m] = mat_alloc(tensor->dims[m], rank);
     ws->duals[m] = mat_alloc(tensor->dims[m], rank);
+
+    /* duals should be 0 */
+    memset(ws->duals[m]->vals, 0, tensor->dims[m] * rank * sizeof(val_t));
   }
 
   return ws;
