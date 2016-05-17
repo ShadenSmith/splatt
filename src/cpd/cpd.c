@@ -64,7 +64,7 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
   splatt_cpd_opts * opts = splatt_malloc(sizeof(*opts));
 
   /* defaults */
-  opts->tolerance = 1e-6;
+  opts->tolerance = 1e-5;
   opts->max_iterations = 200;
 
   opts->inner_tolerance = 1e-2;
@@ -128,8 +128,6 @@ double cpd_iterate(
     mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
   }
   mats[MAX_NMODES] = ws->mttkrp_buf;
-
-  printf("CPD time\n");
 
   /* initialite aTa values */
   for(idx_t m=1; m < nmodes; ++m) {

@@ -34,6 +34,7 @@ static void p_setup_auxiliary(
   val_t const * const restrict primal = mats[mode]->vals;
   val_t const * const restrict dual   = ws->duals[mode]->vals;
 
+  #pragma omp parallel for schedule(static)
   for(idx_t i=0; i < I; ++i) {
     for(idx_t j=0; j < J; ++j) {
       idx_t const x = j + (i*J);
@@ -55,6 +56,7 @@ static void p_apply_proxr(
   val_t const * const restrict auxl = ws->auxil[mode]->vals;
   val_t const * const restrict dual = ws->duals[mode]->vals;
 
+  #pragma omp parallel for schedule(static)
   for(idx_t i=0; i < I; ++i) {
     for(idx_t j=0; j < J; ++j) {
       idx_t const x = j + (i*J);
@@ -78,6 +80,7 @@ static void p_update_dual(
   val_t const * const restrict matv = mats[mode]->vals;
   val_t const * const restrict auxl = ws->auxil[mode]->vals;
 
+  #pragma omp parallel for schedule(static)
   for(idx_t i=0; i < I; ++i) {
     for(idx_t j=0; j < J; ++j) {
       idx_t const x = j + (i*J);
@@ -115,6 +118,9 @@ idx_t admm_inner(
   mat_normalize(mats[mode], column_weights, MAT_NORM_2, NULL, ws->thds);
   return 1;
 #else
+
+
+  timer_start(&timers[TIMER_ADMM]);
 
   /* Add penalty to diagonal -- value taken from AO-ADMM paper */
   val_t const rho = mat_trace(ws->gram) / (val_t) rank;
@@ -212,6 +218,7 @@ idx_t admm_inner(
     }
 
     val_t const eps = cpd_opts->inner_tolerance;
+
 #if WRITE_ADMM
     printf("r: %e < %e  &&  s: %e < %e ? %d\n",
         primal_residual, eps * prim_norm,
@@ -234,6 +241,8 @@ idx_t admm_inner(
 #endif
 
   mat_free(mat_init);
+
+  timer_stop(&timers[TIMER_ADMM]);
   return it;
 #endif
 }
