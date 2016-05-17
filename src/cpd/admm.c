@@ -36,10 +36,11 @@ static void p_setup_auxiliary(
   for(idx_t i=0; i < I; ++i) {
     for(idx_t j=0; j < J; ++j) {
       idx_t const x = j + (i*J);
-      aux[x] = mttkrp[x] + (penalty * (primal[x] + dual[x]));
+      aux[x] = mttkrp[x] + penalty * (primal[x] + dual[x]);
     }
   }
 }
+
 
 static void p_apply_proxr(
     idx_t const mode,
@@ -109,7 +110,7 @@ idx_t admm_inner(
   mat_cholesky(ws->gram);
   mat_solve_cholesky(ws->gram, mats[mode]);
   mat_normalize(mats[mode], column_weights, MAT_NORM_2, NULL, ws->thds);
-  return 0;
+  return 1;
 #else
 
   /* Add penalty to diagonal -- value taken from AO-ADMM paper */
@@ -119,9 +120,9 @@ idx_t admm_inner(
     column_weights[i] = 1.;
   }
 
-  matrix_t * mat_init = mat_alloc(dim, rank);
-
   mat_cholesky(ws->gram);
+
+  matrix_t * mat_init = mat_alloc(dim, rank);
 
   idx_t it;
   for(it=0; it < cpd_opts->max_inner_iterations; ++it) {
@@ -145,35 +146,33 @@ idx_t admm_inner(
     val_t prim_norm = 0.;
     val_t dual_norm = 0.;
 
+    val_t const * const restrict matv = mats[mode]->vals;
+    val_t const * const restrict auxv = ws->auxil[mode]->vals;
+    val_t const * const restrict dual = ws->duals[mode]->vals;
+    val_t const * const restrict init = mat_init->vals;
+
     for(idx_t i=0; i < dim; ++i) {
       for(idx_t j=0; j < rank; ++j) {
         idx_t const x = j + (i*rank);
-        val_t const pdiff = mats[mode]->vals[x] - ws->auxil[mode]->vals[x];
-        val_t const ddiff = mats[mode]->vals[x] - mat_init->vals[x];
 
+        val_t const pdiff = matv[x] - auxv[x];
+        val_t const ddiff = matv[x] - init[x];
         primal_residual += pdiff * pdiff;
-        dual_residual += ddiff * ddiff;
+        dual_residual   += ddiff * ddiff;
 
-        prim_norm += mats[mode]->vals[x] * mats[mode]->vals[x];
-        dual_norm += ws->duals[mode]->vals[x] * ws->duals[mode]->vals[x];
+        prim_norm += matv[x] * matv[x];
+        dual_norm += dual[x] * dual[x];
       }
     }
 
     val_t const eps = cpd_opts->inner_tolerance;
-    //printf("  r: %e < %e  && ", primal_residual, eps * prim_norm);
-    //printf("  s: %e < %e ? ", dual_residual, eps * dual_norm);
     if((primal_residual <= eps * prim_norm) &&
-       (dual_residual <= eps * dual_norm)) {
-      //printf( "YES\n");
+       (dual_residual   <= eps * dual_norm)) {
       break;
-    } else {
-      //printf("NO\n");
     }
-  }
-  //printf("---\n");
+  } /* foreach ADMM iteration */
 
   mat_free(mat_init);
-
   return it;
 #endif
 }
