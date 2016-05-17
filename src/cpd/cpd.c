@@ -68,7 +68,7 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
   opts->max_iterations = 200;
 
   opts->inner_tolerance = 1e-2;
-  opts->max_inner_iterations = 10;
+  opts->max_inner_iterations = 20;
 
   return opts;
 }
@@ -124,10 +124,7 @@ double cpd_iterate(
   for(idx_t m=0; m < tensor->nmodes; ++m) {
     mats[m] = mat_mkptr(factored->factors[m], tensor->dims[m], rank, 1);
 
-    /* initialize matrices to be non-negative with unit columns */
-    for(idx_t i=0; i < tensor->dims[m] * rank; ++i) {
-      mats[m]->vals[i] = fabs(mats[m]->vals[i]);
-    }
+    /* this may not be necessary */
     mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
   }
   mats[MAX_NMODES] = ws->mttkrp_buf;
@@ -162,10 +159,6 @@ double cpd_iterate(
       timer_fstart(&modetime[m]);
       mttkrp_csf(tensor, mats, m, ws->thds, opts);
 
-      /* TODO: fix MTTKRP output and save last one only */
-      par_memcpy(mats[m]->vals, ws->mttkrp_buf->vals,
-          tensor->dims[m] * rank * sizeof(val_t));
-
       /* ADMM solve for constraints */
       inner_its[m] = admm_inner(m, mats, factored->lambda, ws, cpd_opts,
           global_opts);
@@ -182,6 +175,7 @@ double cpd_iterate(
     double const residual = sqrt(ttnormsq + norm - (2 * inner));
     fit = 1 - (residual / sqrt(ttnormsq));
 
+    assert(fit >= oldfit);
     timer_stop(&itertime);
 
     /* print progress */

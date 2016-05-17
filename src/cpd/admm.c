@@ -12,6 +12,7 @@
 
 
 
+#define WRITE_ADMM 0
 
 
 
@@ -108,6 +109,8 @@ idx_t admm_inner(
 #if 0
   /* no constraints / regularization */
   mat_cholesky(ws->gram);
+  par_memcpy(mats[mode]->vals, ws->mttkrp_buf->vals,
+     dim * rank * sizeof(mats[0]->vals));
   mat_solve_cholesky(ws->gram, mats[mode]);
   mat_normalize(mats[mode], column_weights, MAT_NORM_2, NULL, ws->thds);
   return 1;
@@ -120,25 +123,68 @@ idx_t admm_inner(
     column_weights[i] = 1.;
   }
 
+#if WRITE_ADMM
+  printf("\n---\nrho: %0.5f\n", rho);
+#endif
+
   mat_cholesky(ws->gram);
+
+#if WRITE_ADMM
+  if(mode < 10) {
+    printf("\n");
+    mat_write(ws->gram, NULL);
+    printf("\n");
+
+    if(true || mode == 2) {
+      printf("MTTKRP:\n");
+      ws->mttkrp_buf->I = 10;
+      mat_write(ws->mttkrp_buf, NULL);
+      printf("\n");
+    }
+  }
+#endif
 
   matrix_t * mat_init = mat_alloc(dim, rank);
 
   idx_t it;
   for(it=0; it < cpd_opts->max_inner_iterations; ++it) {
-    memcpy(mat_init->vals, mats[mode]->vals, dim * rank * sizeof(val_t));
+    par_memcpy(mat_init->vals, mats[mode]->vals, dim * rank * sizeof(val_t));
 
     /* setup auxiliary: MTTKRP + (rho .* (primal + dual)) */
     p_setup_auxiliary(mode, mats, ws, rho);
 
+#if WRITE_ADMM
+    printf("back-pres:\t%0.5f %0.5f %0.5f\n",
+        ws->auxil[mode]->vals[0], ws->auxil[mode]->vals[1], ws->auxil[mode]->vals[3]);
+#endif
+
     /* Cholesky against auxiliary */
     mat_solve_cholesky(ws->gram, ws->auxil[mode]);
+
+#if WRITE_ADMM
+    printf("backsolve:\t%0.5f %0.5f %0.5f\n",
+        ws->auxil[mode]->vals[0], ws->auxil[mode]->vals[1], ws->auxil[mode]->vals[3]);
+    printf("diff:\t\t\t%0.5f %0.5f %0.5f\n",
+        ws->auxil[mode]->vals[0] - mat_init->vals[0],
+        ws->auxil[mode]->vals[1] - mat_init->vals[1],
+        ws->auxil[mode]->vals[2] - mat_init->vals[2]);
+#endif
 
     /* mats[mode] = prox(auxiliary) */
     p_apply_proxr(mode, mats, ws);
 
+#if WRITE_ADMM
+    printf("proxr:\t\t\t%0.5f %0.5f %0.5f\n",
+        mats[mode]->vals[0], mats[mode]->vals[1], mats[mode]->vals[3]);
+#endif
+
     /* update dual: U += (mats[mode] - auxiliary) */
     p_update_dual(mode, mats, ws);
+
+#if WRITE_ADMM
+    printf("dual:\t\t\t\t%0.5f %0.5f %0.5f\n",
+        ws->duals[mode]->vals[0], ws->duals[mode]->vals[1], ws->duals[mode]->vals[3]);
+#endif
 
     /* check ADMM convergence */
     val_t primal_residual = 0.;
@@ -166,11 +212,26 @@ idx_t admm_inner(
     }
 
     val_t const eps = cpd_opts->inner_tolerance;
-    if((primal_residual <= eps * prim_norm) &&
-       (dual_residual   <= eps * dual_norm)) {
+#if WRITE_ADMM
+    printf("r: %e < %e  &&  s: %e < %e ? %d\n",
+        primal_residual, eps * prim_norm,
+        dual_residual,   eps * dual_norm,
+        (primal_residual <= eps * prim_norm) && (dual_residual <=   eps * dual_norm));
+#endif
+
+    if((primal_residual < eps * prim_norm) &&
+       (dual_residual   < eps * dual_norm)) {
+      ++it;
       break;
     }
   } /* foreach ADMM iteration */
+
+#if WRITE_ADMM
+  printf("\nDUAL\n");
+  ws->duals[mode]->I = 10;
+  mat_write(ws->duals[mode], NULL);
+  printf("\n");
+#endif
 
   mat_free(mat_init);
   return it;
