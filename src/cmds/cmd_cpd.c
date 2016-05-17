@@ -230,6 +230,25 @@ int splatt_cpd_cmd2(
   splatt_cpd(csf, rank, cpd_opts, glob_opts, factored);
 
 
+  /* write output */
+  if(true) {
+    vec_write(factored->lambda, rank, "lambda.mat");
+
+    for(idx_t m=0; m < csf->nmodes; ++m) {
+      char * matfname = NULL;
+      asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+
+      matrix_t tmpmat;
+      tmpmat.rowmajor = 1;
+      tmpmat.I = csf->dims[m];
+      tmpmat.J = rank;
+      tmpmat.vals = factored->factors[m];
+
+      mat_write(&tmpmat, matfname);
+      free(matfname);
+    }
+  }
+
   /* cleanup */
   splatt_free_kruskal(factored);
   splatt_free_opts(dopts);
