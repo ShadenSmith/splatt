@@ -42,17 +42,38 @@
 splatt_error_type splatt_cpd(
     splatt_csf const * const tensor,
     splatt_idx_t rank,
-    splatt_cpd_opts const * const cpd_opts,
-    splatt_global_opts const * const global_opts,
+    splatt_cpd_opts const * const cpd_options,
+    splatt_global_opts const * const global_options,
     splatt_kruskal * factored)
 {
+  /* allocate default options if they were not supplied */
+  splatt_global_opts * global_opts = (splatt_global_opts *) global_options;
+  if(global_options == NULL) {
+    global_opts = splatt_alloc_global_opts();
+  }
+  splatt_cpd_opts * cpd_opts = (splatt_cpd_opts *) cpd_options;
+  if(cpd_options == NULL) {
+    cpd_opts = splatt_alloc_cpd_opts();
+  }
+
   splatt_omp_set_num_threads(global_opts->num_threads);
+
+  /* allocate workspace */
   cpd_ws * ws = cpd_alloc_ws(tensor, rank, cpd_opts, global_opts);
 
+  /* perform the factorization! */
   cpd_iterate(tensor, rank, ws, cpd_opts, global_opts, factored);
 
   /* clean up workspace */
   cpd_free_ws(ws);
+
+  /* free options if we had to allocate them */
+  if(global_options == NULL) {
+    splatt_free_global_opts(global_opts);
+  }
+  if(cpd_options == NULL) {
+    splatt_free_cpd_opts(cpd_opts);
+  }
 
   return SPLATT_SUCCESS;
 }
@@ -197,6 +218,8 @@ double cpd_iterate(
     oldfit = fit;
   }
 
+  cpd_post_process(mats, factored->lambda, ws, cpd_opts, global_opts);
+
   splatt_free(opts);
   for(idx_t m=0; m < tensor->nmodes; ++m) {
     /* only free ptr */
@@ -204,9 +227,32 @@ double cpd_iterate(
   }
 
   timer_stop(&timers[TIMER_CPD]);
+
   return fit;
 }
 
+
+
+void cpd_post_process(
+    matrix_t * * mats,
+    val_t * const column_weights,
+    cpd_ws * const ws,
+    splatt_cpd_opts const * const cpd_opts,
+    splatt_global_opts const * const global_opts)
+{
+  idx_t const rank = mats[0]->J;
+  val_t * tmp =  splatt_malloc(rank * sizeof(*tmp));
+
+  /* normalize each matrix and adjust lambda */
+  for(idx_t m=0; m < ws->nmodes; ++m) {
+    mat_normalize(mats[m], tmp, MAT_NORM_2, NULL, ws->thds);
+    for(idx_t f=0; f < rank; ++f) {
+      column_weights[f] *= tmp[f];
+    }
+  }
+
+  splatt_free(tmp);
+}
 
 
 

@@ -245,7 +245,7 @@ idx_t admm_inner(
   /* (A^T * A) .* (B^T * B) .* .... ) */
   mat_form_gram(ws->aTa, ws->gram, ws->nmodes, mode);
 
-#if 0
+#if 1
   /* no constraints / regularization */
   mat_cholesky(ws->gram);
   par_memcpy(mats[mode]->vals, ws->mttkrp_buf->vals,
@@ -280,8 +280,8 @@ idx_t admm_inner(
     mat_solve_cholesky(ws->gram, ws->auxil);
 
     /* mats[mode] = prox(auxiliary) */
-    p_proximity_nonneg(mats[mode], ws->auxil, ws->duals[mode], rho, mode, ws);
-    //p_proximity_l1(mats[mode], ws->auxil, ws->duals[mode], rho, mode, ws);
+    p_proximity_nonneg(mats[mode], ws->auxil, ws->duals[mode], rho, ws, mode);
+    //p_proximity_l1(mats[mode], ws->auxil, ws->duals[mode], rho, ws, mode);
 
     /* update dual: U += (mats[mode] - auxiliary) */
     val_t const dual_norm = p_update_dual(mats[mode], ws->auxil,

@@ -367,7 +367,7 @@ double cpd_als_iterate(
   }
   timer_stop(&timers[TIMER_CPD]);
 
-  cpd_post_process(nfactors, nmodes, mats, lambda, thds, nthreads, rinfo);
+  //cpd_post_process(nfactors, nmodes, mats, lambda, thds, nthreads, rinfo);
 
   /* CLEAN UP */
   for(idx_t m=0; m < nmodes; ++m) {
@@ -379,28 +379,5 @@ double cpd_als_iterate(
   return fit;
 }
 
-
-
-void cpd_post_process(
-  idx_t const nfactors,
-  idx_t const nmodes,
-  matrix_t ** mats,
-  val_t * const lambda,
-  thd_info * const thds,
-  idx_t const nthreads,
-  rank_info * const rinfo)
-{
-  val_t * tmp =  splatt_malloc(nfactors * sizeof(*tmp));
-
-  /* normalize each matrix and adjust lambda */
-  for(idx_t m=0; m < nmodes; ++m) {
-    mat_normalize(mats[m], tmp, MAT_NORM_2, rinfo, thds);
-    for(idx_t f=0; f < nfactors; ++f) {
-      lambda[f] *= tmp[f];
-    }
-  }
-
-  free(tmp);
-}
 
 
