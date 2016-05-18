@@ -215,6 +215,17 @@ int splatt_cpd_cmd2(
   splatt_global_opts * glob_opts = splatt_alloc_global_opts();
   splatt_cpd_opts * cpd_opts = splatt_alloc_cpd_opts();
 
+  cpd_opts->constraints[0].which = SPLATT_REG_NONNEG;
+  cpd_opts->constraints[1].which = SPLATT_REG_NONNEG;
+  cpd_opts->constraints[2].which = SPLATT_REG_NONNEG;
+  cpd_opts->constraints[3].which = SPLATT_REG_NONNEG;
+#if 1
+  cpd_opts->constraints[1].which = SPLATT_REG_L1;
+  val_t * l = splatt_malloc(sizeof(*l));
+  *l = 0.10;
+  cpd_opts->constraints[1].data = l;
+#endif
+
   if(argc < 3) {
     printf("usage: %s <tensor> <rank> [seed]\n", argv[0]);
     return EXIT_FAILURE;
