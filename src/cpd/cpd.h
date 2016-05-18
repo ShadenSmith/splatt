@@ -36,7 +36,7 @@ typedef struct
   thd_info * thds;
 
   /* AO-ADMM */
-  matrix_t * auxil[MAX_NMODES];
+  matrix_t * auxil;
   matrix_t * duals[MAX_NMODES];
 } cpd_ws;
 

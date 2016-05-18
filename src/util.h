@@ -112,12 +112,12 @@ int * get_primes(
 * @brief Perform a parallel memcpy. Like memcpy(), dst and src must not
 *        overlap.
 *
-* @param dst The destination buffer.
+* @param[out] dst The destination buffer.
 * @param src The source buffer.
 * @param bytes The number of bytes to copy.
 */
 void par_memcpy(
-    void * const restrict dst,
+    void       * const restrict dst,
     void const * const restrict src,
     size_t const bytes);
 
