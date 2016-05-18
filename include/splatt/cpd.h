@@ -20,9 +20,9 @@
 
 typedef enum
 {
-  SPLATT_REG_FROBENIUS,
+  SPLATT_REG_L1,
+  SPLATT_REG_L2,
 #if 0
-  SPLATT_REG_LASSO,
   SPLATT_REG_SMOOTH,
 #endif
 
@@ -98,8 +98,6 @@ splatt_error_type splatt_cpd(
     splatt_cpd_opts const * const cpd_opts,
     splatt_global_opts const * const global_opts,
     splatt_kruskal * factored);
-
-
 
 
 #ifdef __cplusplus

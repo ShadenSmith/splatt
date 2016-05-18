@@ -67,6 +67,30 @@ double cpd_iterate(
     splatt_kruskal * factored);
 
 
+
+#define cpd_post_process splatt_cpd_post_process
+/**
+* @brief Perform a final normalization of the factor matrices and gather into
+*        lambda.
+*
+*        TODO: Sort factor columns and lambda.
+*
+* @param mats The factor matrices.
+* @param column_weights The weights of the rank-one factors.
+* @param ws CPD workspace.
+* @param cpd_opts CPD options.
+* @param global_opts SPLATT options.
+*/
+void cpd_post_process(
+    matrix_t * * mats,
+    val_t * const column_weights,
+    cpd_ws * const ws,
+    splatt_cpd_opts const * const cpd_opts,
+    splatt_global_opts const * const global_opts);
+
+
+
+
 /**
 * @brief Allocate a workspace for computing a CPD factorization. Tensor, CPD,
 *        and global option info is collected to ease future extension.
