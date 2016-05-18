@@ -237,9 +237,10 @@ cpd_ws * cpd_alloc_ws(
   idx_t const maxdim = tensor->dims[argmax_elem(tensor->dims, nmodes)];
   ws->mttkrp_buf = mat_alloc(maxdim, rank);
 
+
   /* TODO: AO-ADMM constructs for constraints */
+  ws->auxil = mat_alloc(maxdim, rank);
   for(idx_t m=0; m < nmodes; ++m) {
-    ws->auxil[m] = mat_alloc(tensor->dims[m], rank);
     ws->duals[m] = mat_alloc(tensor->dims[m], rank);
 
     /* duals should be 0 */
@@ -257,11 +258,11 @@ void cpd_free_ws(
   mat_free(ws->mttkrp_buf);
   mat_free(ws->aTa_buf);
   mat_free(ws->gram);
+  mat_free(ws->auxil);
   for(idx_t m=0; m < ws->nmodes; ++m) {
     mat_free(ws->aTa[m]);
 
     /* if constraints, free auxil/dual */
-    mat_free(ws->auxil[m]);
     mat_free(ws->duals[m]);
   }
 
