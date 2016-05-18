@@ -1,6 +1,6 @@
 /**
 * @file cpd.h
-* @brief Functions for computing CPD factorizations.
+* @brief API functions for computing CPD factorizations.
 * @author Shaden Smith <shaden@cs.umn.edu>
 * @version 2.0.0
 * @date 2016-05-15
@@ -23,21 +23,27 @@
  * TYPES
  *****************************************************************************/
 
+
+/**
+* @brief A workspace used for computing CPD factorizations.
+*/
 typedef struct
 {
-  idx_t nmodes;
-  matrix_t * aTa[MAX_NMODES];
-  matrix_t * aTa_buf;
-  matrix_t * gram;
+  idx_t nmodes; /** The number of modes in the factorization. */
+  matrix_t * aTa[MAX_NMODES]; /** Caching for the A^T * A factors. */
+  matrix_t * aTa_buf;         /** Buffer space for accumulating hada(aTa[:]).*/
+  matrix_t * gram;            /** The gram matrix to invert. */
 
-  matrix_t * mttkrp_buf;
+  matrix_t * mttkrp_buf;      /** The output of the MTTKRP operation. */
 
-  int nthreads;
-  thd_info * thds;
+  int nthreads; /** The number of threads we are using. */
+  thd_info * thds; /** Thread private structures. */
 
   /* AO-ADMM */
-  matrix_t * auxil;
-  matrix_t * duals[MAX_NMODES];
+
+  matrix_t * auxil; /** Auxiliary matrix for AO-ADMM factorization. */
+  matrix_t * duals[MAX_NMODES]; /** Dual matrices for AO-ADMM factorization. */
+  matrix_t * mat_init; /** Store the initial primal variable each ADMM iteration. */
 } cpd_ws;
 
 
@@ -47,17 +53,55 @@ typedef struct
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+
+#define cpd_norm splatt_cpd_norm
+/**
+* @brief Compute the squared Frobenius norm of a CPD factorization.
+*
+* @param ws CPD workspace -- uses aTa[:] and aTa_buf.
+* @param column_weights The weights of the CPD rank-one factors.
+*
+* @return The squared Frobenius norm.
+*/
 val_t cpd_norm(
     cpd_ws const * const ws,
     val_t const * const restrict column_weights);
 
 
+
+#define cpd_innerprod splatt_cpd_innerprod
+/**
+* @brief Compute the inner product of a CPD factorization and a CSF tensor.
+*        This uses a cached MTTKRP to save many flops.
+*
+* @param lastmode The last mode that the MTTKRP was performed on.
+* @param ws CPD workspace -- ws->mttkrp_buf is used.
+* @param mats The CPD factors.
+* @param column_weights The weights of the rank-one factors.
+*
+* @return The inner product.
+*/
 val_t cpd_innerprod(
     idx_t lastmode,
     cpd_ws const * const ws,
     matrix_t * * mats,
     val_t const * const restrict column_weights);
 
+
+
+#define cpd_iterate splatt_cpd_iterate
+/**
+* @brief The primary computation in CPD AO-ADMM. API functions call this one.
+*
+* @param tensor The CSF tensor to factor.
+* @param rank The rank of the factorization.
+* @param ws CPD workspace.
+* @param cpd_opts CPD factorization parameters.
+* @param global_opts SPLATT global parameters.
+* @param[out] factored The factored tensor.
+*
+* @return The fitness of the factorization: 1 - relative error.
+*/
 double cpd_iterate(
     splatt_csf const * const tensor,
     idx_t rank,
@@ -71,12 +115,12 @@ double cpd_iterate(
 #define cpd_post_process splatt_cpd_post_process
 /**
 * @brief Perform a final normalization of the factor matrices and gather into
-*        lambda.
+*        column_weights.
 *
-*        TODO: Sort factor columns and lambda.
+*        TODO: Sort columns weights and factor columns.
 *
-* @param mats The factor matrices.
-* @param column_weights The weights of the rank-one factors.
+* @param[out] mats The factor matrices.
+* @param[out] column_weights The weights of the rank-one factors.
 * @param ws CPD workspace.
 * @param cpd_opts CPD options.
 * @param global_opts SPLATT options.
@@ -116,6 +160,8 @@ cpd_ws * cpd_alloc_ws(
 */
 void cpd_free_ws(
     cpd_ws * const ws);
+
+
 
 #endif
 

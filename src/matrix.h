@@ -81,6 +81,10 @@ void mat_solve_cholesky(
 val_t mat_trace(
     matrix_t const * const A);
 
+void mat_add_diag(
+    matrix_t * const A,
+    val_t const scalar);
+
 
 #define mat_matmul splatt_mat_matmul
 /**

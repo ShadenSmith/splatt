@@ -606,6 +606,18 @@ void mat_solve_normals(
 }
 
 
+void mat_add_diag(
+    matrix_t * const A,
+    val_t const scalar)
+{
+  idx_t const rank = A->J;
+  val_t * const restrict vals = A->vals;
+
+  for(idx_t i=0; i < rank; ++i) {
+    vals[i + (i*rank)] += scalar;
+  }
+}
+
 
 
 void calc_gram_inv(
@@ -685,9 +697,13 @@ matrix_t * mat_mkptr(
 void mat_free(
   matrix_t * mat)
 {
-  free(mat->vals);
-  free(mat);
+  if(mat == NULL) {
+    return;
+  }
+  splatt_free(mat->vals);
+  splatt_free(mat);
 }
+
 
 matrix_t * mat_mkrow(
   matrix_t const * const mat)

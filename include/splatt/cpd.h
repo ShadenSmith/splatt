@@ -20,26 +20,29 @@
 
 typedef enum
 {
+  SPLATT_REG_NONE,
   SPLATT_REG_L1,
   SPLATT_REG_L2,
+  SPLATT_REG_NONNEG,
+
 #if 0
-  SPLATT_REG_SMOOTH,
+  SPLATT_REG_SMOOTHNESS,
+  SPLATT_REG_SYMMETRY,
+  SPLATT_REG_SIMPLEX,
+  SPLATT_REG_CUSTOM,
 #endif
 
-  SPLATT_REG_NUMREGS
-} splatt_regularize_type;
+} splatt_reg_type;
 
 
-typedef enum
+
+typedef struct
 {
-  SPLATT_CON_NONNEG,
-#if 0
-  SPLATT_CON_SYMMETRY,
-  SPLATT_CON_SIMPLEX,
-#endif
+  splatt_reg_type which;
 
-  SPLATT_CON_NUMCONS
-} splatt_constraint_type;
+  /* Arbitrary data -- often a lambda parameter. */
+  void * data;
+} splatt_regularization;
 
 
 typedef struct
@@ -47,14 +50,15 @@ typedef struct
   /* convergence */
   splatt_val_t tolerance;
   splatt_idx_t max_iterations;
+
   /* inner ADMM solves */
   splatt_val_t inner_tolerance;
   splatt_idx_t max_inner_iterations;
 
   /* constraints */
+  splatt_regularization constraints[SPLATT_MAX_NMODES];
 
 } splatt_cpd_opts;
-
 
 
 

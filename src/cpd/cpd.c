@@ -91,6 +91,11 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
   opts->inner_tolerance = 1e-2;
   opts->max_inner_iterations = 20;
 
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    opts->constraints[m].which = SPLATT_REG_NONE;
+    opts->constraints[m].data = NULL;
+  }
+
   return opts;
 }
 
@@ -98,6 +103,23 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
 void splatt_free_cpd_opts(
     splatt_cpd_opts * opts)
 {
+  /* if constraints, free data */
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    switch(opts->constraints[m].which) {
+    case SPLATT_REG_NONE:
+      break;
+    case SPLATT_REG_L1:
+      splatt_free(opts->constraints[m].data);
+      break;
+    case SPLATT_REG_L2:
+      splatt_free(opts->constraints[m].data);
+      break;
+    case SPLATT_REG_NONNEG:
+      break;
+    }
+  }
+
+  /* free options pointer */
   splatt_free(opts);
 }
 
@@ -118,6 +140,11 @@ splatt_kruskal * splatt_alloc_cpd(
 
     /* TODO: allow custom initialization including NUMA aware */
     fill_rand(cpd->factors[m], csf->dims[m] * rank);
+  }
+
+  /* initialize lambda in case it is not modified */
+  for(idx_t r=0; r < rank; ++r) {
+    cpd->lambda[r] = 1.;
   }
 
   return cpd;
@@ -144,9 +171,6 @@ double cpd_iterate(
   matrix_t * mats[MAX_NMODES+1];
   for(idx_t m=0; m < tensor->nmodes; ++m) {
     mats[m] = mat_mkptr(factored->factors[m], tensor->dims[m], rank, 1);
-
-    /* this may not be necessary */
-    mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
   }
   mats[MAX_NMODES] = ws->mttkrp_buf;
 
@@ -218,7 +242,9 @@ double cpd_iterate(
     oldfit = fit;
   }
 
+#if 0
   cpd_post_process(mats, factored->lambda, ws, cpd_opts, global_opts);
+#endif
 
   splatt_free(opts);
   for(idx_t m=0; m < tensor->nmodes; ++m) {
@@ -284,8 +310,9 @@ cpd_ws * cpd_alloc_ws(
   ws->mttkrp_buf = mat_alloc(maxdim, rank);
 
 
-  /* TODO: AO-ADMM constructs for constraints */
-  ws->auxil = mat_alloc(maxdim, rank);
+  /* AO-ADMM */
+  ws->auxil    = mat_alloc(maxdim, rank);
+  ws->mat_init = mat_alloc(maxdim, rank);
   for(idx_t m=0; m < nmodes; ++m) {
     ws->duals[m] = mat_alloc(tensor->dims[m], rank);
 
@@ -304,11 +331,12 @@ void cpd_free_ws(
   mat_free(ws->mttkrp_buf);
   mat_free(ws->aTa_buf);
   mat_free(ws->gram);
+
   mat_free(ws->auxil);
+  mat_free(ws->mat_init);
+
   for(idx_t m=0; m < ws->nmodes; ++m) {
     mat_free(ws->aTa[m]);
-
-    /* if constraints, free auxil/dual */
     mat_free(ws->duals[m]);
   }
 
