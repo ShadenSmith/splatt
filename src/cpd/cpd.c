@@ -171,8 +171,15 @@ double cpd_iterate(
   matrix_t * mats[MAX_NMODES+1];
   for(idx_t m=0; m < tensor->nmodes; ++m) {
     mats[m] = mat_mkptr(factored->factors[m], tensor->dims[m], rank, 1);
+
+    mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
   }
   mats[MAX_NMODES] = ws->mttkrp_buf;
+
+  /* reset column weights */
+  for(idx_t r=0; r < rank; ++r) {
+    factored->lambda[r] = 1.;
+  }
 
   /* initialite aTa values */
   for(idx_t m=1; m < nmodes; ++m) {

@@ -219,7 +219,10 @@ int splatt_cpd_cmd2(
   cpd_opts->constraints[1].which = SPLATT_REG_NONNEG;
   cpd_opts->constraints[2].which = SPLATT_REG_NONNEG;
   cpd_opts->constraints[3].which = SPLATT_REG_NONNEG;
-#if 1
+  cpd_opts->constraints[4].which = SPLATT_REG_NONNEG;
+  cpd_opts->constraints[5].which = SPLATT_REG_NONNEG;
+  cpd_opts->constraints[6].which = SPLATT_REG_NONNEG;
+#if 0
   cpd_opts->constraints[1].which = SPLATT_REG_L1;
   val_t * l = splatt_malloc(sizeof(*l));
   *l = 0.10;
