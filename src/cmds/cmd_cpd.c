@@ -29,10 +29,14 @@ typedef enum
   /* constraints */
   LONG_NONNEG,
   LONG_L1,
+  LONG_L2,
 } splatt_long_opt;
 
 
 static struct argp_option cpd_options[] = {
+  /* override help so we can use -h instead of -? */
+  {"help", 'h', 0, 0, "help on verbose output (default: no)"},
+
   {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
   {"tol", LONG_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
@@ -47,6 +51,7 @@ static struct argp_option cpd_options[] = {
   {"nonneg", LONG_NONNEG, "MODE", OPTION_ARG_OPTIONAL,
       "non-negative factorization.", 1},
   {"l1", LONG_L1, "scale[,MODE]", 0, "l1 regularization.", 1},
+  {"l2", LONG_L2, "scale[,MODE]", 0, "l2 regularization.", 1},
 
   { 0 }
 };
@@ -102,6 +107,10 @@ static error_t parse_cpd_opt(
   idx_t mode = MAX_NMODES;
 
   switch(key) {
+  case 'h':
+    argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
+    break;
+
   case 'i':
     args->cpd_opts->max_iterations = strtoull(arg, &arg, 10);
     break;
@@ -142,17 +151,33 @@ static error_t parse_cpd_opt(
 
   case LONG_L1:
     scale = strtof(arg, &arg);
-    if(arg != NULL) {
+    if(strlen(arg) > 0) {
       /* for each comma separated mode */
       do {
-        printf("parsing %s ->", arg+1);
-        mode = strtoull(arg+1, &arg, 10);
-        printf("%s = mode: %lu (%p)\n", arg, mode, arg);
-        splatt_cpd_reg_l1(args->cpd_opts, mode+1, scale);
-      } while(arg != NULL);
+        ++arg; /* skip , */
+        mode = strtoull(arg, &arg, 10);
+        splatt_cpd_reg_l1(args->cpd_opts, mode-1, scale);
+      } while(strlen(arg) > 0);
+
     } else {
       /* all modes */
       splatt_cpd_reg_l1(args->cpd_opts, mode, scale);
+    }
+    break;
+
+  case LONG_L2:
+    scale = strtof(arg, &arg);
+    if(strlen(arg) > 0) {
+      /* for each comma separated mode */
+      do {
+        ++arg; /* skip , */
+        mode = strtoull(arg, &arg, 10);
+        splatt_cpd_reg_l2(args->cpd_opts, mode-1, scale);
+      } while(strlen(arg) > 0);
+
+    } else {
+      /* all modes */
+      splatt_cpd_reg_l2(args->cpd_opts, mode, scale);
     }
     break;
 
