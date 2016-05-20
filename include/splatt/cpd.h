@@ -20,29 +20,29 @@
 
 typedef enum
 {
-  SPLATT_REG_NONE,
+  SPLATT_CON_NONE,
   SPLATT_REG_L1,
   SPLATT_REG_L2,
-  SPLATT_REG_NONNEG,
+  SPLATT_CON_NONNEG,
 
 #if 0
   SPLATT_REG_SMOOTHNESS,
-  SPLATT_REG_SYMMETRY,
-  SPLATT_REG_SIMPLEX,
-  SPLATT_REG_CUSTOM,
+  SPLATT_CON_SYMMETRY,
+  SPLATT_CON_SIMPLEX,
+  SPLATT_CON_CUSTOM,
 #endif
 
-} splatt_reg_type;
+} splatt_con_type;
 
 
 
 typedef struct
 {
-  splatt_reg_type which;
+  splatt_con_type which;
 
   /* Arbitrary data -- often a lambda parameter. */
   void * data;
-} splatt_regularization;
+} splatt_constraint;
 
 
 typedef struct
@@ -56,7 +56,7 @@ typedef struct
   splatt_idx_t max_inner_iterations;
 
   /* constraints */
-  splatt_regularization constraints[SPLATT_MAX_NMODES];
+  splatt_constraint constraints[SPLATT_MAX_NMODES];
 
 } splatt_cpd_opts;
 
@@ -73,6 +73,12 @@ extern "C" {
 #endif
 
 
+
+/**
+ * \defgroup CPD_opts Functions for configuring a CPD factorization.
+ *  @{
+ */
+
 /**
 * @brief Allocate a `splatt_cpd_opts` structure and initialize with sane
 *        defaults.
@@ -80,11 +86,6 @@ extern "C" {
 * @return The allocated options, to be freed by `splatt_free_cpd_opts()`.
 */
 splatt_cpd_opts * splatt_alloc_cpd_opts(void);
-
-
-splatt_kruskal * splatt_alloc_cpd(
-    splatt_csf const * const csf,
-    splatt_idx_t rank);
 
 /**
 * @brief Free the memory allocated by `splatt_alloc_cpd_opts()`.
@@ -96,6 +97,60 @@ void splatt_free_cpd_opts(
 
 
 
+void splatt_cpd_reg_l1(
+    splatt_cpd_opts * const cpd_opts,
+    splatt_idx_t const mode,
+    splatt_val_t const scale);
+
+
+void splatt_cpd_reg_l2(
+    splatt_cpd_opts * const cpd_opts,
+    splatt_idx_t const mode,
+    splatt_val_t const scale);
+
+
+
+void splatt_cpd_con_nonneg(
+    splatt_cpd_opts * const cpd_opts,
+    splatt_idx_t const mode);
+
+
+void splatt_cpd_con_clear(
+    splatt_cpd_opts * const cpd_opts,
+    splatt_idx_t const mode);
+
+/** }@ */
+
+
+
+/**
+* @brief Allocate the memory required for a CPD factorization of a given tensor.
+*
+* @param tensor The tensor to factor.
+* @param rank The desired factorization rank.
+*
+* @return Allocated factors.
+*/
+splatt_kruskal * splatt_alloc_cpd(
+    splatt_csf const * const tensor,
+    splatt_idx_t rank);
+
+
+/**
+* @brief Compute a CPD factorization.
+*
+* @param tensor The tensor to factor.
+* @param rank The desired factorization rank.
+* @param cpd_opts Configuration for the specific factorization. Can be NULL for
+*                 default options.
+* @param global_opts Configuration for general SPLATT behavior. Can be NULL for
+*                    default options.
+* @param[out] factored The factored tensor.
+*
+* @return SPLATT error code. SPLATT_SUCCESS if no error.
+*
+* @ingroup splatt_factorizations
+*/
 splatt_error_type splatt_cpd(
     splatt_csf const * const tensor,
     splatt_idx_t rank,

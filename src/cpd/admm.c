@@ -237,7 +237,7 @@ static void p_admm_optimal_regs(
     matrix_t * const primal,
     val_t * const restrict column_weights,
     cpd_ws * const ws,
-    splatt_reg_type which_reg,
+    splatt_con_type which_reg,
     void const * const cdata)
 {
   /* Add to the diagonal for L2 regularization. */
@@ -254,7 +254,7 @@ static void p_admm_optimal_regs(
   mat_solve_cholesky(ws->gram, primal);
 
   /* Absorb columns into column_weights */
-  if(which_reg == SPLATT_REG_NONE) {
+  if(which_reg == SPLATT_CON_NONE) {
     mat_normalize(primal, column_weights, MAT_NORM_2, NULL, ws->thds);
   }
 }
@@ -279,11 +279,11 @@ idx_t admm_inner(
   /* (A^T * A) .* (B^T * B) .* .... ) */
   mat_form_gram(ws->aTa, ws->gram, ws->nmodes, mode);
 
-  splatt_reg_type const which_reg = cpd_opts->constraints[mode].which;
+  splatt_con_type const which_reg = cpd_opts->constraints[mode].which;
   void const * const cdata        = cpd_opts->constraints[mode].data;
 
   /* these can be solved optimally without ADMM iterations */
-  if(which_reg == SPLATT_REG_NONE || which_reg == SPLATT_REG_L2) {
+  if(which_reg == SPLATT_CON_NONE || which_reg == SPLATT_REG_L2) {
     p_admm_optimal_regs(mats[mode], column_weights, ws, which_reg, cdata);
     return 0;
   }
@@ -323,13 +323,13 @@ idx_t admm_inner(
       p_proximity_l1(mats[mode], rho, ws, mode, cdata);
       break;
 
-    case SPLATT_REG_NONNEG:
+    case SPLATT_CON_NONNEG:
       p_proximity_nonneg(mats[mode], rho, ws, mode, cdata);
       break;
 
-    case SPLATT_REG_NONE:
+    case SPLATT_CON_NONE:
     case SPLATT_REG_L2:
-      /* XXX: NONE and L1 should have been caught already. */
+      /* XXX: NONE and L2 should have been caught already. */
       assert(false);
       break;
     } /* proximity operatior */
@@ -353,5 +353,7 @@ idx_t admm_inner(
   timer_stop(&timers[TIMER_ADMM]);
   return it;
 }
+
+
 
 

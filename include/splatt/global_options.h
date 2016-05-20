@@ -18,6 +18,8 @@ typedef struct
 {
   int num_threads;
   splatt_verbosity_type verbosity;
+
+  int random_seed;
 } splatt_global_opts;
 
 
