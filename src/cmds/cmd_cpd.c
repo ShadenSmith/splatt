@@ -28,6 +28,7 @@ typedef enum
 
   /* constraints */
   LONG_NONNEG,
+  LONG_L1,
 } splatt_long_opt;
 
 
@@ -44,7 +45,8 @@ static struct argp_option cpd_options[] = {
   {0, 0, 0, 0, "Constraints and Regularizations", 1},
 
   {"nonneg", LONG_NONNEG, "MODE", OPTION_ARG_OPTIONAL,
-      "non-negative factorization (default: all modes).", 1},
+      "non-negative factorization.", 1},
+  {"l1", LONG_L1, "scale[,MODE]", 0, "l1 regularization.", 1},
 
   { 0 }
 };
@@ -96,6 +98,9 @@ static error_t parse_cpd_opt(
     ++arg;
   }
 
+  val_t scale = 0.;
+  idx_t mode = MAX_NMODES;
+
   switch(key) {
   case 'i':
     args->cpd_opts->max_iterations = strtoull(arg, &arg, 10);
@@ -134,6 +139,23 @@ static error_t parse_cpd_opt(
       splatt_cpd_con_nonneg(args->cpd_opts, MAX_NMODES);
     }
     break;
+
+  case LONG_L1:
+    scale = strtof(arg, &arg);
+    if(arg != NULL) {
+      /* for each comma separated mode */
+      do {
+        printf("parsing %s ->", arg+1);
+        mode = strtoull(arg+1, &arg, 10);
+        printf("%s = mode: %lu (%p)\n", arg, mode, arg);
+        splatt_cpd_reg_l1(args->cpd_opts, mode+1, scale);
+      } while(arg != NULL);
+    } else {
+      /* all modes */
+      splatt_cpd_reg_l1(args->cpd_opts, mode, scale);
+    }
+    break;
+
 
   case ARGP_KEY_ARG:
     if(args->ifname != NULL) {
