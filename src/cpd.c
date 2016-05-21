@@ -318,9 +318,7 @@ double cpd_als_iterate(
       m1->I = mats[m]->I;
 
       /* M1 = X * (C o B) */
-      timer_start(&timers[TIMER_MTTKRP]);
       mttkrp_csf(tensors, mats, m, thds, opts);
-      timer_stop(&timers[TIMER_MTTKRP]);
 
 #if 0
       /* M2 = (CtC .* BtB .* ...)^-1 */

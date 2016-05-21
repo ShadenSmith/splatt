@@ -25,6 +25,8 @@ typedef enum
   LONG_NOWRITE,
   LONG_TILE,
   LONG_TOL,
+  LONG_INNER_ITS,
+  LONG_INNER_TOL,
 
   /* constraints */
   LONG_NONNEG,
@@ -35,12 +37,13 @@ typedef enum
 
 static struct argp_option cpd_options[] = {
   /* override help so we can use -h instead of -? */
-  {"help", 'h', 0, 0, "help on verbose output (default: no)"},
+  {"help", 'h', 0, 0, "Give this help list."},
 
-  {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
-  {"tol", LONG_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
-  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
-  {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
+  {"iters", 'i', "#ITS", 0, "maximum number of outer iterations (default: 200)"},
+  {"tol", LONG_TOL, "TOLERANCE", 0, "convergence tolerance (default: 1e-5)"},
+
+  {"rank", 'r', "RANK", 0, "rank of factorization (default: 10)"},
+  {"threads", 't', "NTHREADS", 0, "number of threads (default: OMP_NUM_THREADS)"},
   {"tile", LONG_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", LONG_NOWRITE, 0, 0, "do not write output to file"},
   {"seed", LONG_SEED, "SEED", 0, "random seed (default: system time)"},
@@ -49,9 +52,14 @@ static struct argp_option cpd_options[] = {
   {0, 0, 0, 0, "Constraints and Regularizations", 1},
 
   {"nonneg", LONG_NONNEG, "MODE", OPTION_ARG_OPTIONAL,
-      "non-negative factorization.", 1},
-  {"l1", LONG_L1, "scale[,MODE]", 0, "l1 regularization.", 1},
-  {"l2", LONG_L2, "scale[,MODE]", 0, "l2 regularization.", 1},
+      "non-negative factorization", 1},
+  {"l1", LONG_L1, "scale[,MODE]", 0, "l1 regularization", 1},
+  {"l2", LONG_L2, "scale[,MODE]", 0, "l2 regularization", 1},
+
+  {"inner-its", LONG_INNER_ITS, "#ITS", 0,
+      "maximum number of inner ADMM iterations to use (default: 20)", 1},
+  {"inner-tol", LONG_INNER_TOL, "TOLERANCE", 0,
+      "convergence tolerance of inner ADMM iterations (default: 1e-2)", 1},
 
   { 0 }
 };
@@ -117,14 +125,26 @@ static error_t parse_cpd_opt(
   case LONG_TOL:
     args->cpd_opts->tolerance = atof(arg);
     break;
+
+  case LONG_INNER_ITS:
+    args->cpd_opts->max_inner_iterations = strtoull(arg, &arg, 10);
+    break;
+  case LONG_INNER_TOL:
+    args->cpd_opts->inner_tolerance = atof(arg);
+    break;
+
   case 't':
     args->global_opts->num_threads = atoi(arg);
     splatt_omp_set_num_threads(args->global_opts->num_threads);
     break;
+
   case 'v':
     timer_inc_verbose();
-    args->global_opts->verbosity += 1;
+    if(args->global_opts->verbosity < SPLATT_VERBOSITY_MAX) {
+      args->global_opts->verbosity += 1;
+    }
     break;
+
   case LONG_TILE:
     args->opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
     break;
@@ -212,7 +232,7 @@ int splatt_cpd_cmd(
   /* assign defaults and parse arguments */
   cpd_cmd_args args;
   default_cpd_opts(&args);
-  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER | ARGP_NO_HELP, 0, &args);
 
   sptensor_t * tt = NULL;
 
@@ -289,23 +309,13 @@ int splatt_cpd_cmd2(
 
   cpd_cmd_args args;
   default_cpd_opts(&args);
-  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
-
-#if 0
-  cpd_opts->constraints[0].which = SPLATT_REG_NONNEG;
-  cpd_opts->constraints[1].which = SPLATT_REG_NONNEG;
-  cpd_opts->constraints[2].which = SPLATT_REG_NONNEG;
-  cpd_opts->constraints[3].which = SPLATT_REG_NONNEG;
-  cpd_opts->constraints[4].which = SPLATT_REG_NONNEG;
-  cpd_opts->constraints[5].which = SPLATT_REG_NONNEG;
-  cpd_opts->constraints[6].which = SPLATT_REG_NONNEG;
-  cpd_opts->constraints[1].which = SPLATT_REG_L1;
-  val_t * l = splatt_malloc(sizeof(*l));
-  *l = 0.10;
-  cpd_opts->constraints[1].data = l;
-#endif
+  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER | ARGP_NO_HELP, 0, &args);
 
   sptensor_t * tt = tt_read(args.ifname);
+  if(tt == NULL) {
+    return SPLATT_ERROR_BADINPUT;
+  }
+
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
   double * dopts = splatt_default_opts();
@@ -314,6 +324,8 @@ int splatt_cpd_cmd2(
   tt_free(tt);
 
   splatt_kruskal * factored = splatt_alloc_cpd(csf, args.nfactors);
+
+  printf("outer: %f inner: %f\n", args.cpd_opts->tolerance, args.cpd_opts->inner_tolerance);
 
   splatt_cpd(csf, args.nfactors, args.cpd_opts, args.global_opts, factored);
 

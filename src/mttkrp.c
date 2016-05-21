@@ -1266,6 +1266,7 @@ void mttkrp_csf(
   thd_info * const thds,
   double const * const opts)
 {
+  timer_start(&timers[TIMER_MTTKRP]);
   p_init_locks();
 
   /* clear output matrix */
@@ -1312,6 +1313,7 @@ void mttkrp_csf(
     p_root_decide(tensors+mode, mats, mode, thds, opts);
     break;
   }
+  timer_stop(&timers[TIMER_MTTKRP]);
 }
 
 
