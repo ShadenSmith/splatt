@@ -310,13 +310,13 @@ double cpd_iterate(
 
     /* print progress */
     if(global_opts->verbosity > SPLATT_VERBOSITY_NONE) {
-      printf("  its = %3"SPLATT_PF_IDX" (%0.3"SPLATT_PF_VAL"s)  "
+      printf("  its = %4"SPLATT_PF_IDX" (%0.3"SPLATT_PF_VAL"s)  "
              "fit = %0.5"SPLATT_PF_VAL"  delta = %+0.4e\n",
           it+1, itertime.seconds, fit, fit - oldfit);
       if(global_opts->verbosity > SPLATT_VERBOSITY_LOW) {
         for(idx_t m=0; m < nmodes; ++m) {
           printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs) "
-                 "[%3"SPLATT_PF_IDX" ADMM its]\n", m+1,
+                 "[%4"SPLATT_PF_IDX" ADMM its]\n", m+1,
               modetime[m].seconds, inner_its[m]);
         }
       }

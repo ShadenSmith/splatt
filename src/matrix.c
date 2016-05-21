@@ -283,6 +283,7 @@ void mat_syminv(
 void mat_cholesky(
   matrix_t const * const A)
 {
+  timer_start(&timers[TIMER_CHOLESKY]);
   /* check dimensions */
   assert(A->I == A->J);
 
@@ -297,6 +298,8 @@ void mat_cholesky(
   if(info) {
     fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
   }
+
+  timer_stop(&timers[TIMER_CHOLESKY]);
 }
 
 
@@ -304,6 +307,7 @@ void mat_solve_cholesky(
     matrix_t * const cholesky,
     matrix_t * const rhs)
 {
+  timer_start(&timers[TIMER_BACKSOLVE]);
   int N = (int) cholesky->I;
 
   /* Solve against rhs */
@@ -316,6 +320,8 @@ void mat_solve_cholesky(
   if(info) {
     fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
   }
+
+  timer_stop(&timers[TIMER_BACKSOLVE]);
 }
 
 
