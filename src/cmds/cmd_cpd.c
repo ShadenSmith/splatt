@@ -326,8 +326,6 @@ int splatt_cpd_cmd2(
 
   splatt_kruskal * factored = splatt_alloc_cpd(csf, args.nfactors);
 
-  printf("outer: %f inner: %f\n", args.cpd_opts->tolerance, args.cpd_opts->inner_tolerance);
-
   splatt_cpd(csf, args.nfactors, args.cpd_opts, args.global_opts, factored);
 
   /* write output */
