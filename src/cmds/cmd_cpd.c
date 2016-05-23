@@ -43,7 +43,7 @@ static struct argp_option cpd_options[] = {
   {"tol", LONG_TOL, "TOLERANCE", 0, "convergence tolerance (default: 1e-5)"},
 
   {"rank", 'r', "RANK", 0, "rank of factorization (default: 10)"},
-  {"threads", 't', "NTHREADS", 0, "number of threads (default: OMP_NUM_THREADS)"},
+  {"threads", 't', "NTHREADS", 0, "number of threads (default: ${OMP_NUM_THREADS})"},
   {"tile", LONG_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", LONG_NOWRITE, 0, 0, "do not write output to file"},
   {"seed", LONG_SEED, "SEED", 0, "random seed (default: system time)"},
@@ -163,7 +163,8 @@ static error_t parse_cpd_opt(
   /* constraints */
   case LONG_NONNEG:
     if(arg) {
-      splatt_cpd_con_nonneg(args->cpd_opts, strtoull(arg, &arg, 10));
+      mode = strtoull(arg, &arg, 10) - 1;
+      splatt_cpd_con_nonneg(args->cpd_opts, mode);
     } else {
       splatt_cpd_con_nonneg(args->cpd_opts, MAX_NMODES);
     }
@@ -175,8 +176,8 @@ static error_t parse_cpd_opt(
       /* for each comma separated mode */
       do {
         ++arg; /* skip , */
-        mode = strtoull(arg, &arg, 10);
-        splatt_cpd_reg_l1(args->cpd_opts, mode-1, scale);
+        mode = strtoull(arg, &arg, 10) - 1;
+        splatt_cpd_reg_l1(args->cpd_opts, mode, scale);
       } while(strlen(arg) > 0);
 
     } else {
@@ -191,8 +192,8 @@ static error_t parse_cpd_opt(
       /* for each comma separated mode */
       do {
         ++arg; /* skip , */
-        mode = strtoull(arg, &arg, 10);
-        splatt_cpd_reg_l2(args->cpd_opts, mode-1, scale);
+        mode = strtoull(arg, &arg, 10) - 1;
+        splatt_cpd_reg_l2(args->cpd_opts, mode, scale);
       } while(strlen(arg) > 0);
 
     } else {
