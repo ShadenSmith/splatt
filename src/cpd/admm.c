@@ -85,7 +85,7 @@ static void p_proximity_l1(
   for(idx_t x=0; x < I * J; ++x) {
     val_t const v = auxl[x] - dual[x];
 
-    /* Could this be done faster */
+    /* TODO: could this be done faster? */
     if(v > mult) {
       matv[x] = v - mult;
     } else if(v < -mult) {
@@ -227,15 +227,12 @@ static void p_calc_residual(
 *        only L2 regularization is present.
 *
 * @param[out] primal The matrix to update.
-* @param[out] column_weights Column weights to absorb into if no
-*                            regularization.
 * @param ws CPD workspace.
 * @param which_reg Which regularization we are using.
 * @param cdata The constraint data -- 'lambda' if L2 regularization is used.
 */
 static void p_admm_optimal_regs(
     matrix_t * const primal,
-    val_t * const restrict column_weights,
     cpd_ws * const ws,
     splatt_con_type which_reg,
     void const * const cdata)
@@ -252,11 +249,6 @@ static void p_admm_optimal_regs(
   size_t const bytes = primal->I * primal->J * sizeof(*primal->vals);
   par_memcpy(primal->vals, ws->mttkrp_buf->vals, bytes);
   mat_solve_cholesky(ws->gram, primal);
-
-  /* Absorb columns into column_weights */
-  if(which_reg == SPLATT_CON_NONE) {
-    mat_normalize(primal, column_weights, MAT_NORM_2, NULL, ws->thds);
-  }
 }
 
 
@@ -284,7 +276,19 @@ idx_t admm_inner(
 
   /* these can be solved optimally without ADMM iterations */
   if(which_reg == SPLATT_CON_NONE || which_reg == SPLATT_REG_L2) {
-    p_admm_optimal_regs(mats[mode], column_weights, ws, which_reg, cdata);
+    p_admm_optimal_regs(mats[mode], ws, which_reg, cdata);
+
+    /* Absorb columns into column_weights if no constraints are applied */
+    bool no_constraints = true;
+    for(idx_t m=0; m < ws->nmodes; ++m) {
+      if(cpd_opts->constraints[m].which != SPLATT_CON_NONE) {
+        no_constraints = false;
+        break;
+      }
+    }
+    if(no_constraints) {
+      mat_normalize(mats[mode], column_weights, MAT_NORM_2, NULL, ws->thds);
+    }
     return 0;
   }
 
