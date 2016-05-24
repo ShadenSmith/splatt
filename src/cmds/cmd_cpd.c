@@ -331,7 +331,6 @@ int splatt_cpd_cmd2(
   /* do the factorization */
   splatt_cpd(csf, args.nfactors, args.cpd_opts, args.global_opts, factored);
 
-
   /* write output */
   if(args.write) {
     vec_write(factored->lambda, args.nfactors, "lambda.mat");
@@ -353,7 +352,9 @@ int splatt_cpd_cmd2(
 
   /* cleanup */
   splatt_free_cpd(factored);
+  splatt_free_csf(csf, dopts);
   splatt_free_opts(dopts);
+  splatt_free_opts(args.opts);
   splatt_free_cpd_opts(args.cpd_opts);
   splatt_free_global_opts(args.global_opts);
 

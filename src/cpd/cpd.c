@@ -145,87 +145,6 @@ void splatt_free_cpd_opts(
 }
 
 
-void splatt_cpd_reg_l1(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale)
-{
-  /* MAX_NMODES will simply apply regularization to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_reg_l1(cpd_opts, m, scale);
-    }
-    return;
-  }
-
-  splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->constraints[mode].which = SPLATT_REG_L1;
-  val_t * lambda = splatt_malloc(sizeof(*lambda));
-  *lambda = scale;
-  cpd_opts->constraints[mode].data = (void *) lambda;
-}
-
-void splatt_cpd_reg_l2(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale)
-{
-  /* MAX_NMODES will simply apply regularization to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_reg_l2(cpd_opts, m, scale);
-    }
-    return;
-  }
-
-  splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->constraints[mode].which = SPLATT_REG_L2;
-  val_t * lambda = splatt_malloc(sizeof(*lambda));
-  *lambda = scale;
-  cpd_opts->constraints[mode].data = (void *) lambda;
-}
-
-
-void splatt_cpd_con_nonneg(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode)
-{
-  /* MAX_NMODES will simply apply constraints to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_con_nonneg(cpd_opts, m);
-    }
-    return;
-  }
-
-  splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->constraints[mode].which = SPLATT_CON_NONNEG;
-}
-
-
-void splatt_cpd_con_clear(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode)
-{
-  /* MAX_NMODES will operate on all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_con_clear(cpd_opts, m);
-    }
-    return;
-  }
-
-  cpd_opts->constraints[mode].which = SPLATT_CON_NONE;
-  if(cpd_opts->constraints[mode].data != NULL) {
-    splatt_free(cpd_opts->constraints[mode].data);
-    cpd_opts->constraints[mode].data = NULL;
-  }
-}
-
-
 splatt_kruskal * splatt_alloc_cpd(
     splatt_csf const * const csf,
     splatt_idx_t rank)
@@ -302,7 +221,7 @@ double cpd_iterate(
   double * opts = splatt_default_opts();
 
   /* for tracking convergence */
-  double olderr = 0.;
+  double olderr = 1.;
   double err = 0.;
   double const ttnormsq = csf_frobsq(tensor);
 
