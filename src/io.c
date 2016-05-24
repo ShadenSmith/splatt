@@ -69,7 +69,8 @@ static sptensor_t * p_tt_read_file(
   idx_t nmodes = 0;
 
   idx_t dims[MAX_NMODES];
-  tt_get_dims(fin, &nmodes, &nnz, dims);
+  idx_t offsets[MAX_NMODES];
+  tt_get_dims(fin, &nmodes, &nnz, dims, offsets);
 
   if(nmodes > MAX_NMODES) {
     fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
@@ -95,7 +96,7 @@ static sptensor_t * p_tt_read_file(
     if(read > 1 && line[0] != '#') {
       ptr = line;
       for(idx_t m=0; m < nmodes; ++m) {
-        tt->ind[m][nnz] = strtoull(ptr, &ptr, 10) - 1;
+        tt->ind[m][nnz] = strtoull(ptr, &ptr, 10) - offsets[m];
       }
       tt->vals[nnz++] = strtod(ptr, &ptr);
     }
@@ -273,7 +274,8 @@ void tt_get_dims(
     FILE * fin,
     idx_t * const outnmodes,
     idx_t * const outnnz,
-    idx_t * outdims)
+    idx_t * outdims,
+    idx_t * offset)
 {
   char * ptr = NULL;
   idx_t nnz = 0;
@@ -298,6 +300,7 @@ void tt_get_dims(
 
   for(idx_t m=0; m < nmodes; ++m) {
     outdims[m] = 0;
+    offset[m] = 1;
   }
 
   /* fill in tensor dimensions */
@@ -308,7 +311,12 @@ void tt_get_dims(
       ptr = line;
       for(idx_t m=0; m < nmodes; ++m) {
         idx_t ind = strtoull(ptr, &ptr, 10);
+
+        /* outdim is maximum */
         outdims[m] = (ind > outdims[m]) ? ind : outdims[m];
+
+        /* offset is minimum */
+        offset[m] = (ind < offset[m]) ? ind : offset[m];
       }
       /* skip over tensor val */
       strtod(ptr, &ptr);
@@ -317,6 +325,23 @@ void tt_get_dims(
   }
   *outnnz = nnz;
   *outnmodes = nmodes;
+
+  /* only support 0 or 1 indexing */
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(offset[m] != 0 && offset[m] != 1) {
+      fprintf(stderr, "SPLATT: ERROR tensors must be 0 or 1 indexed. "
+                      "Mode %"SPLATT_PF_IDX" is %"SPLATT_PF_IDX" indexed.\n",
+          m, offset[m]);
+      exit(1);
+    }
+  }
+
+  /* adjust dims when zero-indexing */
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(offset[m] == 0) {
+      ++outdims[m];
+    }
+  }
 
   rewind(fin);
   free(line);
