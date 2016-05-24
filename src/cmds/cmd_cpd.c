@@ -7,7 +7,7 @@
 #include "../sptensor.h"
 #include "../stats.h"
 #include "../thd_info.h"
-#include "../cpd.h"
+#include "../cpd/cpd.h"
 
 
 /******************************************************************************
@@ -226,6 +226,7 @@ static struct argp cpd_argp =
 /******************************************************************************
  * SPLATT-CPD
  *****************************************************************************/
+#if 0
 int splatt_cpd_cmd(
   int argc,
   char ** argv)
@@ -299,6 +300,7 @@ int splatt_cpd_cmd(
 
   return EXIT_SUCCESS;
 }
+#endif
 
 
 
@@ -326,7 +328,9 @@ int splatt_cpd_cmd2(
 
   splatt_kruskal * factored = splatt_alloc_cpd(csf, args.nfactors);
 
+  /* do the factorization */
   splatt_cpd(csf, args.nfactors, args.cpd_opts, args.global_opts, factored);
+
 
   /* write output */
   if(args.write) {
@@ -348,7 +352,7 @@ int splatt_cpd_cmd2(
   }
 
   /* cleanup */
-  splatt_free_kruskal(factored);
+  splatt_free_cpd(factored);
   splatt_free_opts(dopts);
   splatt_free_cpd_opts(args.cpd_opts);
   splatt_free_global_opts(args.global_opts);

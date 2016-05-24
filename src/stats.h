@@ -25,7 +25,6 @@ typedef enum
  *****************************************************************************/
 #include "sptensor.h"
 #include "csf.h"
-#include "cpd.h"
 #include "splatt_mpi.h"
 
 
