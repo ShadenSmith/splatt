@@ -76,7 +76,7 @@ static sptensor_t * p_tt_read_file(
     fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
                     "Found %"SPLATT_PF_IDX". Please recompile with "
                     "MAX_NMODES=%"SPLATT_PF_IDX".\n",
-            MAX_NMODES, nmodes, nmodes);
+            (idx_t) MAX_NMODES, nmodes, nmodes);
     return NULL;
   }
 
@@ -177,7 +177,7 @@ static sptensor_t * p_tt_read_binary_file(
     fprintf(stderr, "SPLATT ERROR: maximum %"SPLATT_PF_IDX" modes supported. "
                     "Found %"SPLATT_PF_IDX". Please recompile with "
                     "MAX_NMODES=%"SPLATT_PF_IDX".\n",
-            MAX_NMODES, nmodes, nmodes);
+            (idx_t) MAX_NMODES, nmodes, nmodes);
     return NULL;
   }
 
