@@ -100,7 +100,7 @@ val_t cpd_innerprod(
 * @param global_opts SPLATT global parameters.
 * @param[out] factored The factored tensor.
 *
-* @return The fitness of the factorization: 1 - relative error.
+* @return The relative error of the factorization.
 */
 double cpd_iterate(
     splatt_csf const * const tensor,

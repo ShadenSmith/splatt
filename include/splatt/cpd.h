@@ -137,6 +137,15 @@ splatt_kruskal * splatt_alloc_cpd(
 
 
 /**
+* @brief Free a splatt_kruskal allocated by `splatt_alloc_cpd()`.
+*
+* @param factored The factored tensor to free.
+*/
+void splatt_free_cpd(
+    splatt_kruskal * factored);
+
+
+/**
 * @brief Compute a CPD factorization.
 *
 * @param tensor The tensor to factor.

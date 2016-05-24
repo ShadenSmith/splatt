@@ -29,6 +29,27 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+#if 0
+/**
+* @brief Resets serial and MPI timers that were activated during some CPD
+*        pre-processing.
+*/
+static void p_reset_cpd_timers()
+{
+  timer_reset(&timers[TIMER_ATA]);
+#ifdef SPLATT_USE_MPI
+  timer_reset(&timers[TIMER_MPI]);
+  timer_reset(&timers[TIMER_MPI_IDLE]);
+  timer_reset(&timers[TIMER_MPI_COMM]);
+  timer_reset(&timers[TIMER_MPI_ATA]);
+  timer_reset(&timers[TIMER_MPI_REDUCE]);
+  timer_reset(&timers[TIMER_MPI_NORM]);
+  timer_reset(&timers[TIMER_MPI_UPDATE]);
+  timer_reset(&timers[TIMER_MPI_FIT]);
+#endif
+}
+#endif
+
 
 
 
@@ -209,7 +230,7 @@ splatt_kruskal * splatt_alloc_cpd(
     splatt_csf const * const csf,
     splatt_idx_t rank)
 {
-  splatt_kruskal * cpd = splatt_malloc(sizeof(*csf));
+  splatt_kruskal * cpd = splatt_malloc(sizeof(*cpd));
 
   cpd->nmodes = csf->nmodes;
 
@@ -228,6 +249,17 @@ splatt_kruskal * splatt_alloc_cpd(
   }
 
   return cpd;
+}
+
+
+void splatt_free_cpd(
+    splatt_kruskal * factored)
+{
+  splatt_free(factored->lambda);
+  for(idx_t m=0; m < factored->nmodes; ++m) {
+    splatt_free(factored->factors[m]);
+  }
+  splatt_free(factored);
 }
 
 
@@ -270,8 +302,8 @@ double cpd_iterate(
   double * opts = splatt_default_opts();
 
   /* for tracking convergence */
-  double oldfit = 0.;
-  double fit = 0.;
+  double olderr = 0.;
+  double err = 0.;
   double const ttnormsq = csf_frobsq(tensor);
 
   /* timers */
@@ -303,16 +335,16 @@ double cpd_iterate(
     double const norm = cpd_norm(ws, factored->lambda);
     double const inner = cpd_innerprod(nmodes-1, ws, mats, factored->lambda);
     double const residual = sqrt(ttnormsq + norm - (2 * inner));
-    fit = 1 - (residual / sqrt(ttnormsq));
+    err = (residual / sqrt(ttnormsq));
 
-    assert(fit >= oldfit);
+    assert(err < olderr);
     timer_stop(&itertime);
 
     /* print progress */
     if(global_opts->verbosity > SPLATT_VERBOSITY_NONE) {
       printf("  its = %4"SPLATT_PF_IDX" (%0.3"SPLATT_PF_VAL"s)  "
-             "fit = %0.5"SPLATT_PF_VAL"  delta = %+0.4e\n",
-          it+1, itertime.seconds, fit, fit - oldfit);
+             "rel-err = %0.5"SPLATT_PF_VAL"  delta = %+0.4e\n",
+          it+1, itertime.seconds, err, err - olderr);
       if(global_opts->verbosity > SPLATT_VERBOSITY_LOW) {
         for(idx_t m=0; m < nmodes; ++m) {
           printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs) "
@@ -323,10 +355,10 @@ double cpd_iterate(
     }
 
     /* terminate if converged */
-    if(it > 0 && fabs(fit - oldfit) < cpd_opts->tolerance) {
+    if(it > 0 && fabs(olderr - err) < cpd_opts->tolerance) {
       break;
     }
-    oldfit = fit;
+    olderr = err;
   }
 
 #if 0
@@ -341,7 +373,7 @@ double cpd_iterate(
 
   timer_stop(&timers[TIMER_CPD]);
 
-  return fit;
+  return err;
 }
 
 

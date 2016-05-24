@@ -43,7 +43,6 @@
 #include "splatt/api_csf.h"
 #include "splatt/api_factorization.h"
 #include "splatt/api_kernels.h"
-#include "splatt/api_kruskal.h"
 #include "splatt/api_mpi.h"
 #include "splatt/api_options.h"
 #include "splatt/api_version.h"
