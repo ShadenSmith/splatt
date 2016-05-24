@@ -675,14 +675,14 @@ void mat_write_file(
   if(mat->rowmajor) {
     for(idx_t i=0; i < mat->I; ++i) {
       for(idx_t j=0; j < J; ++j) {
-        fprintf(fout, "%+0.8e ", vals[j + (i*J)]);
+        fprintf(fout, "%+0.8le ", vals[j + (i*J)]);
       }
       fprintf(fout, "\n");
     }
   } else {
     for(idx_t i=0; i < mat->I; ++i) {
       for(idx_t j=0; j < J; ++j) {
-        fprintf(fout, "%+0.8e ", vals[i + (j*I)]);
+        fprintf(fout, "%+0.8le ", vals[i + (j*I)]);
       }
       fprintf(fout, "\n");
     }
@@ -721,7 +721,7 @@ void vec_write_file(
   timer_start(&timers[TIMER_IO]);
 
   for(idx_t i=0; i < len; ++i) {
-    fprintf(fout, "%"SPLATT_PF_VAL"\n", vec[i]);
+    fprintf(fout, "%le\n", vec[i]);
   }
 
   timer_stop(&timers[TIMER_IO]);
