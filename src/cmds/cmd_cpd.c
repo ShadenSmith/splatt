@@ -363,6 +363,10 @@ int splatt_cpd_cmd2(
 
   stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
 
+  if(args.global_opts->verbosity > SPLATT_VERBOSITY_NONE) {
+    cpd_stats2(args.nfactors, tt->nmodes, args.cpd_opts, args.global_opts);
+  }
+
   double * dopts = splatt_default_opts();
 
   splatt_csf * csf = splatt_csf_alloc(tt, dopts);
