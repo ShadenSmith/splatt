@@ -24,9 +24,9 @@ typedef enum
   SPLATT_REG_L1,
   SPLATT_REG_L2,
   SPLATT_CON_NONNEG,
+  SPLATT_REG_SMOOTHNESS,
 
 #if 0
-  SPLATT_REG_SMOOTHNESS,
   SPLATT_CON_SYMMETRY,
   SPLATT_CON_SIMPLEX,
   SPLATT_CON_CUSTOM,
@@ -104,6 +104,12 @@ void splatt_cpd_reg_l1(
 
 
 void splatt_cpd_reg_l2(
+    splatt_cpd_opts * const cpd_opts,
+    splatt_idx_t const mode,
+    splatt_val_t const scale);
+
+
+void splatt_cpd_reg_smooth(
     splatt_cpd_opts * const cpd_opts,
     splatt_idx_t const mode,
     splatt_val_t const scale);

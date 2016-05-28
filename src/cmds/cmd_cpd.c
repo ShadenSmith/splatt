@@ -32,6 +32,7 @@ typedef enum
   LONG_NONNEG,
   LONG_L1,
   LONG_L2,
+  LONG_SMOOTH,
 } splatt_long_opt;
 
 
@@ -53,6 +54,7 @@ static struct argp_option cpd_options[] = {
 
   {"nonneg", LONG_NONNEG, "MODE", OPTION_ARG_OPTIONAL,
       "non-negative factorization", 1},
+  {"smooth", LONG_SMOOTH, "scale[,MODE]", 0, "smoothness regularization", 1},
   {"l1", LONG_L1, "scale[,MODE]", 0, "l1 regularization", 1},
   {"l2", LONG_L2, "scale[,MODE]", 0, "l2 regularization", 1},
 
@@ -199,6 +201,22 @@ static error_t parse_cpd_opt(
     } else {
       /* all modes */
       splatt_cpd_reg_l2(args->cpd_opts, mode, scale);
+    }
+    break;
+
+  case LONG_SMOOTH:
+    scale = strtof(arg, &arg);
+    if(strlen(arg) > 0) {
+      /* for each comma separated mode */
+      do {
+        ++arg; /* skip , */
+        mode = strtoull(arg, &arg, 10) - 1;
+        splatt_cpd_reg_smooth(args->cpd_opts, mode, scale);
+      } while(strlen(arg) > 0);
+
+    } else {
+      /* all modes */
+      splatt_cpd_reg_smooth(args->cpd_opts, mode, scale);
     }
     break;
 

@@ -125,20 +125,7 @@ void splatt_free_cpd_opts(
     splatt_cpd_opts * opts)
 {
   /* if constraints, free data */
-  for(idx_t m=0; m < MAX_NMODES; ++m) {
-    switch(opts->constraints[m].which) {
-    case SPLATT_CON_NONE:
-      break;
-    case SPLATT_REG_L1:
-      splatt_free(opts->constraints[m].data);
-      break;
-    case SPLATT_REG_L2:
-      splatt_free(opts->constraints[m].data);
-      break;
-    case SPLATT_CON_NONNEG:
-      break;
-    }
-  }
+  splatt_cpd_con_clear(opts, MAX_NMODES);
 
   /* free options pointer */
   splatt_free(opts);
@@ -256,7 +243,7 @@ double cpd_iterate(
     double const residual = sqrt(ttnormsq + norm - (2 * inner));
     err = (residual / sqrt(ttnormsq));
 
-    assert(err < olderr);
+    //assert(err <= olderr);
     timer_stop(&itertime);
 
     /* print progress */
