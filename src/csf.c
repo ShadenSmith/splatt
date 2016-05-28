@@ -209,78 +209,6 @@ static void p_order_dims_large(
 
 
 /**
-* @brief Print a CSF tensor in human-readable format.
-*
-* @param ct The tensor to print.
-*/
-static void p_print_csf(
-  splatt_csf const * const ct)
-{
-  printf("-----------\n");
-  printf("nmodes: %"SPLATT_PF_IDX" nnz: %"SPLATT_PF_IDX" ntiles: "
-         "%"SPLATT_PF_IDX"\n", ct->nmodes, ct->nnz, ct->ntiles);
-  printf("dims: %"SPLATT_PF_IDX"", ct->dims[0]);
-  for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("x%"SPLATT_PF_IDX"", ct->dims[m]);
-  }
-  printf(" (%"SPLATT_PF_IDX"", ct->dim_perm[0]);
-  for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("->%"SPLATT_PF_IDX"", ct->dim_perm[m]);
-  }
-  printf(") ");
-  printf("tile dims: %"SPLATT_PF_IDX"", ct->tile_dims[0]);
-  for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("x%"SPLATT_PF_IDX"", ct->tile_dims[m]);
-  }
-  printf("\n");
-
-  for(idx_t t=0; t < ct->ntiles; ++t) {
-    csf_sparsity const * const ft = ct->pt + t;
-    /* skip empty tiles */
-    if(ft->vals == NULL) {
-      continue;
-    }
-
-    /* write slices */
-    printf("tile: %"SPLATT_PF_IDX" fptr:\n", t);
-    printf("[%"SPLATT_PF_IDX"] ", ft->nfibs[0]);
-    for(idx_t f=0; f < ft->nfibs[0]; ++f) {
-      if(ft->fids[0] == NULL) {
-        printf(" %"SPLATT_PF_IDX"", ft->fptr[0][f]);
-      } else {
-        printf(" (%"SPLATT_PF_IDX", %"SPLATT_PF_IDX")", ft->fptr[0][f],
-            ft->fids[0][f]);
-      }
-    }
-    printf(" %"SPLATT_PF_IDX"\n", ft->fptr[0][ft->nfibs[0]]);
-
-    /* inner nodes */
-    for(idx_t m=1; m < ct->nmodes-1; ++m) {
-      printf("[%"SPLATT_PF_IDX"] ", ft->nfibs[m]);
-      for(idx_t f=0; f < ft->nfibs[m]; ++f) {
-        printf(" (%"SPLATT_PF_IDX", %"SPLATT_PF_IDX")", ft->fptr[m][f],
-            ft->fids[m][f]);
-      }
-      printf(" %"SPLATT_PF_IDX"\n", ft->fptr[m][ft->nfibs[m]]);
-    }
-
-    /* vals/inds */
-    printf("[%"SPLATT_PF_IDX"] ", ft->nfibs[ct->nmodes-1]);
-    for(idx_t f=0; f < ft->nfibs[ct->nmodes-1]; ++f) {
-      printf(" %3"SPLATT_PF_IDX"", ft->fids[ct->nmodes-1][f]);
-    }
-    printf("\n");
-    for(idx_t n=0; n < ft->nfibs[ct->nmodes-1]; ++n) {
-      printf(" %0.1f", ft->vals[n]);
-    }
-    printf("\n");
-  }
-
-  printf("-----------\n\n");
-}
-
-
-/**
 * @brief Construct the sparsity structure of the outer-mode of a CSF tensor.
 *
 * @param ct The CSF tensor to construct.
@@ -777,7 +705,8 @@ void csf_alloc_mode(
 val_t csf_frobsq(
     splatt_csf const * const tensor)
 {
-  val_t norm = 0;
+  /* accumulate into double to help with some precision loss */
+  double norm = 0;
   #pragma omp parallel reduction(+:norm)
   {
     for(idx_t t=0; t < tensor->ntiles; ++t) {
@@ -795,6 +724,6 @@ val_t csf_frobsq(
     }
   } /* end omp parallel */
 
-  return norm;
+  return (val_t) norm;
 }
 

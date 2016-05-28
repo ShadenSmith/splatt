@@ -52,7 +52,7 @@ show_help() {
   echo "    Use single or double precision floating point values (default: double)."
 
   echo ""
-  echo "  --max-modes=<#>"
+  echo "  --with-max-modes=<#>"
   echo "    Set the maxmimum number of tensor modes (default: 8)."
 
   echo ""
@@ -82,8 +82,8 @@ show_help() {
   echo "====================:"
   echo "  --prefix=<prefix>"
   echo "    Set the installation prefix."
-  echo "  --build-shared-lib"
-  echo "    Build a shared library instead of static."
+  echo "  --build-lib={static,shared}"
+  echo "    Set the type of library to build (default: static)."
   echo ""
 
   echo "Please report bugs to <shaden@cs.umn.edu>."
@@ -109,40 +109,54 @@ BUILDDIR="build/$(uname -s)-$(uname -m)"
 for i in "${@}"; do
   case "${i}" in
     # help
-    -h|--help)
-    show_help
-    exit 0
+      -h|--help)
+      show_help
+      exit 0
     ;;
 
     ## COMPILE OPTIONS
     # cc
     --cc=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=${i#*=}"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=${i#*=}"
     ;;
     # cxx
     --cxx=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=${i#*=}"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=${i#*=}"
     ;;
     # debug
     --debug)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"
     ;;
     # dev
     --dev)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
     ;;
     --build-dir=*)
-    BUILDDIR="${i#*=}"
+      BUILDDIR="${i#*=}"
     ;;
 
     --with-index-size=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=${i#*=}"
+      IDX_WIDTH=${i#*=}
+      if [ "${IDX_WIDTH}" == "32" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=32"
+      elif [ "${IDX_WIDTH}" == "64" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=64"
+      else
+        die "Unknown index size: ${IDX_WIDTH}. Choose between {32,64}."
+      fi
     ;;
     --with-precision=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=${i#*=}"
+      PRECISION=${i#*=}
+      if [ "${PRECISION}" == "single" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=single"
+      elif [ "${PRECISION}" == "double" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=double"
+      else
+        die "Unknown precision: ${PRECISION}. Choose between {single,double}."
+      fi
     ;;
-    --max-modes=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
+    --with-max-modes=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
     ;;
 
 
@@ -150,35 +164,31 @@ for i in "${@}"; do
 
     # BLAS/LAPACK
     --with-blas-dir=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_DIR=${i#*=}"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_DIR=${i#*=}"
     ;;
     --with-blas-lib=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_LIB=${i#*=}"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_LIB=${i#*=}"
     ;;
     --with-lapack-dir=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_DIR=${i#*=}"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_DIR=${i#*=}"
     ;;
     --with-lapack-lib=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_LIB=${i#*=}"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_LIB=${i#*=}"
     ;;
     --download-blas-lapack)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DDOWNLOAD_BLAS_LAPACK=TRUE"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DDOWNLOAD_BLAS_LAPACK=TRUE"
     ;;
 
 
     # MPI support
     --with-mpi)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
-    ;;
-    # deprecated mpi flag
-    --mpi)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
     ;;
     --with-mpicc=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICC=${i#*=}"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICC=${i#*=}"
     ;;
     --with-mpicxx=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICXX=${i#*=}"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICXX=${i#*=}"
     ;;
 
 
@@ -188,21 +198,31 @@ for i in "${@}"; do
     --prefix=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
     ;;
-    --build-shared-lib)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED_LIBS=TRUE"
+    --build-lib=*)
+      LIBTYPE=${i#*=}
+      if [ "${LIBTYPE}" == "shared" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED_LIBS=TRUE"
+      elif [ "${LIBTYPE}" == "static" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED_LIBS=FALSE"
+      else
+        die "Unknown library type: ${LIBTYPE}. Choose between {static,shared}."
+      fi
     ;;
 
 
 
     # deprecated
+    --mpi)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    ;;
     --mtmetis)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
     ;;
     --patoh)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"
     ;;
     --ashado)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_ASHADO=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_ASHADO=1"
     ;;
 
 

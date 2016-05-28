@@ -134,7 +134,7 @@ CTEST2(csf_one_init, mode_order_inorder)
 
 CTEST2(csf_one_init, normsq)
 {
-  val_t gold_norm = 0;
+  double gold_norm = 0;
   idx_t nnz = data->tt->nnz;
   val_t const * const vals = data->tt->vals;
   for(idx_t n=0; n < nnz; ++n) {
@@ -145,13 +145,13 @@ CTEST2(csf_one_init, normsq)
   val_t mynorm = csf_frobsq(csf);
   csf_free(csf, data->opts);
 
-  ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1e-9);
+  ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1e-5);
 }
 
 
 CTEST2(csf_one_init, dense_tiled_normsq)
 {
-  val_t gold_norm = 0;
+  double gold_norm = 0;
   idx_t nnz = data->tt->nnz;
   val_t const * const vals = data->tt->vals;
   for(idx_t n=0; n < nnz; ++n) {
@@ -167,7 +167,7 @@ CTEST2(csf_one_init, dense_tiled_normsq)
     val_t mynorm = csf_frobsq(csf);
     csf_free(csf, data->opts);
 
-    ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1.5e-9);
+    ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1e-5);
   }
 
 }

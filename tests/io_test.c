@@ -31,6 +31,30 @@ CTEST_TEARDOWN(io)
 }
 
 
+
+CTEST2(io, zero_index)
+{
+  sptensor_t * zero_tt = tt_read(DATASET(small4.tns));
+  sptensor_t * one_tt  = tt_read(DATASET(small4_zeroidx.tns));
+
+  ASSERT_EQUAL(one_tt->nnz, zero_tt->nnz);
+  ASSERT_EQUAL(one_tt->nmodes, zero_tt->nmodes);
+
+  for(idx_t m=0; m < one_tt->nmodes; ++m) {
+    ASSERT_EQUAL(one_tt->dims[m], zero_tt->dims[m]);
+
+    for(idx_t n=0; n < one_tt->nnz; ++n) {
+      ASSERT_EQUAL(one_tt->ind[m][n], zero_tt->ind[m][n]);
+    }
+  }
+
+  tt_free(zero_tt);
+  tt_free(one_tt);
+}
+
+
+
+
 CTEST2(io, binary_io)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {

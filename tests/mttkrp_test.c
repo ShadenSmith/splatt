@@ -22,7 +22,12 @@ static void __compare_mats(
 
   for(idx_t i=0; i < A->I; ++i) {
     for(idx_t j=0; j < A->J; ++j) {
+#if SPLATT_VAL_TYPEWIDTH == 32
+      /* 9e-3 chosen by hand */
+      ASSERT_DBL_NEAR_TOL(A->vals[j+(i*ncols)], B->vals[j+(i*ncols)], 9e-3);
+#else
       ASSERT_DBL_NEAR_TOL(A->vals[j+(i*ncols)], B->vals[j+(i*ncols)], 1e-10);
+#endif
     }
   }
 }

@@ -146,7 +146,8 @@ void tt_get_dims(
     FILE * fin,
     idx_t * const outnmodes,
     idx_t * const outnnz,
-    idx_t * outdims);
+    idx_t * outdims,
+    idx_t * offset);
 
 #define tt_get_dims_binary splatt_tt_get_dims_binary
 void tt_get_dims_binary(
