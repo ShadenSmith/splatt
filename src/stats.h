@@ -73,6 +73,11 @@ void cpd_stats(
   idx_t const nfactors,
   double const * const opts);
 
+void cpd_stats2(
+    idx_t const rank,
+    idx_t const num_modes,
+    splatt_cpd_opts const * const cpd_opts,
+    splatt_global_opts const * const global_opts);
 
 /******************************************************************************
  * MPI FUNCTIONS

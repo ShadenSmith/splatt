@@ -222,6 +222,47 @@ void stats_csf(
       100. * (double)empty/ (double)ct->ntiles);
 }
 
+void cpd_stats2(
+    idx_t const rank,
+    idx_t const num_modes,
+    splatt_cpd_opts const * const cpd_opts,
+    splatt_global_opts const * const global_opts)
+{
+  printf("Factoring"
+         "------------------------------------------------------\n");
+  printf("RANK=%"SPLATT_PF_IDX" ", rank);
+  printf("MAXITS=%"SPLATT_PF_IDX" ", cpd_opts->max_iterations);
+  printf("TOL=%0.1e ", cpd_opts->tolerance);
+  printf("SEED=%d ", global_opts->random_seed);
+  printf("THREADS=%d\n", global_opts->num_threads);
+
+  for(idx_t m=0; m < num_modes; ++m) {
+    switch(cpd_opts->constraints[m].which) {
+    case SPLATT_CON_NONE:
+      break;
+    case SPLATT_CON_NONNEG:
+      printf("  constraint: mode=%"SPLATT_PF_IDX" NONNEG\n", m+1);
+      break;
+    case SPLATT_REG_L1:
+      printf("  regularize: mode=%"SPLATT_PF_IDX" L1 (%"SPLATT_PF_VAL")\n",
+          m+1, *((val_t *) cpd_opts->constraints[m].data));
+      break;
+    case SPLATT_REG_L2:
+      printf("  regularize: mode=%"SPLATT_PF_IDX" L2 (%"SPLATT_PF_VAL")\n",
+          m+1, *((val_t *) cpd_opts->constraints[m].data));
+      break;
+    case SPLATT_REG_SMOOTHNESS:
+      printf("  regularize: mode=%"SPLATT_PF_IDX
+             " SMOOTH (%"SPLATT_PF_VAL")\n",
+          m+1, *((val_t *) cpd_opts->constraints[m].data));
+      break;
+    }
+  }
+
+
+  printf("\n");
+}
+
 
 void cpd_stats(
   splatt_csf const * const csf,
