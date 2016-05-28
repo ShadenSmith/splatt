@@ -52,7 +52,7 @@ show_help() {
   echo "    Use single or double precision floating point values (default: double)."
 
   echo ""
-  echo "  --with-max-modes=<#>"
+  echo "  --max-modes=<#>"
   echo "    Set the maxmimum number of tensor modes (default: 8)."
 
   echo ""
@@ -155,7 +155,7 @@ for i in "${@}"; do
         die "Unknown precision: ${PRECISION}. Choose between {single,double}."
       fi
     ;;
-    --with-max-modes=*)
+    --max-modes=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
     ;;
 
