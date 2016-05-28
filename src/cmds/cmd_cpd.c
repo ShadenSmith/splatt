@@ -50,11 +50,26 @@ static struct argp_option cpd_options[] = {
   {"seed", LONG_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
 
-  {0, 0, 0, 0, "Constraints and Regularizations", 1},
+  {0, 0, 0, 0,
+    "\nConstraints and Regularizations\n"
+    "-------------------------------\n"
+    "splatt uses AO-ADMM [Huang & Sidiropoulos 2015] to enforce constraints "
+    "and regularizations. All regularizations require a 'scale' parameter "
+    "which scales the penalty term in the objective function. "
+    "All constraints and regularizations optionally accept a 'mode' parameter "
+    "as a comma-separated list. When no modes are specified, the constraint "
+    "or regularization is applied to all modes.\n\n"
+
+    "NOTE: only one constraint or regularization can be applied per mode. "
+    "Existing ones can be overwritten, so '--nonneg --smooth=10.0,4' will find "
+    "a model with non-negative factors except the fourth, which will have "
+    "smooth columns.\n\n"
+
+    "The following constraints and regularizations are supported:\n", 1},
 
   {"nonneg", LONG_NONNEG, "MODE", OPTION_ARG_OPTIONAL,
       "non-negative factorization", 1},
-  {"smooth", LONG_SMOOTH, "scale[,MODE]", 0, "smoothness regularization", 1},
+  {"smooth", LONG_SMOOTH, "scale[,MODE]", 0, "column smoothness", 1},
   {"l1", LONG_L1, "scale[,MODE]", 0, "l1 regularization", 1},
   {"l2", LONG_L2, "scale[,MODE]", 0, "l2 regularization", 1},
 
@@ -167,7 +182,16 @@ static error_t parse_cpd_opt(
     if(arg) {
       mode = strtoull(arg, &arg, 10) - 1;
       splatt_cpd_con_nonneg(args->cpd_opts, mode);
+
+      /* grab all remaining modes */
+      while(strlen(arg) > 0) {
+        ++arg;
+        mode = strtoull(arg, &arg, 10) - 1;
+        splatt_cpd_con_nonneg(args->cpd_opts, mode);
+      }
+
     } else {
+      /* all modes */
       splatt_cpd_con_nonneg(args->cpd_opts, MAX_NMODES);
     }
     break;
