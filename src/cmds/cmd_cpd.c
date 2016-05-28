@@ -40,14 +40,14 @@ static struct argp_option cpd_options[] = {
   /* override help so we can use -h instead of -? */
   {"help", 'h', 0, 0, "Give this help list."},
 
+  {"seed", LONG_SEED, "SEED", 0, "random seed (default: system time)"},
   {"iters", 'i', "#ITS", 0, "maximum number of outer iterations (default: 200)"},
   {"tol", LONG_TOL, "TOLERANCE", 0, "convergence tolerance (default: 1e-5)"},
 
   {"rank", 'r', "RANK", 0, "rank of factorization (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads (default: ${OMP_NUM_THREADS})"},
-  {"tile", LONG_TILE, 0, 0, "use tiling during SPLATT"},
+  {"tile", LONG_TILE, 0, 0, "use tiling during MTTKRP"},
   {"nowrite", LONG_NOWRITE, 0, 0, "do not write output to file"},
-  {"seed", LONG_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
 
   {0, 0, 0, 0,
