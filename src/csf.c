@@ -138,34 +138,6 @@ static void p_order_dims_inorder(
 
 
 /**
-* @brief Find a permutation of modes such that the first mode is 'custom-mode'
-*        and the remaining are sorted in non-increasing order.
-*
-* @param dims The tensor dimensions.
-* @param nmodes The number of modes.
-* @param custom_mode The mode to place first.
-* @param perm_dims The resulting permutation.
-*/
-static void p_order_dims_minusone(
-  idx_t const * const dims,
-  idx_t const nmodes,
-  idx_t const custom_mode,
-  idx_t * const perm_dims)
-{
-  p_order_dims_small(dims, nmodes, perm_dims);
-
-  /* find where custom_mode was placed and adjust from there */
-  for(idx_t m=0; m < nmodes; ++m) {
-    if(perm_dims[m] == custom_mode) {
-      memmove(perm_dims + 1, perm_dims, (m) * sizeof(m));
-      perm_dims[0] = custom_mode;
-      break;
-    }
-  }
-}
-
-
-/**
 * @brief Find a permutation of modes that results in non-decreasing mode size.
 *
 * @param dims The tensor dimensions.
@@ -206,6 +178,64 @@ static void p_order_dims_large(
   }
 
 }
+
+
+/**
+* @brief Find a permutation of modes such that the first mode is 'custom-mode'
+*        and the remaining are sorted in non-increasing order.
+*
+* @param dims The tensor dimensions.
+* @param nmodes The number of modes.
+* @param custom_mode The mode to place first.
+* @param perm_dims The resulting permutation.
+*/
+static void p_order_dims_smallfirst_minusone(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t const custom_mode,
+  idx_t * const perm_dims)
+{
+  p_order_dims_small(dims, nmodes, perm_dims);
+
+  /* find where custom_mode was placed and adjust from there */
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(perm_dims[m] == custom_mode) {
+      memmove(perm_dims + 1, perm_dims, (m) * sizeof(m));
+      perm_dims[0] = custom_mode;
+      break;
+    }
+  }
+}
+
+
+/**
+* @brief Find a permutation of modes such that the first mode is 'custom-mode'
+*        and the remaining are sorted in non-decreasing order.
+*
+* @param dims The tensor dimensions.
+* @param nmodes The number of modes.
+* @param custom_mode The mode to place first.
+* @param perm_dims The resulting permutation.
+*/
+static void p_order_dims_bigfirst_minusone(
+  idx_t const * const dims,
+  idx_t const nmodes,
+  idx_t const custom_mode,
+  idx_t * const perm_dims)
+{
+  p_order_dims_large(dims, nmodes, perm_dims);
+
+  /* find where custom_mode was placed and adjust from there */
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(perm_dims[m] == custom_mode) {
+      memmove(perm_dims + 1, perm_dims, (m) * sizeof(m));
+      perm_dims[0] = custom_mode;
+      break;
+    }
+  }
+}
+
+
 
 
 /**
@@ -604,8 +634,12 @@ void csf_find_mode_order(
     p_order_dims_inorder(dims, nmodes, mode, perm_dims);
     break;
 
-  case CSF_SORTED_MINUSONE:
-    p_order_dims_minusone(dims, nmodes, mode, perm_dims);
+  case CSF_SORTED_SMALLFIRST_MINUSONE:
+    p_order_dims_smallfirst_minusone(dims, nmodes, mode, perm_dims);
+    break;
+
+  case CSF_SORTED_BIGFIRST_MINUSONE:
+    p_order_dims_bigfirst_minusone(dims, nmodes, mode, perm_dims);
     break;
 
   default:
@@ -674,7 +708,7 @@ splatt_csf * csf_alloc(
 
     /* allocate with no tiling for the last mode */
     last_mode = ret[0].dim_perm[tt->nmodes-1];
-    p_mk_csf(ret + 1, tt, CSF_SORTED_MINUSONE, last_mode, tmp_opts);
+    p_mk_csf(ret + 1, tt, CSF_SORTED_SMALLFIRST_MINUSONE, last_mode, tmp_opts);
 
     free(tmp_opts);
     break;
@@ -682,7 +716,7 @@ splatt_csf * csf_alloc(
   case SPLATT_CSF_ALLMODE:
     ret = splatt_malloc(tt->nmodes * sizeof(*ret));
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      p_mk_csf(ret + m, tt, CSF_SORTED_MINUSONE, m, opts);
+      p_mk_csf(ret + m, tt, CSF_SORTED_SMALLFIRST_MINUSONE, m, opts);
     }
     break;
   }

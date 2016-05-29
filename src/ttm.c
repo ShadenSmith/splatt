@@ -867,7 +867,7 @@ void ttmc_fill_flop_tbl(
     printf("MODE-%lu:  ", i);
 
     splatt_csf csf;
-    csf_alloc_mode(tt, CSF_SORTED_MINUSONE, i, &csf, opts);
+    csf_alloc_mode(tt, CSF_SORTED_SMALLFIRST_MINUSONE, i, &csf, opts);
 
     /* foreach mode of computation */
     for(idx_t j=0; j < tt->nmodes; ++j) {

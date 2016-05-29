@@ -90,20 +90,40 @@ CTEST2(csf_one_init, mode_order_big)
 }
 
 
-CTEST2(csf_one_init, mode_minusone)
+CTEST2(csf_one_init, mode_small_minusone)
 {
   idx_t dims[] = {10, 9, 8, 7, 0};
   idx_t perm[] = {0, 0, 0, 0, 0};
   splatt_idx_t ndims = sizeof(dims) / sizeof(dims[0]);
 
   for(splatt_idx_t m=0; m < ndims; ++m) {
-    csf_find_mode_order(dims, ndims, CSF_SORTED_MINUSONE, m, perm);
+    csf_find_mode_order(dims, ndims, CSF_SORTED_SMALLFIRST_MINUSONE, m, perm);
 
     if(perm[0] != m) {
       ASSERT_FAIL();
     }
     for(splatt_idx_t m2=2; m2 < ndims-1; ++m2) {
       if(dims[perm[m2]] > dims[perm[m2+1]]) {
+        ASSERT_FAIL();
+      }
+    }
+  }
+}
+
+CTEST2(csf_one_init, mode_big_minusone)
+{
+  idx_t dims[] = {7, 9, 10, 8, 0};
+  idx_t perm[] = {0, 0, 0, 0, 0};
+  splatt_idx_t ndims = sizeof(dims) / sizeof(dims[0]);
+
+  for(splatt_idx_t m=0; m < ndims; ++m) {
+    csf_find_mode_order(dims, ndims, CSF_SORTED_BIGFIRST_MINUSONE, m, perm);
+
+    if(perm[0] != m) {
+      ASSERT_FAIL();
+    }
+    for(splatt_idx_t m2=2; m2 < ndims-1; ++m2) {
+      if(dims[perm[m2]] < dims[perm[m2+1]]) {
         ASSERT_FAIL();
       }
     }
