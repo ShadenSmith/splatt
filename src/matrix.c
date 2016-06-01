@@ -500,7 +500,7 @@ void mat_transpose_vec(
     b[j] = 0.;
   }
 
-  #pragma omp parallel num_threads(1)
+  #pragma omp parallel
   {
     val_t * restrict accum = splatt_malloc(ncols * sizeof(*accum));
     for(idx_t j=0; j < ncols; ++j) {
@@ -795,12 +795,12 @@ void mat_col_orth(
 
   val_t * const restrict v = A->vals + (col * nrows);
 
-  #pragma omp parallel num_threads(1)
+  #pragma omp parallel
   {
     for(idx_t j=0; j < col; ++j) {
       val_t const * const restrict u = A->vals + (j * nrows);
 
-      //#pragma omp master
+      #pragma omp master
       {
         uu_inner_prod = 0.;
         uv_inner_prod = 0.;

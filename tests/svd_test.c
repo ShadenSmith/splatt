@@ -2,6 +2,8 @@
 #include "../src/svd.h"
 #include "ctest/ctest.h"
 
+#include <math.h>
+
 #include "splatt_test.h"
 
 
@@ -68,43 +70,53 @@ CTEST2(svd, lanczos_bidiag)
   svd_ws ws;
   alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
 
-  matrix_t A;
-  A.I = data->nrows;
-  A.J = data->ncols;
-  A.rowmajor = 1;
-  A.vals = data->A;
+  idx_t const rank = 5;
+  matrix_t * A = mat_rand(20,rank);
 
-  omp_set_num_threads(1);
+  lanczos_bidiag(A, rank, &ws);
 
-  printf("\n");
-
-  idx_t const rank = 2;
-  lanczos_bidiag(&A, rank, &ws);
-
-  printf("\n");
-
+  /* fill in B */
+  matrix_t * B = mat_alloc(rank, rank);
+  memset(B->vals, 0, rank * rank * sizeof(*B->vals));
   for(idx_t i=0; i < rank; ++i) {
-    for(idx_t j=0; j < i; ++j) {
-      printf("%f ", 0.);
-    }
-
-    printf("%f ", ws.alphas[i]);
+    B->vals[i + (i*rank)] = ws.alphas[i];
     if(i != rank-1) {
-      printf("%f ", ws.betas[i]);
+      B->vals[(i+1) + (i*rank)] = ws.betas[i];
     }
-
-    for(idx_t j=i+2; j < rank; ++j) {
-      printf("%f ", 0.);
-    }
-
-    printf("\n");
   }
-  printf("\n");
 
-  mat_write(ws.P, NULL);
-  printf("\n\n");
-  mat_write(ws.Q, NULL);
+  matrix_t * P = mat_mkrow(ws.P);
 
+  /* just copy column major version to get Q^T */
+  matrix_t * Q = mat_alloc(rank, rank);
+  memcpy(Q->vals, ws.Q->vals, rank * rank * sizeof(*Q->vals));
+
+
+  /* now reconstruct A */
+  matrix_t * tmp = mat_alloc(A->I, rank);
+  memset(tmp->vals, 0, A->I * rank * sizeof(*tmp->vals));
+
+  /* P * B */
+  mat_matmul(P, B, tmp);
+
+  /* A_new = tmp * Q^T */
+  matrix_t * A_new = mat_alloc(A->I, A->J);
+  memset(A_new->vals, 0, A->I * A->J * sizeof(*A_new->vals));
+  mat_matmul(tmp, Q, A_new);
+
+  val_t error = 0.;
+  for(idx_t x=0; x < A->I * A->J; ++x) {
+    val_t diff = A->vals[x] - A_new->vals[x];
+    error += diff * diff;
+  }
+
+  ASSERT_DBL_NEAR_TOL(0., sqrt(error), 1e-12);
+
+  mat_free(P);
+  mat_free(B);
+  mat_free(Q);
+  mat_free(tmp);
+  mat_free(A_new);
   free_svd_ws(&ws);
 }
 
