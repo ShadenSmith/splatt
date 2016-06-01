@@ -60,3 +60,51 @@ CTEST2(svd, svd)
 
   free_svd_ws(&ws);
 }
+
+#include "../src/io.h"
+
+CTEST2(svd, lanczos_bidiag)
+{
+  svd_ws ws;
+  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
+
+  matrix_t A;
+  A.I = data->nrows;
+  A.J = data->ncols;
+  A.rowmajor = 1;
+  A.vals = data->A;
+
+  omp_set_num_threads(1);
+
+  printf("\n");
+
+  idx_t const rank = 2;
+  lanczos_bidiag(&A, rank, &ws);
+
+  printf("\n");
+
+  for(idx_t i=0; i < rank; ++i) {
+    for(idx_t j=0; j < i; ++j) {
+      printf("%f ", 0.);
+    }
+
+    printf("%f ", ws.alphas[i]);
+    if(i != rank-1) {
+      printf("%f ", ws.betas[i]);
+    }
+
+    for(idx_t j=i+2; j < rank; ++j) {
+      printf("%f ", 0.);
+    }
+
+    printf("\n");
+  }
+  printf("\n");
+
+  mat_write(ws.P, NULL);
+  printf("\n\n");
+  mat_write(ws.Q, NULL);
+
+  free_svd_ws(&ws);
+}
+

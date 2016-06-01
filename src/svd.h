@@ -2,6 +2,7 @@
 #define SPLATT_SVD_H
 
 #include "base.h"
+#include "matrix.h"
 
 
 /******************************************************************************
@@ -20,6 +21,14 @@ typedef struct
   int lwork;
   val_t * workspace;
   int * iwork;
+
+
+  /* bidiagonalization */
+  matrix_t * P;
+  val_t * alphas;
+  val_t * betas;
+  matrix_t * Q;
+
 } svd_ws;
 
 
@@ -44,6 +53,13 @@ void left_singulars(
     val_t * outmat,
     idx_t const nrows,
     idx_t const ncols,
+    idx_t const rank,
+    svd_ws * const ws);
+
+
+
+void lanczos_bidiag(
+    matrix_t const * const A,
     idx_t const rank,
     svd_ws * const ws);
 

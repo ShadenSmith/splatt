@@ -128,6 +128,50 @@ void mat_matmul(
   matrix_t  * const C);
 
 
+#define mat_vec splatt_mat_vec
+/**
+* @brief Dense matrix-vector multiplication, b = Ax.
+*
+* @param A The matrix to multiply by.
+* @param x The vector to multiply by.
+* @param[out] b The resulting vector.
+*/
+void mat_vec(
+    matrix_t const * const A,
+    val_t const * const restrict x,
+    val_t * const restrict b);
+
+
+#define mat_transpose_vec splatt_mat_transpose_vec
+/**
+* @brief Dense transposed matrix-vector multiplication, b = A' * x. This
+*        routine is optimized for tall, skinny A.
+*
+* @param A The matrix to multiply by, pre-transpose.
+* @param x The vector to multiply by.
+* @param[out] b The resulting vector.
+*/
+void mat_transpose_vec(
+    matrix_t const * const A,
+    val_t const * const restrict x,
+    val_t * const restrict b);
+
+
+#define mat_col_orth splatt_mat_col_orth
+/**
+* @brief Orthogonalize the column A(:,col) against all previous columns of A.
+*
+*        NOTE: A must be column-major!
+*
+* @param[out] A The matrix.
+* @param col The column index to orthogonalize.
+*/
+void mat_col_orth(
+  matrix_t * const A,
+  idx_t const col);
+
+
+
 #define mat_syminv splatt_mat_syminv
 /**
 * @brief Compute the 'inverse' of symmetric matrix A.
@@ -216,6 +260,20 @@ void mat_normalize(
   rank_info * const rinfo,
   thd_info * const thds,
   idx_t const nthreads);
+
+
+#define vec_normalize splatt_vec_normalize
+/**
+* @brief Normalize a vector via the 2-norm.
+*
+* @param[out] vec The vector to normalize.
+* @param len The length of the vector.
+*
+* @return The norm of the vector (pre-normalization).
+*/
+val_t vec_normalize(
+    val_t * const restrict vec,
+    idx_t const len);
 
 
 #define mat_rand splatt_mat_rand

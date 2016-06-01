@@ -4,6 +4,10 @@
 #include "timer.h"
 #include "util.h"
 
+#include <math.h>
+
+
+
 /**
 * @brief Compute the optimal workspace size for LAPACK_SVD.
 *
@@ -55,6 +59,54 @@ static int p_optimal_svd_work_size(
 
   return (int) work_size;
 }
+
+
+void lanczos_bidiag(
+    matrix_t const * const A,
+    idx_t const rank,
+    svd_ws * const ws)
+{
+  idx_t const nrows = A->I;
+  idx_t const ncols = A->J;
+
+  /* alloc if first time */
+  if(ws->P == NULL) {
+    ws->P = mat_alloc(nrows, rank);
+    ws->Q = mat_alloc(ncols, rank);
+    ws->P->rowmajor = 0;
+    ws->Q->rowmajor = 0;
+
+    ws->betas = splatt_malloc((rank-1) * sizeof(*ws->betas));
+    ws->alphas = splatt_malloc(rank * sizeof(*ws->betas));
+  }
+
+  /* randomly initialize first column of Q and then normalize */
+  fill_rand(ws->Q->vals, ncols);
+  vec_normalize(ws->Q->vals, ncols);
+
+  /* foreach column */
+  for(idx_t col=0; col < rank; ++col) {
+    val_t * const Pv = ws->P->vals + (col * nrows);
+    val_t * const Qv = ws->Q->vals + (col * ncols);
+
+    /* P(:,j) = A * Q(:,j) */
+    mat_vec(A, Qv, Pv);
+
+    /* orthogonalize P(:,j) against previous columns */
+    mat_col_orth(ws->P, col);
+
+    /* normalize P(:,j) */
+    ws->alphas[col] = vec_normalize(Pv, nrows);
+
+    /* compute Q(:,j+1) */
+    if(col+1 < rank) {
+      mat_transpose_vec(A, Pv, Qv + ncols);
+      mat_col_orth(ws->Q, col+1);
+      ws->betas[col] = vec_normalize(Qv + ncols, ncols);
+    }
+  } /* outer loop */
+}
+
 
 
 void left_singulars(
@@ -154,6 +206,11 @@ void alloc_svd_ws(
   ws->lwork = max_lwork;
   ws->workspace = malloc(max_lwork * sizeof(*(ws->workspace)));
   ws->iwork = malloc(8 * max_min * sizeof(*(ws->iwork)));
+
+  ws->P = NULL;
+  ws->Q = NULL;
+  ws->alphas = NULL;
+  ws->betas = NULL;
 }
 
 

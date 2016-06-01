@@ -2,6 +2,7 @@
 #include "../src/matrix.h"
 #include "ctest/ctest.h"
 #include "splatt_test.h"
+#include <math.h>
 #include <omp.h>
 
 #define NMATS 4
@@ -143,4 +144,98 @@ CTEST2(matrix, ata)
   }
 }
 
+
+CTEST2(matrix, mat_col_orth)
+{
+  /* normalize first column */
+  matrix_t * A = mat_mkcol(data->mats[2]);
+
+  val_t norm = 0;
+  for(idx_t i=0; i < A->I; ++i) {
+    norm += A->vals[i] * A->vals[i];
+  }
+  norm = sqrt(norm);
+  for(idx_t i=0; i < A->I; ++i) {
+    A->vals[i] /= norm;
+  }
+
+  /* now orthogonalize the second column */
+  mat_col_orth(A, 1);
+
+  /* check the inner product */
+  val_t inner = 0;
+  for(idx_t i=0; i < A->I; ++i) {
+    inner += A->vals[i] * A->vals[i + A->I];
+  }
+  ASSERT_DBL_NEAR_TOL(0., inner, 1e-12);
+
+  /* now do next column */
+  mat_col_orth(A, 2);
+
+  inner = 0;
+  val_t inner2 = 0;
+  for(idx_t i=0; i < A->I; ++i) {
+    inner  += A->vals[i] * A->vals[i + (1 * A->I)];
+    inner2 += A->vals[i] * A->vals[i + (2 * A->I)];
+  }
+  ASSERT_DBL_NEAR_TOL(0., inner, 1e-12);
+  ASSERT_DBL_NEAR_TOL(0., inner2, 1e-12);
+
+  mat_free(A);
+}
+
+
+CTEST2(matrix, mat_col_orth_big)
+{
+  /* normalize first column */
+  matrix_t * A = mat_rand(500, 101);
+  A->rowmajor = 0;
+
+  for(idx_t j=0; j < A->J; ++j) {
+    /* now orthogonalize the second column */
+    mat_col_orth(A, j);
+
+    vec_normalize(A->vals + (j * A->I), A->I);
+
+    /* check that the inner products are 0 */
+    for(idx_t k=0; k <= j; ++k) {
+      val_t const * const restrict u = A->vals + (k * A->I);
+      val_t const * const restrict v = A->vals + (j * A->I);
+      val_t inner = 0;
+      for(idx_t i=0; i < A->I; ++i) {
+        inner += u[i] * v[i];
+      }
+      if(j == k) {
+        ASSERT_DBL_NEAR_TOL(1., inner, 1e-12);
+      } else {
+        ASSERT_DBL_NEAR_TOL(0., inner, 1e-12);
+      }
+    }
+  }
+
+  mat_free(A);
+}
+
+
+CTEST(matrix, vec_normalize)
+{
+  idx_t N = 100;
+  val_t * vec = splatt_malloc(N * sizeof(*vec));
+  val_t x = 0.;
+  for(idx_t i=0; i < N; ++i) {
+    vec[i] = i;
+    x += i * i;
+  }
+
+  val_t norm = vec_normalize(vec, N);
+
+  ASSERT_DBL_NEAR_TOL(sqrt(x), norm, 0);
+
+  val_t observed = 0.;
+  for(idx_t i=0; i < N; ++i) {
+    observed += vec[i] * vec[i];
+  }
+
+  ASSERT_DBL_NEAR_TOL(1., sqrt(observed), 1e-16);
+}
 
