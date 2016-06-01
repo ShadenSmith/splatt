@@ -110,7 +110,11 @@ CTEST2(svd, lanczos_bidiag)
     error += diff * diff;
   }
 
+#if SPLATT_VAL_TYPEWIDTH == 32
+  ASSERT_DBL_NEAR_TOL(0., sqrt(error), 1.5e-3);
+#else
   ASSERT_DBL_NEAR_TOL(0., sqrt(error), 1e-12);
+#endif
 
   mat_free(P);
   mat_free(B);
