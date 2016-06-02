@@ -23,6 +23,8 @@ CTEST_DATA(svd)
   val_t * A;
   val_t * buf;
   val_t * left;
+
+  matrix_t matA;
 };
 
 
@@ -35,6 +37,11 @@ CTEST_SETUP(svd)
   for(idx_t i=0; i < data->nrows * data->ncols; ++i) {
     data->A[i] = i+1;
   }
+
+  data->matA.I = data->nrows;
+  data->matA.J = data->ncols;
+  data->matA.vals = data->A;
+  data->matA.rowmajor = 1;
 }
 
 
@@ -124,3 +131,24 @@ CTEST2(svd, lanczos_bidiag)
   free_svd_ws(&ws);
 }
 
+
+CTEST2(svd, fast_svd)
+{
+  svd_ws ws;
+  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
+
+  printf("\n");
+  mat_write(&data->matA, NULL);
+
+  fast_left_singulars(&data->matA, 2, &ws);
+
+  printf("Left singular vectors:\n");
+  mat_write(ws.P, NULL);
+  printf("\n");
+
+  printf("\n");
+  mat_write(ws.Q, NULL);
+  printf("\n");
+
+  //free_svd_ws(&ws);
+}
