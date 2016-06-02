@@ -8,10 +8,10 @@
 #include "../csf.h"
 #include "../reorder.h"
 #include "../util.h"
+#include "../thd_info.h"
 #include "../io.h"
 
 #include <math.h>
-#include <omp.h>
 
 
 #define USE_CSF_SGD 1
@@ -165,7 +165,7 @@ static void p_update_model(
   idx_t const nfactors = model->rank;
   idx_t const x = nnz_index;
 
-  val_t * const restrict buffer = ws->thds[omp_get_thread_num()].scratch[0];
+  val_t * const restrict buffer = ws->thds[splatt_omp_get_thread_num()].scratch[0];
 
   /* compute the error */
   val_t const err = train->vals[x] - tc_predict_val(model, train, x, buffer);

@@ -79,6 +79,7 @@ int splatt_mpi_coord_load(
 static void p_fill_tt_nnz(
   FILE * fin,
   sptensor_t * const buf,
+  idx_t const * const offset,
   idx_t const nnz_to_read)
 {
   idx_t const nmodes = buf->nmodes;
@@ -94,8 +95,8 @@ static void p_fill_tt_nnz(
     if(read > 1 && line[0] != '#') {
       ptr = line;
       for(idx_t m=0; m < nmodes; ++m) {
-        idx_t ind = strtoull(ptr, &ptr, 10) - 1;
-        buf->ind[m][nnzread] = ind;
+        idx_t ind = strtoull(ptr, &ptr, 10);
+        buf->ind[m][nnzread] = ind - offset[m];
       }
       val_t const v = strtod(ptr, &ptr);
       buf->vals[nnzread++] = v;
@@ -557,7 +558,7 @@ static void p_get_best_mpi_dim(
     /* reset mpi dims */
     rinfo->dims_3d[m] = 1;
   }
-  idx_t target = total_size / rinfo->npes;
+  idx_t target = total_size / (idx_t)rinfo->npes;
 
   idx_t diffs[MAX_NMODES];
 
@@ -603,13 +604,14 @@ static sptensor_t * p_tt_mpi_read_file(
   MPI_Comm_size(comm, &npes);
 
   idx_t dims[MAX_NMODES];
+  idx_t offsets[MAX_NMODES];
   idx_t global_nnz;
   idx_t nmodes;
   sptensor_t * tt = NULL;
 
   if(rank == 0) {
     /* send dimension info */
-    tt_get_dims(fin, &nmodes, &global_nnz, dims);
+    tt_get_dims(fin, &nmodes, &global_nnz, dims, offsets);
     rewind(fin);
     MPI_Bcast(&nmodes, 1, SPLATT_MPI_IDX, 0, comm);
     MPI_Bcast(&global_nnz, 1, SPLATT_MPI_IDX, 0, comm);
@@ -631,7 +633,7 @@ static sptensor_t * p_tt_mpi_read_file(
 
     /* now send to everyone else */
     for(int p=1; p < npes; ++p) {
-      p_fill_tt_nnz(fin, tt_buf, target_nnz);
+      p_fill_tt_nnz(fin, tt_buf, offsets, target_nnz);
       for(idx_t m=0; m < tt_buf->nmodes;  ++m) {
         MPI_Send(tt_buf->ind[m], target_nnz, SPLATT_MPI_IDX, p, m, comm);
       }
@@ -641,7 +643,7 @@ static sptensor_t * p_tt_mpi_read_file(
 
     /* load my own */
     tt = tt_alloc(my_nnz, nmodes);
-    p_fill_tt_nnz(fin, tt, my_nnz);
+    p_fill_tt_nnz(fin, tt, offsets, my_nnz);
   } else {
     MPI_Status status;
 

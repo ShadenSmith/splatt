@@ -1,7 +1,7 @@
 
 #include "base.h"
+#include "thd_info.h"
 #include <stdlib.h>
-#include <omp.h>
 
 
 /******************************************************************************
@@ -16,7 +16,7 @@ double * splatt_default_opts(void)
   }
 
   opts[SPLATT_OPTION_TOLERANCE]  = DEFAULT_TOL;
-  opts[SPLATT_OPTION_REGULARIZE] = 0.;;
+  opts[SPLATT_OPTION_REGULARIZE] = 0.;
   opts[SPLATT_OPTION_NITER]      = DEFAULT_ITS;
   opts[SPLATT_OPTION_VERBOSITY]  = SPLATT_VERBOSITY_LOW;
 
@@ -27,12 +27,15 @@ double * splatt_default_opts(void)
   opts[SPLATT_OPTION_DECOMP] = SPLATT_DECOMP_MEDIUM;
   opts[SPLATT_OPTION_COMM]   = SPLATT_COMM_ALL2ALL;
 
+#ifdef _OPENMP
   if(omp_in_parallel()) {
     opts[SPLATT_OPTION_NTHREADS]  = 1;
   } else {
-    opts[SPLATT_OPTION_NTHREADS]  = omp_get_max_threads();
+    opts[SPLATT_OPTION_NTHREADS]  = splatt_omp_get_max_threads();
   }
-
+#else
+  opts[SPLATT_OPTION_NTHREADS] = 1;
+#endif
 
   return opts;
 }

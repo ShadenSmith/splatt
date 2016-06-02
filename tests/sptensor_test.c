@@ -4,7 +4,6 @@
 #include "ctest/ctest.h"
 
 #include "splatt_test.h"
-#include <omp.h>
 
 
 CTEST_DATA(sptensor)

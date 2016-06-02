@@ -4,7 +4,6 @@
  * INCLUDES
  *****************************************************************************/
 #include "thd_info.h"
-#include <omp.h>
 
 
 /******************************************************************************
@@ -23,8 +22,8 @@ static inline void p_reduce_sum(
   idx_t const scratchid,
   idx_t const nelems)
 {
-  int const tid = omp_get_thread_num();
-  int const nthreads = omp_get_num_threads();
+  int const tid = splatt_omp_get_thread_num();
+  int const nthreads = splatt_omp_get_num_threads();
 
   val_t * const myvals = (val_t *) thds[tid].scratch[scratchid];
 
@@ -78,8 +77,8 @@ static inline void p_reduce_max(
   idx_t const scratchid,
   idx_t const nelems)
 {
-  int const tid = omp_get_thread_num();
-  int const nthreads = omp_get_num_threads();
+  int const tid = splatt_omp_get_thread_num();
+  int const nthreads = splatt_omp_get_num_threads();
 
   val_t * const myvals = (val_t *) thds[tid].scratch[scratchid];
 
@@ -131,7 +130,7 @@ void thd_reduce(
   idx_t const nelems,
   splatt_reduce_type const which)
 {
-  if(omp_get_num_threads() == 1) {
+  if(splatt_omp_get_num_threads() == 1) {
     return;
   }
 

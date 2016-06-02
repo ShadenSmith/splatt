@@ -461,7 +461,7 @@ void splatt_tc_als(
   for(idx_t e=1; e < ws->max_its+1; ++e) {
     #pragma omp parallel
     {
-      int const tid = omp_get_thread_num();
+      int const tid = splatt_omp_get_thread_num();
 
       for(idx_t m=0; m < nmodes; ++m) {
         #pragma omp master

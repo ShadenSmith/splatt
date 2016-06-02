@@ -1,4 +1,5 @@
 project(CSPLATT)
+
 cmake_minimum_required(VERSION 2.8.0)
 
 # Get version string from git repo if possible
@@ -14,10 +15,15 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/)
 endif()
 
 
-find_package(OpenMP REQUIRED)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+find_package(OpenMP)
+if(${OPENMP_FOUND})
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+else()
+  message("OpenMP runtime not found! SPLATT will not be multithreaded.")
+endif()
+
 
 # ALL LIBRARIES -- will concatenate to this
 set(SPLATT_LIBS splatt m rt)
@@ -28,6 +34,22 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
   set(SPLATT_LIBS ${SPLATT_LIBS} ifcore)
 else()
   set(SPLATT_LIBS ${SPLATT_LIBS} gfortran)
+endif()
+
+if (DEFINED MAX_MODES)
+  add_definitions(-DSPLATT_MAX_NMODES=${MAX_MODES})
+  message("Setting SPLATT_MAX_NMODES=${MAX_MODES}")
+endif()
+
+
+if (DEFINED MPICC)
+  message("Using user supplied mpicc=${MPICC}")
+  set(MPI_C_COMPILER ${MPICC})
+endif()
+
+if (DEFINED MPICXX)
+  message("Using user supplied mpicxx=${MPICXX}")
+  set(MPI_CXX_COMPILER ${MPICC})
 endif()
 
 # check for MPI mode
@@ -57,11 +79,29 @@ else()
 endif()
 
 
+# type widths
+if (DEFINED SPLATT_IDX_WIDTH)
+  add_definitions(-DSPLATT_IDX_TYPEWIDTH=${SPLATT_IDX_WIDTH})
+  message("Using ${SPLATT_IDX_WIDTH}-bit integers.")
+endif()
+
+if (DEFINED SPLATT_VAL_WIDTH)
+  if (${SPLATT_VAL_WIDTH} STREQUAL "single")
+    add_definitions(-DSPLATT_VAL_TYPEWIDTH=32)
+  elseif (${SPLATT_VAL_WIDTH} STREQUAL "double")
+    add_definitions(-DSPLATT_VAL_TYPEWIDTH=64)
+  else()
+    message(FATAL_ERROR "Precision '${SPLATT_VAL_WIDTH}' not recognized.\
+      Choose between {single, double}.")
+  endif()
+  message("Using ${SPLATT_VAL_WIDTH} precision floating point numbers.")
+endif()
+
 
 # BLAS/LAPACK
 if (DEFINED DOWNLOAD_BLAS_LAPACK)
-  message("Downloading generic BLAS/LAPACK libraries.")
-  message("  NOTE: performance may suffer.")
+  message(WARNING "Downloading generic BLAS/LAPACK libraries.")
+  message(WARNING "  NOTE: performance may suffer.")
   execute_process(COMMAND ${CMAKE_SOURCE_DIR}/scripts/download-blas-lapack.sh ${CMAKE_BINARY_DIR})
   set(USER_LAPACK_LIB ${CMAKE_BINARY_DIR}/lapack/lib/liblapack.a)
   set(USER_BLAS_LIB ${CMAKE_BINARY_DIR}/lapack/lib/libblas.a)
@@ -75,10 +115,14 @@ if (DEFINED USER_LAPACK_LIB)
   set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_LAPACK_LIB})
 # auto find LAPACK
 else()
-  find_package(LAPACK REQUIRED)
+  find_package(LAPACK)
   set(SPLATT_LIBS ${SPLATT_LIBS} ${LAPACK_LIBRARIES})
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
-  message("FOUND LAPACK LIBS: " ${LAPACK_LIBRARIES})
+  if(${LAPACK_FOUND})
+    message("FOUND LAPACK LIBS: " ${LAPACK_LIBRARIES})
+  else()
+    message(FATAL_ERROR "Could not find LAPACK library. Run `./configure --help`  for assistance.")
+  endif()
 endif()
 
 if (DEFINED USER_BLAS_LIB)
@@ -86,11 +130,15 @@ if (DEFINED USER_BLAS_LIB)
   set(SPLATT_LIBS ${SPLATT_LIBS} ${USER_BLAS_LIB})
 # auto find BLAS
 else()
-  find_package(BLAS REQUIRED)
+  find_package(BLAS)
   include_directories(${BLAS_INCLUDE_DIR})
   set(SPLATT_LIBS ${SPLATT_LIBS} ${BLAS_LIBRARIES})
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-  message("FOUND BLAS LIBS: " ${BLAS_LIBRARIES})
+  if(${BLAS_FOUND})
+    message("FOUND BLAS LIBS: " ${BLAS_LIBRARIES})
+  else()
+    message(FATAL_ERROR "Could not find BLAS library. Run `./configure --help`  for assistance.")
+  endif()
 endif()
 
 

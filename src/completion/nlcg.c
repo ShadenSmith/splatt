@@ -3,9 +3,9 @@
 #include "gradient.h"
 #include "../csf.h"
 #include "../util.h"
+#include "../thd_info.h"
 
 #include <math.h>
-#include <omp.h>
 
 
 

@@ -5,7 +5,7 @@
 #include "../csf.h"
 
 #include <math.h>
-#include <omp.h>
+#include "../thd_info.h"
 
 
 

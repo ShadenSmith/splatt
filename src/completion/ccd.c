@@ -1012,7 +1012,6 @@ static void p_transpose_model(
     tc_model * model)
 {
   idx_t const maxdim = model->dims[argmax_elem(model->dims, model->nmodes)];
-  printf("maxdim: %lu\n", maxdim);
 
   val_t * restrict buf = splatt_malloc(maxdim * model->rank * sizeof(*buf));
 
@@ -1119,7 +1118,7 @@ void splatt_tc_ccd(
     loss = 0;
     #pragma omp parallel reduction(+:loss)
     {
-      int const tid = omp_get_thread_num();
+      int const tid = splatt_omp_get_thread_num();
 
       for(idx_t f=0; f < nfactors; ++f) {
         /* add current component to residual */

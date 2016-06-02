@@ -9,7 +9,6 @@
 #include "ctest/ctest.h"
 
 #include "splatt_test.h"
-#include <omp.h>
 
 
 static void __compare_mats(
@@ -23,7 +22,12 @@ static void __compare_mats(
 
   for(idx_t i=0; i < A->I; ++i) {
     for(idx_t j=0; j < A->J; ++j) {
+#if SPLATT_VAL_TYPEWIDTH == 32
+      /* 9e-3 chosen by hand */
+      ASSERT_DBL_NEAR_TOL(A->vals[j+(i*ncols)], B->vals[j+(i*ncols)], 9e-3);
+#else
       ASSERT_DBL_NEAR_TOL(A->vals[j+(i*ncols)], B->vals[j+(i*ncols)], 1e-10);
+#endif
     }
   }
 }
@@ -116,7 +120,7 @@ CTEST_TEARDOWN(mttkrp)
 CTEST2(mttkrp, splatt)
 {
   idx_t const nthreads = 7;
-  omp_set_num_threads(nthreads);
+  splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 1,
     (data->nfactors * data->nfactors * sizeof(val_t)) + 64);
 

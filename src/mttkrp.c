@@ -7,30 +7,38 @@
 #include "thd_info.h"
 #include "tile.h"
 #include "util.h"
-#include <omp.h>
-
 
 
 /******************************************************************************
  * MUTEX FUNCTIONS
  *****************************************************************************/
 
-#define NLOCKS 1024
-static omp_lock_t locks[NLOCKS*16];
+
 static bool locks_initialized = false;
 
+#ifdef _OPENMP
+#define NLOCKS 1024
+static omp_lock_t locks[NLOCKS*16];
+#endif
 
 /**
 * @brief Initialize all OpenMP locks.
 */
 static void p_init_locks()
 {
-  if (!locks_initialized) {
+#ifdef _OPENMP
+  if(!locks_initialized) {
     for(int i=0; i < NLOCKS; ++i) {
       omp_init_lock(locks + (i*16));
     }
     locks_initialized = true;
   }
+
+#else
+  if(!locks_initialized) {
+    locks_initialized = true;
+  }
+#endif
 }
 
 /**
@@ -41,8 +49,10 @@ static void p_init_locks()
 static inline void p_splatt_set_lock(
     int id)
 {
+#ifdef _OPENMP
   int i = (id % NLOCKS) * 16;
   omp_set_lock(locks + i);
+#endif
 }
 
 /**
@@ -53,8 +63,10 @@ static inline void p_splatt_set_lock(
 static inline void p_splatt_unset_lock(
     int id)
 {
+#ifdef _OPENMP
   int i = (id % NLOCKS) * 16;
   omp_unset_lock(locks + i);
+#endif
 }
 
 
@@ -88,7 +100,7 @@ int splatt_mttkrp(
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
   idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
-  omp_set_num_threads(nthreads);
+  splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 3,
     (ncolumns * ncolumns * sizeof(val_t)) + 64,
     0,
@@ -298,7 +310,7 @@ static void p_csf_mttkrp_root_tiled3(
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
   val_t * const restrict accumF
-      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
   for(idx_t s=0; s < nslices; ++s) {
@@ -357,7 +369,7 @@ static void p_csf_mttkrp_root3(
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
   val_t * const restrict accumF
-      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
   #pragma omp for schedule(dynamic, 16) nowait
@@ -417,7 +429,7 @@ static void p_csf_mttkrp_internal3(
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
   val_t * const restrict accumF
-      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
   #pragma omp for schedule(dynamic, 16) nowait
@@ -480,7 +492,7 @@ static void p_csf_mttkrp_leaf3(
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
   val_t * const restrict accumF
-      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
   #pragma omp for schedule(dynamic, 16) nowait
@@ -543,7 +555,7 @@ static void p_csf_mttkrp_root_tiled(
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -604,7 +616,7 @@ static void p_csf_mttkrp_root(
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -657,7 +669,7 @@ static void p_csf_mttkrp_leaf_tiled3(
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
   val_t * const restrict accumF
-      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
   for(idx_t s=0; s < nslices; ++s) {
@@ -718,7 +730,7 @@ static void p_csf_mttkrp_leaf_tiled(
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -800,7 +812,7 @@ static void p_csf_mttkrp_leaf(
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -876,7 +888,7 @@ static void p_csf_mttkrp_internal_tiled3(
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
   val_t * const restrict accumF
-      = (val_t *) thds[omp_get_thread_num()].scratch[0];
+      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
   for(idx_t s=0; s < nslices; ++s) {
@@ -947,7 +959,7 @@ static void p_csf_mttkrp_internal_tiled(
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -1035,7 +1047,7 @@ static void p_csf_mttkrp_internal(
   val_t * buf[MAX_NMODES];
   idx_t idxstack[MAX_NMODES];
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
     mvals[m] = mats[ct->dim_perm[m]]->vals;
     /* grab the next row of buf from thds */
@@ -1105,7 +1117,7 @@ static void p_root_decide(
   idx_t const nmodes = tensor->nmodes;
   #pragma omp parallel
   {
-    timer_start(&thds[omp_get_thread_num()].ttime);
+    timer_start(&thds[splatt_omp_get_thread_num()].ttime);
     /* tile id */
     idx_t tid = 0;
     switch(tensor->which_tile) {
@@ -1140,7 +1152,7 @@ static void p_root_decide(
     case SPLATT_COOPTILE:
       break;
     }
-    timer_stop(&thds[omp_get_thread_num()].ttime);
+    timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
   } /* end omp parallel */
 }
 
@@ -1157,7 +1169,7 @@ static void p_leaf_decide(
 
   #pragma omp parallel
   {
-    timer_start(&thds[omp_get_thread_num()].ttime);
+    timer_start(&thds[splatt_omp_get_thread_num()].ttime);
 
     /* tile id */
     idx_t tid = 0;
@@ -1191,7 +1203,7 @@ static void p_leaf_decide(
     case SPLATT_COOPTILE:
       break;
     }
-    timer_stop(&thds[omp_get_thread_num()].ttime);
+    timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
   } /* end omp parallel */
 }
 
@@ -1208,7 +1220,7 @@ static void p_intl_decide(
 
   #pragma omp parallel
   {
-    timer_start(&thds[omp_get_thread_num()].ttime);
+    timer_start(&thds[splatt_omp_get_thread_num()].ttime);
     /* tile id */
     idx_t tid = 0;
     switch(tensor->which_tile) {
@@ -1242,7 +1254,7 @@ static void p_intl_decide(
       break;
     }
 
-    timer_stop(&thds[omp_get_thread_num()].ttime);
+    timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
   } /* end omp parallel */
 }
 
@@ -1265,7 +1277,7 @@ void mttkrp_csf(
   M->I = tensors[0].dims[mode];
   memset(M->vals, 0, M->I * M->J * sizeof(val_t));
 
-  omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
+  splatt_omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
 
   idx_t nmodes = tensors[0].nmodes;
   /* find out which level in the tree this is */
@@ -1365,7 +1377,7 @@ void mttkrp_splatt(
 
   #pragma omp parallel
   {
-    int const tid = omp_get_thread_num();
+    int const tid = splatt_omp_get_thread_num();
     val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
     timer_start(&thds[tid].ttime);
 
@@ -1434,7 +1446,7 @@ void mttkrp_splatt_sync_tiled(
 
   #pragma omp parallel
   {
-    int const tid = omp_get_thread_num();
+    int const tid = splatt_omp_get_thread_num();
     val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
     timer_start(&thds[tid].ttime);
 
@@ -1503,7 +1515,7 @@ void mttkrp_splatt_coop_tiled(
 
   #pragma omp parallel
   {
-    int const tid = omp_get_thread_num();
+    int const tid = splatt_omp_get_thread_num();
     val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
     val_t * const localm = (val_t *) thds[tid].scratch[1];
     timer_start(&thds[tid].ttime);

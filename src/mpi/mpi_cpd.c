@@ -11,7 +11,6 @@
 #include "../util.h"
 
 #include <math.h>
-#include <omp.h>
 
 
 
@@ -462,7 +461,7 @@ double mpi_cpd_als_iterate(
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
-  omp_set_num_threads(nthreads);
+  splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 3,
     (nfactors * nfactors * sizeof(val_t)) + 64,
     (TILE_SIZES[0] * nfactors * sizeof(val_t)) + 64,

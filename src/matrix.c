@@ -9,7 +9,6 @@
 #include "timer.h"
 
 #include <math.h>
-#include <omp.h>
 
 
 #if   SPLATT_VAL_TYPEWIDTH == 32
@@ -48,7 +47,7 @@ static void p_mat_2norm(
 
   #pragma omp parallel
   {
-    int const tid = omp_get_thread_num();
+    int const tid = splatt_omp_get_thread_num();
     val_t * const mylambda = (val_t *) thds[tid].scratch[0];
     for(idx_t j=0; j < J; ++j) {
       mylambda[j] = 0;
@@ -112,7 +111,7 @@ static void p_mat_maxnorm(
 
   #pragma omp parallel
   {
-    int const tid = omp_get_thread_num();
+    int const tid = splatt_omp_get_thread_num();
     val_t * const mylambda = (val_t *) thds[tid].scratch[0];
     for(idx_t j=0; j < J; ++j) {
       mylambda[j] = 0;
@@ -469,7 +468,7 @@ void mat_normalize(
 {
   timer_start(&timers[TIMER_MATNORM]);
 
-  omp_set_num_threads(nthreads);
+  splatt_omp_set_num_threads(nthreads);
 
   switch(which) {
   case MAT_NORM_2:

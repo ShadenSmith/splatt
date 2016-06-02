@@ -22,12 +22,12 @@ static char tc_args_doc[] = "<train> <validate> [test]";
 static char tc_doc[] =
   "splatt-complete -- Complete a tensor with missing entries.\n"
   "Available tensor completion algorithms are:\n"
-  "  gd\t\tgradient descent\n"
-  "  cg\t\nnonlinear conjugate gradient\n"
-  "  lbfgs\t\tlimited-memory BFGS\n"
-  "  sgd\t\tstochastic gradient descent\n"
+  "  als\t\talternating least squares\n"
   "  ccd\t\tcoordinate descent\n"
-  "  als\t\talternating least squares\n";
+  "  sgd\t\tstochastic gradient descent\n"
+  "  gd\t\tgradient descent\n"
+  "  cg\t\tnonlinear conjugate gradient\n"
+  "  lbfgs\t\tlimited-memory BFGS\n";
 
 
 #define TC_REG 255
@@ -41,7 +41,7 @@ static struct argp_option tc_options[] = {
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
-  {"alg", 'a', "ALG", 0, "which opt algorithm to use (default: sgd)"},
+  {"alg", 'a', "ALG", 0, "which opt algorithm to use (default: als)"},
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD"},
   {"reg", TC_REG, "SIZE", 0, "step size (learning rate) for SGD"},
@@ -136,14 +136,14 @@ static void default_tc_opts(
     args->ifnames[n] = NULL;
   }
 
-  args->which_alg = SPLATT_TC_SGD;
-  args->write = false;
+  args->which_alg = SPLATT_TC_ALS;
+  args->write = true;
   args->nfactors = 10;
   args->learn_rate = -1.;
   args->reg = -1.;
   args->max_its = 0;
   args->set_timeout = false;
-  args->nthreads = omp_get_max_threads();
+  args->nthreads = splatt_omp_get_max_threads();
   args->set_seed = false;
   args->seed = time(NULL);
   args->set_tolerance = false;
@@ -172,7 +172,7 @@ static error_t parse_tc_opt(
     break;
   case 't':
     args->nthreads = strtoull(arg, &buf, 10);
-    omp_set_num_threads(args->nthreads);
+    splatt_omp_set_num_threads(args->nthreads);
     break;
   case 'v':
     timer_inc_verbose();
@@ -244,7 +244,7 @@ int splatt_tc_cmd(
   tc_cmd_args args;
   default_tc_opts(&args);
   argp_parse(&tc_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
-  omp_set_num_threads(args.nthreads);
+  splatt_omp_set_num_threads(args.nthreads);
 
 #ifdef SPLATT_USE_MPI
   /* get global info */
@@ -449,6 +449,10 @@ int splatt_tc_cmd(
 
       matrix_t tmpmat;
       tmpmat.rowmajor = 1;
+      if(args.which_alg == SPLATT_TC_CCD) {
+        tmpmat.rowmajor = 0;
+      }
+
       tmpmat.I = ws->best_model->dims[m];
       tmpmat.J = args.nfactors;
       tmpmat.vals = ws->best_model->factors[m];

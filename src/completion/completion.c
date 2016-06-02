@@ -149,7 +149,7 @@ val_t tc_mae(
 
   #pragma omp parallel reduction(+:loss_obj)
   {
-    val_t * buffer = ws->thds[omp_get_thread_num()].scratch[0];
+    val_t * buffer = ws->thds[splatt_omp_get_thread_num()].scratch[0];
 
     if(model->which == SPLATT_TC_CCD) {
       #pragma omp for schedule(static)
@@ -192,7 +192,7 @@ val_t tc_loss_sq(
 
   #pragma omp parallel reduction(+:loss_obj)
   {
-    val_t * buffer = ws->thds[omp_get_thread_num()].scratch[0];
+    val_t * buffer = ws->thds[splatt_omp_get_thread_num()].scratch[0];
 
     if(model->which == SPLATT_TC_CCD) {
       #pragma omp for schedule(static)
