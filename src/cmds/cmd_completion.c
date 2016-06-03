@@ -44,7 +44,7 @@ static struct argp_option tc_options[] = {
   {"alg", 'a', "ALG", 0, "which opt algorithm to use (default: als)"},
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD"},
-  {"reg", TC_REG, "SIZE", 0, "step size (learning rate) for SGD"},
+  {"reg", TC_REG, "REGULARIZATION", 0, "L2 regularization (default: 2e-1)"},
   {"inner", TC_INNER, "NITERS", 0, "number of inner iterations to use during CCD++ (default: 1)"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
   {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
