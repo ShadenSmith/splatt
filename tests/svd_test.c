@@ -132,6 +132,56 @@ CTEST2(svd, lanczos_bidiag)
 }
 
 
+/* compares against two-sided Lanczos bidiagonalization */
+CTEST2(svd, lanczos_onesided_bidiag)
+{
+  svd_ws ws, ws2;
+  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
+  alloc_svd_ws(&ws2, 1, &(data->nrows), &(data->ncols));
+
+  srand(1);
+  idx_t const rank = 3;
+  matrix_t * A = mat_rand(20,rank);
+
+  /* srand to ensure same initialization */
+  srand(1);
+  lanczos_bidiag(A, rank, &ws);
+
+  srand(1);
+  lanczos_onesided_bidiag(A, rank, &ws2);
+
+  /* Compare B's */
+  for(idx_t i=0; i < rank; ++i) {
+#if SPLATT_VAL_TYPEWIDTH == 32
+    ASSERT_DBL_NEAR_TOL(ws.alphas[i], ws2.alphas[i], 1e-6);
+#else
+    ASSERT_DBL_NEAR_TOL(ws.alphas[i], ws2.alphas[i], 1e-14);
+#endif
+    if(i != rank-1) {
+#if SPLATT_VAL_TYPEWIDTH == 32
+      ASSERT_DBL_NEAR_TOL(ws.betas[i], ws2.betas[i], 1e-6);
+#else
+      ASSERT_DBL_NEAR_TOL(ws.betas[i], ws2.betas[i], 1e-14);
+#endif
+    }
+  }
+
+  /* Compare Q's */
+  for(idx_t x=0; x < rank*rank; ++x) {
+#if SPLATT_VAL_TYPEWIDTH == 32
+    ASSERT_DBL_NEAR_TOL(ws.Q->vals[x], ws2.Q->vals[x], 3e-6);
+#else
+    ASSERT_DBL_NEAR_TOL(ws.Q->vals[x], ws2.Q->vals[x], 1e-14);
+#endif
+  }
+
+  mat_free(A);
+  free_svd_ws(&ws);
+  free_svd_ws(&ws2);
+}
+
+
+
 CTEST2(svd, fast_svd)
 {
   svd_ws ws;

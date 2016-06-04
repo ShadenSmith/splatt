@@ -1,4 +1,9 @@
 
+
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
+
 #include "svd.h"
 #include "matrix.h"
 #include "timer.h"
@@ -7,6 +12,10 @@
 #include <math.h>
 
 
+
+/******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
 
 /**
 * @brief Compute the optimal workspace size for LAPACK_SVD.
@@ -59,6 +68,26 @@ static int p_optimal_svd_work_size(
 
   return (int) work_size;
 }
+
+
+
+
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
+
+
+
+void ffast_left_singulars(
+    matrix_t const * const inmat,
+    matrix_t       * const outmat,
+    svd_ws * const ws)
+{
+
+
+}
+
 
 
 void fast_left_singulars(
@@ -144,6 +173,66 @@ void lanczos_bidiag(
     }
   } /* outer loop */
 }
+
+
+void lanczos_onesided_bidiag(
+    matrix_t const * const A,
+    idx_t const rank,
+    svd_ws * const ws)
+{
+  idx_t const nrows = A->I;
+  idx_t const ncols = A->J;
+
+  matrix_t * p0 = mat_alloc(nrows, 1);
+  matrix_t * p1 = mat_alloc(nrows, 1);
+
+  /* alloc if first time */
+  if(ws->Q == NULL) {
+    ws->Q = mat_alloc(ncols, rank);
+    ws->Q->rowmajor = 0;
+    ws->alphas = splatt_malloc(rank * sizeof(*ws->betas));
+    ws->betas = splatt_malloc((rank-1) * sizeof(*ws->betas));
+  }
+
+  /* randomly initialize first column of Q and then normalize */
+  fill_rand(ws->Q->vals, ncols);
+  vec_normalize(ws->Q->vals, ncols);
+
+  for(idx_t col=0; col < rank; ++col) {
+    val_t * const restrict Qv = ws->Q->vals + (col * ncols);
+    val_t * const restrict p0v = p0->vals;
+    val_t * const restrict p1v = p1->vals;
+
+    /* p1 = A * Q(:,j) - (beta[col-1] * p0) */
+    mat_vec(A, Qv, p1v);
+    if(col > 0) {
+      val_t const beta = ws->betas[col-1];
+      #pragma omp parallel for schedule(static)
+      for(idx_t i=0; i < nrows; ++i) {
+        p1v[i] -= beta * p0v[i];
+      }
+    }
+
+    /* normalize P(:,j) */
+    ws->alphas[col] = vec_normalize(p1v, nrows);
+
+    /* compute Q(:,j+1) */
+    if(col+1 < rank) {
+      mat_transpose_vec(A, p1v, Qv + ncols);
+      mat_col_orth(ws->Q, col+1);
+      ws->betas[col] = vec_normalize(Qv + ncols, ncols);
+    }
+
+    /* swap p0 and p1 */
+    matrix_t * swp = p0;
+    p0 = p1;
+    p1 = swp;
+  }
+
+  mat_free(p0);
+  mat_free(p1);
+}
+
 
 
 

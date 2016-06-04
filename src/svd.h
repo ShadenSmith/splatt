@@ -62,6 +62,15 @@ void fast_left_singulars(
     idx_t const rank,
     svd_ws * const ws);
 
+
+
+void ffast_left_singulars(
+    matrix_t const * const inmat,
+    matrix_t       * const outmat,
+    svd_ws * const ws);
+
+
+
 void lanczos_bidiag(
     matrix_t const * const A,
     idx_t const rank,
