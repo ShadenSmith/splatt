@@ -65,8 +65,9 @@ void fast_left_singulars(
 
 
 void ffast_left_singulars(
-    matrix_t const * const inmat,
+    matrix_t const * const A,
     matrix_t       * const outmat,
+    idx_t const nvecs,
     svd_ws * const ws);
 
 

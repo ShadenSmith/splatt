@@ -25,6 +25,7 @@ CTEST_DATA(svd)
   val_t * left;
 
   matrix_t matA;
+  matrix_t matLeft;
 };
 
 
@@ -42,6 +43,11 @@ CTEST_SETUP(svd)
   data->matA.J = data->ncols;
   data->matA.vals = data->A;
   data->matA.rowmajor = 1;
+
+  data->matLeft.I = data->nrows;
+  data->matLeft.J = data->ncols;
+  data->matLeft.vals = data->left;
+  data->matLeft.rowmajor = 1;
 }
 
 
@@ -190,8 +196,11 @@ CTEST2(svd, fast_svd)
   printf("\n");
   mat_write(&data->matA, NULL);
 
-  fast_left_singulars(&data->matA, 2, &ws);
+  ffast_left_singulars(&data->matA, &data->matLeft, 3, &ws);
 
+  mat_write(&data->matLeft, NULL);
+  printf("\n");
+#if 0
   printf("Left singular vectors:\n");
   mat_write(ws.P, NULL);
   printf("\n");
@@ -199,6 +208,7 @@ CTEST2(svd, fast_svd)
   printf("\n");
   mat_write(ws.Q, NULL);
   printf("\n");
+#endif
 
   //free_svd_ws(&ws);
 }

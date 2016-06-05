@@ -80,12 +80,56 @@ static int p_optimal_svd_work_size(
 
 
 void ffast_left_singulars(
-    matrix_t const * const inmat,
+    matrix_t const * const A,
     matrix_t       * const outmat,
+    idx_t const nvecs,
     svd_ws * const ws)
 {
+	timer_start(&timers[TIMER_SVD]);
 
+  /* compute the bidiagonalization */
+  lanczos_onesided_bidiag(A, nvecs, ws);
 
+  char uplo = 'U';
+  int n = nvecs;
+
+  int ncvt = A->J;
+  int nru  = 0;
+  int ncc  = 0;
+
+  val_t * VT = ws->S;
+  val_t * U = NULL;
+  val_t * C = NULL;
+
+  int ldu = SS_MAX(1, nru);
+  int ldvt = 1;
+  if(ncvt > 0) {
+    ldvt = SS_MAX(1, nvecs);
+  }
+  int ldc = 1;
+  if(ncc > 0) {
+    ldc = SS_MAX(1, nvecs);
+  }
+
+  val_t * work = splatt_malloc(4 * n * sizeof(*work));
+
+  int info = 0;
+  dbdsqr_(&uplo, &n,
+          &ncvt,
+          &nru,
+          &ncc,
+          ws->alphas, ws->betas,
+          VT, &ldvt,
+          U, &ldu,
+          C, &ldc,
+          work, &info);
+  if(info != 0) {
+    printf("DBDSQR returned %d\n", info);
+  }
+
+  splatt_free(work);
+
+	timer_stop(&timers[TIMER_SVD]);
 }
 
 
