@@ -8,9 +8,16 @@
 #include "matrix.h"
 #include "timer.h"
 #include "util.h"
+#include "io.h"
 
 #include <math.h>
 
+
+
+/**
+* @brief The number of extra vectors (and Lanczos iterations) to compute.
+*/
+idx_t const LANCZOS_EXTRA_VECS = 5;
 
 
 /******************************************************************************
@@ -79,42 +86,49 @@ static int p_optimal_svd_work_size(
 
 
 
-void ffast_left_singulars(
+void left_singulars(
     matrix_t const * const A,
-    matrix_t       * const outmat,
+    matrix_t       * const left_singular_matrix,
     idx_t const nvecs,
     svd_ws * const ws)
 {
 	timer_start(&timers[TIMER_SVD]);
 
-  /* compute the bidiagonalization */
-  lanczos_onesided_bidiag(A, nvecs, ws);
+  left_singular_matrix->J = nvecs;
+
+  idx_t const lanczos_nvecs = SS_MIN(A->J, nvecs + LANCZOS_EXTRA_VECS);
+
+  /* Compute the bidiagonalization and right orthogonal matrix */
+  lanczos_onesided_bidiag(A, lanczos_nvecs, ws);
 
   char uplo = 'U';
-  int n = nvecs;
+  int n = lanczos_nvecs;
 
   int ncvt = A->J;
   int nru  = 0;
   int ncc  = 0;
 
-  val_t * VT = ws->S;
+  matrix_t * Qt = mat_mkrow(ws->Q);
+
+  val_t * VT = Qt->vals;
   val_t * U = NULL;
   val_t * C = NULL;
 
   int ldu = SS_MAX(1, nru);
   int ldvt = 1;
   if(ncvt > 0) {
-    ldvt = SS_MAX(1, nvecs);
+    ldvt = SS_MAX(1, lanczos_nvecs);
   }
   int ldc = 1;
   if(ncc > 0) {
-    ldc = SS_MAX(1, nvecs);
+    ldc = SS_MAX(1, lanczos_nvecs);
   }
 
-  val_t * work = splatt_malloc(4 * n * sizeof(*work));
+  val_t * work = splatt_malloc(4 * lanczos_nvecs * sizeof(*work));
 
+  /* bi-diagonal SVD */
   int info = 0;
-  dbdsqr_(&uplo, &n,
+  LAPACK_BDSQR(&uplo, &n,
           &ncvt,
           &nru,
           &ncc,
@@ -127,44 +141,45 @@ void ffast_left_singulars(
     printf("DBDSQR returned %d\n", info);
   }
 
-  splatt_free(work);
+  /* We have singular values and right singular vectors. Now to compute
+   *  U = A * (V^T * S^-1), or U^T = (V * S^-1) * A^T  when column-major */
 
-	timer_stop(&timers[TIMER_SVD]);
-}
-
-
-
-void fast_left_singulars(
-    matrix_t const * const A,
-    idx_t const rank,
-    svd_ws * const ws)
-{
-	timer_start(&timers[TIMER_SVD]);
-
-  /* compute the bidiagonalization */
-  lanczos_bidiag(A, rank, ws);
-
-  char uplo = 'U';
-  int n = rank;
-
-  /* only compute left singular vectors */
-  int ncvt = 0;
-  int nru = A->I;
-  int ncc = 0;
-
-  int ldvt = 1;
-  int ldu = nru;
-  int ldc = 1;
-  int info;
-
-  val_t * work = splatt_malloc(4 * n * sizeof(*work));
-
-  dbdsqr_(&uplo, &n, &ncvt, &nru, &ncc, ws->alphas, ws->betas, NULL, &ldu,
-      ws->P->vals, &ldu, NULL, &ldc, work, &info);
-  if(info) {
-    printf("DBDSQR returned %d\n", info);
+  /* scale Vt by S^-1 */
+  #pragma omp parallel for schedule(static)
+  for(idx_t i=0; i < Qt->I; ++i) {
+    val_t * const restrict row = Qt->vals + (i * Qt->J);
+    val_t const * const restrict svals = ws->alphas;
+    for(idx_t j=0; j < nvecs; ++j) {
+      row[j] /= svals[j];
+    }
   }
 
+  /* DGEMM to get actual singular vectors. Note that we switch back to 'nvecs'
+   * now. */
+  {
+    val_t alpha = 1.;
+    val_t beta  = 0.;
+    int m = nvecs;
+    int n = A->I;
+    int k = A->J;
+
+    int lda = Qt->J; /* >= nvecs */
+    int ldb = k;
+    int ldc = m;
+
+    char transA = 'N';
+    char transB = 'N';
+
+    BLAS_GEMM(&transA, &transB,
+               &m, &n, &k,
+               &alpha,
+               Qt->vals, &lda,
+               A->vals, &ldb,
+               &beta,
+               left_singular_matrix->vals, &ldc);
+  }
+
+  mat_free(Qt);
   splatt_free(work);
 
 	timer_stop(&timers[TIMER_SVD]);
@@ -276,59 +291,6 @@ void lanczos_onesided_bidiag(
   mat_free(p0);
   mat_free(p1);
 }
-
-
-
-
-void left_singulars(
-    val_t const * const inmat,
-    val_t * outmat,
-    idx_t const nrows,
-    idx_t const ncols,
-    idx_t const rank,
-    svd_ws * const ws)
-{
-	timer_start(&timers[TIMER_SVD]);
-
-  char jobz = 'S';
-
-  /* actually pass in A^T */
-  int M = ncols;
-  int N = nrows;
-  int LDA = M;
-  int LDU = M;
-  int LDVt = SS_MIN(M,N);
-
-  int info = 0;
-
-  memcpy(ws->A, inmat, M * N * sizeof(*(ws->A)));
-
-  /* do the SVD */
-  LAPACK_SVD(
-      &jobz,
-      &M, &N,
-      ws->A, &LDA,
-      ws->S,
-      ws->U, &LDU,
-      ws->Vt, &LDVt,
-      ws->workspace, &(ws->lwork),
-      ws->iwork, &info);
-  if(info) {
-    fprintf(stderr, "SPLATT: DGESDD returned %d\n", info);
-  }
-
-
-  /* copy matrix Vt to outmat */
-  val_t const * const Vt = ws->Vt;
-  for(idx_t r=0; r < nrows; ++r) {
-    for(idx_t c=0; c < rank; ++c) {
-      outmat[c + (r*rank)] = Vt[c + (r*LDVt)];
-    }
-  }
-
-	timer_stop(&timers[TIMER_SVD]);
-}
-
 
 
 void alloc_svd_ws(

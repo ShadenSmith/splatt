@@ -60,6 +60,18 @@ void sgesdd_(
   float * work, int * lwork, int * iwork,
   int * info);
 
+
+#define LAPACK_BDSQR sbdsqr_
+  void sbdsqr_(
+      char * uplo, int * N,
+      int * NCVT, int * NRU, int * NCC,
+      float * D, float * E,
+      float * VT, int * LDVT,
+      float * U, int * LDU,
+      float * C, int * LDC,
+      float * work,
+      int * info);
+
 #else
 
 #define BLAS_GEMM dgemm_
@@ -85,6 +97,16 @@ void dgesdd_(
   double * work, int * lwork, int * iwork,
   int * info);
 
+#define LAPACK_BDSQR dbdsqr_
+  void dbdsqr_(
+      char * uplo, int * N,
+      int * NCVT, int * NRU, int * NCC,
+      double * D, double * E,
+      double * VT, int * LDVT,
+      double * U, int * LDU,
+      double * C, int * LDC,
+      double * work,
+      int * info);
 #endif
 
 

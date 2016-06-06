@@ -57,24 +57,6 @@ CTEST_TEARDOWN(svd)
   free(data->left);
 }
 
-CTEST2(svd, svd)
-{
-  svd_ws ws;
-  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
-
-  for(idx_t r=1; r <= 2; ++r) {
-    left_singulars(data->A, data->left, data->nrows, data->ncols, r, &ws);
-
-
-    for(idx_t i=0; i < data->nrows; ++i) {
-      for(idx_t j=0; j < r-1; ++j) {
-        ASSERT_DBL_NEAR_TOL(goldU[j+(i*r)], data->left[j+(i*r)], 1e-6);
-      }
-    }
-  }
-
-  free_svd_ws(&ws);
-}
 
 #include "../src/io.h"
 
@@ -188,27 +170,23 @@ CTEST2(svd, lanczos_onesided_bidiag)
 
 
 
-CTEST2(svd, fast_svd)
+CTEST2(svd, svd)
 {
   svd_ws ws;
   alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
 
-  printf("\n");
-  mat_write(&data->matA, NULL);
+  for(idx_t r=1; r <= 2; ++r) {
+    left_singulars(&data->matA, &data->matLeft, r, &ws);
 
-  ffast_left_singulars(&data->matA, &data->matLeft, 3, &ws);
+    for(idx_t i=0; i < data->nrows; ++i) {
+      for(idx_t j=0; j < r-1; ++j) {
+        val_t const gold = fabs(goldU[j+(i*r)]);
+        val_t const mine =fabs(data->left[j+(i*r)]);
+        ASSERT_DBL_NEAR_TOL(gold, mine, 1e-6);
+      }
+    }
+  }
 
-  mat_write(&data->matLeft, NULL);
-  printf("\n");
-#if 0
-  printf("Left singular vectors:\n");
-  mat_write(ws.P, NULL);
-  printf("\n");
-
-  printf("\n");
-  mat_write(ws.Q, NULL);
-  printf("\n");
-#endif
 
   //free_svd_ws(&ws);
 }

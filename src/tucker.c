@@ -468,9 +468,12 @@ double tucker_hooi_iterate(
       ttmc_csf(tensors, mats, gten, m, thds, opts);
       timer_stop(&timers[TIMER_TTM]);
 
-      /* find the truncated SVD of the TTMc output */
-      left_singulars(gten, mats[m]->vals, mats[m]->I, ncols[m], mats[m]->J,
-          &(ws.sws));
+      /* Find the truncated SVD of the TTMc output and store in mats[m]. */
+      matrix_t ttmc_mat;
+      ttmc_mat.I = mats[m]->I;
+      ttmc_mat.J = ncols[m];
+      ttmc_mat.vals = gten;
+      left_singulars(&ttmc_mat, mats[m], mats[m]->J, &(ws.sws));
 
       timer_stop(&modetime[m]);
     }

@@ -48,31 +48,22 @@ typedef struct
 * @param ncols The number of columns of 'inmat'.
 * @param rank The desired number of columns.
 */
+
+
 void left_singulars(
-    val_t const * const inmat,
-    val_t * outmat,
-    idx_t const nrows,
-    idx_t const ncols,
-    idx_t const rank,
-    svd_ws * const ws);
-
-
-void fast_left_singulars(
     matrix_t const * const A,
-    idx_t const rank,
-    svd_ws * const ws);
-
-
-
-void ffast_left_singulars(
-    matrix_t const * const A,
-    matrix_t       * const outmat,
+    matrix_t       * const left_singular_matrix,
     idx_t const nvecs,
     svd_ws * const ws);
 
 
 
 void lanczos_bidiag(
+    matrix_t const * const A,
+    idx_t const rank,
+    svd_ws * const ws);
+
+void lanczos_onesided_bidiag(
     matrix_t const * const A,
     idx_t const rank,
     svd_ws * const ws);
