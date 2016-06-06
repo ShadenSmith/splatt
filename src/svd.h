@@ -11,24 +11,17 @@
 
 typedef struct
 {
-  /* matrices */
-  val_t * A;
-  val_t * S;
-  val_t * U;
-  val_t * Vt;
-
   /* workspace */
-  int lwork;
-  val_t * workspace;
-  int * iwork;
-
+  val_t * work;
 
   /* bidiagonalization */
   matrix_t * P;
+  matrix_t * Q;
+  matrix_t * Qt;
   val_t * alphas;
   val_t * betas;
-  matrix_t * Q;
-
+  matrix_t * p0;
+  matrix_t * p1;
 } svd_ws;
 
 
@@ -76,13 +69,15 @@ void lanczos_onesided_bidiag(
 * @param ws The workspace to initialize.
 * @param nmats The number of SVDs that will be performed per itation.
 * @param nrows The rows in the SVDs.
-* @param ncolumns The columns in the SVDs.
+* @param ncolumns The columns in the inputs to SVDs.
+* @param ranks The ranks of the SVDs (<= ncolumns).
 */
 void alloc_svd_ws(
     svd_ws * const ws,
     idx_t const nmats,
     idx_t const * const nrows,
-    idx_t const * const ncolumns);
+    idx_t const * const ncolumns,
+    idx_t const * const ranks);
 
 
 #define free_svd_ws splatt_free_svd_ws

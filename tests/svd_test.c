@@ -21,7 +21,6 @@ CTEST_DATA(svd)
   idx_t ncols;
   idx_t rank;
   val_t * A;
-  val_t * buf;
   val_t * left;
 
   matrix_t matA;
@@ -62,11 +61,11 @@ CTEST_TEARDOWN(svd)
 
 CTEST2(svd, lanczos_bidiag)
 {
-  svd_ws ws;
-  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
-
   idx_t const rank = 5;
   matrix_t * A = mat_rand(20,rank);
+
+  svd_ws ws;
+  alloc_svd_ws(&ws, 1, &(A->I), &(A->J), &(rank));
 
   lanczos_bidiag(A, rank, &ws);
 
@@ -116,6 +115,7 @@ CTEST2(svd, lanczos_bidiag)
   mat_free(Q);
   mat_free(tmp);
   mat_free(A_new);
+  mat_free(A);
   free_svd_ws(&ws);
 }
 
@@ -123,13 +123,15 @@ CTEST2(svd, lanczos_bidiag)
 /* compares against two-sided Lanczos bidiagonalization */
 CTEST2(svd, lanczos_onesided_bidiag)
 {
-  svd_ws ws, ws2;
-  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
-  alloc_svd_ws(&ws2, 1, &(data->nrows), &(data->ncols));
+  idx_t const rank = 3;
 
   srand(1);
-  idx_t const rank = 3;
   matrix_t * A = mat_rand(20,rank);
+
+  svd_ws ws, ws2;
+  alloc_svd_ws(&ws, 1, &(A->I), &(A->J), &(rank));
+  alloc_svd_ws(&ws2, 1, &(A->I), &(A->J), &(rank));
+
 
   /* srand to ensure same initialization */
   srand(1);
@@ -173,7 +175,7 @@ CTEST2(svd, lanczos_onesided_bidiag)
 CTEST2(svd, svd)
 {
   svd_ws ws;
-  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols));
+  alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols), &(data->ncols));
 
   for(idx_t r=1; r <= 2; ++r) {
     left_singulars(&data->matA, &data->matLeft, r, &ws);
@@ -188,5 +190,5 @@ CTEST2(svd, svd)
   }
 
 
-  //free_svd_ws(&ws);
+  free_svd_ws(&ws);
 }

@@ -297,7 +297,7 @@ static void p_alloc_tucker_ws(
   p_print_cache_size2(ws, tensors, nfactors, opts);
 
   /* SVD allocations */
-  alloc_svd_ws(&(ws->sws), nmodes, tensors->dims, ws->gten_cols);
+  alloc_svd_ws(&(ws->sws), nmodes, tensors->dims, ws->gten_cols, nfactors);
 }
 
 
@@ -437,6 +437,9 @@ double tucker_hooi_iterate(
   /* allocate the TTMc output */
   idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
   val_t * gten = malloc(tenout_size * sizeof(*gten));
+  matrix_t gten_mat;
+  gten_mat.rowmajor = 1;
+  gten_mat.vals = gten;
 
   /* find # columns for each TTMc and output core */
   idx_t ncols[MAX_NMODES+1];
@@ -469,11 +472,9 @@ double tucker_hooi_iterate(
       timer_stop(&timers[TIMER_TTM]);
 
       /* Find the truncated SVD of the TTMc output and store in mats[m]. */
-      matrix_t ttmc_mat;
-      ttmc_mat.I = mats[m]->I;
-      ttmc_mat.J = ncols[m];
-      ttmc_mat.vals = gten;
-      left_singulars(&ttmc_mat, mats[m], mats[m]->J, &(ws.sws));
+      gten_mat.I = mats[m]->I;
+      gten_mat.J = ncols[m];
+      left_singulars(&gten_mat, mats[m], mats[m]->J, &(ws.sws));
 
       timer_stop(&modetime[m]);
     }
