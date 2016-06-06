@@ -1,106 +1,127 @@
 
+
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
+
 #include "svd.h"
 #include "matrix.h"
 #include "timer.h"
 #include "util.h"
+#include "io.h"
+
+#include <math.h>
+
+
 
 /**
-* @brief Compute the optimal workspace size for LAPACK_SVD.
-*
-* @param nrows The number of rows.
-* @param ncols The number of columns.
-*
-* @return The optimal workspace size.
+* @brief The number of extra vectors (and Lanczos iterations) to compute.
 */
-static int p_optimal_svd_work_size(
-    idx_t const nrows,
-    idx_t const ncols)
-{
-  char jobz = 'S';
+idx_t const LANCZOS_EXTRA_VECS = 5;
 
-  /* actually pass in A^T */
-  int M = ncols;
-  int N = nrows;
-  int LDA = M;
 
-  val_t * S = NULL; //malloc(SS_MIN(M,N) * sizeof(*S));
+/******************************************************************************
+ * PRIVATE FUNCTIONS
+ *****************************************************************************/
 
-  /* NOTE: change these if we switch to jobz=O */
-  int LDU = M;
-  int LDVt = SS_MIN(M,N);
 
-  val_t * U = NULL; //malloc(LDU * SS_MIN(M,N) * sizeof(*U));
-  val_t * Vt = NULL; //malloc(LDVt * N * sizeof(*Vt));
 
-  val_t work_size = 0;
-  int * iwork = NULL; //malloc(8 * SS_MIN(M,N) * sizeof(*iwork));
-  int info = 0;
 
-  val_t * A = NULL;
 
-  /* query */
-  int lwork = -1;
-  LAPACK_SVD(
-      &jobz,
-      &M, &N,
-      A, &LDA,
-      S,
-      U, &LDU,
-      Vt, &LDVt,
-      &work_size, &lwork,
-      iwork, &info);
-  if(info) {
-    fprintf(stderr, "SPLATT: DGESDD returned %d\n", info);
-  }
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
 
-  return (int) work_size;
-}
 
 
 void left_singulars(
-    val_t const * const inmat,
-    val_t * outmat,
-    idx_t const nrows,
-    idx_t const ncols,
-    idx_t const rank,
+    matrix_t const * const A,
+    matrix_t       * const left_singular_matrix,
+    idx_t const nvecs,
     svd_ws * const ws)
 {
 	timer_start(&timers[TIMER_SVD]);
 
-  char jobz = 'S';
+  left_singular_matrix->J = nvecs;
 
-  /* actually pass in A^T */
-  int M = ncols;
-  int N = nrows;
-  int LDA = M;
-  int LDU = M;
-  int LDVt = SS_MIN(M,N);
+  idx_t const lanczos_nvecs = SS_MIN(A->J, nvecs + LANCZOS_EXTRA_VECS);
 
-  int info = 0;
+  /* Compute the bidiagonalization and right orthogonal matrix */
+  lanczos_onesided_bidiag(A, lanczos_nvecs, ws);
 
-  memcpy(ws->A, inmat, M * N * sizeof(*(ws->A)));
+  char uplo = 'U';
+  int n = lanczos_nvecs;
 
-  /* do the SVD */
-  LAPACK_SVD(
-      &jobz,
-      &M, &N,
-      ws->A, &LDA,
-      ws->S,
-      ws->U, &LDU,
-      ws->Vt, &LDVt,
-      ws->workspace, &(ws->lwork),
-      ws->iwork, &info);
-  if(info) {
-    fprintf(stderr, "SPLATT: DGESDD returned %d\n", info);
+  int ncvt = A->J;
+  int nru  = 0;
+  int ncc  = 0;
+
+  mat_transpose(ws->Q, ws->Qt);
+  val_t * VT = ws->Qt->vals;
+  val_t * U = NULL;
+  val_t * C = NULL;
+
+  int ldu = SS_MAX(1, nru);
+  int ldvt = 1;
+  if(ncvt > 0) {
+    ldvt = SS_MAX(1, lanczos_nvecs);
+  }
+  int ldc = 1;
+  if(ncc > 0) {
+    ldc = SS_MAX(1, lanczos_nvecs);
   }
 
+  /* bi-diagonal SVD */
+  int info = 0;
+  LAPACK_BDSQR(&uplo, &n,
+          &ncvt,
+          &nru,
+          &ncc,
+          ws->alphas, ws->betas,
+          VT, &ldvt,
+          U, &ldu,
+          C, &ldc,
+          ws->work, &info);
+  if(info != 0) {
+    printf("DBDSQR returned %d\n", info);
+  }
 
-  /* copy matrix Vt to outmat */
-  val_t const * const Vt = ws->Vt;
-  for(idx_t r=0; r < nrows; ++r) {
-    for(idx_t c=0; c < rank; ++c) {
-      outmat[c + (r*rank)] = Vt[c + (r*LDVt)];
+  /* We have singular values and right singular vectors. Now to compute
+   *  U = A * (V^T * S^-1), or U^T = (V * S^-1) * A^T  when column-major */
+
+  /* scale Vt by S^-1 */
+  #pragma omp parallel for schedule(static)
+  for(idx_t i=0; i < ws->Qt->I; ++i) {
+    val_t * const restrict row = ws->Qt->vals + (i * ws->Qt->J);
+    val_t const * const restrict svals = ws->alphas;
+    for(idx_t j=0; j < nvecs; ++j) {
+      row[j] /= svals[j];
     }
+  }
+
+  /* DGEMM to get actual singular vectors. Note that we switch back to 'nvecs'
+   * now. */
+  {
+    val_t alpha = 1.;
+    val_t beta  = 0.;
+    int m = nvecs;
+    int n = A->I;
+    int k = A->J;
+
+    int lda = ws->Qt->J; /* >= nvecs */
+    int ldb = k;
+    int ldc = m;
+
+    char transA = 'N';
+    char transB = 'N';
+
+    BLAS_GEMM(&transA, &transB,
+               &m, &n, &k,
+               &alpha,
+               ws->Qt->vals, &lda,
+               A->vals, &ldb,
+               &beta,
+               left_singular_matrix->vals, &ldc);
   }
 
 	timer_stop(&timers[TIMER_SVD]);
@@ -108,63 +129,170 @@ void left_singulars(
 
 
 
+void lanczos_bidiag(
+    matrix_t const * const A,
+    idx_t const rank,
+    svd_ws * const ws)
+{
+  idx_t const nrows = A->I;
+  idx_t const ncols = A->J;
+
+  /* allocate P if necessary */
+  if(ws->P != NULL) {
+    if(ws->P->I != nrows || ws->P->J != rank) {
+      mat_free(ws->P);
+      ws->P = NULL;
+    }
+  }
+  if(ws->P == NULL) {
+    ws->P = mat_alloc(nrows, rank);
+    ws->P->rowmajor = 0;
+  }
+
+  /* ensure Q is the correct dimension */
+  ws->Q->I = ncols;
+  ws->Q->J = rank;
+
+  /* randomly initialize first column of Q and then normalize */
+  fill_rand(ws->Q->vals, ncols);
+  vec_normalize(ws->Q->vals, ncols);
+
+  /* foreach column */
+  for(idx_t col=0; col < rank; ++col) {
+    val_t * const Pv = ws->P->vals + (col * nrows);
+    val_t * const Qv = ws->Q->vals + (col * ncols);
+
+    /* P(:,j) = A * Q(:,j) */
+    mat_vec(A, Qv, Pv);
+
+    /* orthogonalize P(:,j) against previous columns */
+    mat_col_orth(ws->P, col);
+
+    /* normalize P(:,j) */
+    ws->alphas[col] = vec_normalize(Pv, nrows);
+
+    /* compute Q(:,j+1) */
+    if(col+1 < rank) {
+      mat_transpose_vec(A, Pv, Qv + ncols);
+      mat_col_orth(ws->Q, col+1);
+      ws->betas[col] = vec_normalize(Qv + ncols, ncols);
+    }
+  } /* outer loop */
+}
+
+
+void lanczos_onesided_bidiag(
+    matrix_t const * const A,
+    idx_t const rank,
+    svd_ws * const ws)
+{
+  idx_t const nrows = A->I;
+  idx_t const ncols = A->J;
+
+  /* grab the pointers to make swapping local */
+  matrix_t * p0 = ws->p0;
+  matrix_t * p1 = ws->p1;
+
+  /* ensure Q is the correct dimension */
+  ws->Q->I = ncols;
+  ws->Q->J = rank;
+  p0->I = nrows;
+  p1->I = nrows;
+
+  /* randomly initialize first column of Q and then normalize */
+  fill_rand(ws->Q->vals, ncols);
+  vec_normalize(ws->Q->vals, ncols);
+
+  for(idx_t col=0; col < rank; ++col) {
+    val_t * const restrict Qv = ws->Q->vals + (col * ncols);
+    val_t * const restrict p0v = p0->vals;
+    val_t * const restrict p1v = p1->vals;
+
+    /* p1 = A * Q(:,j) - (beta[col-1] * p0) */
+    mat_vec(A, Qv, p1v);
+    if(col > 0) {
+      val_t const beta = ws->betas[col-1];
+      #pragma omp parallel for schedule(static)
+      for(idx_t i=0; i < nrows; ++i) {
+        p1v[i] -= beta * p0v[i];
+      }
+    }
+
+    /* normalize P(:,j) */
+    ws->alphas[col] = vec_normalize(p1v, nrows);
+
+    /* compute Q(:,j+1) */
+    if(col+1 < rank) {
+      mat_transpose_vec(A, p1v, Qv + ncols);
+      mat_col_orth(ws->Q, col+1);
+      ws->betas[col] = vec_normalize(Qv + ncols, ncols);
+    }
+
+    /* swap p0 and p1 */
+    matrix_t * swp = p0;
+    p0 = p1;
+    p1 = swp;
+  }
+}
+
+
 void alloc_svd_ws(
     svd_ws * const ws,
     idx_t const nmats,
     idx_t const * const nrows,
-    idx_t const * const ncolumns)
+    idx_t const * const ncolumns,
+    idx_t const * const ranks)
 {
-  /* initialize */
-  ws->A = NULL;
-  ws->U = NULL;
-  ws->S = NULL;
-  ws->Vt = NULL;
-  ws->workspace = NULL;
-  ws->iwork = NULL;
-  ws->lwork = 0;
+  /* maximum bidiagonalization size */
+  idx_t const max_nrow = nrows[argmax_elem(nrows, nmats)];
+  idx_t const max_ncol = ncolumns[argmax_elem(ncolumns, nmats)];
+  idx_t const max_rank = ranks[argmax_elem(ranks, nmats)];
 
-  /* allocate SVD workspace */
-  idx_t max_A = 0;
-  int max_U = 0;
-  int max_Vt = 0;
-  int max_min = 0;
-  int max_lwork = 0;
+  /* allocate space for bidiagonalization */
+  idx_t const max_bi_rank = max_rank + LANCZOS_EXTRA_VECS;
+  ws->alphas = splatt_malloc(max_bi_rank * sizeof(*ws->alphas));
+  ws->betas  = splatt_malloc((max_bi_rank-1) * sizeof(*ws->betas));
+  ws->p0 = mat_alloc(max_nrow, 1);
+  ws->p1 = mat_alloc(max_nrow, 1);
+
+  /* Q is (ncols x Lanczos rank) */
+  idx_t max_bi_mode = 0;
+  idx_t max_bi_elems = 0;
   for(idx_t m=0; m < nmats; ++m) {
-    max_A = SS_MAX(max_A, nrows[m] * ncolumns[m]);
-
-    int const M = (int) ncolumns[m];
-    int const N = (int) nrows[m];
-    int const mindim = SS_MIN(M, N);
-    max_min = SS_MAX(max_min, mindim);
-
-    max_U = SS_MAX(max_U, M * mindim);
-    max_Vt = SS_MAX(max_Vt, N * mindim);
-
-    int const lwork = p_optimal_svd_work_size(M, N);
-    max_lwork= SS_MAX(lwork, max_lwork);
+    idx_t elems = ncolumns[m] \
+        * SS_MIN(ncolumns[m], ranks[m] + LANCZOS_EXTRA_VECS);
+    if(elems > max_bi_elems) {
+      max_bi_elems = elems;
+      max_bi_mode = m;
+    }
   }
+  ws->Q = mat_alloc(ncolumns[max_bi_mode],
+                    SS_MIN(ncolumns[max_bi_mode],
+                        ranks[max_bi_mode] + LANCZOS_EXTRA_VECS));
 
-  /* allocate matrices */
-  ws->A = malloc(max_A * sizeof(*(ws->A)));
-  ws->U = malloc(max_U * sizeof(*(ws->U)));
-  ws->S = malloc(max_min * sizeof(*(ws->S)));
-  ws->Vt = malloc(max_Vt * sizeof(*(ws->Vt)));
+  ws->Qt = mat_alloc(ws->Q->I, ws->Q->J);
+  ws->Q->rowmajor = 0;
 
-  /* allocate workspaces */
-  ws->lwork = max_lwork;
-  ws->workspace = malloc(max_lwork * sizeof(*(ws->workspace)));
-  ws->iwork = malloc(8 * max_min * sizeof(*(ws->iwork)));
+  /* only used if full bidiagonalization */
+  ws->P = NULL;
+
+  ws->work = splatt_malloc(4 * max_bi_rank * sizeof(*ws->work));
 }
 
 
 void free_svd_ws(
     svd_ws * const ws)
 {
-  free(ws->A);
-  free(ws->S);
-  free(ws->U);
-  free(ws->Vt);
-  free(ws->workspace);
-  free(ws->iwork);
+  splatt_free(ws->alphas);
+  splatt_free(ws->betas);
+  splatt_free(ws->work);
+
+  if(ws->P != NULL) {
+    mat_free(ws->P);
+  }
+  mat_free(ws->Q);
+  mat_free(ws->Qt);
+  mat_free(ws->p0);
+  mat_free(ws->p1);
 }
 

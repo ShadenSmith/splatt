@@ -460,6 +460,73 @@ void mat_matmul(
   timer_stop(&timers[TIMER_MATMUL]);
 }
 
+
+
+void mat_vec(
+    matrix_t const * const A,
+    val_t const * const restrict x,
+    val_t       * const restrict b)
+{
+  assert(A->rowmajor == 1);
+
+  idx_t const nrows = A->I;
+  idx_t const ncols = A->J;
+
+  #pragma omp parallel for schedule(static)
+  for(idx_t i=0; i < nrows; ++i) {
+    b[i] = 0.;
+    val_t const * const restrict vals = A->vals + (i * ncols);
+
+    /* inner product */
+    for(idx_t j=0; j < ncols; ++j) {
+      b[i] += vals[j] * x[j];
+    }
+  }
+}
+
+
+
+void mat_transpose_vec(
+    matrix_t const * const A,
+    val_t const * const restrict x,
+    val_t       * const restrict b)
+{
+  assert(A->rowmajor == 1);
+  idx_t const nrows = A->I;
+  idx_t const ncols = A->J;
+
+  /* clear out vector result */
+  for(idx_t j=0; j < ncols; ++j) {
+    b[j] = 0.;
+  }
+
+  #pragma omp parallel
+  {
+    val_t * restrict accum = splatt_malloc(ncols * sizeof(*accum));
+    for(idx_t j=0; j < ncols; ++j) {
+      accum[j] = 0.;
+    }
+
+    #pragma omp for schedule(static) nowait
+    for(idx_t i=0; i < nrows; ++i) {
+      val_t const * const restrict vals = A->vals + (i * ncols);
+      for(idx_t j=0; j < ncols; ++j) {
+        accum[j] += vals[j] * x[i];
+      }
+    }
+
+    /* accumulate at end */
+    for(idx_t j=0; j < ncols; ++j) {
+      #pragma omp atomic
+      b[j] += accum[j];
+    }
+
+    splatt_free(accum);
+  } /* omp parallel */
+}
+
+
+
 void mat_normalize(
   matrix_t * const A,
   val_t * const restrict lambda,
@@ -485,6 +552,34 @@ void mat_normalize(
   }
   timer_stop(&timers[TIMER_MATNORM]);
 }
+
+
+val_t vec_normalize(
+    val_t * const restrict vec,
+    idx_t const len)
+{
+  val_t norm = 0.;
+
+  #pragma omp parallel
+  {
+    #pragma omp for schedule(static) reduction(+: norm)
+    for(idx_t i = 0; i < len; ++i) {
+      norm += vec[i] * vec[i];
+    }
+
+    #pragma omp master
+    norm = sqrt(norm);
+    #pragma omp barrier
+
+    #pragma omp for schedule(static) nowait
+    for(idx_t i = 0; i < len; ++i) {
+      vec[i] /= norm;
+    }
+  } /* end omp parallel */
+
+  return norm;
+}
+
 
 
 void mat_solve_normals(
@@ -683,6 +778,54 @@ matrix_t * mat_mkcol(
 
   return col;
 }
+
+
+
+void mat_col_orth(
+  matrix_t * const A,
+  idx_t const col)
+{
+  assert(A->rowmajor == 0);
+  assert(col < A->J);
+
+  idx_t const nrows = A->I;
+
+  val_t uu_inner_prod = 0.;
+  val_t uv_inner_prod = 0.;
+
+  val_t * const restrict v = A->vals + (col * nrows);
+
+  #pragma omp parallel
+  {
+    for(idx_t j=0; j < col; ++j) {
+      val_t const * const restrict u = A->vals + (j * nrows);
+
+      #pragma omp master
+      {
+        uu_inner_prod = 0.;
+        uv_inner_prod = 0.;
+      }
+      #pragma omp barrier
+
+      /* inner products */
+      #pragma omp for schedule(static) \
+          reduction(+: uu_inner_prod, uv_inner_prod)
+      for(idx_t k=0; k < nrows; ++k) {
+        uu_inner_prod += u[k] * u[k];
+        uv_inner_prod += u[k] * v[k];
+      }
+
+      /* now subtract from v */
+      val_t const ratio = uv_inner_prod / uu_inner_prod;
+      #pragma omp for schedule(static)
+      for(idx_t k=0; k < nrows; ++k) {
+        v[k] -= ratio * u[k];
+      }
+    }
+  } /* end omp parallel */
+}
+
+
 
 
 spmatrix_t * spmat_alloc(
