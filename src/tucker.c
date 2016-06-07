@@ -486,6 +486,7 @@ double tucker_hooi_iterate(
 
     /* check for convergence */
     fit = tucker_calc_fit(core, ncols[nmodes], ttnormsq);
+    assert(fit >= oldfit);
 
     /* print progress */
     if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {

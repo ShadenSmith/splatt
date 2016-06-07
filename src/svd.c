@@ -17,7 +17,7 @@
 /**
 * @brief The number of extra vectors (and Lanczos iterations) to compute.
 */
-idx_t const LANCZOS_EXTRA_VECS = 5;
+idx_t const LANCZOS_EXTRA_VECS = 20;
 
 
 /******************************************************************************
