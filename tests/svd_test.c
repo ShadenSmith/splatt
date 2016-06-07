@@ -57,11 +57,10 @@ CTEST_TEARDOWN(svd)
 }
 
 
-#include "../src/io.h"
-
 CTEST2(svd, lanczos_bidiag)
 {
   idx_t const rank = 5;
+  srand(1);
   matrix_t * A = mat_rand(20,rank);
 
   svd_ws ws;
