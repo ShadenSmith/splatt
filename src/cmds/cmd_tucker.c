@@ -18,6 +18,7 @@ static char tucker_doc[] =
   "splatt-tucker -- Compute the Tucker Decomposition of a sparse tensor.\n";
 
 
+#define TT_SEED 252
 #define TT_NOWRITE 253
 #define TT_TOL 254
 static struct argp_option tucker_options[] = {
@@ -26,6 +27,7 @@ static struct argp_option tucker_options[] = {
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
+  {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   { 0 }
 };
@@ -89,6 +91,11 @@ static error_t parse_tucker_opt(
     args->nfactors = atoi(arg);
     break;
 
+  case TT_SEED:
+    args->opts[SPLATT_OPTION_RANDSEED] = atoi(arg);
+    srand(atoi(arg));
+    break;
+
   case ARGP_KEY_ARG:
     if(args->ifname != NULL) {
       argp_usage(state);
@@ -141,7 +148,7 @@ int splatt_tucker_cmd(
   }
 
   idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
-  ttmc_fill_flop_tbl(tt, nfactors, table);
+  //ttmc_fill_flop_tbl(tt, nfactors, table);
 
   /* XXX update when TTM is ready */
   //args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
