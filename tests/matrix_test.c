@@ -39,7 +39,6 @@ CTEST2(matrix, transpose)
 
     mat_transpose(A, B);
 
-
     idx_t const I = A->I;
     idx_t const J = A->J;
 
@@ -58,6 +57,37 @@ CTEST2(matrix, transpose)
     mat_free(B);
   }
 }
+
+
+CTEST2(matrix, transpose_colmajor)
+{
+  for(idx_t m=0; m < NMATS; ++m) {
+    matrix_t * const A = data->mats[m];
+    matrix_t * B = mat_alloc(A->I, A->J);
+
+    A->rowmajor = 0;
+    mat_transpose(A, B);
+
+    idx_t const I = A->I;
+    idx_t const J = A->J;
+
+    ASSERT_EQUAL(I, B->J);
+    ASSERT_EQUAL(J, B->I);
+    ASSERT_EQUAL(0, B->rowmajor);
+
+    val_t const * const av = A->vals;
+    val_t const * const bv = B->vals;
+
+    for(idx_t j=0; j < A->J; ++j) {
+      for(idx_t i=0; i < A->I; ++i) {
+        ASSERT_DBL_NEAR_TOL(av[i + (j * A->I)], bv[j + (i * B->I)], 0);
+      }
+    }
+
+    mat_free(B);
+  }
+}
+
 
 
 CTEST2(matrix, matmul)

@@ -56,35 +56,43 @@ void left_singulars(
   int nru  = 0;
   int ncc  = 0;
 
+  /* switch to row-major -- same as transpose & same dimensions */
   mat_transpose(ws->Q, ws->Qt);
-  val_t * VT = ws->Qt->vals;
-  val_t * U = NULL;
-  val_t * C = NULL;
+  ws->Qt->I = ws->Q->I;
+  ws->Qt->J = ws->Q->J;
 
-  int ldu = SS_MAX(1, nru);
-  int ldvt = 1;
-  if(ncvt > 0) {
-    ldvt = SS_MAX(1, lanczos_nvecs);
-  }
-  int ldc = 1;
-  if(ncc > 0) {
-    ldc = SS_MAX(1, lanczos_nvecs);
-  }
+  /* LAPACK_BDSQR computes the SVD of the bidiagonalized A. and also the
+   * right singular vectors */
+  {
+    val_t * VT = ws->Qt->vals;
+    val_t * U = NULL;
+    val_t * C = NULL;
 
-  /* bi-diagonal SVD */
-  int info = 0;
-  LAPACK_BDSQR(&uplo, &n,
-          &ncvt,
-          &nru,
-          &ncc,
-          ws->alphas, ws->betas,
-          VT, &ldvt,
-          U, &ldu,
-          C, &ldc,
-          ws->work, &info);
-  if(info != 0) {
-    printf("DBDSQR returned %d\n", info);
-  }
+    int ldu = SS_MAX(1, nru);
+    int ldvt = 1;
+    if(ncvt > 0) {
+      ldvt = SS_MAX(1, lanczos_nvecs);
+    }
+    int ldc = 1;
+    if(ncc > 0) {
+      ldc = SS_MAX(1, lanczos_nvecs);
+    }
+
+    /* bi-diagonal SVD */
+    int info = 0;
+    LAPACK_BDSQR(&uplo, &n,
+            &ncvt,
+            &nru,
+            &ncc,
+            ws->alphas, ws->betas,
+            VT, &ldvt,
+            U, &ldu,
+            C, &ldc,
+            ws->work, &info);
+    if(info != 0) {
+      printf("DBDSQR returned %d\n", info);
+    }
+  } /* bidiagonal SVD */
 
   /* We have singular values and right singular vectors. Now to compute
    *  U = A * (V^T * S^-1), or U^T = (V * S^-1) * A^T  when column-major */
@@ -99,7 +107,7 @@ void left_singulars(
     }
   }
 
-  /* DGEMM to get actual singular vectors. Note that we switch back to 'nvecs'
+  /* DGEMM to get left singular vectors. Note that we switch back to 'nvecs'
    * now. */
   {
     val_t alpha = 1.;
@@ -108,7 +116,7 @@ void left_singulars(
     int n = A->I;
     int k = A->J;
 
-    int lda = ws->Qt->J; /* >= nvecs */
+    int lda = ws->Qt->J; /* is >= nvecs */
     int ldb = k;
     int ldc = m;
 

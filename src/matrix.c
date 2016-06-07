@@ -688,16 +688,28 @@ void mat_transpose(
 
   B->I = J;
   B->J = I;
+  B->rowmajor = A->rowmajor;
 
   #pragma omp parallel
   {
-    val_t const * const av = A->vals;
-    val_t       * const bv = B->vals;
+    val_t const * const restrict av = A->vals;
+    val_t       * const restrict bv = B->vals;
+    if(A->rowmajor == 1) {
+      #pragma omp for schedule(static)
+      for(idx_t i=0; i < B->I; ++i) {
+        for(idx_t j=0; j < B->J; ++j) {
+          bv[j + (i * B->J)] = av[i + (j * A->J)];
+        }
+      }
 
-    for(idx_t j=0; j < J; ++j) {
-      #pragma omp for nowait
-      for(idx_t i=0; i < I; ++i) {
-        bv[i + (j*I)] = av[j + (i*J)];
+    /* column-major */
+    } else {
+
+      for(idx_t j=0; j < B->J; ++j) {
+        #pragma omp for schedule(static) nowait
+        for(idx_t i=0; i < B->I; ++i) {
+          bv[i + (j * B->I)] = av[j + (i * A->I)];
+        }
       }
     }
   } /* end omp parallel */
@@ -717,6 +729,7 @@ matrix_t * mat_alloc(
   return mat;
 }
 
+
 matrix_t * mat_rand(
   idx_t const nrows,
   idx_t const ncols)
@@ -729,12 +742,14 @@ matrix_t * mat_rand(
   return mat;
 }
 
+
 void mat_free(
   matrix_t * mat)
 {
   free(mat->vals);
   free(mat);
 }
+
 
 matrix_t * mat_mkrow(
   matrix_t const * const mat)
@@ -756,6 +771,7 @@ matrix_t * mat_mkrow(
 
   return row;
 }
+
 
 matrix_t * mat_mkcol(
   matrix_t const * const mat)
