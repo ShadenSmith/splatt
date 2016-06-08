@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #include <omp.h>
-#include <tbb/concurrent_unordered_set.h>
+//#include <tbb/concurrent_unordered_set.h>
 
 #include "CSR.hpp"
 
@@ -17,6 +17,7 @@ using namespace SpMP;
 permutation_t *perm_bfs_or_rcm(sptensor_t * const tt, int use_rcm)
 {
   permutation_t *perm = perm_alloc(tt->dims, tt->nmodes);
+#if 0
 
 #define SPLATT_FIBER_BASED_BFS
 #ifdef SPLATT_FIBER_BASED_BFS
@@ -272,6 +273,7 @@ permutation_t *perm_bfs_or_rcm(sptensor_t * const tt, int use_rcm)
 #endif // slice based bfs
 
   perm_apply(tt, perm->perms);
+#endif
 
   return perm;
 }
