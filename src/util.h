@@ -121,4 +121,21 @@ void par_memcpy(
     void const * const restrict src,
     size_t const bytes);
 
+
+#define par_memset splatt_par_memset
+/**
+* @brief Perform a parallel memset, filling the first 'bytes' bytes of 's' with
+*        the value c.
+*
+* @param s The buffer to
+* @param c
+* @param bytes
+*
+* @return A pointer to s (unchanged).
+*/
+void * par_memset(
+    void * const restrict s,
+    int c,
+    size_t const bytes);
+
 #endif

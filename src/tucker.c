@@ -436,7 +436,9 @@ double tucker_hooi_iterate(
 
   /* allocate the TTMc output */
   idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
-  val_t * gten = malloc(tenout_size * sizeof(*gten));
+  val_t * gten = splatt_malloc(tenout_size * sizeof(*gten));
+  /* parallel memset for first-touch */
+  par_memset(gten, 0, tenout_size * sizeof(*gten));
   matrix_t gten_mat;
   gten_mat.rowmajor = 1;
   gten_mat.vals = gten;
@@ -529,7 +531,7 @@ void permute_core(
   idx_t perm[MAX_NMODES];
   p_fill_core_perm(tensors, perm, opts);
 
-  val_t * newcore = malloc(ncols[nmodes] * sizeof(*newcore));
+  val_t * newcore = splatt_malloc(ncols[nmodes] * sizeof(*newcore));
 
   /* translate each entry in the core tensor individually */
   #pragma omp parallel for
@@ -555,8 +557,8 @@ void permute_core(
   }
 
   /* copy permuted core into old core */
-  memcpy(core, newcore, ncols[nmodes] * sizeof(*core));
-  free(newcore);
+  par_memcpy(core, newcore, ncols[nmodes] * sizeof(*core));
+  splatt_free(newcore);
 }
 
 

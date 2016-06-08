@@ -120,3 +120,34 @@ CTEST2(util, argmin)
   }
 }
 
+
+CTEST2(util, par_memset)
+{
+  double * buf = splatt_malloc(1024 * sizeof(*buf));
+
+  par_memset(buf, 0, 1024 * sizeof(*buf));
+
+  for(idx_t i=0; i < 1024; ++i) {
+    ASSERT_DBL_NEAR_TOL(0, buf[i], 0.);
+  }
+
+  splatt_free(buf);
+}
+
+CTEST2(util, par_memcpy)
+{
+  val_t * buf1 = splatt_malloc(1024 * sizeof(*buf1));
+  val_t * buf2 = splatt_malloc(1024 * sizeof(*buf2));
+
+  fill_rand(buf1, 1024);
+  par_memcpy(buf2, buf1, 1024 * sizeof(*buf2));
+
+  for(idx_t i=0; i < 1024; ++i) {
+    ASSERT_DBL_NEAR_TOL(buf1[i], buf2[i], 0.);
+  }
+
+  splatt_free(buf1);
+  splatt_free(buf2);
+}
+
+

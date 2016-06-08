@@ -1271,7 +1271,7 @@ void mttkrp_csf(
   /* clear output matrix */
   matrix_t * const M = mats[MAX_NMODES];
   M->I = tensors[0].dims[mode];
-  memset(M->vals, 0, M->I * M->J * sizeof(val_t));
+  par_memset(M->vals, 0, M->I * M->J * sizeof(val_t));
 
   splatt_omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
 
@@ -1360,7 +1360,7 @@ void mttkrp_splatt(
   idx_t const rank = M->J;
 
   val_t * const mvals = M->vals;
-  memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
+  par_memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
 
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
@@ -1428,7 +1428,7 @@ void mttkrp_splatt_sync_tiled(
   idx_t const rank = M->J;
 
   val_t * const mvals = M->vals;
-  memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
+  par_memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
 
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
@@ -1496,7 +1496,7 @@ void mttkrp_splatt_coop_tiled(
   idx_t const rank = M->J;
 
   val_t * const mvals = M->vals;
-  memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
+  par_memset(mvals, 0, ft->dims[mode] * rank * sizeof(val_t));
 
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
@@ -1639,7 +1639,7 @@ void mttkrp_ttbox(
   idx_t const I = tt->dims[mode];
   idx_t const rank = M->J;
 
-  memset(M->vals, 0, I * rank * sizeof(val_t));
+  par_memset(M->vals, 0, I * rank * sizeof(val_t));
 
   idx_t const nnz = tt->nnz;
   idx_t const * const restrict indM = tt->ind[mode];
@@ -1678,7 +1678,7 @@ void mttkrp_stream(
   idx_t const nfactors = M->J;
 
   val_t * const outmat = M->vals;
-  memset(outmat, 0, I * nfactors * sizeof(val_t));
+  par_memset(outmat, 0, I * nfactors * sizeof(val_t));
 
   idx_t const nmodes = tt->nmodes;
 

@@ -276,7 +276,7 @@ static inline void p_clear_tenout(
       outsize *= mats[m]->J;
     }
   }
-  memset(tenout, 0, outsize * sizeof(*tenout));
+  par_memset(tenout, 0, outsize * sizeof(*tenout));
 }
 
 
