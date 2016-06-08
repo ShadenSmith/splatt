@@ -123,15 +123,23 @@ CTEST2(util, argmin)
 
 CTEST2(util, par_memset)
 {
-  double * buf = splatt_malloc(1024 * sizeof(*buf));
+  char  * cbuf = splatt_malloc(1024 * sizeof(*cbuf));
+  val_t * vbuf = splatt_malloc(1024 * sizeof(*vbuf));
 
-  par_memset(buf, 0, 1024 * sizeof(*buf));
+  /* init memory */
+  memset(cbuf, 1, 1024 * sizeof(*cbuf));
+  memset(vbuf, 1, 1024 * sizeof(*vbuf));
+
+  par_memset(cbuf, 0x55, 1024 * sizeof(*cbuf));
+  par_memset(vbuf, 0,          1024 * sizeof(*vbuf));
 
   for(idx_t i=0; i < 1024; ++i) {
-    ASSERT_DBL_NEAR_TOL(0, buf[i], 0.);
+    ASSERT_DBL_NEAR_TOL(0,   vbuf[i], 0.);
+    ASSERT_EQUAL(0x55, cbuf[i]);
   }
 
-  splatt_free(buf);
+  splatt_free(cbuf);
+  splatt_free(vbuf);
 }
 
 CTEST2(util, par_memcpy)
