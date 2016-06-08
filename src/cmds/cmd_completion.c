@@ -292,7 +292,11 @@ int splatt_tc_cmd(
   print_header();
 #endif
 
+#ifdef SPLATT_USE_MPI
   srand(args.seed + rinfo.rank);
+#else
+  srand(args.seed);
+#endif
 
 #ifdef SPLATT_USE_MPI
   if(0 == rinfo.rank) {
@@ -491,7 +495,7 @@ int splatt_tc_cmd(
     ws->learn_rate = args.learn_rate;
   }
   if(args.reg != -1.) {
-    for(idx_t m=0; m < nmodes; ++m) {
+    for(idx_t m=0; m < ws->nmodes; ++m) {
       ws->regularization[m] = args.reg;
     }
   }
@@ -515,7 +519,7 @@ int splatt_tc_cmd(
   printf("Factoring ------------------------------------------------------\n");
   printf("NFACTORS=%"SPLATT_PF_IDX" MAXITS=%"SPLATT_PF_IDX" ",
       model->rank, ws->max_its);
-  if(args.set_timeout) {
+  if(args.max_seconds) {
     printf("MAXTIME=NONE ");
   } else {
     printf("MAXTIME=%0.1fs ", ws->max_seconds);
@@ -559,7 +563,7 @@ int splatt_tc_cmd(
     if(rinfo.rank==0) {
       printf("ALG=SGD rand_per_iteration=%d nstratum=%d csf=%d\n\n", ws->rand_per_iteration, ws->nstratum, ws->csf);
     }
-    for(int m=0; m < nmodes; ++m) {
+    for(int m=0; m < ws->nmodes; ++m) {
       rinfo.mat_ptrs[m] = (idx_t *)splatt_malloc(sizeof(idx_t)*(rinfo.layer_size[m] + 1));
       for(int p=0; p <= rinfo.layer_size[m]; ++p) {
         rinfo.mat_ptrs[m][p] =
@@ -627,7 +631,7 @@ int splatt_tc_cmd(
 
   /* write the best model */
   if(args.write) {
-    for(idx_t m=0; m < nmodes; ++m) {
+    for(idx_t m=0; m < ws->nmodes; ++m) {
       char * matfname = NULL;
       asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
 

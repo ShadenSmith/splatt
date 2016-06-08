@@ -562,7 +562,7 @@ bool tc_converge(
 #ifdef SPLATT_USE_MPI
   val_t const train_rmse = sqrt(loss / ws->rinfo->global_nnz);
 #else
-  val_t const train_rmse = sqrt(loss / ws->nnz);
+  val_t const train_rmse = sqrt(loss / train->nnz);
 #endif
 
 #ifndef NO_VALIDATE
@@ -588,10 +588,13 @@ bool tc_converge(
     ws->best_epoch = epoch;
 
     /* save the best model */
+#ifdef SPLATT_USE_MPI
     if(model->which == SPLATT_TC_SGD) {
       sgd_save_best_model(ws);
     }
-    else {
+    else
+#endif
+    {
       for(idx_t m=0; m < model->nmodes; ++m) {
         par_memcpy(ws->best_model->factors[m], model->factors[m],
             model->dims[m] * model->rank * sizeof(**(model->factors)));

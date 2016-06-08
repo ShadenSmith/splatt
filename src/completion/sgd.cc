@@ -16,14 +16,14 @@
 #include <limits.h>
 #include <algorithm>
 #include <map>
-#include <unordered_map>
+//#include <unordered_map>
 #include <vector>
-#include <sstream>
+//#include <sstream>
 
 using std::map;
-using std::unordered_map;
+//using std::unordered_map;
 using std::vector;
-using std::stringstream;
+//using std::stringstream;
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
@@ -871,7 +871,7 @@ typedef struct
   vector<idx_t> nnzs_of_non_empty_slice[2];
     /* global index to nnz map that is owned by this owner (empty slice omitted) */
 
-  unordered_map<idx_t, idx_t> global_to_external;
+  map<idx_t, idx_t> global_to_external;
     /* inverse map of nnzs_of_non_empty_slice[0] */
     /* has same length as nnzs_of_non_empty_slice[0/1] */
     /* unless owner is itself when length is 0*/
@@ -945,7 +945,7 @@ typedef struct
 {
   vector<vector<idx_t> > local_rows_to_send;
 
-  unordered_map<idx_t, idx_t> global_to_external;
+  map<idx_t, idx_t> global_to_external;
 
   val_t *send_buf, *recv_buf;
 
@@ -1814,8 +1814,12 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
     }
   }
 
-  sgd_comm->comm_with_owner_vol = vector<idx_t>(nstratum, 0),
-  sgd_comm->comm_with_leaser_vol = vector<idx_t>(nstratum, 0);
+  sgd_comm->comm_with_owner_vol.resize(nstratum);
+  sgd_comm->comm_with_leaser_vol.resize(nstratum);
+  for(int s=0; s < nstratum; ++s) {
+    sgd_comm->comm_with_owner_vol[s] = 0;
+    sgd_comm->comm_with_leaser_vol[s] = 0;
+  }
 
   for(int s=0; s < nstratum; ++s) {
     stratum_t *stratum = &sgd_comm->stratums[s];
@@ -1951,6 +1955,8 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
   }
   sgd_comm->requests.resize(2*nrequests);
 
+  sgd_comm->epilogue_recv_vol = 0;
+  sgd_comm->epilogue_send_vol = 0;
   int request_cnt = 0;
   for(int m=0; m < nmodes; ++m) {
     int layer_rank = rinfo->layer_rank[m];
@@ -1991,10 +1997,10 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
 
 #ifdef SPLATT_MEASURE_LOAD_IMBALANCE
   idx_t
-    global_comm_with_owner_vols[npes*nstratum],
-    global_comm_with_leaser_vols[npes*nstratum],
-    global_epilogue_send_vols[npes],
-    global_epilogue_recv_vols[npes];
+    *global_comm_with_owner_vols = (idx_t *)splatt_malloc(sizeof(idx_t)*npes*nstratum),
+    *global_comm_with_leaser_vols = (idx_t *)splatt_malloc(sizeof(idx_t)*npes*nstratum),
+    *global_epilogue_send_vols = (idx_t *)splatt_malloc(sizeof(idx_t)*npes),
+    *global_epilogue_recv_vols = (idx_t *)splatt_malloc(sizeof(idx_t)*npes);
 
   MPI_Gather(
     &sgd_comm->comm_with_owner_vol[0], nstratum, SPLATT_MPI_IDX,
@@ -2052,6 +2058,11 @@ static void p_setup_sgd_persistent_comm(sgd_comm_t *sgd_comm)
     maximum_total += maximum;
     printf("avg_comm_vol_per_epoch %g bytes comm_vol_load_imbalance %g\n", avg_total, maximum_total/avg_total);
   }
+
+  splatt_free(global_comm_with_owner_vols);
+  splatt_free(global_comm_with_leaser_vols);
+  splatt_free(global_epilogue_send_vols);
+  splatt_free(global_epilogue_recv_vols);
 #endif
 }
 
@@ -2298,7 +2309,6 @@ static void p_free_sgd_comm(sgd_comm_t *sgd_comm)
   }
   sgd_comm->requests.clear();
 }
-#endif /* SPLATT_USE_MPI */
 
 val_t p_frob_sq(
     sgd_comm_t * sgd_comm,
@@ -2330,9 +2340,7 @@ val_t p_frob_sq(
     }
   } /* end omp parallel */
 
-#ifdef SPLATT_USE_MPI
   MPI_Allreduce(MPI_IN_PLACE, &reg_obj, 1, SPLATT_MPI_VAL, MPI_SUM, MPI_COMM_WORLD);
-#endif
 
   assert(reg_obj > 0);
   return reg_obj;
@@ -2382,6 +2390,7 @@ void sgd_save_best_model(tc_ws *ws)
   }
 }
 #endif // !NO_VALIDATE
+#endif /* SPLATT_USE_MPI */
 
 void splatt_tc_sgd(
     sptensor_t * train,
@@ -3135,7 +3144,7 @@ void splatt_tc_sgd(
   }
 
 #ifdef SPLATT_MEASURE_LOAD_IMBALANCE
-  val_t global_compute_times[npes*nstratum*e];
+  val_t *global_compute_times = (val_t *)splatt_malloc(sizeof(val_t)*npes*nstratum*e);
   for(int s=0; s < nstratum; ++s) {
     for(int i=0; i < e; ++i) {
       global_compute_times[(rank*nstratum + s)*e + i] = compute_times[s][i];
@@ -3172,6 +3181,7 @@ void splatt_tc_sgd(
     }
     printf("total load_imbalance %g\n", maximum_total/avg_total);
   }
+  splatt_free(global_compute_times);
 #endif
 
   p_free_sgd_comm(&sgd_comm);
@@ -3181,19 +3191,20 @@ void splatt_tc_sgd(
   }
 #else
 
-  splatt_csf *csf;
+  splatt_csf *csf = NULL;
   idx_t *perm;
+  idx_t nslices;
   if(ws->csf) {
     /* convert training data to a single CSF */
     double * opts = splatt_default_opts();
     opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
-    splatt_csf * csf = splatt_malloc(sizeof(*csf));
+    splatt_csf * csf = (splatt_csf *)splatt_malloc(sizeof(*csf));
     csf_alloc_mode(train, CSF_SORTED_BIGFIRST, 0, csf, opts);
 
     assert(csf->ntiles == 1);
 
-    idx_t const nslices = csf[0].pt->nfibs[0];
-    perm = splatt_malloc(nslices * sizeof(*perm));
+    nslices = csf[0].pt->nfibs[0];
+    perm = (idx_t *)splatt_malloc(nslices * sizeof(*perm));
 
     for(idx_t n=0; n < nslices; ++n) {
       perm[n] = n;
@@ -3201,7 +3212,7 @@ void splatt_tc_sgd(
   }
   else {
     /* initialize perm */
-    perm = splatt_malloc(train->nnz * sizeof(*perm));
+    perm = (idx_t *)splatt_malloc(train->nnz * sizeof(*perm));
     for(idx_t n=0; n < train->nnz; ++n) {
       perm[n] = n;
     }
@@ -3216,23 +3227,29 @@ void splatt_tc_sgd(
   val_t prev_obj = obj;
 
   timer_start(&ws->tc_time);
+  idx_t e;
   /* foreach epoch */
-  for(idx_t e=1; e < ws->max_its+1; ++e) {
+  for(e=1; e < ws->max_its+1; ++e) {
 
     timer_start(&ws->train_time);
 
     /* update model from all training observations */
-    timer_start(&ws->shuffle_time);
-    shuffle_idx(perm, nslices);
-    timer_stop(&ws->shuffle_time);
 
     if(ws->csf) {
+      timer_start(&ws->shuffle_time);
+      shuffle_idx(perm, nslices);
+      timer_stop(&ws->shuffle_time);
+
 #pragma omp parallel for
       for(idx_t i=0; i < nslices; ++i) {
-        p_update_model_csf3(csf, perm_i[i], model, ws);
+        p_update_model_csf3(csf, perm[i], model, ws);
       }
     }
     else {
+      timer_start(&ws->shuffle_time);
+      shuffle_idx(perm, train->nnz);
+      timer_stop(&ws->shuffle_time);
+
 #pragma omp parallel for
       for(idx_t n=0; n < train->nnz; ++n) {
         p_update_model(train, perm[n], model, ws);
@@ -3265,7 +3282,7 @@ void splatt_tc_sgd(
   }
 
   printf("   train_time %g (%g)\n", ws->train_time.seconds, ws->train_time.seconds/e);
-  printf("     update_time %g (%g)\n", (ws->train_time.seconds - ws->shuffle_time.seconds).seconds, (ws->train_time.seconds - ws->shuffle_time.seconds)/e);
+  printf("     update_time %g (%g)\n", (ws->train_time.seconds - ws->shuffle_time.seconds), (ws->train_time.seconds - ws->shuffle_time.seconds)/e);
   printf("     shuffle_time %g (%g)\n", ws->shuffle_time.seconds, ws->shuffle_time.seconds/e);
   printf("   test_time %g (%g)\n", ws->test_time.seconds, ws->test_time.seconds/e);
 
