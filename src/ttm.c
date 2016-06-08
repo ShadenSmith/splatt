@@ -12,17 +12,64 @@
 
 #define TTM_TILED 1
 
+
+
+/******************************************************************************
+ * MUTEX FUNCTIONS
+ *****************************************************************************/
+static bool locks_initialized = false;
+
+#ifdef _OPENMP
 #define NLOCKS 1024
-static omp_lock_t locks[NLOCKS];
-static int locks_initialized = 0;
+static omp_lock_t locks[NLOCKS*16];
+#endif
+
+/**
+* @brief Initialize all OpenMP locks.
+*/
 static void p_init_locks()
 {
-  if (!locks_initialized) {
+#ifdef _OPENMP
+  if(!locks_initialized) {
     for(int i=0; i < NLOCKS; ++i) {
-      omp_init_lock(locks+i);
+      omp_init_lock(locks + (i*16));
     }
-    locks_initialized = 1;
+    locks_initialized = true;
   }
+
+#else
+  if(!locks_initialized) {
+    locks_initialized = true;
+  }
+#endif
+}
+
+/**
+* @brief Set a lock based on some id.
+*
+* @param id The lock to set.
+*/
+static inline void p_splatt_set_lock(
+    int id)
+{
+#ifdef _OPENMP
+  int i = (id % NLOCKS) * 16;
+  omp_set_lock(locks + i);
+#endif
+}
+
+/**
+* @brief Release a lock based on some id.
+*
+* @param id The lock to release.
+*/
+static inline void p_splatt_unset_lock(
+    int id)
+{
+#ifdef _OPENMP
+  int i = (id % NLOCKS) * 16;
+  omp_unset_lock(locks + i);
+#endif
 }
 
 
@@ -719,81 +766,89 @@ void ttmc_stream(
 {
   idx_t const nmodes = tt->nmodes;
 
+  p_init_locks();
+
   /* clear out stale results */
   p_clear_tenout(tenout, mats, nmodes, mode, tt->dims);
 
-  val_t const * const restrict vals = tt->vals;
-  val_t * mvals[MAX_NMODES];
-  idx_t nfactors[MAX_NMODES];
+  #pragma omp parallel
+  {
+    val_t const * const restrict vals = tt->vals;
+    val_t * mvals[MAX_NMODES];
+    idx_t nfactors[MAX_NMODES];
 
-  idx_t total_cols = 1;
+    idx_t total_cols = 1;
 
-  /* number of columns accumulated by the m-th mode (counting backwards) */
-  idx_t ncols[MAX_NMODES+1];
-  ncols[nmodes] = 1;
-  val_t * buffers[MAX_NMODES];
+    /* number of columns accumulated by the m-th mode (counting backwards) */
+    idx_t ncols[MAX_NMODES+1];
+    ncols[nmodes] = 1;
+    val_t * buffers[MAX_NMODES];
 
-  for(idx_t m=nmodes; m-- != 0; ) {
-    nfactors[m] = mats[m]->J;
-    mvals[m] = mats[m]->vals;
+    for(idx_t m=nmodes; m-- != 0; ) {
+      nfactors[m] = mats[m]->J;
+      mvals[m] = mats[m]->vals;
 
-    /* allocate buffer */
-    if(m != mode) {
-      total_cols *= nfactors[m];
-      ncols[m] = ncols[m+1] * nfactors[m];
-      buffers[m] = splatt_malloc(ncols[m] * sizeof(**buffers));
-    } else {
-      ncols[m] = ncols[m+1];
-      buffers[m] = NULL;
-    }
-  }
-  assert(total_cols == ncols[0]);
-
-  /* the last mode we accumulate with */
-  idx_t const first_mode = (mode == 0) ? 1 : 0;
-  idx_t const last_mode  = (mode == nmodes-1) ? nmodes-2 : nmodes-1;
-
-  for(idx_t n=0; n < tt->nnz; ++n) {
-    val_t * const restrict outrow = tenout + (tt->ind[mode][n] * total_cols);
-
-    /* initialize buffer with nonzero value */
-    val_t * curr_buff = buffers[last_mode];
-    idx_t buff_size = nfactors[last_mode];
-    val_t const * const restrict last_row =
-        mvals[last_mode] + (tt->ind[last_mode][n] * nfactors[last_mode]);
-    for(idx_t f=0; f < nfactors[last_mode]; ++f) {
-      curr_buff[f] = vals[n] * last_row[f];
-    }
-
-    /* now do nmodes-1 kronecker products */
-    for(idx_t m=last_mode; m-- != 0; ) {
-      if(m == mode) {
-        continue;
-      }
-
-      if(m != first_mode) {
-        /* outer product */
-        p_twovec_outer_prod(
-            mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
-            curr_buff, buff_size,
-            buffers[m]);
+      /* allocate buffer */
+      if(m != mode) {
+        total_cols *= nfactors[m];
+        ncols[m] = ncols[m+1] * nfactors[m];
+        buffers[m] = splatt_malloc(ncols[m] * sizeof(**buffers));
       } else {
-        /* accumulate into output on the first mode (last to be processed) */
-        p_twovec_outer_prod_accum(
-            mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
-            curr_buff, buff_size,
-            outrow);
+        ncols[m] = ncols[m+1];
+        buffers[m] = NULL;
+      }
+    }
+    assert(total_cols == ncols[0]);
+
+    /* the last mode we accumulate with */
+    idx_t const first_mode = (mode == 0) ? 1 : 0;
+    idx_t const last_mode  = (mode == nmodes-1) ? nmodes-2 : nmodes-1;
+
+    #pragma omp for schedule(static)
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      val_t * const restrict outrow = tenout + (tt->ind[mode][n] * total_cols);
+
+      /* initialize buffer with nonzero value */
+      val_t * curr_buff = buffers[last_mode];
+      idx_t buff_size = nfactors[last_mode];
+      val_t const * const restrict last_row =
+          mvals[last_mode] + (tt->ind[last_mode][n] * nfactors[last_mode]);
+      for(idx_t f=0; f < nfactors[last_mode]; ++f) {
+        curr_buff[f] = vals[n] * last_row[f];
       }
 
-      /* next buffer */
-      curr_buff = buffers[m];
-      buff_size *= nfactors[m];
-    }
-  }
+      /* now do nmodes-1 kronecker products */
+      for(idx_t m=last_mode; m-- != 0; ) {
+        if(m == mode) {
+          continue;
+        }
 
-  for(idx_t m=0; m < nmodes; ++m) {
-    splatt_free(buffers[m]);
-  }
+        if(m != first_mode) {
+          /* outer product */
+          p_twovec_outer_prod(
+              mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
+              curr_buff, buff_size,
+              buffers[m]);
+        } else {
+          p_splatt_set_lock(tt->ind[mode][n]);
+          /* accumulate into output on the first mode (last to be processed) */
+          p_twovec_outer_prod_accum(
+              mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
+              curr_buff, buff_size,
+              outrow);
+          p_splatt_unset_lock(tt->ind[mode][n]);
+        }
+
+        /* next buffer */
+        curr_buff = buffers[m];
+        buff_size *= nfactors[m];
+      }
+    }
+
+    for(idx_t m=0; m < nmodes; ++m) {
+      splatt_free(buffers[m]);
+    }
+  } /* end omp parallel */
 }
 
 
