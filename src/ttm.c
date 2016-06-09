@@ -542,7 +542,7 @@ static void p_csf_ttmc_root(
   if(vals == NULL) {
     return;
   }
-#if 1
+#if 0
   if(nmodes == 3) {
     p_csf_ttmc_root3(csf, tile_id, mats, tenout, thds);
     return;
@@ -557,6 +557,8 @@ static void p_csf_ttmc_root(
       ncols *= mats[m]->J;
     }
   }
+
+  idx_t idxstack[MAX_NMODES];
 
   idx_t ncols_lvl[MAX_NMODES];
   ncols_lvl[0] = ncols;
@@ -582,8 +584,43 @@ static void p_csf_ttmc_root(
   #pragma omp for schedule(dynamic, 16) nowait
   for(idx_t s=0; s < nfibs; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
+    assert(fid < mats[MAX_NMODES]->I);
 
-  }
+    //predictbuf[0] = 1.;
+
+    /* clear out stale data */
+    idxstack[0] = i;
+    for(idx_t m=1; m < nmodes-1; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
+    }
+
+    /* process each subtree */
+    idx_t depth = 0;
+    while(idxstack[1] < fp[0][i+1]) {
+      /* move down to nnz node while computing predicted value */
+      for(; depth < nmodes-2; ++depth) {
+        //predictbuf[depth+1] = predictbuf[depth] *
+            //mats[depth+1][fids[depth+1][idxstack[depth+1]]];
+      }
+
+      /* process all nonzeros [start, end) */
+      idx_t const start = fp[depth][idxstack[depth]];
+      idx_t const end   = fp[depth][idxstack[depth]+1];
+      for(idx_t jj=start; jj < end; ++jj) {
+        val_t const lastval = lastmat[inds[jj]];
+        //val_t const sgrad = predictbuf[depth] * lastval;
+        //numer[out_id] += residual[jj] * sgrad;
+        //denom[out_id] += sgrad * sgrad;
+      }
+
+      /* now move up to the next unprocessed subtree */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+    } /* foreach fiber subtree */
+
+  } /* foreach outer slice */
 
   /* cleanup */
   for(idx_t m=0; m < nmodes-1; ++m) {
