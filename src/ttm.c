@@ -584,7 +584,7 @@ static void p_csf_ttmc_root(
   #pragma omp for schedule(dynamic, 16) nowait
   for(idx_t s=0; s < nfibs; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
-    assert(fid < mats[MAX_NMODES]->I);
+    assert(fid < csf->dims[mode]);
 
     //predictbuf[0] = 1.;
 
@@ -596,25 +596,26 @@ static void p_csf_ttmc_root(
 
     /* process each subtree */
     idx_t depth = 0;
-    while(idxstack[1] < fp[0][i+1]) {
-      /* move down to nnz node while computing predicted value */
-      for(; depth < nmodes-2; ++depth) {
-        //predictbuf[depth+1] = predictbuf[depth] *
-            //mats[depth+1][fids[depth+1][idxstack[depth+1]]];
-      }
+    while(idxstack[1] < fp[0][s+1]) {
+      /* skip to last internal node */
+      depth = nmodes - 2;
 
       /* process all nonzeros [start, end) */
       idx_t const start = fp[depth][idxstack[depth]];
       idx_t const end   = fp[depth][idxstack[depth]+1];
       for(idx_t jj=start; jj < end; ++jj) {
         val_t const lastval = lastmat[inds[jj]];
-        //val_t const sgrad = predictbuf[depth] * lastval;
-        //numer[out_id] += residual[jj] * sgrad;
-        //denom[out_id] += sgrad * sgrad;
+        val_t * const restrict lastbuf = buf[depth+1];
+        for(idx_t r=0; r < ncols_lvl[depth+1]; ++r) {
+          lastbuf[f] += v * bv[r];
+        }
       }
+      idxstack[depth+1] = end;
 
       /* now move up to the next unprocessed subtree */
       do {
+        /* propagate up and clear buffer for next sibling */
+
         ++idxstack[depth];
         --depth;
       } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
