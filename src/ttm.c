@@ -280,6 +280,110 @@ static inline void p_clear_tenout(
 }
 
 
+static inline void p_csf_process_fiber(
+  val_t * const restrict accumbuf,
+  idx_t const nfactors,
+  val_t const * const leafmat,
+  idx_t const start,
+  idx_t const end,
+  idx_t const * const restrict inds,
+  val_t const * const restrict vals)
+{
+  /* foreach nnz in fiber */
+  for(idx_t j=start; j < end; ++j) {
+    val_t const v = vals[j] ;
+    val_t const * const restrict row = leafmat + (nfactors * inds[j]);
+    for(idx_t f=0; f < nfactors; ++f) {
+      accumbuf[f] += v * row[f];
+    }
+  }
+}
+
+
+
+
+static inline void p_propagate_up(
+  val_t * const out,
+  val_t * const * const buf,
+  idx_t * const restrict idxstack,
+  idx_t const init_depth,
+  idx_t const init_idx,
+  idx_t const * const * const fp,
+  idx_t const * const * const fids,
+  val_t const * const restrict vals,
+  val_t ** mvals,
+  idx_t const nmodes,
+  idx_t const * const restrict ncols_mat,
+  idx_t const * const restrict ncols_lvl)
+{
+  /* push initial idx initialize idxstack */
+  assert(init_depth < nmodes-1);
+  idxstack[init_depth] = init_idx;
+  for(idx_t m=init_depth+1; m < nmodes; ++m) {
+    idxstack[m] = fp[m-1][idxstack[m-1]];
+  }
+
+  /* clear out accumulation buffer */
+  for(idx_t f=0; f < ncols_lvl[init_depth+1]; ++f) {
+    buf[init_depth+1][f] = 0;
+  }
+
+  while(idxstack[init_depth+1] < fp[init_depth][init_idx+1]) {
+    /* skip to last internal mode */
+    idx_t depth = nmodes - 2;
+
+    assert(ncols_lvl[depth+1] == ncols_mat[depth+1]);
+    /* process all nonzeros [start, end) into buf[depth]*/
+    idx_t const start = fp[depth][idxstack[depth]];
+    idx_t const end   = fp[depth][idxstack[depth]+1];
+    p_csf_process_fiber(buf[depth+1], ncols_mat[depth+1], mvals[depth+1],
+        start, end, fids[depth+1], vals);
+
+    idxstack[depth+1] = end;
+
+    /* exit early if there is no propagation to do... */
+    if(init_depth == nmodes-2) {
+      for(idx_t f=0; f < ncols_lvl[depth+1]; ++f) {
+        out[f] = buf[depth+1][f];
+      }
+      return;
+    }
+
+    /* Propagate up until we reach a node with more children to process */
+    do {
+      /* propagate result up and clear buffer for next sibling */
+      val_t const * const restrict fibrow
+          = mvals[depth] + (fids[depth][idxstack[depth]] * ncols_mat[depth]);
+      assert(ncols_lvl[depth] == ncols_lvl[depth+1] * ncols_mat[depth]);
+      p_twovec_outer_prod_accum(fibrow, ncols_mat[depth],
+                          buf[depth+1], ncols_lvl[depth+1],
+                          buf[depth]);
+      /* clear */
+      for(idx_t f=0; f < ncols_lvl[depth+1]; ++f) {
+        buf[depth+1][f] = 0.;
+      }
+
+      ++idxstack[depth];
+      --depth;
+    } while(depth > init_depth &&
+        idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+  } /* end DFS */
+
+  /* copy to out */
+  for(idx_t f=0; f < ncols_lvl[init_depth+1]; ++f) {
+    out[f] = buf[init_depth+1][f];
+  }
+}
+
+
+
+
+/******************************************************************************
+ * TRAVERSAL FUNCTIONS
+ *****************************************************************************/
+
+
+
 /**
 * @brief Perform TTM on the root mode of a 3D CSF tensor. No locks are used.
 *
@@ -542,38 +646,38 @@ static void p_csf_ttmc_root(
   if(vals == NULL) {
     return;
   }
-#if 0
   if(nmodes == 3) {
     p_csf_ttmc_root3(csf, tile_id, mats, tenout, thds);
     return;
   }
-#endif
 
   idx_t const mode = csf->dim_perm[0];
 
+  idx_t ncols_mat[MAX_NMODES];
+  /* count the number of columns in output and at each depth */
   idx_t ncols = 1;
   for(idx_t m=0; m < nmodes; ++m) {
+    ncols_mat[m] = mats[csf->dim_perm[m]]->J;
     if(m != mode) {
       ncols *= mats[m]->J;
     }
   }
 
-  idx_t idxstack[MAX_NMODES];
-
   idx_t ncols_lvl[MAX_NMODES];
   ncols_lvl[0] = ncols;
-  for(idx_t m=1; m < nmodes; ++m) {
-    ncols_lvl[m] = ncols_lvl[m-1] / mats[csf->dim_perm[m]]->J;
+  ncols_lvl[1] = ncols;
+  /* start at 1 to skip output */
+  for(idx_t m=2; m < nmodes; ++m) {
+    ncols_lvl[m] = ncols_lvl[m-1] / ncols_mat[m];
   }
+  ncols_lvl[nmodes-1] = ncols_mat[nmodes-1];
 
-  val_t * buf[MAX_NMODES];
-  printf("ncols:");
-  for(idx_t m=0; m < nmodes-1; ++m) {
-    printf(" %lu", ncols_lvl[m]);
+  val_t * mvals[MAX_NMODES]; /* permuted factors */
+  val_t * buf[MAX_NMODES];   /* accumulation buffer */
+  for(idx_t m=0; m < nmodes; ++m) {
     buf[m] = calloc(ncols_lvl[m], sizeof(**buf));
+    mvals[m] = mats[csf->dim_perm[m]]->vals;
   }
-  printf("\n");
-
   idx_t const nfibs = csf->pt[tile_id].nfibs[0];
 
   idx_t const * const * const restrict fp
@@ -581,46 +685,22 @@ static void p_csf_ttmc_root(
   idx_t const * const * const restrict fids
       = (idx_t const * const *) csf->pt[tile_id].fids;
 
+  idx_t idxstack[MAX_NMODES];
+
+
   #pragma omp for schedule(dynamic, 16) nowait
   for(idx_t s=0; s < nfibs; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
     assert(fid < csf->dims[mode]);
 
-    //predictbuf[0] = 1.;
+    p_propagate_up(buf[0], buf, idxstack, 0, s, fp, fids, vals, mvals, nmodes,
+        ncols_mat, ncols_lvl);
 
-    /* clear out stale data */
-    idxstack[0] = i;
-    for(idx_t m=1; m < nmodes-1; ++m) {
-      idxstack[m] = fp[m-1][idxstack[m-1]];
+    val_t       * const restrict orow = tenout + (fid * ncols);
+    val_t const * const restrict obuf = buf[0];
+    for(idx_t f=0; f < ncols; ++f) {
+      orow[f] += obuf[f];
     }
-
-    /* process each subtree */
-    idx_t depth = 0;
-    while(idxstack[1] < fp[0][s+1]) {
-      /* skip to last internal node */
-      depth = nmodes - 2;
-
-      /* process all nonzeros [start, end) */
-      idx_t const start = fp[depth][idxstack[depth]];
-      idx_t const end   = fp[depth][idxstack[depth]+1];
-      for(idx_t jj=start; jj < end; ++jj) {
-        val_t const lastval = lastmat[inds[jj]];
-        val_t * const restrict lastbuf = buf[depth+1];
-        for(idx_t r=0; r < ncols_lvl[depth+1]; ++r) {
-          lastbuf[f] += v * bv[r];
-        }
-      }
-      idxstack[depth+1] = end;
-
-      /* now move up to the next unprocessed subtree */
-      do {
-        /* propagate up and clear buffer for next sibling */
-
-        ++idxstack[depth];
-        --depth;
-      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
-    } /* foreach fiber subtree */
-
   } /* foreach outer slice */
 
   /* cleanup */

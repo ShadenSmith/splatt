@@ -273,7 +273,7 @@ CTEST2(ttm, csf_two_notile_3mode)
 }
 
 
-CTEST2(ttm, csf_all_notile_3mode)
+CTEST2(ttm, csf_all_notile)
 {
   idx_t const nthreads = 7;
 
@@ -284,10 +284,7 @@ CTEST2(ttm, csf_all_notile_3mode)
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
-
-    if(tt->nmodes == 3) {
-      p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
-    }
+    p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
   }
 }
 
@@ -341,10 +338,7 @@ CTEST2(ttm, rearrange_core_all)
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
-
-    if(tt->nmodes == 3) {
-      p_csf_core(opts, tt, data->mats[i], data->nfactors);
-    }
+    p_csf_core(opts, tt, data->mats[i], data->nfactors);
   }
 }
 
