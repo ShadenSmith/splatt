@@ -711,6 +711,34 @@ static void p_csf_ttmc_root(
 
 
 
+static void p_csf_ttmc_internal(
+  splatt_csf const * const csf,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  val_t * const tenout,
+  thd_info * const thds)
+{
+  /* empty tile, just return */
+  val_t const * const vals = csf->pt[tile_id].vals;
+  if(vals == NULL) {
+    return;
+  }
+
+  idx_t const nmodes = csf->nmodes;
+  if(nmodes == 3) {
+    p_csf_ttmc_intl3(csf, tile_id, mats, tenout, thds);
+    return;
+  }
+
+  /* extract tensor structures */
+
+
+}
+
+
+
+
+
 static inline void p_root_decide(
     splatt_csf const * const tensor,
     matrix_t ** mats,
@@ -761,7 +789,7 @@ static void p_intl_decide(
     idx_t tid = 0;
     switch(csf->which_tile) {
     case SPLATT_NOTILE:
-      p_csf_ttmc_intl3(csf, 0, mats, tenout, thds);
+      p_csf_ttmc_internal(csf, 0, mats, tenout, thds);
       break;
 
     /* XXX */
@@ -968,6 +996,7 @@ void ttmc_stream(
     }
   } /* end omp parallel */
 }
+
 
 
 void ttmc_largest_outer(
