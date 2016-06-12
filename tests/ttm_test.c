@@ -235,9 +235,9 @@ CTEST2(ttm, tenout_alloc)
 }
 
 
-CTEST2(ttm, csf_one_notile_3mode)
+CTEST2(ttm, csf_one_notile)
 {
-  idx_t const nthreads = 7;
+  idx_t const nthreads = 1;
 
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_NTHREADS]   = nthreads;
@@ -247,9 +247,7 @@ CTEST2(ttm, csf_one_notile_3mode)
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
 
-    if(tt->nmodes == 3) {
-      p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
-    }
+    p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
   }
 }
 
@@ -299,9 +297,7 @@ CTEST2(ttm, rearrange_core_one)
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
 
-    if(tt->nmodes == 3) {
-      p_csf_core(opts, tt, data->mats[i], data->nfactors);
-    }
+    p_csf_core(opts, tt, data->mats[i], data->nfactors);
   }
 }
 

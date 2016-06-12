@@ -302,6 +302,30 @@ static inline void p_csf_process_fiber(
 
 
 
+static inline void p_csf_process_fiber_lock(
+  val_t * const tenout,
+  val_t const * const restrict accumbuf,
+  idx_t const ncols,
+  idx_t const start,
+  idx_t const end,
+  idx_t const * const restrict inds,
+  val_t const * const restrict vals)
+{
+  for(idx_t jj=start; jj < end; ++jj) {
+    val_t * const restrict leafrow = tenout + (inds[jj] * ncols);
+    val_t const v = vals[jj];
+
+    p_splatt_set_lock(inds[jj]);
+    for(idx_t f=0; f < ncols; ++f) {
+      leafrow[f] += v * accumbuf[f];
+    }
+    p_splatt_unset_lock(inds[jj]);
+  }
+}
+
+
+
+
 static inline void p_propagate_up(
   val_t * const out,
   val_t * const * const buf,
@@ -629,6 +653,114 @@ static void p_csf_ttmc_leaf3(
 }
 
 
+static void p_csf_ttmc_leaf(
+  splatt_csf const * const csf,
+  idx_t const tile_id,
+  matrix_t ** mats,
+  val_t * const tenout,
+  thd_info * const thds)
+{
+  /* empty tile, just return */
+  val_t const * const vals = csf->pt[tile_id].vals;
+  if(vals == NULL) {
+    return;
+  }
+
+  idx_t const nmodes = csf->nmodes;
+  if(nmodes == 3) {
+    p_csf_ttmc_leaf3(csf, tile_id, mats, tenout, thds);
+    return;
+  }
+
+  idx_t const mode = csf->dim_perm[nmodes-1];
+
+  /* count the number of columns in output and each factor */
+  idx_t ncols_mat[MAX_NMODES];
+  idx_t ncols = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    ncols_mat[m] = mats[csf->dim_perm[m]]->J;
+    if(m != mode) {
+      ncols *= mats[m]->J;
+    }
+  }
+
+  /* count the number of columns at each depth -- grows from top */
+  idx_t ncols_lvl[MAX_NMODES];
+  ncols_lvl[0] = ncols_mat[0];
+  for(idx_t m=1; m < nmodes; ++m) {
+    ncols_lvl[m] = ncols_lvl[m-1] * ncols_mat[m];
+  }
+  ncols_lvl[nmodes-1] = ncols;
+
+  /* allocate buffers */
+  val_t * mvals[MAX_NMODES]; /* permuted factors */
+  val_t * buf[MAX_NMODES];   /* accumulation buffer */
+  for(idx_t m=0; m < nmodes; ++m) {
+    buf[m] = calloc(ncols_lvl[m], sizeof(**buf));
+    mvals[m] = mats[csf->dim_perm[m]]->vals;
+  }
+
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) csf->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) csf->pt[tile_id].fids;
+
+  /* foreach outer slice */
+  idx_t idxstack[MAX_NMODES];
+  idx_t const nslices = csf->pt[tile_id].nfibs[0];
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < nslices; ++s) {
+    idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
+    idxstack[0] = s;
+
+    /* clear out stale data */
+    for(idx_t m=1; m < nmodes-1; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
+    }
+
+    /* first buf will always just be a matrix row */
+    val_t const * const restrict rootrow = mvals[0] + (fid * ncols_mat[0]);
+    val_t * const rootbuf = buf[0];
+    for(idx_t f=0; f < ncols_mat[0]; ++f) {
+      rootbuf[f] = rootrow[f];
+    }
+
+    idx_t depth = 0;
+
+    idx_t const outer_end = fp[0][s+1];
+    while(idxstack[1] < outer_end) {
+      /* move down to an nnz node */
+      for(; depth < nmodes-2; ++depth) {
+        /* propogate buf down */
+        val_t const * const restrict drow = mvals[depth+1] + \
+            (fids[depth+1][idxstack[depth+1]] * ncols_mat[depth+1]);
+        assert(ncols_lvl[depth+1] == ncols_lvl[depth] * ncols_mat[depth+1]);
+        p_twovec_outer_prod(buf[depth], ncols_lvl[depth],
+                            drow, ncols_mat[depth+1],
+                            buf[depth+1]);
+      }
+
+      /* process all nonzeros [start, end) */
+      idx_t const start = fp[depth][idxstack[depth]];
+      idx_t const end   = fp[depth][idxstack[depth]+1];
+      p_csf_process_fiber_lock(tenout, buf[depth],
+          ncols, start, end, fids[depth+1], vals);
+
+      /* now move back up to the next unprocessed child */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+    } /* end DFS */
+  } /* end outer slice loop */
+
+  /* cleanup */
+  for(idx_t m=0; m < nmodes-1; ++m) {
+    free(buf[m]);
+  }
+}
+
+
 
 
 static void p_csf_ttmc_root(
@@ -835,6 +967,11 @@ static void p_csf_ttmc_internal(
       } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
     } /* end DFS */
   } /* end foreach outer slice */
+
+  /* cleanup */
+  for(idx_t m=0; m < nmodes-1; ++m) {
+    free(buf[m]);
+  }
 }
 
 
@@ -925,7 +1062,7 @@ static void p_leaf_decide(
     idx_t tid = 0;
     switch(csf->which_tile) {
     case SPLATT_NOTILE:
-      p_csf_ttmc_leaf3(csf, 0, mats, tenout, thds);
+      p_csf_ttmc_leaf(csf, 0, mats, tenout, thds);
       break;
 
     /* XXX */
