@@ -240,7 +240,7 @@ CTEST2(ttm, csf_one_notile_3mode)
   idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
@@ -254,21 +254,19 @@ CTEST2(ttm, csf_one_notile_3mode)
 }
 
 
-CTEST2(ttm, csf_two_notile_3mode)
+CTEST2(ttm, csf_two_notile)
 {
   idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
 
-    if(tt->nmodes == 3) {
-      p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
-    }
+    p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
   }
 }
 
@@ -278,7 +276,7 @@ CTEST2(ttm, csf_all_notile)
   idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
@@ -294,7 +292,7 @@ CTEST2(ttm, rearrange_core_one)
   idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
@@ -313,16 +311,14 @@ CTEST2(ttm, rearrange_core_two)
   idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
 
-    if(tt->nmodes == 3) {
-      p_csf_core(opts, tt, data->mats[i], data->nfactors);
-    }
+    p_csf_core(opts, tt, data->mats[i], data->nfactors);
   }
 }
 
@@ -332,7 +328,7 @@ CTEST2(ttm, rearrange_core_all)
   idx_t const nthreads = 7;
 
   double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
+  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 

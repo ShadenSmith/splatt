@@ -103,7 +103,7 @@ int splatt_ttmc(
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
   idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
-  omp_set_num_threads(nthreads);
+  splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 1,
     (maxcols * sizeof(val_t)) + 64);
 
@@ -546,9 +546,9 @@ static void p_csf_ttmc_intl3(
 
       /* accumulate outer product into tenout */
       val_t * const restrict outv = tenout + (fids[f] * rankA * rankB);
-      omp_set_lock(locks + (fids[f] % NLOCKS));
+      p_splatt_set_lock(fids[f]);
       p_twovec_outer_prod_accum(av, rankA, accum_nnz, rankB, outv);
-      omp_unset_lock(locks + (fids[f] % NLOCKS));
+      p_splatt_unset_lock(fids[f]);
     } /* foreach fiber */
   } /* foreach slice */
 }
@@ -616,11 +616,11 @@ static void p_csf_ttmc_leaf3(
       for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
         val_t const v = vals[jj];
         val_t * const restrict outv = tenout + (inds[jj] * rankA * rankB);
-        omp_set_lock(locks + (inds[jj] % NLOCKS));
+        p_splatt_set_lock(inds[jj]);
         for(idx_t r=0; r < rankA * rankB; ++r) {
           outv[r] += v * accum_oprod[r];
         }
-        omp_unset_lock(locks + (inds[jj] % NLOCKS));
+        p_splatt_unset_lock(inds[jj]);
       }
 
     } /* foreach fiber */
@@ -716,6 +716,7 @@ static void p_csf_ttmc_internal(
   idx_t const tile_id,
   matrix_t ** mats,
   val_t * const tenout,
+  idx_t const mode,
   thd_info * const thds)
 {
   /* empty tile, just return */
@@ -730,9 +731,110 @@ static void p_csf_ttmc_internal(
     return;
   }
 
+  /* find out which level in the tree this is */
+  idx_t const outdepth = csf_mode_depth(mode, csf->dim_perm, nmodes);
+
+  /* count the number of columns in output and each factor */
+  idx_t ncols_mat[MAX_NMODES];
+  idx_t ncols = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    ncols_mat[m] = mats[csf->dim_perm[m]]->J;
+    if(m != mode) {
+      ncols *= mats[m]->J;
+    }
+  }
+
+  /* count the number of columns at each depth -- grows from ends */
+  idx_t ncols_lvl[MAX_NMODES];
+  ncols_lvl[0] = ncols_mat[0];
+  for(idx_t m=1; m < nmodes-1; ++m) {
+    if(m < outdepth) {
+      ncols_lvl[m] = ncols_lvl[m-1] * ncols_mat[m];
+    } else if(m == outdepth) {
+      ncols_lvl[m] = ncols;
+    } else {
+      ncols_lvl[m] = ncols_lvl[m-1] / ncols_mat[m];
+    }
+  }
+  ncols_lvl[nmodes-1] = ncols_mat[nmodes-1];
+
+  /* allocate buffers */
+  val_t * mvals[MAX_NMODES]; /* permuted factors */
+  val_t * buf[MAX_NMODES];   /* accumulation buffer */
+  for(idx_t m=0; m < nmodes; ++m) {
+    buf[m] = calloc(ncols_lvl[m], sizeof(**buf));
+    mvals[m] = mats[csf->dim_perm[m]]->vals;
+  }
+
+
   /* extract tensor structures */
+  idx_t const * const * const restrict fp
+      = (idx_t const * const *) csf->pt[tile_id].fptr;
+  idx_t const * const * const restrict fids
+      = (idx_t const * const *) csf->pt[tile_id].fids;
 
 
+  /* foreach outer slice */
+  idx_t idxstack[MAX_NMODES];
+  idx_t const nslices = csf->pt[tile_id].nfibs[0];
+  #pragma omp for schedule(dynamic, 16) nowait
+  for(idx_t s=0; s < nslices; ++s) {
+    idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
+
+    /* push outer slice and fill stack */
+    idxstack[0] = s;
+    for(idx_t m=1; m <= outdepth; ++m) {
+      idxstack[m] = fp[m-1][idxstack[m-1]];
+    }
+
+    /* fill first buf */
+    val_t const * const restrict rootrow = mvals[0] + (fid * ncols_mat[0]);
+    for(idx_t f=0; f < ncols_mat[0]; ++f) {
+      buf[0][f] = rootrow[f];
+    }
+
+    /* process entire subtree */
+    idx_t depth = 0;
+    while(idxstack[1] < fp[0][s+1]) {
+      /* propagate values down to outdepth-1 */
+      for(; depth < outdepth-1; ++depth) {
+        val_t const * const restrict drow = mvals[depth+1] + \
+            (fids[depth+1][idxstack[depth+1]] * ncols_mat[depth+1]);
+        assert(ncols_lvl[depth+1] == ncols_lvl[depth] * ncols_mat[depth+1]);
+        p_twovec_outer_prod(buf[depth], ncols_lvl[depth],
+                            drow, ncols_mat[depth+1],
+                            buf[depth+1]);
+      }
+      ++depth;
+      assert(depth == outdepth);
+
+      /* propagate value up to buf[outdepth] -- actually only
+       * ncols_lvl[outdepth+1] values! */
+      p_propagate_up(buf[outdepth], buf, idxstack, outdepth,idxstack[outdepth],
+          fp, fids, vals, mvals, nmodes, ncols_mat, ncols_lvl);
+
+
+      /* update output row */
+      idx_t const noderow = fids[outdepth][idxstack[outdepth]];
+      val_t * const restrict outv = tenout + (noderow * ncols);
+      assert(ncols == ncols_lvl[outdepth-1] * ncols_lvl[outdepth+1]);
+      p_splatt_set_lock(noderow);
+      p_twovec_outer_prod_accum(buf[outdepth-1], ncols_lvl[outdepth-1],
+                                buf[outdepth], ncols_lvl[outdepth+1],
+                                outv);
+      p_splatt_unset_lock(noderow);
+      /* clear buffer -- hacked to be outdepth+1 */
+      for(idx_t f=0; f < ncols_lvl[outdepth+1]; ++f) {
+        buf[outdepth][f] = 0.;
+      }
+
+      /* backtrack to next unfinished node */
+      do {
+        ++idxstack[depth];
+        --depth;
+      } while(depth > 0 && idxstack[depth+1] == fp[depth][idxstack[depth]+1]);
+    } /* end DFS */
+  } /* end foreach outer slice */
 }
 
 
@@ -789,7 +891,7 @@ static void p_intl_decide(
     idx_t tid = 0;
     switch(csf->which_tile) {
     case SPLATT_NOTILE:
-      p_csf_ttmc_internal(csf, 0, mats, tenout, thds);
+      p_csf_ttmc_internal(csf, 0, mats, tenout, mode, thds);
       break;
 
     /* XXX */
