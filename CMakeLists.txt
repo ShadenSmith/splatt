@@ -29,6 +29,10 @@ set(SPLATT_LIBS splatt m rt)
 
 # setup Fortran
 enable_language(Fortran)
+if (NOT DEFINED CMAKE_Fortran_COMPILER)
+  message(FATAL_ERROR "Fortran compiler not found!")
+endif()
+
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
   set(SPLATT_LIBS ${SPLATT_LIBS} ifcore)
 else()
