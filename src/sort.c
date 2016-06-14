@@ -965,7 +965,6 @@ void insertion_sort(
   idx_t * const a,
   idx_t const n)
 {
-  timer_start(&timers[TIMER_SORT]);
   for(size_t i=1; i < n; ++i) {
     idx_t b = a[i];
     size_t j = i;
@@ -975,7 +974,6 @@ void insertion_sort(
     memmove(a+(j+1), a+j, sizeof(*a)*(i-j));
     a[j] = b;
   }
-  timer_stop(&timers[TIMER_SORT]);
 }
 
 
@@ -995,7 +993,6 @@ void insertion_sort_perm(
   idx_t * const restrict perm,
   idx_t const n)
 {
-  timer_start(&timers[TIMER_SORT]);
   for(size_t i=1; i < n; ++i) {
     idx_t b = a[i];
     idx_t pb = perm[i];
@@ -1010,7 +1007,6 @@ void insertion_sort_perm(
     memmove(perm+(j+1), perm+j, sizeof(*perm)*(i-j));
     perm[j] = pb;
   }
-  timer_stop(&timers[TIMER_SORT]);
 }
 
 

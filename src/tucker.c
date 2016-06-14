@@ -355,23 +355,20 @@ thd_info * tucker_alloc_thds(
 {
   idx_t const nmodes = tensors->nmodes;
 
-  /* find largest number of fibers we need to accumulate */
-  idx_t largest_nfibs[MAX_NMODES];
-  ttmc_largest_outer(tensors, largest_nfibs, opts);
-  idx_t const largest = largest_nfibs[argmax_elem(largest_nfibs, nmodes)];
-
   /* find # columns for each TTMc and output core */
   idx_t ncols[MAX_NMODES+1];
   p_compute_ncols(nfactors, nmodes, ncols);
   idx_t const maxcols = ncols[argmax_elem(ncols, nmodes)];
 
-  thd_info * thds =  thd_init(nthreads, 3,
-    /* nnz accumulation */
-    (largest * maxcols * sizeof(val_t)) + 64,
+  idx_t const maxfactor = nfactors[argmax_elem(nfactors, nmodes)];
+
+  thd_info * thds =  thd_init(nthreads, 5,
+    /* nnz accumulation & buffers */
+    (TTMC_BUFROWS * maxcols * sizeof(val_t)),
     /* fids */
-    (largest * sizeof(idx_t)) + 64,
+    (TTMC_BUFROWS * sizeof(idx_t)) ,
     /* actual rows corresponding to fids */
-    (tenout_dim(nmodes, nfactors, largest_nfibs) * sizeof(val_t)) + 64);
+    (maxfactor * TTMC_BUFROWS * sizeof(val_t)));
 
   return thds;
 }

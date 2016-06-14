@@ -8,8 +8,6 @@
 #include "tile.h"
 #include "util.h"
 
-#define TTM_TILED 1
-
 
 
 /******************************************************************************
@@ -222,7 +220,6 @@ static inline void p_twovec_outer_prod_tiled(
     idx_t const nfibers,
     val_t * const restrict out)
 {
-#ifdef SPLATT_USE_BLAS
   val_t alpha = 1.;
   val_t beta = 1.;
   char transA = 'N';
@@ -238,17 +235,64 @@ static inline void p_twovec_outer_prod_tiled(
       accums_buf, &M,   /* A */
       fids_buf, &N,     /* B */
       &beta, out, &M);  /* C */
-
-#else
-  /* (possibly slow) summation of outer products */
-  for(idx_t f=0; f < nfibers; ++f) {
-    val_t const * const restrict rowA = fids_buf + (f * ncol_fids);
-    val_t const * const restrict rowB = accums_buf + (f * ncol_accums);
-
-    p_twovec_outer_prod_accum(rowA, ncol_fids, rowB, ncol_accums, out);
-  }
-#endif
 }
+
+
+
+
+/**
+* @brief Flush buffered rows during TTMc. This requires gathering factor rows
+*        into a contiguous buffer, followed by a DGEMM call.
+*
+* @param row_buffer The buffer we will gather into. Must be at least
+*                   (naccum x factor_ncols) in size.
+* @param row_ids The row numbers we will gather.
+* @param factor The factor matrix to access (whose rows we gather).
+* @param factor_ncols The number of columns in 'factor'.
+* @param accums_buf The accumulated partial products.
+* @param ncol_accums The number of columns in 'accums_buf' partials.
+* @param naccum The number of rows in 'accums_buf' and 'row_ids'.
+* @param[out] out We accumulate into this row.
+*/
+static inline void p_flush_oprods(
+    val_t       * const row_buffer,
+    idx_t const * const restrict row_ids,
+    val_t const * const factor,
+    idx_t const factor_ncols,
+    val_t const * const restrict accums_buf,
+    idx_t const ncol_accums,
+    idx_t const naccum,
+    val_t * const restrict out)
+{
+  /* no-op */
+  if(naccum == 0) {
+    return;
+  }
+
+  /* don't do the gather step or call to BLAS_GEMM */
+  if(naccum == 1) {
+    p_twovec_outer_prod_accum(factor + (row_ids[0] * factor_ncols),
+                               factor_ncols, accums_buf, ncol_accums, out);
+    return;
+  }
+
+  /* gather rows into row_buffer */
+  for(idx_t row=0; row < naccum; ++row) {
+    val_t       * const restrict accum = row_buffer + (row * factor_ncols);
+    val_t const * const restrict av = factor + (row_ids[row] * factor_ncols);
+
+    for(idx_t f=0; f < factor_ncols; ++f) {
+      accum[f] = av[f];
+    }
+  }
+
+  /* dgemm */
+  p_twovec_outer_prod_tiled(row_buffer, factor_ncols, accums_buf, ncol_accums,
+      naccum, out);
+}
+
+
+
 
 
 /**
@@ -482,31 +526,21 @@ static void p_csf_ttmc_root3(
         }
       }
 
-#if TTM_TILED
       /* accumulate outer product into tenout */
       accum_fids[naccum++] = fids[f];
-#else
-      val_t const * const restrict av = avals  + (fids[f] * rankA);
-      p_twovec_outer_prod_accum(av, rankA, accum_nnz, rankB, outv);
-#endif
+      if(naccum == TTMC_BUFROWS) {
+        p_flush_oprods(accum_oprod, accum_fids, avals, rankA,
+                       accum_nnz_raw, rankB, naccum, outv);
+        naccum = 0;
+      }
     } /* foreach fiber */
 
     /* OUTER PRODUCTS */
 
-#if TTM_TILED
-    /* gather rows into accum_oprod */
-    for(idx_t row=0; row < naccum; ++row) {
-      val_t       * const restrict accum = accum_oprod + (row * rankA);
-      val_t const * const restrict av = avals + (accum_fids[row] * rankA);
-      for(idx_t f=0; f < rankA; ++f) {
-        accum[f] = av[f];
-      }
-    }
-
-    /* tiled outer product */
-    p_twovec_outer_prod_tiled(accum_oprod, rankA, accum_nnz_raw, rankB, naccum,
-        outv);
-#endif
+    /* flush buffer last time */
+    p_flush_oprods(accum_oprod, accum_fids, avals, rankA, accum_nnz_raw, rankB,
+        naccum, outv);
+    naccum = 0;
 
   } /* foreach outer slice */
 }
@@ -650,7 +684,6 @@ static void p_csf_ttmc_leaf3(
 
     } /* foreach fiber */
   }
-
 }
 
 

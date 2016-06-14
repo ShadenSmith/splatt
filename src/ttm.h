@@ -13,6 +13,14 @@
 
 
 
+/**
+* @brief The number of rows we will buffer for DGEMM when propagating up
+*        partial computations of TTMc (sum of outer products).
+*/
+static idx_t const TTMC_BUFROWS = 16;
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
