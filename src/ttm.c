@@ -489,7 +489,7 @@ static void p_csf_ttmc_root3(
   int const tid = omp_get_thread_num();
   val_t * const restrict accum_nnz_raw = (val_t *) thds[tid].scratch[0];
 
-  /* tiled outer products */
+  /* buffered outer products */
   idx_t naccum;
   idx_t * const accum_fids  = thds[tid].scratch[1];
   val_t * const accum_oprod = thds[tid].scratch[2];
@@ -652,7 +652,7 @@ static void p_csf_ttmc_leaf3(
 
   int const tid = omp_get_thread_num();
 
-  /* tiled outer products */
+  /* nonzero accumulation */
   val_t * const accum_oprod = thds[tid].scratch[2];
 
   /* foreach slice */
