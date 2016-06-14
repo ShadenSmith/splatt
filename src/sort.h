@@ -55,7 +55,7 @@ void tt_sort_range(
 /**
 * @brief An in-place insertion sort implementation for idx_t's.
 *
-* @param a The array to sort.
+* @param[out] a The array to sort.
 * @param n The number of items to sort.
 */
 void insertion_sort(
@@ -67,11 +67,41 @@ void insertion_sort(
 /**
 * @brief An in-place quicksort implementation for idx_t's.
 *
-* @param a The array to sort.
+* @param[out] a The array to sort.
 * @param n The number of items to sort.
 */
 void quicksort(
   idx_t * const a,
+  idx_t const n);
+
+
+#define insertion_sort_perm splatt_insertion_sort_perm
+/**
+* @brief An in-place insertion sort implementation for idx_t's that tracks the
+*        resulting permutation of elements.
+*
+* @param[out] a The array to sort.
+* @param[out] perm A permutation array.
+* @param n The number of items to sort.
+*/
+void insertion_sort_perm(
+  idx_t * const restrict a,
+  idx_t * const restrict perm,
+  idx_t const n);
+
+
+#define quicksort_perm splatt_quicksort_perm
+/**
+* @brief An in-place quicksort implementation for idx_t's that tracks the
+*        resulting permutation of elements.
+*
+* @param[out] a The array to sort.
+* @param[out] perm A permutation array.
+* @param n The number of items to sort.
+*/
+void quicksort_perm(
+  idx_t * const restrict a,
+  idx_t * const restrict perm,
   idx_t const n);
 
 #endif

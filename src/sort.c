@@ -622,7 +622,7 @@ static void p_tt_quicksort(
 
 
 /**
-* @brief Perform a simple parallel quicksort with OpenMP tasks.
+* @brief Perform a simple serial quicksort.
 *
 * @param a The array to sort.
 * @param n The length of the array.
@@ -668,6 +668,71 @@ static void p_quicksort(
     ++i; /* skip the pivot element */
     if(n-i > 1) {
       p_quicksort(a+i, n-i);
+    }
+  }
+}
+
+
+/**
+* @brief Perform a simple serial quicksort with permutation tracking.
+*
+* @param a The array to sort.
+* @param perm The permutation array.
+* @param n The length of the array.
+*/
+static void p_quicksort_perm(
+  idx_t * const restrict a,
+  idx_t * const restrict perm,
+  idx_t const n)
+{
+  if(n < MIN_QUICKSORT_SIZE) {
+    insertion_sort_perm(a, perm, n);
+  } else {
+    size_t i = 1;
+    size_t j = n-1;
+    size_t k = n >> 1;
+    idx_t mid = a[k];
+    idx_t pmid = perm[k];
+    a[k] = a[0];
+    perm[k] = perm[0];
+    while(i < j) {
+      if(a[i] > mid) { /* a[i] is on the wrong side */
+        if(a[j] <= mid) { /* swap a[i] and a[j] */
+          idx_t tmp = a[i];
+          a[i] = a[j];
+          a[j] = tmp;
+
+          /* swap perm */
+          tmp = perm[i];
+          perm[i] = perm[j];
+          perm[j] = tmp;
+          ++i;
+        }
+        --j;
+      } else {
+        if(a[j] > mid) { /* a[j] is on the right side */
+          --j;
+        }
+        ++i;
+      }
+    }
+
+    if(a[i] > mid) {
+      --i;
+    }
+    a[0] = a[i];
+    a[i] = mid;
+
+    /* track median too */
+    perm[0] = perm[i];
+    perm[i] = pmid;
+
+    if(i > 1) {
+      p_quicksort_perm(a, perm, i);
+    }
+    ++i; /* skip the pivot element */
+    if(n-i > 1) {
+      p_quicksort_perm(a+i, perm+i, n-i);
     }
   }
 }
@@ -907,7 +972,7 @@ void insertion_sort(
     while (j > 0 &&  a[j-1] > b) {
       --j;
     }
-    memmove(a+(j+1), a+j, sizeof(idx_t)*(i-j));
+    memmove(a+(j+1), a+j, sizeof(*a)*(i-j));
     a[j] = b;
   }
   timer_stop(&timers[TIMER_SORT]);
@@ -922,4 +987,47 @@ void quicksort(
   p_quicksort(a,n);
   timer_stop(&timers[TIMER_SORT]);
 }
+
+
+
+void insertion_sort_perm(
+  idx_t * const restrict a,
+  idx_t * const restrict perm,
+  idx_t const n)
+{
+  timer_start(&timers[TIMER_SORT]);
+  for(size_t i=1; i < n; ++i) {
+    idx_t b = a[i];
+    idx_t pb = perm[i];
+
+    size_t j = i;
+    while (j > 0 &&  a[j-1] > b) {
+      --j;
+    }
+    memmove(a+(j+1), a+j, sizeof(*a)*(i-j));
+    a[j] = b;
+
+    memmove(perm+(j+1), perm+j, sizeof(*perm)*(i-j));
+    perm[j] = pb;
+  }
+  timer_stop(&timers[TIMER_SORT]);
+}
+
+
+void quicksort_perm(
+  idx_t * const restrict a,
+  idx_t * const restrict perm,
+  idx_t const n)
+{
+  timer_start(&timers[TIMER_SORT]);
+  /* initialize permutation */
+  for(idx_t i=0; i < n; ++i) {
+    perm[i] = i;
+  }
+
+  p_quicksort_perm(a, perm, n);
+  timer_stop(&timers[TIMER_SORT]);
+}
+
+
 

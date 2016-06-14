@@ -226,6 +226,54 @@ CTEST2(sort_idx, qsort)
 }
 
 
+CTEST2(sort_idx, qsort_perm)
+{
+  idx_t * perm = splatt_malloc(data->N * sizeof(*perm));
+  idx_t * orig = splatt_malloc(data->N * sizeof(*perm));
+
+  memcpy(orig, data->rand_idx, data->N * sizeof(*orig));
+  quicksort_perm(data->rand_idx, perm, data->N);
+  for(idx_t x=0; x < data->N - 1; ++x) {
+    if(data->rand_idx[x] > data->rand_idx[x+1]) {
+      ASSERT_FAIL();
+    }
+
+    if(perm[x] >= data->N) {
+      ASSERT_FAIL();
+    }
+    ASSERT_EQUAL(orig[perm[x]], data->rand_idx[x]);
+  }
+
+  memcpy(orig, data->fororder, data->N * sizeof(*orig));
+  quicksort_perm(data->fororder, perm, data->N);
+  for(idx_t x=0; x < data->N - 1; ++x) {
+    if(data->fororder[x] > data->fororder[x+1]) {
+      ASSERT_FAIL();
+    }
+
+    if(perm[x] >= data->N) {
+      ASSERT_FAIL();
+    }
+    ASSERT_EQUAL(orig[perm[x]], data->fororder[x]);
+  }
+
+  memcpy(orig, data->revorder, data->N * sizeof(*orig));
+  quicksort_perm(data->revorder, perm, data->N);
+  for(idx_t x=0; x < data->N - 1; ++x) {
+    if(data->revorder[x] > data->revorder[x+1]) {
+      ASSERT_FAIL();
+    }
+
+    if(perm[x] >= data->N) {
+      ASSERT_FAIL();
+    }
+    ASSERT_EQUAL(orig[perm[x]], data->revorder[x]);
+  }
+
+  splatt_free(orig);
+  splatt_free(perm);
+}
+
 #ifdef _OPENMP
 CTEST2(sort_idx, par_sort)
 {
