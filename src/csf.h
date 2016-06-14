@@ -16,6 +16,8 @@ typedef enum
   CSF_INORDER_MINUSONE,  /** one mode is placed first, rest naturally ordered*/
   CSF_SORTED_SMALLFIRST_MINUSONE, /** one placed first, rest sorted by size */
   CSF_SORTED_BIGFIRST_MINUSONE, /** one placed first, rest sorted by size */
+  CSF_SORTED_MINUSONE,   /** one mode is placed first, rest sorted by size */
+  CSF_CUSTOM             /** custom mode ordering. dim_perm must be set! */
 } csf_mode_type;
 
 
