@@ -8,8 +8,6 @@
 #include "tile.h"
 #include "util.h"
 
-#include <omp.h>
-
 #define TTM_TILED 1
 
 
@@ -497,9 +495,12 @@ static void p_csf_ttmc_root3(
 
 #if TTM_TILED
     /* gather rows into accum_oprod */
-    for(idx_t r=0; r < naccum; ++r) {
-      memcpy(accum_oprod + (r * rankA), avals + (accum_fids[r] * rankA),
-          rankA * sizeof(*accum_oprod));
+    for(idx_t row=0; row < naccum; ++row) {
+      val_t       * const restrict accum = accum_oprod + (row * rankA);
+      val_t const * const restrict av = avals + (accum_fids[row] * rankA);
+      for(idx_t f=0; f < rankA; ++f) {
+        accum[f] = av[f];
+      }
     }
 
     /* tiled outer product */
@@ -676,6 +677,7 @@ static void p_csf_ttmc_leaf(
 
   /* count the number of columns in output and each factor */
   idx_t ncols_mat[MAX_NMODES];
+  ncols_mat[0] = 0; /* just get rid of a warning */
   idx_t ncols = 1;
   for(idx_t m=0; m < nmodes; ++m) {
     ncols_mat[m] = mats[csf->dim_perm[m]]->J;
@@ -868,6 +870,7 @@ static void p_csf_ttmc_internal(
 
   /* count the number of columns in output and each factor */
   idx_t ncols_mat[MAX_NMODES];
+  ncols_mat[0] = 0;
   idx_t ncols = 1;
   for(idx_t m=0; m < nmodes; ++m) {
     ncols_mat[m] = mats[csf->dim_perm[m]]->J;
