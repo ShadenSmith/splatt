@@ -132,6 +132,37 @@ CTEST2(csf_one_init, mode_order_inorder)
 }
 
 
+CTEST2(csf_one_init, mode_order_custom)
+{
+  splatt_csf csf;
+
+  /* set backwards */
+  for(idx_t m=0; m < data->tt->nmodes; ++m) {
+    csf.dim_perm[m] = data->tt->nmodes - m - 1;
+  }
+
+  csf_alloc_mode(data->tt, CSF_CUSTOM, 0, &csf, data->opts);
+  for(idx_t m=0; m < csf.nmodes; ++m) {
+    ASSERT_EQUAL(csf.nmodes - m - 1, csf.dim_perm[m]);
+  }
+  csf_free_mode(&csf);
+
+  /* now set forwards */
+
+  /* set backwards */
+  for(idx_t m=0; m < data->tt->nmodes; ++m) {
+    csf.dim_perm[m] = m;
+  }
+
+  csf_alloc_mode(data->tt, CSF_CUSTOM, 0, &csf, data->opts);
+  for(idx_t m=0; m < csf.nmodes; ++m) {
+    ASSERT_EQUAL(m, csf.dim_perm[m]);
+  }
+  csf_free_mode(&csf);
+}
+
+
+
 CTEST2(csf_one_init, normsq)
 {
   double gold_norm = 0;

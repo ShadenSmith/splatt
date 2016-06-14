@@ -584,6 +584,10 @@ void csf_find_mode_order(
     p_order_dims_minusone(dims, nmodes, mode, perm_dims);
     break;
 
+  /* no-op, perm_dims better be set... */
+  case CSF_CUSTOM:
+    break;
+
   default:
     fprintf(stderr, "SPLATT: csf_mode_type '%d' not recognized.\n", which);
     break;
