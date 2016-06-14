@@ -585,7 +585,7 @@ void csf_find_mode_order(
     break;
 
   /* no-op, perm_dims better be set... */
-  case CSF_CUSTOM:
+  case CSF_MODE_CUSTOM:
     break;
 
   default:

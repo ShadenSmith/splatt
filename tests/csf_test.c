@@ -141,7 +141,7 @@ CTEST2(csf_one_init, mode_order_custom)
     csf.dim_perm[m] = data->tt->nmodes - m - 1;
   }
 
-  csf_alloc_mode(data->tt, CSF_CUSTOM, 0, &csf, data->opts);
+  csf_alloc_mode(data->tt, CSF_MODE_CUSTOM, 0, &csf, data->opts);
   for(idx_t m=0; m < csf.nmodes; ++m) {
     ASSERT_EQUAL(csf.nmodes - m - 1, csf.dim_perm[m]);
   }
@@ -154,7 +154,7 @@ CTEST2(csf_one_init, mode_order_custom)
     csf.dim_perm[m] = m;
   }
 
-  csf_alloc_mode(data->tt, CSF_CUSTOM, 0, &csf, data->opts);
+  csf_alloc_mode(data->tt, CSF_MODE_CUSTOM, 0, &csf, data->opts);
   for(idx_t m=0; m < csf.nmodes; ++m) {
     ASSERT_EQUAL(m, csf.dim_perm[m]);
   }
