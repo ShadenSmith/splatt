@@ -51,6 +51,8 @@ show_help() {
   echo "  --with-precision={single,double}"
   echo "    Use single or double precision floating point values (default: double)."
 
+  echo "  --intel"
+  echo "    Use the Intel compiler (icc), MKL, and possibly Intel-specific optimizations."
   echo "  --debug"
   echo "    Turn off optimizations and build with debugging symbols and assertions."
   echo "  --dev"
@@ -123,6 +125,11 @@ for i in "${@}"; do
     # cxx
     --cxx=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=${i#*=}"
+    ;;
+
+    --intel)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DINTEL_OPT=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=icc"
     ;;
     # debug
     --debug)
