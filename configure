@@ -40,10 +40,10 @@ show_help() {
   echo "    Set the C compiler."
   #echo "  --cxx=<cxx>"
   #echo "    Set the C++ compiler."
-  echo "  --debug"
-  echo "    Turn off optimizations and build with debugging symbols and assertions."
-  echo "  --dev"
-  echo "    Build in development mode. Warnings and extra logging enabled."
+
+  echo ""
+  echo "  --max-modes=<#>"
+  echo "    Set the maxmimum number of tensor modes (default: 8)."
 
   echo ""
   echo "  --with-index-size={32,64}"
@@ -51,9 +51,10 @@ show_help() {
   echo "  --with-precision={single,double}"
   echo "    Use single or double precision floating point values (default: double)."
 
-  echo ""
-  echo "  --max-modes=<#>"
-  echo "    Set the maxmimum number of tensor modes (default: 8)."
+  echo "  --debug"
+  echo "    Turn off optimizations and build with debugging symbols and assertions."
+  echo "  --dev"
+  echo "    Build in development mode. Warnings and extra logging enabled."
 
   echo ""
   echo "LIBRARY OPTIONS"
