@@ -112,6 +112,7 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
   opts->inner_tolerance = 1e-2;
   opts->max_inner_iterations = 20;
 
+  opts->unconstrained = true;
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     opts->constraints[m].which = SPLATT_CON_NONE;
     opts->constraints[m].data = NULL;

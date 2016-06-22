@@ -34,6 +34,7 @@ CTEST_TEARDOWN(cpd)
 CTEST(cpd, cpd_opt_alloc)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
+  ASSERT_EQUAL(true, opts->unconstrained);
 
   ASSERT_NOT_NULL(opts);
 
@@ -54,11 +55,13 @@ CTEST(cpd, cpd_add_constraints)
   splatt_cpd_con_nonneg(opts, 0);
   ASSERT_EQUAL(SPLATT_CON_NONNEG, opts->constraints[0].which);
   ASSERT_NULL(opts->constraints[0].data);
+  ASSERT_EQUAL(false, opts->unconstrained);
 
   /* clear */
   splatt_cpd_con_clear(opts, 0);
   ASSERT_EQUAL(SPLATT_CON_NONE, opts->constraints[0].which);
   ASSERT_NULL(opts->constraints[0].data);
+  ASSERT_EQUAL(true, opts->unconstrained);
 
   splatt_free_cpd_opts(opts);
 }
@@ -68,6 +71,7 @@ CTEST(cpd, cpd_add_constraints_allmodes)
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
 
   splatt_cpd_con_nonneg(opts, MAX_NMODES);
+  ASSERT_EQUAL(false, opts->unconstrained);
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     ASSERT_EQUAL(SPLATT_CON_NONNEG, opts->constraints[m].which);
     ASSERT_NULL(opts->constraints[m].data);
@@ -81,13 +85,18 @@ CTEST(cpd, cpd_add_constraints_allmodes)
 CTEST(cpd, cpd_add_constraints_clear)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
+  ASSERT_EQUAL(true, opts->unconstrained);
 
   splatt_cpd_reg_l1(opts, MAX_NMODES, 0.01);
+  ASSERT_EQUAL(false, opts->unconstrained);
+
   splatt_cpd_con_clear(opts, MAX_NMODES);
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     ASSERT_EQUAL(SPLATT_CON_NONE, opts->constraints[m].which);
     ASSERT_NULL(opts->constraints[m].data);
   }
+
+  ASSERT_EQUAL(true, opts->unconstrained);
 
   splatt_free_cpd_opts(opts);
 }

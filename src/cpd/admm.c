@@ -470,14 +470,7 @@ idx_t admm_inner(
     p_admm_optimal_regs(mats[mode], ws, which_reg, cdata);
 
     /* Absorb columns into column_weights if no constraints are applied */
-    bool no_constraints = true;
-    for(idx_t m=0; m < ws->nmodes; ++m) {
-      if(cpd_opts->constraints[m].which != SPLATT_CON_NONE) {
-        no_constraints = false;
-        break;
-      }
-    }
-    if(no_constraints) {
+    if(cpd_opts->unconstrained) {
       mat_normalize(mats[mode], column_weights, MAT_NORM_2, NULL, ws->thds);
     }
     return 0;
@@ -571,6 +564,7 @@ void splatt_cpd_reg_l1(
 
   splatt_cpd_con_clear(cpd_opts, mode);
 
+  cpd_opts->unconstrained = false;
   cpd_opts->constraints[mode].which = SPLATT_REG_L1;
   val_t * lambda = splatt_malloc(sizeof(*lambda));
   *lambda = scale;
@@ -592,6 +586,7 @@ void splatt_cpd_reg_l2(
 
   splatt_cpd_con_clear(cpd_opts, mode);
 
+  cpd_opts->unconstrained = false;
   cpd_opts->constraints[mode].which = SPLATT_REG_L2;
   val_t * lambda = splatt_malloc(sizeof(*lambda));
   *lambda = scale;
@@ -613,6 +608,7 @@ void splatt_cpd_con_nonneg(
 
   splatt_cpd_con_clear(cpd_opts, mode);
 
+  cpd_opts->unconstrained = false;
   cpd_opts->constraints[mode].which = SPLATT_CON_NONNEG;
 }
 
@@ -633,6 +629,7 @@ void splatt_cpd_reg_smooth(
 
   splatt_cpd_con_clear(cpd_opts, mode);
 
+  cpd_opts->unconstrained = false;
   cpd_opts->constraints[mode].which = SPLATT_REG_SMOOTHNESS;
 
   reg_smooth_ws * smooth = splatt_malloc(sizeof(*smooth));
@@ -679,6 +676,15 @@ void splatt_cpd_con_clear(
   /* clear just in case */
   cpd_opts->constraints[mode].which = SPLATT_CON_NONE;
   cpd_opts->constraints[mode].data = NULL;
+
+  /* check if no constraints */
+  cpd_opts->unconstrained = true;
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    if(cpd_opts->constraints[mode].which != SPLATT_CON_NONE) {
+      cpd_opts->unconstrained = false;
+      break;
+    }
+  }
 }
 
 

@@ -20,6 +20,7 @@
 
 
 #include <inttypes.h>
+#include <stdbool.h>
 #include <float.h>
 
 

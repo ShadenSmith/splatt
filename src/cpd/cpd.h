@@ -135,6 +135,7 @@ void cpd_post_process(
 
 
 
+#define cpd_alloc_ws splatt_cpd_alloc_ws
 /**
 * @brief Allocate a workspace for computing a CPD factorization. Tensor, CPD,
 *        and global option info is collected to ease future extension.
@@ -153,6 +154,7 @@ cpd_ws * cpd_alloc_ws(
     splatt_global_opts const * const global_opts);
 
 
+#define cpd_free_ws splatt_cpd_free_ws
 /**
 * @brief Free the workspace allocated by `cpd_alloc_ws()`.
 *

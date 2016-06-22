@@ -56,6 +56,7 @@ typedef struct
   splatt_idx_t max_inner_iterations;
 
   /* constraints */
+  bool unconstrained; /* true if NO constraints or regularizations applied */
   splatt_constraint constraints[SPLATT_MAX_NMODES];
 
 } splatt_cpd_opts;
