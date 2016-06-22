@@ -34,6 +34,7 @@ add_subdirectory(include)
 file(GLOB SPLATT_SOURCES
       src/*.c
       src/ccp/*.c
+      src/cpd/*.c
       ${MPI_SOURCES})
 
 # Generate splatt library
