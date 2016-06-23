@@ -72,6 +72,7 @@ CTEST(cpd, cpd_add_constraints_allmodes)
 
   splatt_cpd_con_nonneg(opts, MAX_NMODES);
   ASSERT_EQUAL(false, opts->unconstrained);
+
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     ASSERT_EQUAL(SPLATT_CON_NONNEG, opts->constraints[m].which);
     ASSERT_NULL(opts->constraints[m].data);
