@@ -101,7 +101,7 @@ static void p_form_banded(
   int KU = (int) nbands;
   int lda = (int) (2 * nbands) + nbands + 1;
   int info = 0;
-  dgbtrf_(&M, &N, &KL, &KU, smooth->banded->vals, &lda, smooth->pivot, &info);
+  LAPACK_DGBTRF(&M, &N, &KL, &KU, smooth->banded->vals, &lda, smooth->pivot, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DGBTRF returned %d\n", info);
   }
@@ -266,7 +266,7 @@ static void p_proximity_smooth(
   int ldb = N;
   int info;
 
-  dgbtrs_(&trans, &N, &KL, &KU, &nrhs, smooth->banded->vals, &lda,
+  LAPACK_DGBTRS(&trans, &N, &KL, &KU, &nrhs, smooth->banded->vals, &lda,
       smooth->pivot, matv, &ldb, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DGBTRS returned %d\n", info);

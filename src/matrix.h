@@ -40,6 +40,40 @@ typedef enum
 #include "thd_info.h"
 
 
+
+/******************************************************************************
+ * LAPACK PROTOTYPES
+ *****************************************************************************/
+
+#if   SPLATT_VAL_TYPEWIDTH == 32
+  void spotrf_(char *, int *, float *, int *, int *);
+  void spotrs_(char *, int *, int *, float *, int *, float *, int *, int *);
+  void ssyrk_(char *, char *, int *, int *, float *, float *, int *, float *, float *, int *);
+  void sgbtrf_(int *, int *, int *, int *, float *, int *, int *, int *);
+  void sgbtrs_(char *, int *, int *, int *, int *, float *, int *, int *, float *, int *, int *);
+
+  #define LAPACK_DPOTRF spotrf_
+  #define LAPACK_DPOTRS spotrs_
+  #define LAPACK_DSYRK  ssyrk_
+  #define LAPACK_DGBTRF sgbtrf_
+  #define LAPACK_DGBTRS sgbtrs_
+#else
+  void dpotrf_(char *, int *, double *, int *, int *);
+  void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
+  void dsyrk_(char *, char *, int *, int *, double *, double *, int *, double *, double *, int *);
+  void dgbtrf_(int *, int *, int *, int *, double *, int *, int *, int *);
+  void dgbtrs_(char *, int *, int *, int *, int *, double *, int *, int *, double *, int *, int *);
+
+  #define LAPACK_DPOTRF dpotrf_
+  #define LAPACK_DPOTRS dpotrs_
+  #define LAPACK_DSYRK  dsyrk_
+  #define LAPACK_DGBTRF dgbtrf_
+  #define LAPACK_DGBTRS dgbtrs_
+#endif
+
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
