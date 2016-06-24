@@ -107,17 +107,19 @@ CTEST(cpd, cpd_add_constraints_param)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
 
+  val_t reg = 0.01;
+
   /* L1 */
-  splatt_cpd_reg_l1(opts, 0, 0.01);
+  splatt_cpd_reg_l1(opts, 0, reg);
   ASSERT_NOT_NULL(opts->constraints[0].data);
-  ASSERT_DBL_NEAR_TOL(0.01, *((double *) opts->constraints[0].data), 0.);
+  ASSERT_DBL_NEAR_TOL(reg, *((val_t *) opts->constraints[0].data), 0.);
 
   splatt_cpd_con_clear(opts, 0);
 
   /* L2 */
-  splatt_cpd_reg_l2(opts, 0, 0.01);
+  splatt_cpd_reg_l2(opts, 0, reg);
   ASSERT_NOT_NULL(opts->constraints[0].data);
-  ASSERT_DBL_NEAR_TOL(0.01, *((double *) opts->constraints[0].data), 0.);
+  ASSERT_DBL_NEAR_TOL(reg, *((val_t *) opts->constraints[0].data), 0.);
 
   splatt_free_cpd_opts(opts);
 }
@@ -127,11 +129,13 @@ CTEST(cpd, cpd_add_constraints_overwrite)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
 
-  splatt_cpd_reg_l1(opts, MAX_NMODES, 0.01);
+  val_t reg = 0.01;
+
+  splatt_cpd_reg_l1(opts, MAX_NMODES, reg);
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     ASSERT_EQUAL(SPLATT_REG_L1, opts->constraints[m].which);
     ASSERT_NOT_NULL(opts->constraints[m].data);
-    ASSERT_DBL_NEAR_TOL(0.01, *((double *) opts->constraints[m].data), 0.);
+    ASSERT_DBL_NEAR_TOL(reg, *((val_t *) opts->constraints[m].data), 0.);
   }
 
   splatt_cpd_con_nonneg(opts, 1);
@@ -139,7 +143,7 @@ CTEST(cpd, cpd_add_constraints_overwrite)
   ASSERT_NULL(opts->constraints[1].data);
   /* mode 0 still intact? */
   ASSERT_NOT_NULL(opts->constraints[0].data);
-  ASSERT_DBL_NEAR_TOL(0.01, *((double *) opts->constraints[0].data), 0.);
+  ASSERT_DBL_NEAR_TOL(reg, *((val_t *) opts->constraints[0].data), 0.);
 
   splatt_free_cpd_opts(opts);
 }

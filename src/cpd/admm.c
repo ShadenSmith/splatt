@@ -571,6 +571,7 @@ void splatt_cpd_reg_l1(
   cpd_opts->constraints[mode].data = (void *) lambda;
 }
 
+
 void splatt_cpd_reg_l2(
     splatt_cpd_opts * const cpd_opts,
     splatt_idx_t const mode,
