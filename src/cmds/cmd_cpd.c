@@ -47,6 +47,7 @@ static struct argp_option cpd_options[] = {
   {"rank", 'r', "RANK", 0, "rank of factorization (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads (default: ${OMP_NUM_THREADS})"},
   {"tile", LONG_TILE, 0, 0, "use tiling during MTTKRP"},
+  {"stem", 's', "PATH", 0, "file stem for factorization output files (default: ./)"},
   {"nowrite", LONG_NOWRITE, 0, 0, "do not write output to file"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
 
@@ -77,7 +78,6 @@ static struct argp_option cpd_options[] = {
       "maximum number of inner ADMM iterations to use (default: 20)", 1},
   {"inner-tol", LONG_INNER_TOL, "TOLERANCE", 0,
       "convergence tolerance of inner ADMM iterations (default: 1e-2)", 1},
-
   { 0 }
 };
 
@@ -85,6 +85,7 @@ static struct argp_option cpd_options[] = {
 typedef struct
 {
   char * ifname;   /** file that we read the tensor from */
+  char * stem;   /** file stem */
   bool write;      /** do we write output to file? */
   double * opts;   /** splatt_cpd options */
   idx_t nfactors;
@@ -108,6 +109,7 @@ static void default_cpd_opts(
   args->cpd_opts = splatt_alloc_cpd_opts();
 
   args->ifname    = NULL;
+  args->stem = NULL;
   args->write     = true;
   args->nfactors  = 10;
 }
@@ -167,6 +169,9 @@ static error_t parse_cpd_opt(
     break;
   case LONG_NOWRITE:
     args->write = false;
+    break;
+  case 's':
+    args->stem = arg;
     break;
   case 'r':
     args->nfactors = strtoull(arg, &arg, 10);
@@ -242,7 +247,6 @@ static error_t parse_cpd_opt(
       /* all modes */
       splatt_cpd_reg_smooth(args->cpd_opts, mode, scale);
     }
-    break;
 
 
   case ARGP_KEY_ARG:
@@ -316,11 +320,22 @@ int splatt_cpd_cmd(
 
   /* write output */
   if(args.write == 1) {
-    vec_write(factored.lambda, args.nfactors, "lambda.mat");
+    char * lambda_name = NULL;
+    if(args.stem) {
+      asprintf(&lambda_name, "%s.lambda.mat", args.stem);
+    } else {
+      asprintf(&lambda_name, "lambda.mat");
+    }
+    vec_write(factored.lambda, args.nfactors, lambda_name);
+    free(lambda_name);
 
     for(idx_t m=0; m < nmodes; ++m) {
       char * matfname = NULL;
-      asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+      if(args.stem) {
+        asprintf(&matfname, "%s.mode%"SPLATT_PF_IDX".mat", args.stem, m+1);
+      } else {
+        asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+      }
 
       matrix_t tmpmat;
       tmpmat.rowmajor = 1;
@@ -335,7 +350,7 @@ int splatt_cpd_cmd(
 
   /* cleanup */
   splatt_csf_free(csf, args.opts);
-  free(args.opts);
+  free_cpd_args(&args);
 
   /* free factor matrix allocations */
   splatt_free_kruskal(&factored);
@@ -379,11 +394,23 @@ int splatt_cpd_cmd2(
 
   /* write output */
   if(args.write) {
-    vec_write(factored->lambda, args.nfactors, "lambda.mat");
+    char * lambda_name = NULL;
+    if(args.stem) {
+      asprintf(&lambda_name, "%s.lambda.mat", args.stem);
+    } else {
+      asprintf(&lambda_name, "lambda.mat");
+    }
+    vec_write(factored->lambda, args.nfactors, lambda_name);
+    free(lambda_name);
+
 
     for(idx_t m=0; m < csf->nmodes; ++m) {
       char * matfname = NULL;
-      asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+      if(args.stem) {
+        asprintf(&matfname, "%s.mode%"SPLATT_PF_IDX".mat", args.stem, m+1);
+      } else {
+        asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+      }
 
       matrix_t tmpmat;
       tmpmat.rowmajor = 1;
