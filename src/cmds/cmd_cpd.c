@@ -32,6 +32,7 @@ static struct argp_option cpd_options[] = {
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file"},
   {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
+  {"stem", 's', "PATH", 0, "file stem for factorization output files (default: ./)"},
   { 0 }
 };
 
@@ -39,6 +40,7 @@ static struct argp_option cpd_options[] = {
 typedef struct
 {
   char * ifname;   /** file that we read the tensor from */
+  char * stem;   /** file stem */
   int write;       /** do we write output to file? */
   double * opts;   /** splatt_cpd options */
   idx_t nfactors;
@@ -54,11 +56,18 @@ static void default_cpd_opts(
   cpd_cmd_args * args)
 {
   args->opts = splatt_default_opts();
+  args->stem = NULL;
   args->ifname    = NULL;
   args->write     = DEFAULT_WRITE;
   args->nfactors  = DEFAULT_NFACTORS;
 }
 
+
+static void free_cpd_args(
+  cpd_cmd_args * args)
+{
+  splatt_free_opts(args->opts);
+}
 
 
 static error_t parse_cpd_opt(
@@ -102,6 +111,10 @@ static error_t parse_cpd_opt(
   case 'r':
     args->nfactors = atoi(arg);
     break;
+  case 's':
+    args->stem = arg;
+    break;
+
   case TT_SEED:
     args->opts[SPLATT_OPTION_RANDSEED] = atoi(arg);
     srand(atoi(arg));
@@ -177,11 +190,22 @@ int splatt_cpd_cmd(
 
   /* write output */
   if(args.write == 1) {
-    vec_write(factored.lambda, args.nfactors, "lambda.mat");
+    char * lambda_name = NULL;
+    if(args.stem) {
+      asprintf(&lambda_name, "%s.lambda.mat", args.stem);
+    } else {
+      asprintf(&lambda_name, "lambda.mat");
+    }
+    vec_write(factored.lambda, args.nfactors, lambda_name);
+    free(lambda_name);
 
     for(idx_t m=0; m < nmodes; ++m) {
       char * matfname = NULL;
-      asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+      if(args.stem) {
+        asprintf(&matfname, "%s.mode%"SPLATT_PF_IDX".mat", args.stem, m+1);
+      } else {
+        asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+      }
 
       matrix_t tmpmat;
       tmpmat.rowmajor = 1;
@@ -196,7 +220,7 @@ int splatt_cpd_cmd(
 
   /* cleanup */
   splatt_csf_free(csf, args.opts);
-  free(args.opts);
+  free_cpd_args(&args);
 
   /* free factor matrix allocations */
   splatt_free_kruskal(&factored);
