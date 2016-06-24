@@ -244,7 +244,7 @@ double cpd_iterate(
     double const residual = sqrt(ttnormsq + norm - (2 * inner));
     err = (residual / sqrt(ttnormsq));
 
-    //assert(err <= olderr);
+    assert(err <= olderr);
     timer_stop(&itertime);
 
     /* print progress */
@@ -254,9 +254,12 @@ double cpd_iterate(
           it+1, itertime.seconds, err, err - olderr);
       if(global_opts->verbosity > SPLATT_VERBOSITY_LOW) {
         for(idx_t m=0; m < nmodes; ++m) {
-          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs) "
-                 "[%4"SPLATT_PF_IDX" ADMM its]\n", m+1,
-              modetime[m].seconds, inner_its[m]);
+          printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs)",
+              m+1, modetime[m].seconds);
+          if(inner_its[m] > 0) {
+            printf(" [%4"SPLATT_PF_IDX" ADMM its]", inner_its[m]);
+          }
+          printf("\n");
         }
       }
     }
@@ -268,9 +271,10 @@ double cpd_iterate(
     olderr = err;
   }
 
-#if 0
-  cpd_post_process(mats, factored->lambda, ws, cpd_opts, global_opts);
-#endif
+  /* absorb into lambda if no constraints/regularizations */
+  if(cpd_opts->unconstrained) {
+    cpd_post_process(mats, factored->lambda, ws, cpd_opts, global_opts);
+  }
 
   splatt_free(opts);
   for(idx_t m=0; m < tensor->nmodes; ++m) {
