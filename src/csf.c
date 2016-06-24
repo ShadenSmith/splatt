@@ -567,6 +567,9 @@ void csf_find_mode_order(
   idx_t const mode,
   idx_t * const perm_dims)
 {
+  /* CSF_MODE_CUSTOM sanity check */
+  idx_t check_dims[MAX_NMODES];
+
   switch(which) {
   case CSF_SORTED_SMALLFIRST:
     p_order_dims_small(dims, nmodes, perm_dims);
@@ -586,6 +589,14 @@ void csf_find_mode_order(
 
   /* no-op, perm_dims better be set... */
   case CSF_MODE_CUSTOM:
+    /* just make sure it's actually set to something reasonable */
+    memcpy(check_dims, perm_dims, nmodes * sizeof(*perm_dims));
+    quicksort(check_dims, nmodes);
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(check_dims[m] != m) {
+        fprintf(stderr, "SPLATT: invalid permutation for CSF_MODE_CUSTOM.\n");
+      }
+    }
     break;
 
   default:
