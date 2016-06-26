@@ -5,10 +5,6 @@ include(cmake/version.cmake)
 
 # Libraries to link against -- will concatenate to this
 set(SPLATT_LIBS splatt m)
-if(UNIX AND NOT APPLE)
-  # librt for timing on Linux
-  set(SPLATT_LIBS ${SPLATT_LIBS} rt)
-endif()
 
 # Intel customization
 if(DEFINED INTEL_OPT)
@@ -18,6 +14,9 @@ else()
   set(INTEL_OPT false)
 endif()
 
+# OS-specific stuff
+include(cmake/system.cmake)
+
 # Configuration
 include(cmake/types.cmake)
 include(cmake/constants.cmake)
@@ -25,6 +24,7 @@ include(cmake/debug.cmake)
 include(cmake/flags.cmake)
 
 # libraries
+
 include(cmake/openmp.cmake)
 include(cmake/lapack.cmake)
 include(cmake/mpi.cmake)
