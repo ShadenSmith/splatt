@@ -3,7 +3,7 @@ language: c
 sudo: false
 
 os:
-  - linux
+  #- linux
   - osx
 
 compiler:
@@ -16,7 +16,7 @@ addons:
       - libatlas-dev
 
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update && brew install homebrew/science/openblas ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update && brew install homebrew/science/openblas && brew install argp-standalone ; fi
 
 script:
   - ./configure --with-precision=single && make && ./scripts/test.sh
