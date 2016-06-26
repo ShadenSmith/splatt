@@ -1,6 +1,8 @@
 The Surprisingly ParalleL spArse Tensor Toolkit
 ===============================================
 
+[![Build Status](https://travis-ci.org/ShadenSmith/splatt.svg?branch=master)](https://travis-ci.org/ShadenSmith/splatt)
+
 SPLATT is a library and C API for sparse tensor factorization. SPLATT supports
 shared-memory parallelism with OpenMP and distributed-memory parallelism with
 MPI.
@@ -8,7 +10,7 @@ MPI.
 
 Tensor Format
 -------------
-SPLATT expects tensors to be stored in 1-indexed coordinate format with
+SPLATT expects tensors to be stored in 0- or 1-indexed coordinate format with
 nonzeros separated by newlines. Each line of of the file has the coordinates of
 the nonzero  followed by the value, all separated by spaces.  The following is
 an example 2x2x3 tensor with 5 nonzeros:
@@ -23,7 +25,7 @@ an example 2x2x3 tensor with 5 nonzeros:
 
 Building & Installing
 ---------------------
-In short,
+SPLATT requires CMake and working BLAS/LAPACK libraries to run. In short,
 
     $ ./configure && make
 

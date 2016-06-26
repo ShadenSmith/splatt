@@ -4,8 +4,14 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include <sys/time.h>
+#include <time.h>
 #include <stddef.h>
+#include <stdbool.h>
+
+#ifdef __MACH__
+  #include <mach/mach.h>
+  #include <mach/mach_time.h>
+#endif
 
 
 /******************************************************************************
@@ -17,10 +23,10 @@
 */
 typedef struct
 {
-  int running;
+  bool running;
   double seconds;
-  struct timeval start;
-  struct timeval stop;
+  double start;
+  double stop;
 } sp_timer_t;
 
 
@@ -71,8 +77,9 @@ typedef enum
 } timer_id;
 
 
-extern int timer_lvl;
-extern sp_timer_t timers[];
+/* globals */
+int timer_lvl;
+sp_timer_t timers[TIMER_NTIMERS];
 
 
 /******************************************************************************
@@ -99,6 +106,35 @@ void report_times(void);
 */
 void timer_inc_verbose(void);
 
+
+
+/**
+* @brief Return the number of seconds since an unspecified time (e.g., Unix
+*        epoch). This is accomplished with a high-resolution monotonic timer,
+*        suitable for performance timing.
+*
+* @return The number of seconds.
+*/
+static inline double monotonic_seconds()
+{
+#ifdef __MACH__
+  /* OSX */
+  static mach_timebase_info_data_t info;
+  static double seconds_per_unit;
+  if(seconds_per_unit == 0) {
+    mach_timebase_info(&info);
+    seconds_per_unit = (info.numer / info.denom) / 1e9;
+  }
+  return seconds_per_unit * mach_absolute_time();
+#else
+  /* Linux systems */
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return ts.tv_sec + ts.tv_nsec * 1e-9;
+#endif
+}
+
+
 /**
 * @brief Reset all fields of a sp_timer_t.
 *
@@ -106,12 +142,10 @@ void timer_inc_verbose(void);
 */
 static inline void timer_reset(sp_timer_t * const timer)
 {
-  timer->running       = 0;
-  timer->seconds       = 0;
-  timer->start.tv_sec  = 0;
-  timer->start.tv_usec = 0;
-  timer->stop.tv_sec   = 0;
-  timer->stop.tv_usec  = 0;
+  timer->running = false;
+  timer->seconds = 0;
+  timer->start   = 0;
+  timer->stop    = 0;
 }
 
 
@@ -122,8 +156,10 @@ static inline void timer_reset(sp_timer_t * const timer)
 */
 static inline void timer_start(sp_timer_t * const timer)
 {
-  timer->running = 1;
-  gettimeofday(&(timer->start), NULL);
+  if(!timer->running) {
+    timer->running = true;
+    timer->start = monotonic_seconds();
+  }
 }
 
 
@@ -134,10 +170,9 @@ static inline void timer_start(sp_timer_t * const timer)
 */
 static inline void timer_stop(sp_timer_t * const timer)
 {
-  timer->running = 0;
-  gettimeofday(&(timer->stop), NULL);
-  timer->seconds += (double)(timer->stop.tv_sec - timer->start.tv_sec);
-  timer->seconds += 1e-6 * (timer->stop.tv_usec - timer->start.tv_usec);
+  timer->running = false;
+  timer->stop = monotonic_seconds();
+  timer->seconds += timer->stop - timer->start;
 }
 
 

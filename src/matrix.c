@@ -68,10 +68,6 @@ static void p_mat_2norm(
 #ifdef SPLATT_USE_MPI
       /* now do an MPI reduction to get the global lambda */
       timer_start(&timers[TIMER_MPI_NORM]);
-      timer_start(&timers[TIMER_MPI_IDLE]);
-      MPI_Barrier(rinfo->comm_3d);
-      timer_stop(&timers[TIMER_MPI_IDLE]);
-
       timer_start(&timers[TIMER_MPI_COMM]);
       MPI_Allreduce(mylambda, lambda, J, SPLATT_MPI_VAL, MPI_SUM, rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_COMM]);
@@ -132,10 +128,6 @@ static void p_mat_maxnorm(
 #ifdef SPLATT_USE_MPI
       /* now do an MPI reduction to get the global lambda */
       timer_start(&timers[TIMER_MPI_NORM]);
-      timer_start(&timers[TIMER_MPI_IDLE]);
-      MPI_Barrier(rinfo->comm_3d);
-      timer_stop(&timers[TIMER_MPI_IDLE]);
-
       timer_start(&timers[TIMER_MPI_COMM]);
       MPI_Allreduce(mylambda, lambda, J, SPLATT_MPI_VAL, MPI_MAX, rinfo->comm_3d);
       timer_stop(&timers[TIMER_MPI_COMM]);
@@ -403,10 +395,6 @@ void mat_aTa(
 
 #ifdef SPLATT_USE_MPI
   timer_start(&timers[TIMER_MPI_ATA]);
-  timer_start(&timers[TIMER_MPI_IDLE]);
-  MPI_Barrier(rinfo->comm_3d);
-  timer_stop(&timers[TIMER_MPI_IDLE]);
-
   timer_start(&timers[TIMER_MPI_COMM]);
   MPI_Allreduce(MPI_IN_PLACE, ret->vals, F * F, SPLATT_MPI_VAL, MPI_SUM,
       rinfo->comm_3d);
