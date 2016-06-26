@@ -1,0 +1,24 @@
+
+language: c
+sudo: false
+
+os:
+  - linux
+  - osx
+
+compiler:
+  - gcc
+  - clang
+
+addons:
+  apt:
+    packages:
+      - libatlas-dev
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update && brew install homebrew/science/openblas ; fi
+
+script:
+  - ./configure --with-precision=single && make && ./scripts/test.sh
+  - ./configure --with-precision=double && make && ./scripts/test.sh
+  - ./configure --debug --with-precision=single && make && ./scripts/test.sh

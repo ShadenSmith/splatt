@@ -4,7 +4,11 @@ cmake_minimum_required(VERSION 2.8.0)
 include(cmake/version.cmake)
 
 # Libraries to link against -- will concatenate to this
-set(SPLATT_LIBS splatt m rt)
+set(SPLATT_LIBS splatt m)
+if(UNIX AND NOT APPLE)
+  # librt for timing on Linux
+  set(SPLATT_LIBS ${SPLATT_LIBS} rt)
+endif()
 
 # Intel customization
 if(DEFINED INTEL_OPT)
