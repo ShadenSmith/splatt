@@ -12,22 +12,15 @@ endif()
 
 # OSX
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  # Get homebrew's path prefix
-  execute_process(
-    COMMAND brew --prefix
-    RESULT_VARIABLE brew_result
-    OUTPUT_VARIABLE brew_prefix
-  )
-
-  # Kill the build early if homebrew isn't installed
-  if(NOT "${brew_result}" STREQUAL "0")
-    message(FATAL_ERROR "`brew --prefix` failed with ${brew_result} - is homebrew installed?")
+  find_library(argp_path argp)
+  get_filename_component(argp_lib_dir ${argp_path} DIRECTORY)
+  get_filename_component(argp_prefix ${argp_lib_dir} DIRECTORY)
+  if("${argp_prefix}" STREQUAL "")
+    message(WARNING "Can't find path to argp library; bravely continuing on")
+  else()
+    include_directories(${argp_prefix}/include/)
+    link_directories(${argp_prefix}/lib/)
   endif()
-
-  # Add homebrew's include and lib directories to access argp
-  string(STRIP ${brew_prefix} brew_prefix)
-  include_directories(${brew_prefix}/include/)
-  link_directories(${brew_prefix}/lib/)
   set(SPLATT_LIBS ${SPLATT_LIBS} argp)
 endif()
 
