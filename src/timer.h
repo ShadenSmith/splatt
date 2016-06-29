@@ -77,8 +77,9 @@ typedef enum
 } timer_id;
 
 
-extern int timer_lvl;
-extern sp_timer_t timers[];
+/* globals */
+int timer_lvl;
+sp_timer_t timers[TIMER_NTIMERS];
 
 
 /******************************************************************************
