@@ -1,7 +1,7 @@
 
 # just use MKL flag
 if (INTEL_OPT)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mkl")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mkl -static-intel")
 else()
 
   # BLAS/LAPACK
