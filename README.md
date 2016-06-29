@@ -1,6 +1,8 @@
 The Surprisingly ParalleL spArse Tensor Toolkit
 ===============================================
 
+[![Build Status](https://travis-ci.org/ShadenSmith/splatt.svg?branch=master)](https://travis-ci.org/ShadenSmith/splatt)
+
 SPLATT is a library and C API for sparse tensor factorization. SPLATT supports
 shared-memory parallelism with OpenMP and distributed-memory parallelism with
 MPI.
@@ -8,7 +10,7 @@ MPI.
 
 Tensor Format
 -------------
-SPLATT expects tensors to be stored in 1-indexed coordinate format with
+SPLATT expects tensors to be stored in 0- or 1-indexed coordinate format with
 nonzeros separated by newlines. Each line of of the file has the coordinates of
 the nonzero  followed by the value, all separated by spaces.  The following is
 an example 2x2x3 tensor with 5 nonzeros:
@@ -23,7 +25,7 @@ an example 2x2x3 tensor with 5 nonzeros:
 
 Building & Installing
 ---------------------
-In short,
+SPLATT requires CMake and working BLAS/LAPACK libraries to run. In short,
 
     $ ./configure && make
 
@@ -87,22 +89,22 @@ written to `lambda.mat`.
 Distributed-Memory Computation
 ------------------------------
 SPLATT can optionally be built with support for distributed-memory systems via
-MPI. To add MPI support, simply add "--mpi" to the configuration step:
+MPI. To add MPI support, simply add "--with-mpi" to the configuration step:
 
-    $ ./configure --mpi && make
+    $ ./configure --with-mpi && make
 
 After building with MPI, `splatt-cpd` can be used as before. Careful
-consideration should be given to the mapping of MPI ranks to nodes, because
-each SPLATT process will by default use all available CPU cores. We recommend
-mapping one rank per node. The necessary parameters to `mpirun` vary based
-on the MPI implementation. For example, OpenMPI supports:
+consideration should be given to the mapping of MPI ranks, because each SPLATT
+process will by default use all available CPU cores (`$OMP_MAX_THREADS`). We
+recommend mapping one rank per CPU socket. The necessary parameters to `mpirun`
+vary based on the MPI implementation. For example, OpenMPI supports:
 
 ### Example 3
 
-    $ mpirun -pernode -np 16 splatt cpd mytensor.tns -r 25
+    $ mpirun --map-by ppr:1:socket -np 16 splatt cpd mytensor.tns -r 25 -t 8
 
-This would fully utilize 16 nodes to compute a rank-25 CPD of `mytensor.tns`.
-To alternatively use one MPI rank per core:
+This would fully utilize 16 sockets, each with 8 cores to compute a rank-25 CPD
+of `mytensor.tns`. To alternatively use one MPI rank per core:
 
 ### Example 3
 
@@ -114,13 +116,9 @@ This would use 128 processes, with each using only one OpenMP thread.
 C/C++ API
 ---------
 SPLATT provides a C API which is callable from C and C++. Installation not only
-installs the SPLATT executable, but also the static library `libsplatt.a` and
+installs the SPLATT executable, but also the shared library `libsplatt.so` and
 the header `splatt.h`. To use the C API, include `splatt.h` and link against
-the SPLATT library. SPLATT also depends on the OpenMP and math libraries. The
-following is an example compilation command:
-
-    $ gcc mycode.c -lsplatt -lgomp -lm
-    $ g++ mycode.cc -lsplatt -lgomp -lm
+the SPLATT library.
 
 ### IO
 Unless otherwise noted, SPLATT expects tensors to be stored in the compressed

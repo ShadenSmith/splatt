@@ -50,16 +50,13 @@ static char const * const timer_names[] = {
 #endif
 };
 
-/* definition of global timers[] */
-sp_timer_t timers[TIMER_NTIMERS];
-int timer_lvl = TIMER_LVL1;
-
 
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void init_timers(void)
 {
+  timer_lvl = TIMER_LVL1;
   for(int t=0; t < TIMER_NTIMERS; ++t) {
     timer_reset(&timers[t]);
   }
