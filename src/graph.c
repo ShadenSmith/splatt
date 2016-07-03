@@ -20,6 +20,14 @@
 #include <ashado.h>
 #endif
 
+#ifdef SPLATT_USE_METIS
+/* don't let metis types conflict with splatt */
+#define idx_t metis_idx_t
+#include <metis.h>
+#undef idx_t
+#endif
+
+
 /* use multi-constraint balancing for m-partite graphs */
 #ifndef SPLATT_USE_VTX_WGTS
 #define SPLATT_USE_VTX_WGTS 0
@@ -803,4 +811,77 @@ idx_t * ashado_part(
   return part;
 }
 #endif
+
+
+#ifdef SPLATT_USE_METIS
+splatt_idx_t *  metis_part(
+    splatt_graph * graph,
+    splatt_idx_t const num_partitions,
+    splatt_idx_t * edgecut)
+{
+  metis_idx_t nvtxs = graph->nvtxs;
+  metis_idx_t ncon = 1;
+  metis_idx_t nparts = num_partitions;
+  metis_idx_t cut = 0;
+
+  /* copy the adj structure */
+  metis_idx_t * xadj = splatt_malloc((nvtxs+1) * sizeof(*xadj));
+  for(metis_idx_t v=0; v <= nvtxs; ++v) {
+    xadj[v] = graph->eptr[v];
+  }
+  metis_idx_t * adjncy = splatt_malloc(xadj[nvtxs] * sizeof(*adjncy));
+  for(metis_idx_t e=0; e < xadj[nvtxs]; ++e) {
+    adjncy[e] = graph->eind[e];
+  }
+
+  /* weights */
+  metis_idx_t * vwgt = NULL;
+  metis_idx_t * ewgt = NULL;
+  if(graph->vwgts != NULL) {
+    /* graph number of vertex weights */
+    ncon = graph->nvwgts;
+    vwgt = splatt_malloc(nvtxs * ncon * sizeof(*vwgt));
+    for(metis_idx_t v=0; v < nvtxs * ncon; ++v) {
+      vwgt[v] = graph->vwgts[v];
+    }
+  }
+  if(graph->ewgts != NULL) {
+    ewgt = splatt_malloc(xadj[nvtxs] * sizeof(*ewgt));
+    for(metis_idx_t e=0; e < xadj[nvtxs]; ++e) {
+      ewgt[e] = graph->ewgts[e];
+    }
+  }
+
+  /* allocate partitioning info */
+  metis_idx_t * metis_parts = splatt_malloc(nvtxs * sizeof(*metis_parts));
+
+  /* do the partitioning! */
+  int ret = METIS_PartGraphRecursive(&nvtxs, &ncon, xadj, adjncy, vwgt, NULL,
+      ewgt, &nparts, NULL, NULL, NULL /* opts */, &cut, metis_parts);
+  if(ret != METIS_OK) {
+    fprintf(stderr, "METIS_PartGraphRecursive returned %d\n", ret);
+  }
+  *edgecut = cut;
+
+  /* cleanup */
+  splatt_free(xadj);
+  splatt_free(adjncy);
+  if(graph->vwgts != NULL) {
+    splatt_free(vwgt);
+  }
+  if(graph->ewgts != NULL) {
+    splatt_free(ewgt);
+  }
+
+  /* copy into splatt_idx_t */
+  splatt_idx_t * parts = splatt_malloc(nvtxs * sizeof(*parts));
+  for(metis_idx_t v=0; v < nvtxs; ++v) {
+    parts[v] = metis_parts[v];
+  }
+  splatt_free(metis_parts);
+
+  return parts;
+}
+#endif
+
 

@@ -99,6 +99,13 @@ show_help() {
   echo "  --download-blas-lapack"
   echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
 
+  # Metis
+  echo "";
+  echo "  --with-metis"
+  echo "    Build with Metis support. Let CMake auto-detect Metis environment."
+  echo "  --with-metis-lib=<lib>"
+  echo "    Set the Metis library (e.g., /usr/.../libmetis.a)."
+
   echo ""
   echo "INSTALLATION OPTIONS:"
   echo "====================:"
@@ -218,6 +225,14 @@ for i in "${@}"; do
       CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICXX=${i#*=}"
     ;;
 
+
+    # Metis
+    --with-metis)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_METIS=1"
+    ;;
+    --with-metis-lib=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_METIS_LIB=${i#*=}"
+    ;;
 
 
     ## INSTALL OPTIONS
