@@ -6,6 +6,15 @@ else()
 
   # BLAS/LAPACK
   if (DEFINED DOWNLOAD_BLAS_LAPACK)
+
+    # Enable linking against Fortran
+    enable_language(Fortran)
+    if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+      set(SPLATT_LIBS ${SPLATT_LIBS} ifcore)
+    else()
+      set(SPLATT_LIBS ${SPLATT_LIBS} gfortran)
+    endif()
+
     message(WARNING "Downloading generic BLAS/LAPACK libraries.")
     message(WARNING "  NOTE: performance may suffer.")
     execute_process(COMMAND ${CMAKE_SOURCE_DIR}/scripts/download-blas-lapack.sh ${CMAKE_BINARY_DIR})
