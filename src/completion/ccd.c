@@ -244,26 +244,38 @@ static void p_init_mpi(
   idx_t maxnbr2globs = 0;
 
   assert(tt_remove_dups(train) == 0);
-  assert(tt_remove_dups(validate) == 0);
+  if(validate != NULL) {
+    assert(tt_remove_dups(validate) == 0);
+  }
 
   /* compute comm structures with nfactors = 1 due to column-major layout */
-  sptensor_t * both = tt_union(train, validate);
-  assert(both->nnz == train->nnz + validate->nnz);
+  sptensor_t * both = NULL;
+  if(validate != NULL) {
+    tt_union(train, validate);
+    assert(both->nnz == train->nnz + validate->nnz);
+  }
 
   for(idx_t m=0; m < train->nmodes; ++m) {
-    mpi_find_owned(both, m, ws->rinfo);
 
-    /* setup comm structures based on union of train and validate */
-    mpi_compute_ineed(ws->rinfo, both, m, 1, 3);
+    if(validate != NULL) {
+      /* setup comm structures based on union of train and validate */
+      mpi_find_owned(both, m, ws->rinfo);
+      mpi_compute_ineed(ws->rinfo, both, m, 1, 3);
+      assert(validate->indmap[m] == NULL);
+      assert(both->indmap[m] == NULL);
+    } else {
+      mpi_find_owned(train, m, ws->rinfo);
+      mpi_compute_ineed(ws->rinfo, train, m, 1, 3);
+    }
 
     maxlocal2nbr = SS_MAX(maxlocal2nbr, ws->rinfo->nlocal2nbr[m]);
     maxnbr2globs = SS_MAX(maxnbr2globs, ws->rinfo->nnbr2globs[m]);
 
     assert(train->indmap[m] == NULL);
-    assert(validate->indmap[m] == NULL);
-    assert(both->indmap[m] == NULL);
   }
-  tt_free(both);
+  if(validate != NULL) {
+    tt_free(both);
+  }
 
   ws->local2nbr_buf  = splatt_malloc(2*maxlocal2nbr * sizeof(val_t));
   ws->nbr2globs_buf  = splatt_malloc(2*maxnbr2globs * sizeof(val_t));

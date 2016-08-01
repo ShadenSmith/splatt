@@ -11,6 +11,8 @@
 #include "../sptensor.h"
 #include "../timer.h"
 
+#define SPLATT_USE_VALIDATION 1
+
 #ifdef SPLATT_USE_MPI
 #include "../splatt_mpi.h"
 #endif

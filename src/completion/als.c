@@ -847,13 +847,22 @@ void splatt_tc_als(
   opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
 
 #ifdef SPLATT_USE_MPI
-  sptensor_t * both = tt_union(train, validate);
+  sptensor_t * both = NULL;
+  if(validate != NULL) {
+    both = tt_union(train, validate);
+  }
   for(idx_t m=0; m < nmodes; ++m) {
     /* setup communication structures */
     mpi_find_owned(train, m, rinfo);
-    mpi_compute_ineed(rinfo, both, m, nfactors, 1);
+    if(validate != NULL) {
+      mpi_compute_ineed(rinfo, both, m, nfactors, 1);
+    } else {
+      mpi_compute_ineed(rinfo, train, m, nfactors, 1);
+    }
   }
-  tt_free(both);
+  if(validate != NULL) {
+    tt_free(both);
+  }
 #endif
 
   for(idx_t m=0; m < nmodes; ++m) {
@@ -894,11 +903,11 @@ void splatt_tc_als(
 #ifdef SPLATT_USE_MPI
     tt_free(tt_filtered);
 #ifdef SPLATT_DEBUG
-      /* sanity check on nnz */
-      idx_t totnnz;
-      MPI_Allreduce(&(csf[m].nnz), &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM,
-          rinfo->comm_3d);
-      assert(totnnz == rinfo->global_nnz);
+    /* sanity check on nnz */
+    idx_t totnnz;
+    MPI_Allreduce(&(csf[m].nnz), &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+        rinfo->comm_3d);
+    assert(totnnz == rinfo->global_nnz);
 #endif
 #endif
   }

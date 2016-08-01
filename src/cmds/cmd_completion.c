@@ -18,7 +18,7 @@
  * ARG PARSING
  *****************************************************************************/
 
-static char tc_args_doc[] = "<train> <validate> [test]";
+static char tc_args_doc[] = "<train> [validate] [test]";
 static char tc_doc[] =
   "splatt-complete -- Complete a tensor with missing entries.\n"
   "Available tensor completion algorithms are:\n"
@@ -221,7 +221,7 @@ static error_t parse_tc_opt(
     break;
 
   case ARGP_KEY_END:
-    if(args->ifnames[0] == NULL || args->ifnames[1] == NULL) {
+    if(args->ifnames[0] == NULL) {
       argp_usage(state);
       break;
     }
@@ -263,11 +263,11 @@ int splatt_tc_cmd(
 
   srand(args.seed);
 
-  /* read input */
-#ifdef SPLATT_USE_MPI
   sptensor_t * train = NULL;
   sptensor_t * validate = NULL;
 
+
+#ifdef SPLATT_USE_MPI
   /* read + distribute tensors */
   switch(args.which_alg) {
   case SPLATT_TC_ALS:
@@ -287,10 +287,12 @@ int splatt_tc_cmd(
   }
 
 #else
-  sptensor_t * train = tt_read(args.ifnames[0]);
-  sptensor_t * validate = tt_read(args.ifnames[1]);
+  train = tt_read(args.ifnames[0]);
+  if(args.ifnames[1] != NULL) {
+    validate = tt_read(args.ifnames[1]);
+  }
 #endif
-  if(train == NULL || validate == NULL) {
+  if(train == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
   idx_t const nmodes = train->nmodes;
@@ -305,7 +307,9 @@ int splatt_tc_cmd(
   permutation_t * perm = mpi_distribute_mats(&rinfo, train, rinfo.decomp);
 
   /* apply same permutation to validation tensor */
-  perm_apply(validate, perm->perms);
+  if(validate != NULL) {
+    perm_apply(validate, perm->perms);
+  }
 
   /* allocate model */
   tc_model * model = mpi_tc_model_alloc(train, args.nfactors, args.which_alg,
@@ -364,7 +368,9 @@ int splatt_tc_cmd(
 #endif
   printf("THREADS=%"SPLATT_PF_IDX"\nSTEP=%0.3e REG=%0.3e\n",
        ws->nthreads, ws->learn_rate, ws->regularization[0]);
-  printf("VALIDATION=%s\n", args.ifnames[1]);
+  if(args.ifnames[1] != NULL) {
+    printf("VALIDATION=%s\n", args.ifnames[1]);
+  }
   if(args.ifnames[2] != NULL) {
     printf("TEST=%s\n", args.ifnames[2]);
   }
@@ -431,11 +437,13 @@ int splatt_tc_cmd(
   return EXIT_SUCCESS;
 #endif
 
-  printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);
-  printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
-      ws->best_rmse, tc_mae(validate, ws->best_model, ws), ws->best_epoch);
+  if(validate != NULL) {
+    printf("\nvalidation nnz: %"SPLATT_PF_IDX"\n", validate->nnz);
+    printf("BEST VALIDATION RMSE: %0.5f MAE: %0.5f (epoch %"SPLATT_PF_IDX")\n\n",
+        ws->best_rmse, tc_mae(validate, ws->best_model, ws), ws->best_epoch);
+    tt_free(validate);
+  }
 
-  tt_free(validate);
   tt_free(train);
   tc_model_free(model);
 

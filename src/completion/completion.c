@@ -548,7 +548,18 @@ bool tc_converge(
 #endif
 
   timer_stop(&ws->tc_time);
-  val_t const val_rmse = tc_rmse(validate, model, ws);
+
+  val_t converge_rmse = train_rmse;
+
+  /* optionally compute validation */
+  val_t val_rmse = 0.;
+  if(validate != NULL) {
+    val_rmse = tc_rmse(validate, model, ws);
+
+    /* base convergence on validation */
+    converge_rmse = val_rmse;
+  }
+
 #ifdef SPLATT_USE_MPI
   if(ws->rinfo->rank == 0) {
     p_print_progress(epoch, loss, train_rmse, val_rmse, ws);
@@ -558,9 +569,9 @@ bool tc_converge(
 #endif
 
   bool converged = false;
-  if(val_rmse - ws->best_rmse < -(ws->tolerance)) {
+  if(converge_rmse - ws->best_rmse < -(ws->tolerance)) {
     ws->nbadepochs = 0;
-    ws->best_rmse = val_rmse;
+    ws->best_rmse = converge_rmse;
     ws->best_epoch = epoch;
 
     /* save the best model */
@@ -616,42 +627,46 @@ int mpi_tc_distribute_coarse(
   }
   *train_out = train;
 
-  /* simple distribution for validate tensor...
-   * TODO: redistribute to match training distribution */
-  sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, MPI_COMM_WORLD);
-  if(val_tmp == NULL) {
-    tt_free(train);
-    *train_out = NULL;
-    return SPLATT_ERROR_BADINPUT;
-  }
+  *validate_out = NULL;
 
-  idx_t const bigmode = argmax_elem(train->dims, train->nmodes);
-  idx_t * coarse_parts = calloc(rinfo->npes+1, sizeof(*coarse_parts));
-  coarse_parts[rinfo->rank] = rinfo->mat_start[bigmode];
-  MPI_Allreduce(MPI_IN_PLACE, coarse_parts, rinfo->npes, SPLATT_MPI_IDX,
-      MPI_SUM, rinfo->comm_3d);
-  coarse_parts[rinfo->npes] = train->dims[bigmode];
+  if(validate_fname != NULL) {
+    /* simple distribution for validate tensor */
+    sptensor_t * val_tmp = mpi_simple_distribute(validate_fname,
+        MPI_COMM_WORLD);
+    if(val_tmp == NULL) {
+      tt_free(train);
+      *train_out = NULL;
+      return SPLATT_ERROR_BADINPUT;
+    }
 
-  /* redistribute along largest mode */
-  int * parts = splatt_malloc(val_tmp->nnz * sizeof(*parts));
-  idx_t const * const bigind = val_tmp->ind[bigmode];
-  #pragma omp parallel for schedule(static)
-  for(idx_t n=0; n < val_tmp->nnz; ++n) {
-    for(int p=0; p < rinfo->npes; ++p) {
-      if(coarse_parts[p+1] > bigind[n]) {
-        parts[n] = p;
-        break;
+    /* now rearrange */
+    idx_t const bigmode = argmax_elem(train->dims, train->nmodes);
+    idx_t * coarse_parts = calloc(rinfo->npes+1, sizeof(*coarse_parts));
+    coarse_parts[rinfo->rank] = rinfo->mat_start[bigmode];
+    MPI_Allreduce(MPI_IN_PLACE, coarse_parts, rinfo->npes, SPLATT_MPI_IDX,
+        MPI_SUM, rinfo->comm_3d);
+    coarse_parts[rinfo->npes] = train->dims[bigmode];
+
+    /* redistribute along largest mode */
+    int * parts = splatt_malloc(val_tmp->nnz * sizeof(*parts));
+    idx_t const * const bigind = val_tmp->ind[bigmode];
+    #pragma omp parallel for schedule(static)
+    for(idx_t n=0; n < val_tmp->nnz; ++n) {
+      for(int p=0; p < rinfo->npes; ++p) {
+        if(coarse_parts[p+1] > bigind[n]) {
+          parts[n] = p;
+          break;
+        }
       }
     }
+    free(coarse_parts);
+
+    /* rearrange validation nonzeros */
+    sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,rinfo->comm_3d);
+    *validate_out = validate;
+    tt_free(val_tmp);
+    splatt_free(parts);
   }
-  free(coarse_parts);
-
-  /* rearrange validation nonzeros */
-  sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,rinfo->comm_3d);
-  *validate_out = validate;
-  tt_free(val_tmp);
-  splatt_free(parts);
-
   return SPLATT_SUCCESS;
 }
 
@@ -682,41 +697,44 @@ int mpi_tc_distribute_med(
   if(train == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
-
   rinfo->decomp = SPLATT_DECOMP_MEDIUM;
 
-  /* simple distribution for validate tensor...we will redistribute to match
-   * training distribution */
-  sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, rinfo->comm_3d);
-  if(val_tmp == NULL) {
-    tt_free(train);
-    *train_out = NULL;
-    return SPLATT_ERROR_BADINPUT;
-  }
+  *validate_out = NULL;
 
-  int * parts = splatt_malloc(val_tmp->nnz * sizeof(*parts));
-  #pragma omp parallel for schedule(static)
-  for(idx_t n=0; n < val_tmp->nnz; ++n) {
-    parts[n] = mpi_determine_med_owner(val_tmp, n, rinfo);
-  }
+  if(validate_fname != NULL) {
+    /* simple distribution for validate tensor...we will redistribute to match
+     * training distribution */
+    sptensor_t * val_tmp = mpi_simple_distribute(validate_fname, rinfo->comm_3d);
+    if(val_tmp == NULL) {
+      tt_free(train);
+      *train_out = NULL;
+      return SPLATT_ERROR_BADINPUT;
+    }
 
-  /* rearrange validation nonzeros */
-  sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,rinfo->comm_3d);
-  *validate_out = validate;
-  tt_free(val_tmp);
-  splatt_free(parts);
+    int * parts = splatt_malloc(val_tmp->nnz * sizeof(*parts));
+    #pragma omp parallel for schedule(static)
+    for(idx_t n=0; n < val_tmp->nnz; ++n) {
+      parts[n] = mpi_determine_med_owner(val_tmp, n, rinfo);
+    }
 
-  /* now map validation indices to layer coordinates and fill in dims */
-  #pragma omp parallel
-  for(idx_t m=0; m < validate->nmodes; ++m) {
-    #pragma omp master
-    validate->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+    /* rearrange validation nonzeros */
+    sptensor_t * validate = mpi_rearrange_by_part(val_tmp, parts,rinfo->comm_3d);
+    *validate_out = validate;
+    tt_free(val_tmp);
+    splatt_free(parts);
 
-    #pragma omp for schedule(static) nowait
-    for(idx_t n=0; n < validate->nnz; ++n) {
-      assert(validate->ind[m][n] >= rinfo->layer_starts[m]);
-      assert(validate->ind[m][n] < rinfo->layer_ends[m]);
-      validate->ind[m][n] -= rinfo->layer_starts[m];
+    /* now map validation indices to layer coordinates and fill in dims */
+    #pragma omp parallel
+    for(idx_t m=0; m < validate->nmodes; ++m) {
+      #pragma omp master
+      validate->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+
+      #pragma omp for schedule(static) nowait
+      for(idx_t n=0; n < validate->nnz; ++n) {
+        assert(validate->ind[m][n] >= rinfo->layer_starts[m]);
+        assert(validate->ind[m][n] < rinfo->layer_ends[m]);
+        validate->ind[m][n] -= rinfo->layer_starts[m];
+      }
     }
   }
 
