@@ -54,6 +54,21 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
+
+
+static inline void p_add_hada_clear(
+  val_t * const restrict accum,
+  val_t * const restrict toclear,
+  val_t const * const restrict b,
+  idx_t const nfactors)
+{
+  for(idx_t f=0; f < nfactors; ++f) {
+    accum[f] += toclear[f] * b[f];
+    toclear[f] = 0;
+  }
+}
+
+
 /**
 * @brief Compute the Cholesky decomposition of the normal equations and solve
 *        for out_row. We only compute the upper-triangular portion of 'neqs',
@@ -403,7 +418,7 @@ static void p_process_slice(
   /* push initial idx initialize idxstack */
   idx_t idxstack[MAX_NMODES];
   idxstack[0] = i;
-  for(idx_t m=1; m < nmodes; ++m) {
+  for(idx_t m=1; m < nmodes-1; ++m) {
     idxstack[m] = fp[m-1][idxstack[m-1]];
   }
 
@@ -427,7 +442,7 @@ static void p_process_slice(
     for(; depth < nmodes-2; ++depth) {
       val_t const * const restrict drow
           = mvals[depth+1] + (fids[depth+1][idxstack[depth+1]] * nfactors);
-      val_t * const restrict cur_buf = neqs_buf_tree + ((depth+0) * nfactors);
+      val_t const * const restrict cur_buf = neqs_buf_tree + ((depth+0) * nfactors);
       val_t * const restrict nxt_buf = neqs_buf_tree + ((depth+1) * nfactors);
 
       for(idx_t f=0; f < nfactors; ++f) {
@@ -468,10 +483,12 @@ static void p_process_slice(
           = mvals[depth] + (fids[depth][idxstack[depth]] * nfactors);
       val_t * const restrict up   = accum + ((depth+0) * nfactors);
       val_t * const restrict down = accum + ((depth+1) * nfactors);
-      for(idx_t f=0; f < nfactors; ++f) {
-        up[f] += down[f] * fibrow[f];
-        down[f] = 0;
-      }
+
+      /*
+       * up[:] += down[:] * fibrow[:];
+       * down[:] = 0.;
+       */
+      p_add_hada_clear(up, down, fibrow, nfactors);
 
       ++idxstack[depth];
       --depth;

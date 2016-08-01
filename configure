@@ -1,5 +1,26 @@
 #!/bin/bash
-# Copyright 2014-2015, Dominique LaSalle. Used with permission.
+
+# The MIT License (MIT)
+#
+# Copyright (c) 2014-2016, Dominique LaSalle and Shaden Smith
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 
 ###############################################################################
@@ -28,24 +49,74 @@ abspath() {
 show_help() {
   echo "USAGE: configure [options]"
   echo ""
-  echo "OPTIONS:"
-  echo "  --prefix=<prefix>"
-  echo "    Set the install prefix."
+
+  echo "COMPILATION OPTIONS"
+  echo "==================="
+
+  echo "  --build-dir=<dir>"
+  echo "    Set the build directory (default: ./build/<arch>/)."
   echo "  --cc=<cc>"
-  echo "    Set the C compiler to use."
-  echo "  --mpi"
-  echo "    Build with MPI support"
-  echo "  --mtmetis"
-  echo "    Build with MT-Metis graph partitioning (must be previously installed)."
-  echo "  --patoh"
-  echo "    Build with PaToH hypergraph partitioning (must be previously installed)."
-  echo "  --ashado"
-  echo "    Build with Ashado hypergraph partitioning (must be previously installed)."
+  echo "    Set the C compiler."
+  #echo "  --cxx=<cxx>"
+  #echo "    Set the C++ compiler."
+
+  echo ""
+  echo "  --max-modes=<#>"
+  echo "    Set the maxmimum number of tensor modes (default: 8)."
+
+  echo ""
+  echo "  --with-index-size={32,64}"
+  echo "    Use 32 or 64 bit integers (default: 64)."
+  echo "  --with-precision={single,double}"
+  echo "    Use single or double precision floating point values (default: double)."
+
+  echo "  --intel"
+  echo "    Use the Intel compiler (icc), MKL, and possibly Intel-specific optimizations."
   echo "  --debug"
-  echo "    Build with debugging symbols, assertions, and turn optimizations off."
+  echo "    Turn off optimizations and build with debugging symbols and assertions."
   echo "  --dev"
   echo "    Build in development mode. Warnings and extra logging enabled."
+
   echo ""
+  echo "LIBRARY OPTIONS"
+  echo "==============="
+
+  # MPI
+  echo "  --with-mpi"
+  echo "    Build with MPI support. Let CMake auto-detect MPI environment."
+  echo "  --with-mpicc=<cc>"
+  echo "    Set the MPI C compiler. Other configuration options may be determined by CMake."
+  #echo "  --with-mpicxx=<cxx>"
+  #echo "    Set the MPI C++ compiler. Other configuration options may be determined by CMake."
+  echo ""
+
+  # BLAS/LAPACK
+  echo "If you are unhappy with the auto-detected BLAS/LAPACK libraries:"
+  echo "  --with-blas-lib=<lib>"
+  echo "    Set the BLAS library (e.g., /usr/.../libblas.so)."
+  echo "  --with-lapack-lib=<lib>"
+  echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
+  echo "  --download-blas-lapack"
+  echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
+
+  # Metis
+  echo "";
+  echo "  --with-metis"
+  echo "    Build with Metis support. Let CMake auto-detect Metis environment."
+  echo "  --with-metis-lib=<lib>"
+  echo "    Set the Metis library (e.g., /usr/.../libmetis.a)."
+
+  echo ""
+  echo "INSTALLATION OPTIONS:"
+  echo "====================:"
+  echo "  --prefix=<prefix>"
+  echo "    Set the installation prefix."
+  echo "  --build-lib={static,shared}"
+  echo "    Set the type of library to build (default: static)."
+  echo ""
+
+  echo "Please report bugs to <shaden@cs.umn.edu>."
+  echo "SPLATT home page: <http://cs.umn.edu/~splatt/>."
 }
 
 
@@ -67,39 +138,136 @@ BUILDDIR="build/$(uname -s)-$(uname -m)"
 for i in "${@}"; do
   case "${i}" in
     # help
-    -h|--help)
-    show_help
-    exit 0
+      -h|--help)
+      show_help
+      exit 0
     ;;
+
+    ## COMPILE OPTIONS
+    # cc
+    --cc=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=${i#*=}"
+    ;;
+    # cxx
+    --cxx=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=${i#*=}"
+    ;;
+
+    --intel)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DINTEL_OPT=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=icc"
+    ;;
+    # debug
+    --debug)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"
+    ;;
+    # dev
+    --dev)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
+    ;;
+    --build-dir=*)
+      BUILDDIR="${i#*=}"
+    ;;
+
+    --with-index-size=*)
+      IDX_WIDTH=${i#*=}
+      if [ "${IDX_WIDTH}" == "32" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=32"
+      elif [ "${IDX_WIDTH}" == "64" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=64"
+      else
+        die "Unknown index size: ${IDX_WIDTH}. Choose between {32,64}."
+      fi
+    ;;
+    --with-precision=*)
+      PRECISION=${i#*=}
+      if [ "${PRECISION}" == "single" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=single"
+      elif [ "${PRECISION}" == "double" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=double"
+      else
+        die "Unknown precision: ${PRECISION}. Choose between {single,double}."
+      fi
+    ;;
+    --max-modes=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
+    ;;
+
+
+    ## LIBRARY OPTIONS
+
+    # BLAS/LAPACK
+    --with-blas-dir=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_DIR=${i#*=}"
+    ;;
+    --with-blas-lib=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_LIB=${i#*=}"
+    ;;
+    --with-lapack-dir=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_DIR=${i#*=}"
+    ;;
+    --with-lapack-lib=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_LAPACK_LIB=${i#*=}"
+    ;;
+    --download-blas-lapack)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DDOWNLOAD_BLAS_LAPACK=TRUE"
+    ;;
+
+
     # MPI support
-    --mpi)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
+    --with-mpi)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
     ;;
-    --mtmetis)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
+    --with-mpicc=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICC=${i#*=}"
     ;;
-    --patoh)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"
+    --with-mpicxx=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICXX=${i#*=}"
     ;;
-    --ashado)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_ASHADO=1"
+
+
+    # Metis
+    --with-metis)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_METIS=1"
     ;;
+    --with-metis-lib=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_METIS_LIB=${i#*=}"
+    ;;
+
+
+    ## INSTALL OPTIONS
     # prefix
     --prefix=*)
     CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_INSTALL_PREFIX=${i#*=}"
     ;;
-    # cc
-    --cc=*)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=${i#*=}"
+    --build-lib=*)
+      LIBTYPE=${i#*=}
+      if [ "${LIBTYPE}" == "shared" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED_LIBS=TRUE"
+      elif [ "${LIBTYPE}" == "static" ]; then
+        CONFIG_FLAGS="${CONFIG_FLAGS} -DBUILD_SHARED_LIBS=FALSE"
+      else
+        die "Unknown library type: ${LIBTYPE}. Choose between {static,shared}."
+      fi
     ;;
-    # debug
-    --debug)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"
+
+
+
+    # deprecated
+    --mpi)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MPI=1"
     ;;
-    # dev
-    --dev)
-    CONFIG_FLAGS="${CONFIG_FLAGS} -DDEV_MODE=1"
+    --mtmetis)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_MTMETIS=1"
     ;;
+    --patoh)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_PATOH=1"
+    ;;
+    --ashado)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_ASHADO=1"
+    ;;
+
+
     # bad argument
     *)
     die "Unknown option '${i}'"
@@ -108,9 +276,18 @@ for i in "${@}"; do
 done
 
 
+
+
+
+
+
+
+
+
+
 # check if cmake exists
 if [[ ! -x "${CMAKE}" ]]; then
-  die "Could not find usable cmake: '${CMAKE}'" 
+  die "Could not find usable cmake: '${CMAKE}'"
 else
   echo "Found CMAKE: '${CMAKE}'"
 fi
@@ -122,7 +299,7 @@ if [[ -d "${BUILDDIR}" ]]; then
 fi
 
 
-# create build directory 
+# create build directory
 mkdir -vp "${BUILDDIR}" || \
     die "Failed to create build directory: '${BUILDDIR}'"
 
