@@ -148,8 +148,7 @@ idx_t partition_1d(
   }
 
   /* use recursive bisectioning with 0 tolerance to get exact solution */
-  idx_t bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts_adj,
-      0);
+  idx_t bottleneck = p_eps_rb_partition_1d(weights, nitems,parts,nparts_adj,0);
 
   /* apply partitioning that we found */
   bool success = lprobe(weights, nitems, parts, nparts_adj, bottleneck);

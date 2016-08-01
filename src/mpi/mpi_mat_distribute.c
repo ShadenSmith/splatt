@@ -393,7 +393,7 @@ static void p_fill_volume_stats(
   int tot = 0;
   for(idx_t i=0; i < ldim; ++i) {
 
-#ifdef DEBUG
+#ifdef SPLATT_DEBUG
     idx_t maxp = 1;
     for(idx_t moff=0; moff < rinfo->nmodes; ++moff) {
       if(moff != m) {
@@ -604,8 +604,8 @@ permutation_t * mpi_distribute_mats(
 
       /* Doing a reduce instead of a gather lets us set location mode_rank
        * instead of the rank in this communicator */
-      MPI_Allreduce(MPI_IN_PLACE, rinfo->mat_ptrs[m], rinfo->npes, SPLATT_MPI_IDX,
-          MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, rinfo->mat_ptrs[m], rinfo->npes,
+          SPLATT_MPI_IDX, MPI_SUM, MPI_COMM_WORLD);
       assert(rinfo->mat_ptrs[m][rinfo->rank    ] == rinfo->mat_start[m]);
       assert(rinfo->mat_ptrs[m][rinfo->rank + 1] == rinfo->mat_end[m]);
     }

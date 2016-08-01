@@ -269,11 +269,23 @@ int splatt_tc_cmd(
   sptensor_t * validate = NULL;
 
   /* read + distribute tensors */
-  success = mpi_tc_distribute_med(args.ifnames[0], args.ifnames[1], NULL,
-      &train, &validate, &rinfo);
+  switch(args.which_alg) {
+  case SPLATT_TC_ALS:
+    success = mpi_tc_distribute_coarse(args.ifnames[0], args.ifnames[1],
+        NULL, &train, &validate, &rinfo);
+    break;
+  case SPLATT_TC_CCD:
+    success = mpi_tc_distribute_med(args.ifnames[0], args.ifnames[1], NULL,
+        &train, &validate, &rinfo);
+    break;
+  default:
+    fprintf(stderr, "SPLATT: alg not supported for distributed execution.\n");
+    return EXIT_FAILURE;
+  }
   if(success != SPLATT_SUCCESS) {
     return success;
   }
+
 #else
   sptensor_t * train = tt_read(args.ifnames[0]);
   sptensor_t * validate = tt_read(args.ifnames[1]);
@@ -289,17 +301,11 @@ int splatt_tc_cmd(
     mpi_global_stats(train, &rinfo, args.ifnames[0]);
   }
 
-  /* determine matrix distribution - this also calls tt_remove_empty() */
+  /* determine matrix distribution */
   permutation_t * perm = mpi_distribute_mats(&rinfo, train, rinfo.decomp);
 
-  for(idx_t m=0; m < train->nmodes; ++m) {
-    /* index into local tensor to grab owned rows */
-    mpi_find_owned(train, m, &rinfo);
-    /* determine isend and ineed lists */
-    mpi_compute_ineed(&rinfo, train, m, args.nfactors, 3);
-  }
-
-  mpi_rank_stats(train, &rinfo);
+  /* apply same permutation to validation tensor */
+  perm_apply(validate, perm->perms);
 
   /* allocate model */
   tc_model * model = mpi_tc_model_alloc(train, args.nfactors, args.which_alg,
@@ -417,6 +423,11 @@ int splatt_tc_cmd(
   }
 
 #ifdef SPLATT_USE_MPI
+  if(rinfo.rank == 0) {
+    printf("\n\n");
+  }
+  mpi_rank_stats(train, &rinfo);
+
   return EXIT_SUCCESS;
 #endif
 

@@ -329,19 +329,18 @@ int mpi_determine_med_owner(
 
 #define mpi_filter_tt_1d splatt_mpi_filter_tt_1d
 /**
-* @brief Run nonzeros from tt through filter to 'ftt'. This is 1D filtering,
-*        so we accept any nonzeros whose ind[mode] are within [start, end).
+* @brief Run nonzeros from tt through filter and return a new tensor. This is
+*        1D filtering, so we accept any nonzeros whose ind[mode] are within
+*        [start, end).
 *
-* @param mode The mode to filter along.
 * @param tt The original tensor.
-* @param ftt The tensor to filter into (pre-allocated).
+* @param mode The mode to filter along.
 * @param start The first index to accept (inclusive).
 * @param end The last index to accept (exclusive).
 */
-void mpi_filter_tt_1d(
-  idx_t const mode,
+sptensor_t * mpi_filter_tt_1d(
   sptensor_t const * const tt,
-  sptensor_t * const ftt,
+  idx_t const mode,
   idx_t start,
   idx_t end);
 

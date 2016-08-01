@@ -235,21 +235,35 @@ static void p_update_col_all2all(
 
 
 static void p_init_mpi(
-    sptensor_t const * const train,
+    sptensor_t * const train,
+    sptensor_t * const validate,
     tc_model * const model,
     tc_ws * const ws)
 {
   idx_t maxlocal2nbr = 0;
   idx_t maxnbr2globs = 0;
 
-  /* recompute this stuff with nfactors = 1 due to column-major layout */
+  assert(tt_remove_dups(train) == 0);
+  assert(tt_remove_dups(validate) == 0);
+
+  /* compute comm structures with nfactors = 1 due to column-major layout */
+  sptensor_t * both = tt_union(train, validate);
+  assert(both->nnz == train->nnz + validate->nnz);
+
   for(idx_t m=0; m < train->nmodes; ++m) {
-    mpi_find_owned(train, m, ws->rinfo);
-    mpi_compute_ineed(ws->rinfo, train, m, 1, 3);
+    mpi_find_owned(both, m, ws->rinfo);
+
+    /* setup comm structures based on union of train and validate */
+    mpi_compute_ineed(ws->rinfo, both, m, 1, 3);
 
     maxlocal2nbr = SS_MAX(maxlocal2nbr, ws->rinfo->nlocal2nbr[m]);
     maxnbr2globs = SS_MAX(maxnbr2globs, ws->rinfo->nnbr2globs[m]);
+
+    assert(train->indmap[m] == NULL);
+    assert(validate->indmap[m] == NULL);
+    assert(both->indmap[m] == NULL);
   }
+  tt_free(both);
 
   ws->local2nbr_buf  = splatt_malloc(2*maxlocal2nbr * sizeof(val_t));
   ws->nbr2globs_buf  = splatt_malloc(2*maxnbr2globs * sizeof(val_t));
@@ -261,6 +275,8 @@ static void p_init_mpi(
       p_update_col_all2all(model, ws, m, f);
     }
   }
+
+  timer_reset(&timers[TIMER_MPI_COMM]);
 }
 
 
@@ -401,6 +417,9 @@ static val_t p_update_residual(
     /* grab sparsity structure */
     csf_sparsity const * const pt = csf->pt + tile;
     val_t * const restrict residual = pt->vals;
+    if(residual == NULL) {
+      continue;
+    }
     idx_t const * const restrict * fp = (idx_t const * const *) pt->fptr;
     idx_t const * const restrict * fids = (idx_t const * const *) pt->fids;
     idx_t const * const restrict inds = fids[nmodes-1];
@@ -958,7 +977,6 @@ static void p_sparsemode_ccd_update(
 }
 
 
-
 /**
 * @brief Finalize the new f-th column of factors[m] after computing the new
 *        numerator/denominator.
@@ -1015,14 +1033,17 @@ static void p_transpose_model(
 
   val_t * restrict buf = splatt_malloc(maxdim * model->rank * sizeof(*buf));
 
-  #pragma omp parallel
   for(idx_t m=0; m < model->nmodes; ++m) {
+#ifdef SPLATT_USE_MPI
+    idx_t const nrows = model->globmats[m]->I;
+    val_t * const restrict factor = model->globmats[m]->vals;
+#else
     idx_t const nrows = model->dims[m];
-    idx_t const ncols = model->rank;
     val_t * const restrict factor = model->factors[m];
+#endif
+    idx_t const ncols = model->rank;
 
     for(idx_t j=0; j < model->rank; ++j) {
-      #pragma omp for schedule(static)
       for(idx_t i=0; i < nrows; ++i) {
         buf[i + (j*nrows)] = factor[j + (i*ncols)];
       }
@@ -1041,16 +1062,18 @@ static void p_transpose_model(
 
 void splatt_tc_ccd(
     sptensor_t * train,
-    sptensor_t const * const validate,
+    sptensor_t * const validate,
     tc_model * const model,
     tc_ws * const ws)
 {
   idx_t const nmodes = train->nmodes;
   idx_t const nfactors = model->rank;
 
+  p_transpose_model(model);
+
 #ifdef SPLATT_USE_MPI
   int const rank = ws->rinfo->rank;
-  p_init_mpi(train, model, ws);
+  p_init_mpi(train, validate, model, ws);
 #else
   int const rank = 0;
 #endif
@@ -1075,11 +1098,13 @@ void splatt_tc_ccd(
           printf(" %"SPLATT_PF_IDX, m+1);
         }
       }
-      printf("\n\n");
+      printf("\n");
     }
   }
 
-  p_transpose_model(model);
+  if(rank == 0) {
+    printf("\n");
+  }
 
   /* convert training data to CSF-ONEMODE with full tiling */
   double * opts = splatt_default_opts();
@@ -1157,6 +1182,11 @@ void splatt_tc_ccd(
     } /* omp parallel */
 
 
+#ifdef SPLATT_USE_MPI
+    MPI_Allreduce(MPI_IN_PLACE, &loss, 1, SPLATT_MPI_VAL, MPI_SUM,
+        ws->rinfo->comm_3d);
+#endif
+
 #if MEASURE_DRIFT == 1
     val_t const gold = tc_loss_sq(train, model, ws);
     if(rank == 0) {
@@ -1166,11 +1196,6 @@ void splatt_tc_ccd(
 
     /* compute RMSE and adjust learning rate */
     frobsq = tc_frob_sq(model, ws);
-
-#ifdef SPLATT_USE_MPI
-    MPI_Allreduce(MPI_IN_PLACE, &loss, 1, SPLATT_MPI_VAL, MPI_SUM,
-        ws->rinfo->comm_3d);
-#endif
 
     if(tc_converge(train, validate, model, loss, frobsq, e, ws)) {
       break;
@@ -1183,10 +1208,14 @@ void splatt_tc_ccd(
   fflush(stdout);
   MPI_Barrier(ws->rinfo->comm_3d);
   printf("  rank: %d residual %0.3fs dense: %0.3fs sparse: %0.3fs newcol: %0.3fs\n",
-    ws->rinfo->rank, ws->resid_time.seconds, ws->dense_time.seconds, ws->sparse_time.seconds, ws->newcol_time.seconds);
+    ws->rinfo->rank, ws->resid_time.seconds, ws->dense_time.seconds,
+    ws->sparse_time.seconds, ws->newcol_time.seconds);
+  fflush(stdout);
+  MPI_Barrier(ws->rinfo->comm_3d);
 #else
   printf("  residual %0.3fs dense: %0.3fs sparse: %0.3fs newcol: %0.3fs\n",
-    ws->resid_time.seconds, ws->dense_time.seconds, ws->sparse_time.seconds, ws->newcol_time.seconds);
+    ws->resid_time.seconds, ws->dense_time.seconds, ws->sparse_time.seconds,
+    ws->newcol_time.seconds);
 #endif
 
   p_transpose_model(model);

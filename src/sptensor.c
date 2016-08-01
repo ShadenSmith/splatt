@@ -8,6 +8,7 @@
 #include "sort.h"
 #include "io.h"
 #include "timer.h"
+#include "util.h"
 
 #include <math.h>
 
@@ -132,6 +133,212 @@ idx_t * tt_get_hist(
 }
 
 
+sptensor_t * tt_copy(
+  sptensor_t const * const tt)
+{
+  idx_t const nnz = tt->nnz;
+  idx_t const nmodes = tt->nmodes;
+
+  sptensor_t * ret = tt_alloc(nnz, nmodes);
+  ret->tiled = tt->tiled;
+  ret->type = tt->type;
+  memcpy(ret->dims, tt->dims, nmodes * sizeof(*(tt->dims)));
+
+  /* copy vals */
+  par_memcpy(ret->vals, tt->vals, nnz * sizeof(*(tt->vals)));
+
+  /* copy inds */
+  for(idx_t m=0; m < nmodes; ++m) {
+    par_memcpy(ret->ind[m], tt->ind[m], nnz * sizeof(**(tt->ind)));
+
+    if(tt->indmap[m] != NULL) {
+      ret->indmap[m] = splatt_malloc(tt->dims[m] * sizeof(**(ret->indmap)));
+      par_memcpy(ret->indmap[m], tt->indmap[m],
+          tt->dims[m] * sizeof(**(ret->indmap)));
+    } else {
+      ret->indmap[m] = NULL;
+    }
+  }
+
+  return ret;
+}
+
+
+
+sptensor_t * tt_union(
+  sptensor_t * const tt_a,
+  sptensor_t * const tt_b)
+{
+  assert(tt_a->nmodes == tt_b->nmodes);
+  idx_t const nmodes = tt_a->nmodes;
+
+  tt_sort(tt_a, 0, NULL);
+  tt_sort(tt_b, 0, NULL);
+
+  /* count nnz in the union */
+  idx_t uniq = 0;
+  idx_t ptra = 0;
+  idx_t ptrb = 0;
+
+  while(ptra < tt_a->nnz && ptrb < tt_b->nnz) {
+    /* if nnz are the same */
+    bool same = true;
+    /* if -1 if tt_a smaller, 0 for same sparsity, 1 for tt_b larger */
+    int order = 0;
+
+    if(tt_a->vals[ptra] != tt_b->vals[ptrb]) {
+      same = false;
+    }
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(tt_a->ind[m][ptra] != tt_b->ind[m][ptrb]) {
+        same = false;
+        if(tt_a->ind[m][ptra] < tt_b->ind[m][ptrb]) {
+          order = -1;
+        } else {
+          order = 1;
+        }
+        break;
+      }
+    }
+
+    if(same) {
+#if 0
+      printf("same: %lu/%lu = %lu/%lu -> %lu\n",
+          ptra, tt_a->nnz, ptrb, tt_b->nnz, uniq);
+      printf("A: (%lu %lu %lu %0.1f) B: (%lu %lu %lu %0.1f)\n",
+          tt_a->ind[0][ptra], tt_a->ind[1][ptra], tt_a->ind[2][ptra],
+          tt_a->vals[ptra],
+          tt_b->ind[0][ptrb], tt_b->ind[1][ptrb], tt_b->ind[2][ptrb],
+          tt_b->vals[ptrb]);
+#endif
+      /* just copy one */
+      ++ptra;
+      ++ptrb;
+    } else {
+      /* if tt_a and tt_b have the same idx but different values */
+      if(order == 0) {
+        ++ptra;
+        ++ptrb;
+        ++uniq; /* account for both */
+      } else if(order == -1) {
+        ++ptra;
+      } else {
+        ++ptrb;
+      }
+    }
+    ++uniq;
+  }
+  /* grab leftovers */
+  uniq += (tt_a->nnz - ptra) + (tt_b->nnz - ptrb);
+
+  /* allocate */
+  sptensor_t * ret = tt_alloc(uniq, nmodes);
+
+  /* now copy every thing over */
+  uniq = 0;
+  ptra = 0;
+  ptrb = 0;
+  while(ptra < tt_a->nnz && ptrb < tt_b->nnz) {
+    /* if nnz are the same */
+    bool same = true;
+    /* if -1 if tt_a smaller, 0 for same sparsity, 1 for tt_b larger */
+    int order = 0;
+
+    if(tt_a->vals[ptra] != tt_b->vals[ptrb]) {
+      same = false;
+    }
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(tt_a->ind[m][ptra] != tt_b->ind[m][ptrb]) {
+        same = false;
+        if(tt_a->ind[m][ptra] < tt_b->ind[m][ptrb]) {
+          order = -1;
+        } else {
+          order = 1;
+        }
+        break;
+      }
+    }
+
+
+    if(same) {
+      /* just copy one */
+      ret->vals[uniq] = tt_a->vals[ptra];
+      for(idx_t m=0; m < nmodes; ++m) {
+        ret->ind[m][uniq] = tt_a->ind[m][ptra];
+      }
+
+      ++ptra;
+      ++ptrb;
+    } else {
+      if(order == 0) {
+        /* just grab both */
+        ret->vals[uniq] = tt_a->vals[ptra];
+        for(idx_t m=0; m < nmodes; ++m) {
+          ret->ind[m][uniq] = tt_a->ind[m][ptra];
+        }
+        ++uniq;
+
+        ret->vals[uniq] = tt_b->vals[ptrb];
+        for(idx_t m=0; m < nmodes; ++m) {
+          ret->ind[m][uniq] = tt_b->ind[m][ptrb];
+        }
+        ++ptra;
+        ++ptrb;
+      } else if(order == -1) {
+        ret->vals[uniq] = tt_a->vals[ptra];
+        for(idx_t m=0; m < nmodes; ++m) {
+          ret->ind[m][uniq] = tt_a->ind[m][ptra];
+        }
+        ++ptra;
+      } else {
+        ret->vals[uniq] = tt_b->vals[ptrb];
+        for(idx_t m=0; m < nmodes; ++m) {
+          ret->ind[m][uniq] = tt_b->ind[m][ptrb];
+        }
+        ++ptrb;
+      }
+    }
+    ++uniq;
+  }
+
+  /* grab leftovers */
+  for(; ptra < tt_a->nnz; ++ptra) {
+    ret->vals[uniq] = tt_a->vals[ptra];
+    for(idx_t m=0; m < nmodes; ++m) {
+      ret->ind[m][uniq] = tt_a->ind[m][ptra];
+    }
+    ++uniq;
+  }
+
+  for(; ptrb < tt_b->nnz; ++ptrb) {
+    ret->vals[uniq] = tt_b->vals[ptrb];
+    for(idx_t m=0; m < nmodes; ++m) {
+      ret->ind[m][uniq] = tt_b->ind[m][ptrb];
+    }
+    ++uniq;
+  }
+
+  /* grab new dims */
+  tt_fill_dims(ret);
+
+  return ret;
+}
+
+
+void tt_fill_dims(
+  sptensor_t * const tt)
+{
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    idx_t dim = 0;
+    #pragma omp parallel for reduction(max:dim)
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      dim = SS_MAX(dim, tt->ind[m][n] + 1);
+    }
+    tt->dims[m] = dim;
+  }
+}
+
+
 idx_t tt_remove_dups(
   sptensor_t * const tt)
 {
@@ -241,19 +448,19 @@ sptensor_t * tt_alloc(
   idx_t const nnz,
   idx_t const nmodes)
 {
-  sptensor_t * tt = (sptensor_t*) splatt_malloc(sizeof(*tt));
+  sptensor_t * tt = splatt_malloc(sizeof(*tt));
   tt->tiled = SPLATT_NOTILE;
 
   tt->nnz = nnz;
-  tt->vals = splatt_malloc(nnz * sizeof(*tt->vals));
+  tt->vals = splatt_malloc(nnz * sizeof(*(tt->vals)));
 
   tt->nmodes = nmodes;
   tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
 
-  tt->dims = splatt_malloc(nmodes * sizeof(*tt->dims));
-  tt->ind  = splatt_malloc(nmodes * sizeof(*tt->ind));
+  tt->dims = splatt_malloc(nmodes * sizeof(*(tt->dims)));
+  tt->ind  = splatt_malloc(nmodes * sizeof(*(tt->ind)));
   for(idx_t m=0; m < nmodes; ++m) {
-    tt->ind[m] = splatt_malloc(nnz * sizeof(**tt->ind));
+    tt->ind[m] = splatt_malloc(nnz * sizeof(**(tt->ind)));
     tt->indmap[m] = NULL;
   }
 
@@ -279,12 +486,8 @@ void tt_fill(
   tt->dims = splatt_malloc(nmodes * sizeof(*tt->dims));
   for(idx_t m=0; m < nmodes; ++m) {
     tt->indmap[m] = NULL;
-
-    tt->dims[m] = 1 + inds[m][0];
-    for(idx_t i=1; i < nnz; ++i) {
-      tt->dims[m] = SS_MAX(tt->dims[m], 1 + inds[m][i]);
-    }
   }
+  tt_fill_dims(tt);
 }
 
 

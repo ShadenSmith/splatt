@@ -7,6 +7,8 @@
 #include "../timer.h"
 #include "../util.h"
 
+#include "../ccp/ccp.h"
+
 
 /******************************************************************************
  * API FUNCTONS
@@ -329,28 +331,88 @@ static void p_read_tt_part_1d(
 *
 * @return My portion of the sparse tensor read from fname.
 */
-static sptensor_t * p_read_tt_1d(
-  char const * const fname,
+static sptensor_t * p_rearrange_coarse(
+  sptensor_t * const ttbuf,
   idx_t ** const ssizes,
-  idx_t const nmodes,
   rank_info * const rinfo)
 {
   int const rank = rinfo->rank;
+  int const npes = rinfo->npes;
   idx_t const nnz = rinfo->global_nnz;
   idx_t const * const dims = rinfo->global_dims;
+  idx_t const nmodes = ttbuf->nmodes;
+
+  idx_t const maxdim = dims[argmax_elem(dims, nmodes)];
+  idx_t * weights = splatt_malloc(maxdim * sizeof(*weights));
+  idx_t * coarse_parts[MAX_NMODES];
 
   /* find start/end slices for my partition */
-  p_find_my_slices_1d(ssizes, nmodes, nnz, rinfo);
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* copy ssizes[m] because a prefix sum will be performed */
+    memcpy(weights, ssizes[m], dims[m] * sizeof(*weights));
 
-  /* count nnz in my partition and allocate */
-  idx_t const mynnz = p_count_my_nnz_1d(fname, nmodes, rinfo->mat_start,
-      rinfo->mat_end);
-  sptensor_t * tt = tt_alloc(mynnz, nmodes);
+    /* find a balanced partitioning of slices */
+    coarse_parts[m] = splatt_malloc((npes+1) * sizeof(**coarse_parts));
+    partition_1d(weights, dims[m], coarse_parts[m], npes);
 
-  /* now actually load values */
-  p_read_tt_part_1d(fname, tt, rinfo->mat_start, rinfo->mat_end);
+    rinfo->layer_starts[m] = 0;
+    rinfo->layer_ends[m]   = dims[m];
 
-  return tt;
+    /* store partition information */
+    rinfo->mat_start[m] = coarse_parts[m][rank];
+    rinfo->mat_end[m]   = coarse_parts[m][rank+1];
+  }
+  splatt_free(weights);
+
+  int * parts = splatt_malloc(ttbuf->nnz * sizeof(*parts));
+
+  /* we repeatedly merge into this */
+  sptensor_t * ret = tt_alloc(0, nmodes);
+
+  for(idx_t m=0; m < nmodes; ++m) {
+    /* determine owners of all my nnz */
+    #pragma omp parallel for schedule(static)
+    for(idx_t n=0; n < ttbuf->nnz; ++n) {
+      idx_t const idx = ttbuf->ind[m][n];
+      for(int p=0; p < npes; ++p) {
+        if(idx >= coarse_parts[m][p] && idx < coarse_parts[m][p+1]) {
+          parts[n] = p;
+          break;
+        }
+      }
+    }
+
+    sptensor_t * tt_mode = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
+
+#ifdef SPLATT_DEBUG
+    /* sanity check on nnz -- this can be expensive */
+    assert(tt_remove_dups(tt_mode) == 0);
+    idx_t totnnz;
+    MPI_Reduce(&(tt_mode->nnz), &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM, 0,
+        rinfo->comm_3d);
+    if(rank == 0) {
+      assert(totnnz == rinfo->global_nnz);
+    }
+#endif
+
+    /* save the new unioned tensor and clean up */
+    sptensor_t * tt_merged = tt_union(ret, tt_mode);
+
+#ifdef SPLATT_DEBUG
+    assert(tt_remove_dups(tt_merged) == 0);
+#endif
+
+    tt_free(ret);
+    ret = tt_merged;
+    tt_free(tt_mode);
+  }
+
+  splatt_free(parts);
+  for(idx_t m=0; m < nmodes; ++m) {
+    splatt_free(coarse_parts[m]);
+  }
+
+  return ret;
 }
 
 
@@ -810,23 +872,20 @@ sptensor_t * mpi_tt_read(
   sptensor_t * tt = NULL;
   switch(rinfo->decomp) {
   case SPLATT_DECOMP_COARSE:
-    tt = p_read_tt_1d(ifname, ssizes, ttbuf->nmodes, rinfo);
-    /* now fix tt->dims */
-    for(idx_t m=0; m < tt->nmodes; ++m) {
-      tt->dims[m] = 0;
-      for(idx_t n=0; n < tt->nnz; ++n) {
-        tt->dims[m] = SS_MAX(tt->dims[m], tt->ind[m][n] + 1);
-      }
-    }
+    tt = p_rearrange_coarse(ttbuf, ssizes, rinfo);
+    tt_fill_dims(tt);
     break;
 
   case SPLATT_DECOMP_MEDIUM:
     tt = p_rearrange_medium(ttbuf, ssizes, rinfo);
 
     /* now map tensor indices to local (layer) coordinates and fill in dims */
-    #pragma omp parallel for schedule(static, 1)
+    #pragma omp parallel
     for(idx_t m=0; m < ttbuf->nmodes; ++m) {
+      #pragma omp master
       tt->dims[m] = rinfo->layer_ends[m] - rinfo->layer_starts[m];
+
+      #pragma omp for schedule(static) nowait
       for(idx_t n=0; n < tt->nnz; ++n) {
         assert(tt->ind[m][n] >= rinfo->layer_starts[m]);
         assert(tt->ind[m][n] < rinfo->layer_ends[m]);
@@ -855,25 +914,21 @@ sptensor_t * mpi_tt_read(
 }
 
 
-void mpi_filter_tt_1d(
-  idx_t const mode,
+sptensor_t * mpi_filter_tt_1d(
   sptensor_t const * const tt,
-  sptensor_t * const ftt,
+  idx_t const mode,
   idx_t start,
   idx_t end)
 {
-  assert(ftt != NULL);
-
+  sptensor_t * ftt = tt_alloc(tt->nnz, tt->nmodes);
   for(idx_t m=0; m < ftt->nmodes; ++m) {
     ftt->dims[m] = tt->dims[m];
   }
 
-  idx_t const olds = start;
-  idx_t const olde = end;
   /* Adjust start and end if tt has been compressed. */
-  assert(start != end);
+  assert(start < end);
+  /* TODO: change this linear search into a binary one */
   if(tt->indmap[mode] != NULL) {
-    /* TODO: change this linear search into a binary one */
     for(idx_t i=0; i < tt->dims[mode]; ++i) {
       if(tt->indmap[mode][i] == start) {
         start = i;
@@ -901,6 +956,7 @@ void mpi_filter_tt_1d(
   ftt->dims[mode] = end - start;
 
   /* now map mode coords to [0, end-start) */
+  #pragma omp parallel for schedule(static)
   for(idx_t n=0; n < ftt->nnz; ++n) {
     assert(ftt->ind[mode][n] >= start);
     assert(ftt->ind[mode][n] < end);
@@ -917,6 +973,7 @@ void mpi_filter_tt_1d(
 
     /* mode indices are shifted. otherwise just copy */
     if(m == mode) {
+      #pragma omp parallel for
       for(idx_t i=0; i < ftt->dims[mode]; ++i) {
         ftt->indmap[mode][i] = tt->indmap[mode][i+start];
       }
@@ -932,6 +989,8 @@ void mpi_filter_tt_1d(
   for(idx_t n=0; n < ftt->nnz; ++n) {
     assert(ftt->ind[mode][n] < end - start);
   }
+
+  return ftt;
 }
 
 
@@ -1089,16 +1148,7 @@ sptensor_t * mpi_simple_distribute(
     fclose(fin);
   }
 
-  /* set dims info */
-  #pragma omp parallel for schedule(static, 1)
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    idx_t const * const inds = tt->ind[m];
-    idx_t dim = 1 +inds[0];
-    for(idx_t n=1; n < tt->nnz; ++n) {
-      dim = SS_MAX(dim, 1 + inds[n]);
-    }
-    tt->dims[m] = dim;
-  }
+  tt_fill_dims(tt);
 
 
   return tt;
@@ -1273,6 +1323,9 @@ sptensor_t * mpi_rearrange_by_part(
   free(nsend);
   free(nrecv);
 
+  /* fill dim info */
+  tt_fill_dims(tt);
+
   return tt;
 }
 
@@ -1291,7 +1344,7 @@ int mpi_determine_med_owner(
     idx_t const id = ttbuf->ind[m][n];
     /* silly linear scan over each layer.
      * TODO: do a binary search */
-    for(int l=0; l <= rinfo->dims_3d[m]; ++l) {
+    for(int l=1; l <= rinfo->dims_3d[m]; ++l) {
       if(id < rinfo->layer_ptrs[m][l]) {
         coords[m] = l-1;
         break;
@@ -1304,6 +1357,5 @@ int mpi_determine_med_owner(
   MPI_Cart_rank(rinfo->comm_3d, coords, &owner);
   return owner;
 }
-
 
 

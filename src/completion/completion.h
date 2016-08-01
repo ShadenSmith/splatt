@@ -137,7 +137,7 @@ void splatt_tc_sgd(
 
 void splatt_tc_als(
     sptensor_t * train,
-    sptensor_t const * const validate,
+    sptensor_t * const validate,
     tc_model * const model,
     tc_ws * const ws);
 
@@ -163,7 +163,7 @@ void splatt_tc_lbfgs(
 
 void splatt_tc_ccd(
     sptensor_t * train,
-    sptensor_t const * const validate,
+    sptensor_t * const validate,
     tc_model * const model,
     tc_ws * const ws);
 
@@ -255,7 +255,6 @@ val_t tc_loss_sq(
     sptensor_t const * const test,
     tc_model const * const model,
     tc_ws * const ws);
-
 
 
 #define tc_frob_sq splatt_tc_frob_sq
@@ -387,6 +386,15 @@ bool tc_converge(
 
 
 #ifdef SPLATT_USE_MPI
+
+int mpi_tc_distribute_coarse(
+    char const * const train_fname,
+    char const * const validate_fname,
+    idx_t const * const dims,
+    sptensor_t * * train_out,
+    sptensor_t * * validate_out,
+    rank_info * const rinfo);
+
 
 int mpi_tc_distribute_med(
     char const * const train_fname,

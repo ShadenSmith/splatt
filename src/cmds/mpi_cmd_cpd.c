@@ -218,43 +218,44 @@ int splatt_mpi_cpd_cmd(
   permutation_t * perm = mpi_distribute_mats(&rinfo, tt, rinfo.decomp);
 
   /* 1D distributions require filtering because tt has nonzeros that
-   * don't belong in each ftensor */
+   * don't belong in each csf tensor */
   if(rinfo.decomp == SPLATT_DECOMP_COARSE) {
-    /* XXX  TODO */
     csf = splatt_malloc(tt->nmodes * sizeof(*csf));
     /* compress tensor to own local coordinate system */
     tt_remove_empty(tt);
 
+    /* global nnz should be worst possible case */
+    assert(tt->nnz <= rinfo.global_nnz);
+
     /* coarse-grained forces us to use ALLMODE. override default opts. */
     args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
 
-    sptensor_t * tt_filtered = tt_alloc(tt->nnz, tt->nmodes);
     for(idx_t m=0; m < tt->nmodes; ++m) {
-
       /* tt has more nonzeros than any of the modes actually need, so we need
        * to filter them first. */
-      mpi_filter_tt_1d(m, tt, tt_filtered, rinfo.mat_start[m],
-          rinfo.mat_end[m]);
+      sptensor_t * tt_filtered = mpi_filter_tt_1d(tt, m,
+          rinfo.mat_start[m], rinfo.mat_end[m]);
       assert(tt_filtered->dims[m] == rinfo.mat_end[m] - rinfo.mat_start[m]);
 
+      /* map to local tensor coordinates */
       mpi_cpy_indmap(tt_filtered, &rinfo, m);
 
+      /* setup communication structures */
       mpi_find_owned(tt, m, &rinfo);
       mpi_compute_ineed(&rinfo, tt, m, args.nfactors, 1);
 
       /* fill csf[m] */
       csf_alloc_mode(tt_filtered, CSF_SORTED_MINUSONE, m, csf+m, args.opts);
+      tt_free(tt_filtered);
 
+#ifdef SPLATT_DEBUG
       /* sanity check on nnz */
       idx_t totnnz;
-      MPI_Reduce(&(csf[m].nnz), &totnnz, 1, MPI_DOUBLE, MPI_SUM, 0,
-          MPI_COMM_WORLD);
-      if(rinfo.rank == 0) {
-        assert(totnnz == rinfo.global_nnz);
-      }
+      MPI_Allreduce(&(csf[m].nnz), &totnnz, 1, SPLATT_MPI_IDX, MPI_SUM,
+          rinfo.comm_3d);
+      assert(totnnz == rinfo.global_nnz);
+#endif
     } /* foreach mode */
-
-    tt_free(tt_filtered);
 
   /* 3D distribution is simpler */
   } else {
@@ -288,7 +289,7 @@ int splatt_mpi_cpd_cmd(
   matrix_t * globmats[MAX_NMODES];
 
   for(idx_t m=0; m < nmodes; ++m) {
-    /* ft[:] have different dimensionalities for 1D but ft[m+1] is guaranteed
+    /* csf[:] have different dimensionalities for 1D but csf[m+1] is guaranteed
      * to have the full dimensionality
      * */
     idx_t dim = csf->dims[m];
@@ -313,7 +314,7 @@ int splatt_mpi_cpd_cmd(
   mpi_cpd_als_iterate(csf, mats, globmats, lambda, args.nfactors, &rinfo,
       args.opts);
 
-  /* free up the ftensor allocations */
+  /* free up the csf allocations */
   splatt_csf_free(csf, args.opts);
 
   /* write output */
