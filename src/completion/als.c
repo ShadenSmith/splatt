@@ -127,8 +127,8 @@ static inline void p_vec_oprod(
   int k = (int) nvecs;
   int lda = (int) N;
   int ldc = (int) N;
-  double alpha = 1;
-  double beta = (nflush == 0) ? 0. : 1.;
+  val_t alpha = 1;
+  val_t beta = (nflush == 0) ? 0. : 1.;
   LAPACK_DSYRK(&uplo, &trans, &order, &k, &alpha, A, &lda, &beta, out, &ldc);
 }
 
