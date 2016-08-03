@@ -253,15 +253,16 @@ void splatt_tc_sgd(
   /* foreach epoch */
   for(idx_t e=1; e < ws->max_its+1; ++e) {
 
-
     /* update model from all training observations */
 #if USE_CSF_SGD
     shuffle_idx(perm_i, nslices);
+    #pragma omp parallel for schedule(dynamic, 16)
     for(idx_t i=0; i < nslices; ++i) {
       p_update_model_csf3(csf, perm_i[i], model, ws);
     }
 #else
     shuffle_idx(perm, train->nnz);
+    #pragma omp parallel for schedule(static, 1)
     for(idx_t n=0; n < train->nnz; ++n) {
       p_update_model(train, perm[n], model, ws);
     }
