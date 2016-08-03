@@ -144,7 +144,7 @@ static error_t parse_cpd_opt(
     args->pfname = arg;
     break;
   case TT_SEED:
-    srand(atoi(arg));
+    args->opts[SPLATT_OPTION_RANDSEED] = atoi(arg);
     break;
 
   case ARGP_KEY_ARG:
@@ -180,6 +180,7 @@ int splatt_mpi_cpd_cmd(
   cpd_cmd_args args;
   default_cpd_opts(&args);
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+  srand((int) args.opts[SPLATT_OPTION_RANDSEED]);
 
   sptensor_t * tt  = NULL;
   splatt_csf * csf = NULL;

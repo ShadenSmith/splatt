@@ -244,11 +244,7 @@ void cpd_stats(
       opts[SPLATT_OPTION_TOLERANCE], opts[SPLATT_OPTION_REGULARIZE]);
 
 
-  if(opts[SPLATT_OPTION_RANDSEED] == SPLATT_VAL_OFF) {
-    printf("SEED=time ");
-  } else {
-    printf("SEED=%d ", (int) opts[SPLATT_OPTION_RANDSEED]);
-  }
+  printf("SEED=%d ", (int) opts[SPLATT_OPTION_RANDSEED]);
 
   printf("THREADS=%"SPLATT_PF_IDX" ", (idx_t) opts[SPLATT_OPTION_NTHREADS]);
   printf("\n");
