@@ -2390,7 +2390,6 @@ void sgd_save_best_model(tc_ws *ws)
   }
 }
 #endif // !NO_VALIDATE
-#endif /* SPLATT_USE_MPI */
 
 void splatt_tc_sgd(
     sptensor_t * train,

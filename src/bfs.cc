@@ -17,6 +17,7 @@ using namespace SpMP;
 permutation_t *perm_bfs_or_rcm(sptensor_t * const tt, int use_rcm)
 {
   permutation_t *perm = perm_alloc(tt->dims, tt->nmodes);
+  assert(false); // temporarily disable to avoid tbb dependency
 #if 0
 
 #define SPLATT_FIBER_BASED_BFS
