@@ -2309,6 +2309,7 @@ static void p_free_sgd_comm(sgd_comm_t *sgd_comm)
   }
   sgd_comm->requests.clear();
 }
+#endif /* SPLATT_USE_MPI */
 
 val_t p_frob_sq(
     sgd_comm_t * sgd_comm,
