@@ -24,7 +24,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}
 enable_language(Fortran)
 
 # ALL LIBRARIES -- will concatenate to this
-set(SPLATT_LIBS splatt m rt gfortran spmp)
+set(SPLATT_LIBS splatt m rt spmp)
 
 # check for MPI mode
 if (DEFINED USE_MPI)
@@ -95,7 +95,7 @@ set(C_DEFINES "${C_DEFINES}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstrict-aliasing")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/src/SpMP -mkl -tbb")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/src/SpMP -mkl")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopt-info-vec-missed")
 
