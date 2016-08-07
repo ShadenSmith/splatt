@@ -384,15 +384,6 @@ int splatt_tc_cmd(
     }
     printf("\n");
   }
-#else
-  per_stratum_layer_rinfo.npes = p_per_stratum;
-  /*per_stratum_layer_rinfo.global_dims[0] = 1;
-  for(int m=1; m < nmodes; ++m) {
-    per_stratum_layer_rinfo.global_dims[m] = nstratum_layer;
-  }*/
-  per_stratum_layer_rinfo.global_dims[0] /= nstratum_layer;
-  p_get_best_mpi_dim(&per_stratum_layer_rinfo);
-#endif
 
   /* get processor decomposition */
   rinfo.dims_3d[0] = SS_MIN(per_stratum_layer_rinfo.dims_3d[0]*nstratum_layer, rinfo.npes);
