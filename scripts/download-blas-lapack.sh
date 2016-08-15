@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LAPACK_VERSION=3.6.0
+LAPACK_VERSION=3.5.0
 LAPACK_LOC=http://www.netlib.org/lapack/lapack-${LAPACK_VERSION}.tgz
 
 if [ "$#" -eq 0 ]; then
