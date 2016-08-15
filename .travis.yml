@@ -6,7 +6,7 @@ matrix:
     - os: linux
       dist: trusty
       sudo: required
-    - os: osx
+    #- os: osx
 
 compiler:
   - gcc
@@ -16,7 +16,8 @@ addons:
   apt:
     packages:
       - libatlas-dev
-      - gfortran
+      - gfortran-4.6
+      - gfortran-4.6-multilib
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
@@ -24,7 +25,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install argp-standalone ; fi
 
 script:
-  - ./configure --with-precision=single && make && ./scripts/test.sh
-  - ./configure --with-precision=double && make && ./scripts/test.sh
   - ./configure --download-blas-lapack && make && ./scripts/test.sh
-  - ./configure --debug --with-precision=single && make && ./scripts/test.sh
+  #- ./configure --with-precision=single && make && ./scripts/test.sh
+  #- ./configure --with-precision=double && make && ./scripts/test.sh
+  #- ./configure --debug --with-precision=single && make && ./scripts/test.sh
