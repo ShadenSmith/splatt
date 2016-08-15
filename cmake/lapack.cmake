@@ -7,19 +7,23 @@ else()
   # BLAS/LAPACK
   if (DEFINED DOWNLOAD_BLAS_LAPACK)
 
-    # Enable linking against Fortran
-    enable_language(Fortran)
-    if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
-      set(SPLATT_LIBS ${SPLATT_LIBS} ifcore)
-    else()
-      set(SPLATT_LIBS ${SPLATT_LIBS} gfortran)
-    endif()
-
     message(WARNING "Downloading generic BLAS/LAPACK libraries.")
     message(WARNING "  NOTE: performance may suffer.")
     execute_process(COMMAND ${CMAKE_SOURCE_DIR}/scripts/download-blas-lapack.sh ${CMAKE_BINARY_DIR})
+
+    # Enable linking against Fortran
+    enable_language(Fortran)
+
     set(USER_LAPACK_LIB ${CMAKE_BINARY_DIR}/lapack/lib/liblapack.a)
-    set(USER_BLAS_LIB ${CMAKE_BINARY_DIR}/lapack/lib/libblas.a)
+
+    # Link against generic BLAS and a Fortran library.
+    # TODO: Is there a better way to do this? The Fortran library must be added
+    # AFTER BLAS/LAPACK.
+    if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+      set(USER_BLAS_LIB ${CMAKE_BINARY_DIR}/lapack/lib/libblas.a ifcore)
+    else()
+      set(USER_BLAS_LIB ${CMAKE_BINARY_DIR}/lapack/lib/libblas.a gfortran)
+    endif()
 
     # avoid annoying warning
     set(SPLATT_NOWARN ${DOWNLOAD_BLAS_LAPACK})
