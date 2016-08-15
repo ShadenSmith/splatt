@@ -24,9 +24,8 @@ include(cmake/debug.cmake)
 include(cmake/flags.cmake)
 
 # libraries
-
-include(cmake/openmp.cmake)
 include(cmake/lapack.cmake)
+include(cmake/openmp.cmake)
 include(cmake/mpi.cmake)
 include(cmake/partition.cmake)
 

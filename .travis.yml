@@ -1,10 +1,12 @@
 
 language: c
-sudo: false
 
-os:
-  - linux
-  - osx
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+    - os: osx
 
 compiler:
   - gcc
