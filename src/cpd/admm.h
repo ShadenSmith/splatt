@@ -28,7 +28,7 @@
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-idx_t admm_inner(
+val_t admm_inner(
     idx_t mode,
     matrix_t * * mats,
     val_t * const restrict column_weights,

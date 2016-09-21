@@ -220,7 +220,7 @@ double cpd_iterate(
   sp_timer_t modetime[MAX_NMODES];
   timer_start(&timers[TIMER_CPD]);
 
-  idx_t inner_its[MAX_NMODES];
+  val_t inner_its[MAX_NMODES];
 
   /* foreach outer iteration */
   for(idx_t it=0; it < cpd_opts->max_iterations; ++it) {
@@ -259,7 +259,7 @@ double cpd_iterate(
           printf("     mode = %1"SPLATT_PF_IDX" (%0.3fs)",
               m+1, modetime[m].seconds);
           if(inner_its[m] > 0) {
-            printf(" [%4"SPLATT_PF_IDX" ADMM its]", inner_its[m]);
+            printf(" [%4.1"SPLATT_PF_VAL" ADMM its per row]", inner_its[m]);
           }
           printf("\n");
         }

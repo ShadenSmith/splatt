@@ -160,7 +160,7 @@ static void p_proximity_nonneg(
   val_t const * const restrict auxl = mat_auxil->vals;
   val_t const * const restrict dual = mat_dual->vals;
 
-  //#pragma omp parallel for schedule(static) if(is_chunked)
+  #pragma omp parallel for schedule(static) if(!is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     val_t const v = auxl[x] - dual[x];
     matv[x] = (v > 0.) ? v : 0.;
@@ -196,7 +196,7 @@ static void p_proximity_l1(
   val_t const lambda = *((val_t *) data);
   val_t const mult = lambda / penalty;
 
-  //#pragma omp parallel for schedule(static) if(is_chunked)
+  #pragma omp parallel for schedule(static) if(!is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     val_t const v = auxl[x] - dual[x];
 
@@ -330,7 +330,7 @@ static void p_setup_auxiliary(
   val_t const * const restrict primal = mat_primal->vals;
   val_t const * const restrict dual   = mat_dual->vals;
 
-  //#pragma omp parallel for schedule(static) if(is_chunked)
+  #pragma omp parallel for schedule(static) if(!is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     aux[x] = mttkrp[x] + penalty * (primal[x] + dual[x]);
   }
@@ -365,7 +365,7 @@ static val_t p_update_dual(
 
   val_t norm = 0.;
 
-  //#pragma omp parallel for schedule(static) reduction(+:norm) if(is_chunked)
+  #pragma omp parallel for schedule(static) reduction(+:norm) if(!is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     dual[x] += matv[x] - auxl[x];
     norm += dual[x] * dual[x];
@@ -409,7 +409,8 @@ static void p_calc_residual(
   val_t p_resid = 0.;
   val_t d_resid = 0.;
 
-  //#pragma omp parallel for reduction(+:p_norm, p_resid, d_resid) if(is_chunked)
+  #pragma omp parallel for reduction(+:p_norm, p_resid, d_resid) \
+      if(!is_chunked)
   for(idx_t x=0; x < nrows * ncols; ++x) {
     val_t const pdiff = matv[x] - auxv[x];
     val_t const ddiff = matv[x] - init[x];
@@ -499,7 +500,7 @@ static idx_t p_admm_iterate_chunk(
     p_setup_auxiliary(primal, mttkrp_buf, dual, rho, auxil, chunked);
 
     /* Cholesky against auxiliary */
-    mat_solve_cholesky(ws->gram, ws->auxil);
+    mat_solve_cholesky(ws->gram, auxil);
 
     /* APPLY CONSTRAINT / REGULARIZATION */
     /* primal = proximity(auxiliary) */
@@ -523,6 +524,7 @@ static idx_t p_admm_iterate_chunk(
 
     /* update dual: U += (primal - auxiliary) */
     dual_norm = p_update_dual(primal, auxil, dual, chunked);
+
     /* check ADMM convergence */
     p_calc_residual(primal, auxil, init_buf,
         &primal_norm, &primal_residual, &dual_residual, chunked);
@@ -544,7 +546,7 @@ static idx_t p_admm_iterate_chunk(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-idx_t admm_inner(
+val_t admm_inner(
     idx_t mode,
     matrix_t * * mats,
     val_t * const restrict column_weights,
@@ -570,7 +572,7 @@ idx_t admm_inner(
     if(cpd_opts->unconstrained) {
       mat_normalize(mats[mode], column_weights, MAT_NORM_2, NULL, ws->thds);
     }
-    return 0;
+    return 0.;
   }
 
   /* Add penalty to diagonal -- value taken from AO-ADMM paper */
@@ -588,21 +590,19 @@ idx_t admm_inner(
     num_chunks = SS_MAX(1, mats[mode]->I / chunk_size);
   }
 
-  printf("num_chunks: %lu\n", num_chunks);
-
-  matrix_t primal;
-  matrix_t auxil;
-  matrix_t dual;
-  matrix_t mttkrp;
-  matrix_t init_buf;
-
   idx_t it = 0;
-  //#pragma omp parallel for schedule(dynamic, 2) reduction(+:it) if(num_chunks > 1)
+  #pragma omp parallel for schedule(dynamic) reduction(+:it) if(num_chunks > 1)
   for(idx_t c=0; c < num_chunks; ++c) {
     idx_t const start = c * chunk_size;
     idx_t const stop = (c == num_chunks-1) ? mats[mode]->I : (c+1)*chunk_size;
     idx_t const offset = start * rank;
     idx_t const nrows = stop - start;
+
+    matrix_t primal;
+    matrix_t auxil;
+    matrix_t dual;
+    matrix_t mttkrp;
+    matrix_t init_buf;
 
     /* extract all the workspaces */
     mat_fillptr(&primal, mats[mode]->vals + offset, nrows, rank,
@@ -616,16 +616,15 @@ idx_t admm_inner(
     mat_fillptr(&init_buf, ws->mat_init->vals + offset, nrows, rank,
         ws->mat_init->rowmajor);
 
-    /* run ADMM to convergence */
-    it += p_admm_iterate_chunk(&primal, &auxil, &dual, ws->gram, &mttkrp,
-        &init_buf, mode, which_reg, rho, ws, cpd_opts, global_opts);
-
-    //printf("c: %lu [%lu, %lu) = %lu\n", c, start, stop, it);
-    //it = 0;
+    /* Run ADMM to convergence and record total ADMM its per row. */
+    it += nrows * p_admm_iterate_chunk(&primal, &auxil, &dual, ws->gram,
+        &mttkrp, &init_buf, mode, which_reg, rho, ws, cpd_opts, global_opts);
   } /* foreach chunk */
 
   timer_stop(&timers[TIMER_ADMM]);
-  return it;
+
+  /* return average # iterations */
+  return (val_t) it / (val_t) mats[mode]->I;
 }
 
 
