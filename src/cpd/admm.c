@@ -143,22 +143,24 @@ static void p_init_smooth(
 * @param ws CPD workspace data -- not used.
 * @param mode The mode we are updating -- not used.
 * @param data Constraint-specific data -- not used.
+* @param is_chunked Whether this is a chunk of a larger matrix.
 */
 static void p_proximity_nonneg(
     matrix_t  * const mat_primal,
+    matrix_t const * const mat_auxil,
+    matrix_t const * const mat_dual,
     val_t const penalty,
-    cpd_ws * const ws,
-    idx_t const mode,
-    void const * const data)
+    void const * const data,
+    bool const is_chunked)
 {
   idx_t const I = mat_primal->I;
   idx_t const J = mat_primal->J;
 
   val_t       * const restrict matv = mat_primal->vals;
-  val_t const * const restrict auxl = ws->auxil->vals;
-  val_t const * const restrict dual = ws->duals[mode]->vals;
+  val_t const * const restrict auxl = mat_auxil->vals;
+  val_t const * const restrict dual = mat_dual->vals;
 
-  #pragma omp parallel for schedule(static)
+  #pragma omp parallel for schedule(static) if(is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     val_t const v = auxl[x] - dual[x];
     matv[x] = (v > 0.) ? v : 0.;
@@ -174,25 +176,27 @@ static void p_proximity_nonneg(
 * @param ws CPD workspace data -- used for regularization parameter.
 * @param mode The mode we are updating.
 * @param data Constraint-specific data -- we store lambda in this.
+* @param is_chunked Whether this is a chunk of a larger matrix.
 */
 static void p_proximity_l1(
     matrix_t  * const mat_primal,
+    matrix_t const * const mat_auxil,
+    matrix_t const * const mat_dual,
     val_t const penalty,
-    cpd_ws * const ws,
-    idx_t const mode,
-    void const * const data)
+    void const * const data,
+    bool const is_chunked)
 {
   idx_t const I = mat_primal->I;
   idx_t const J = mat_primal->J;
 
   val_t       * const restrict matv = mat_primal->vals;
-  val_t const * const restrict auxl = ws->auxil->vals;
-  val_t const * const restrict dual = ws->duals[mode]->vals;
+  val_t const * const restrict auxl = mat_auxil->vals;
+  val_t const * const restrict dual = mat_dual->vals;
 
   val_t const lambda = *((val_t *) data);
   val_t const mult = lambda / penalty;
 
-  #pragma omp parallel for schedule(static)
+  #pragma omp parallel for schedule(static) if(is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     val_t const v = auxl[x] - dual[x];
 
@@ -208,7 +212,6 @@ static void p_proximity_l1(
 }
 
 
-
 /**
 * @brief Apply the proximity operator to enforce column smoothness. This solves
 *        a banded linear system and performs a few matrix transposes.
@@ -221,17 +224,20 @@ static void p_proximity_l1(
 */
 static void p_proximity_smooth(
     matrix_t  * const mat_primal,
+    matrix_t const * const mat_auxil,
+    matrix_t const * const mat_dual,
     val_t const penalty,
-    cpd_ws * const ws,
-    idx_t const mode,
-    void const * const data)
+    void const * const data,
+    bool const is_chunked)
 {
+  assert(!is_chunked);
+
   idx_t const I = mat_primal->I;
   idx_t const J = mat_primal->J;
 
   val_t       * const restrict matv = mat_primal->vals;
-  val_t       * const restrict auxl = ws->auxil->vals;
-  val_t const * const restrict dual = ws->duals[mode]->vals;
+  val_t       * const restrict auxl = mat_auxil->vals;
+  val_t const * const restrict dual = mat_dual->vals;
 
   reg_smooth_ws * smooth = (reg_smooth_ws *) data;
 
@@ -443,6 +449,91 @@ static void p_admm_optimal_regs(
 }
 
 
+
+
+static idx_t p_admm_iterate_chunk(
+    matrix_t * primal,
+    matrix_t * auxil,
+    matrix_t * dual,
+    matrix_t * cholesky,
+    matrix_t * mttkrp_buf,
+    matrix_t * init_buf,
+    idx_t mode,
+    idx_t which_reg,
+    val_t const rho,
+    cpd_ws * const ws,
+    splatt_cpd_opts const * const cpd_opts,
+    splatt_global_opts const * const global_opts)
+{
+  idx_t const rank = primal->J;
+
+  /* for checking convergence */
+  val_t primal_norm     = 0.;
+  val_t dual_norm       = 0.;
+  val_t primal_residual = 0.;
+  val_t dual_residual   = 0.;
+
+  void const * const cdata = cpd_opts->constraints[mode].data;
+
+  bool const chunked = cpd_opts->chunk_sizes[mode];
+
+  /* foreach inner iteration */
+  idx_t it;
+  for(it=0; it < cpd_opts->max_inner_iterations; ++it) {
+    /* save starting point for convergence check */
+    size_t const bytes = primal->I * rank * sizeof(*primal->vals);
+    if(chunked) {
+      memcpy(init_buf->vals, primal->vals, bytes);
+    } else {
+      par_memcpy(init_buf->vals, primal->vals, bytes);
+    }
+
+    /* auxiliary = MTTKRP + (rho .* (primal + dual)) */
+    p_setup_auxiliary(primal, mttkrp_buf, dual, rho, auxil);
+
+    /* Cholesky against auxiliary */
+    mat_solve_cholesky(ws->gram, ws->auxil);
+
+    /* APPLY CONSTRAINT / REGULARIZATION */
+    /* primal = proximity(auxiliary) */
+    switch(which_reg) {
+    case SPLATT_CON_NONNEG:
+      p_proximity_nonneg(primal, auxil, dual, rho, cdata, chunked);
+      break;
+    case SPLATT_REG_L1:
+      p_proximity_l1(primal, auxil, dual, rho, cdata, chunked);
+      break;
+    case SPLATT_REG_SMOOTHNESS:
+      p_proximity_smooth(primal, auxil, dual, rho, cdata, chunked);
+      break;
+
+    case SPLATT_CON_NONE:
+    case SPLATT_REG_L2:
+      /* XXX: NONE and L2 should have been caught already. */
+      assert(false);
+      break;
+    } /* proximity operatior */
+
+    /* update dual: U += (primal - auxiliary) */
+    dual_norm = p_update_dual(primal, auxil, dual);
+
+    /* check ADMM convergence */
+    p_calc_residual(primal, auxil, init_buf,
+        &primal_norm, &primal_residual, &dual_residual);
+
+    /* converged? */
+    if((primal_residual <= cpd_opts->inner_tolerance * primal_norm) &&
+       (dual_residual   <= cpd_opts->inner_tolerance * dual_norm)) {
+      ++it;
+      break;
+    }
+  }
+
+  return it;
+}
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -484,64 +575,44 @@ idx_t admm_inner(
    * ADMM iteration */
   mat_cholesky(ws->gram);
 
-  /* for checking convergence */
-  val_t primal_norm     = 0.;
-  val_t dual_norm       = 0.;
-  val_t primal_residual = 0.;
-  val_t dual_residual   = 0.;
+  /* Compute number of chunks */
+  idx_t num_chunks = 1;
+  idx_t const chunk_size = cpd_opts->chunk_sizes[mode];
+  if(chunk_size > 0) {
+    num_chunks = SS_MAX(1, mats[mode]->I / chunk_size);
+  }
 
-  idx_t it;
-  for(it=0; it < cpd_opts->max_inner_iterations; ++it) {
-    /* save starting point for convergence check */
-    size_t const bytes = mats[mode]->I * rank * sizeof(*(*mats)->vals);
-    par_memcpy(ws->mat_init->vals, mats[mode]->vals, bytes);
+  idx_t it = 0;
+  #pragma omp parallel for schedule(dynamic) reduction(+:it) if(num_chunks > 1)
+  for(idx_t c=0; c < num_chunks; ++c) {
+    idx_t const start = c * chunk_size;
+    idx_t const stop = (c == num_chunks-1) ? mats[mode]->I : (c+1)*chunk_size;
+    idx_t const offset = start * rank;
+    idx_t const nrows = stop - start;
 
-    /* auxiliary = MTTKRP + (rho .* (primal + dual)) */
-    p_setup_auxiliary(mats[mode], ws->mttkrp_buf, ws->duals[mode], rho,
-        ws->auxil);
+    /* extract all the workspaces */
+    matrix_t * primal = mat_mkptr(mats[mode]->vals + offset, nrows, rank,
+        mats[mode]->rowmajor);
+    matrix_t * auxil = mat_mkptr(ws->auxil->vals + offset, nrows, rank,
+        ws->auxil->rowmajor);
+    matrix_t * dual = mat_mkptr(ws->duals[mode]->vals + offset, nrows, rank,
+        ws->duals[mode]->rowmajor);
+    matrix_t * mttkrp = mat_mkptr(ws->mttkrp_buf->vals + offset, nrows, rank,
+        ws->mttkrp_buf->rowmajor);
+    matrix_t * init_buf = mat_mkptr(ws->mat_init->vals + offset, nrows, rank,
+        ws->mat_init->rowmajor);
 
-    /* Cholesky against auxiliary */
-    mat_solve_cholesky(ws->gram, ws->auxil);
+    /* run ADMM to convergence */
+    it += p_admm_iterate_chunk(primal, auxil, dual, ws->gram, mttkrp, init_buf,
+        mode, which_reg, rho, ws, cpd_opts, global_opts);
 
-    /* APPLY CONSTRAINT / REGULARIZATION */
-    /* mats[mode] = proximity(auxiliary) */
-    switch(which_reg) {
-
-    case SPLATT_REG_L1:
-      p_proximity_l1(mats[mode], rho, ws, mode, cdata);
-      break;
-
-    case SPLATT_CON_NONNEG:
-      p_proximity_nonneg(mats[mode], rho, ws, mode, cdata);
-      break;
-
-    case SPLATT_REG_SMOOTHNESS:
-      p_proximity_smooth(mats[mode], rho, ws, mode, cdata);
-      break;
-
-
-    case SPLATT_CON_NONE:
-    case SPLATT_REG_L2:
-      /* XXX: NONE and L2 should have been caught already. */
-      assert(false);
-      break;
-    } /* proximity operatior */
-
-    /* update dual: U += (mats[mode] - auxiliary) */
-    dual_norm = p_update_dual(mats[mode], ws->auxil,
-        ws->duals[mode]);
-
-    /* check ADMM convergence */
-    p_calc_residual(mats[mode], ws->auxil, ws->mat_init,
-        &primal_norm, &primal_residual, &dual_residual);
-
-    /* converged? */
-    if((primal_residual <= cpd_opts->inner_tolerance * primal_norm) &&
-       (dual_residual   <= cpd_opts->inner_tolerance * dual_norm)) {
-      ++it;
-      break;
-    }
-  } /* foreach ADMM iteration */
+    /* clean up pointers */
+    splatt_free(primal);
+    splatt_free(auxil);
+    splatt_free(dual);
+    splatt_free(mttkrp);
+    splatt_free(init_buf);
+  } /* foreach chunk */
 
   timer_stop(&timers[TIMER_ADMM]);
   return it;
