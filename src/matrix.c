@@ -657,15 +657,24 @@ matrix_t * mat_mkptr(
 {
   matrix_t * mat = splatt_malloc(sizeof(*mat));
 
-  /* store data */
-  mat->I = rows;
-  mat->J = cols;
-  mat->rowmajor = rowmajor;
-  mat->vals = data;
+  mat_fillptr(mat, data, rows, cols, rowmajor);
 
   return mat;
 }
 
+
+void mat_fillptr(
+    matrix_t * ptr,
+    val_t * const data,
+    idx_t rows,
+    idx_t cols,
+    int rowmajor)
+{
+  ptr->I = rows;
+  ptr->J = cols;
+  ptr->rowmajor = rowmajor;
+  ptr->vals = data;
+}
 
 
 void mat_free(

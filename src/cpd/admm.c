@@ -160,7 +160,7 @@ static void p_proximity_nonneg(
   val_t const * const restrict auxl = mat_auxil->vals;
   val_t const * const restrict dual = mat_dual->vals;
 
-  #pragma omp parallel for schedule(static) if(is_chunked)
+  //#pragma omp parallel for schedule(static) if(is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     val_t const v = auxl[x] - dual[x];
     matv[x] = (v > 0.) ? v : 0.;
@@ -196,7 +196,7 @@ static void p_proximity_l1(
   val_t const lambda = *((val_t *) data);
   val_t const mult = lambda / penalty;
 
-  #pragma omp parallel for schedule(static) if(is_chunked)
+  //#pragma omp parallel for schedule(static) if(is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     val_t const v = auxl[x] - dual[x];
 
@@ -221,6 +221,7 @@ static void p_proximity_l1(
 * @param ws CPD workspace data -- used for regularization parameter.
 * @param mode The mode we are updating.
 * @param data Constraint-specific data -- a reg_smooth_ws struct pointer.
+* @param is_chunked Whether this is a chunk of a larger matrix.
 */
 static void p_proximity_smooth(
     matrix_t  * const mat_primal,
@@ -310,13 +311,15 @@ static void p_proximity_smooth(
 * @param penalty The penalty parameter, 'rho'. This could also be used during
 *                l2 (Tikhonov) regularization.
 * @param[out] mat_auxil The auxiliary matrix.
+* @param is_chunked Whether this is a chunk of a larger matrix.
 */
 static void p_setup_auxiliary(
     matrix_t const * const mat_primal,
     matrix_t const * const mat_mttkrp,
     matrix_t const * const mat_dual,
     val_t const penalty,
-    matrix_t * const mat_auxil)
+    matrix_t * const mat_auxil,
+    bool const is_chunked)
 {
   idx_t const I = mat_primal->I;
   idx_t const J = mat_primal->J;
@@ -327,7 +330,7 @@ static void p_setup_auxiliary(
   val_t const * const restrict primal = mat_primal->vals;
   val_t const * const restrict dual   = mat_dual->vals;
 
-  #pragma omp parallel for schedule(static)
+  //#pragma omp parallel for schedule(static) if(is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     aux[x] = mttkrp[x] + penalty * (primal[x] + dual[x]);
   }
@@ -343,13 +346,15 @@ static void p_setup_auxiliary(
 * @param mat_primal The newest primal variable.
 * @param mat_auxil The newest auxiliary variable.
 * @param[out] mat_dual The dual variable to update.
+* @param is_chunked Whether this is a chunk of a larger matrix.
 *
 * @return The norm of the new dual; || mat_dual ||_F^2.
 */
 static val_t p_update_dual(
     matrix_t const * const mat_primal,
     matrix_t const * const mat_auxil,
-    matrix_t * const mat_dual)
+    matrix_t * const mat_dual,
+    bool const is_chunked)
 {
   idx_t const I = mat_primal->I;
   idx_t const J = mat_primal->J;
@@ -358,15 +363,15 @@ static val_t p_update_dual(
   val_t const * const restrict matv = mat_primal->vals;
   val_t const * const restrict auxl = mat_auxil->vals;
 
-  val_t dual_norm = 0.;
+  val_t norm = 0.;
 
-  #pragma omp parallel for schedule(static) reduction(+:dual_norm)
+  //#pragma omp parallel for schedule(static) reduction(+:norm) if(is_chunked)
   for(idx_t x=0; x < I * J; ++x) {
     dual[x] += matv[x] - auxl[x];
-    dual_norm += dual[x] * dual[x];
+    norm += dual[x] * dual[x];
   }
 
-  return dual_norm;
+  return norm;
 }
 
 
@@ -382,6 +387,7 @@ static val_t p_update_dual(
 * @param[out] primal_resid The residual of the primal variable;
 *             norm(mat_primal - mat_auxil)^2.
 * @param[out] dual_resid The dual residual; norm(mat_primal - mat_init)^2.
+* @param is_chunked Whether this is a chunk of a larger matrix.
 */
 static void p_calc_residual(
     matrix_t const * const mat_primal,
@@ -389,7 +395,8 @@ static void p_calc_residual(
     matrix_t const * const mat_init,
     val_t * primal_norm,
     val_t * primal_resid,
-    val_t * dual_resid)
+    val_t * dual_resid,
+    bool const is_chunked)
 {
   val_t const * const restrict matv = mat_primal->vals;
   val_t const * const restrict auxv = mat_auxil->vals;
@@ -402,7 +409,7 @@ static void p_calc_residual(
   val_t p_resid = 0.;
   val_t d_resid = 0.;
 
-  #pragma omp parallel for reduction(+: p_norm, p_resid, d_resid)
+  //#pragma omp parallel for reduction(+:p_norm, p_resid, d_resid) if(is_chunked)
   for(idx_t x=0; x < nrows * ncols; ++x) {
     val_t const pdiff = matv[x] - auxv[x];
     val_t const ddiff = matv[x] - init[x];
@@ -489,7 +496,7 @@ static idx_t p_admm_iterate_chunk(
     }
 
     /* auxiliary = MTTKRP + (rho .* (primal + dual)) */
-    p_setup_auxiliary(primal, mttkrp_buf, dual, rho, auxil);
+    p_setup_auxiliary(primal, mttkrp_buf, dual, rho, auxil, chunked);
 
     /* Cholesky against auxiliary */
     mat_solve_cholesky(ws->gram, ws->auxil);
@@ -515,11 +522,10 @@ static idx_t p_admm_iterate_chunk(
     } /* proximity operatior */
 
     /* update dual: U += (primal - auxiliary) */
-    dual_norm = p_update_dual(primal, auxil, dual);
-
+    dual_norm = p_update_dual(primal, auxil, dual, chunked);
     /* check ADMM convergence */
     p_calc_residual(primal, auxil, init_buf,
-        &primal_norm, &primal_residual, &dual_residual);
+        &primal_norm, &primal_residual, &dual_residual, chunked);
 
     /* converged? */
     if((primal_residual <= cpd_opts->inner_tolerance * primal_norm) &&
@@ -582,8 +588,16 @@ idx_t admm_inner(
     num_chunks = SS_MAX(1, mats[mode]->I / chunk_size);
   }
 
+  printf("num_chunks: %lu\n", num_chunks);
+
+  matrix_t primal;
+  matrix_t auxil;
+  matrix_t dual;
+  matrix_t mttkrp;
+  matrix_t init_buf;
+
   idx_t it = 0;
-  #pragma omp parallel for schedule(dynamic) reduction(+:it) if(num_chunks > 1)
+  //#pragma omp parallel for schedule(dynamic, 2) reduction(+:it) if(num_chunks > 1)
   for(idx_t c=0; c < num_chunks; ++c) {
     idx_t const start = c * chunk_size;
     idx_t const stop = (c == num_chunks-1) ? mats[mode]->I : (c+1)*chunk_size;
@@ -591,27 +605,23 @@ idx_t admm_inner(
     idx_t const nrows = stop - start;
 
     /* extract all the workspaces */
-    matrix_t * primal = mat_mkptr(mats[mode]->vals + offset, nrows, rank,
+    mat_fillptr(&primal, mats[mode]->vals + offset, nrows, rank,
         mats[mode]->rowmajor);
-    matrix_t * auxil = mat_mkptr(ws->auxil->vals + offset, nrows, rank,
+    mat_fillptr(&auxil, ws->auxil->vals + offset, nrows, rank,
         ws->auxil->rowmajor);
-    matrix_t * dual = mat_mkptr(ws->duals[mode]->vals + offset, nrows, rank,
+    mat_fillptr(&dual, ws->duals[mode]->vals + offset, nrows, rank,
         ws->duals[mode]->rowmajor);
-    matrix_t * mttkrp = mat_mkptr(ws->mttkrp_buf->vals + offset, nrows, rank,
+    mat_fillptr(&mttkrp, ws->mttkrp_buf->vals + offset, nrows, rank,
         ws->mttkrp_buf->rowmajor);
-    matrix_t * init_buf = mat_mkptr(ws->mat_init->vals + offset, nrows, rank,
+    mat_fillptr(&init_buf, ws->mat_init->vals + offset, nrows, rank,
         ws->mat_init->rowmajor);
 
     /* run ADMM to convergence */
-    it += p_admm_iterate_chunk(primal, auxil, dual, ws->gram, mttkrp, init_buf,
-        mode, which_reg, rho, ws, cpd_opts, global_opts);
+    it += p_admm_iterate_chunk(&primal, &auxil, &dual, ws->gram, &mttkrp,
+        &init_buf, mode, which_reg, rho, ws, cpd_opts, global_opts);
 
-    /* clean up pointers */
-    splatt_free(primal);
-    splatt_free(auxil);
-    splatt_free(dual);
-    splatt_free(mttkrp);
-    splatt_free(init_buf);
+    //printf("c: %lu [%lu, %lu) = %lu\n", c, start, stop, it);
+    //it = 0;
   } /* foreach chunk */
 
   timer_stop(&timers[TIMER_ADMM]);

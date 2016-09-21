@@ -78,10 +78,28 @@ typedef enum
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
+#define mat_fillptr splatt_mat_fillptr
+/**
+* @brief Fill a matrix pointer 'ptr' with a SHALLOW COPY of the existing data.
+*
+* @param[out] ptr The structure to fill.
+* @param data The data to copy into the matrix structure.
+* @param I The number of rows in the matrix.
+* @param J The number of cols in the matrix.
+* @param rowmajor If the matrix is row major.
+*/
+void mat_fillptr(
+    matrix_t * ptr,
+    val_t * const data,
+    idx_t rows,
+    idx_t cols,
+    int rowmajor);
+
 
 #define mat_mkptr splatt_mat_mkptr
 /**
-* @brief Fill a dense matrix with a SHALLOW COPY of the existing data.
+* @brief Fill a dense matrix with a SHALLOW COPY of the existing data. The 
+*        struct is allocated for you.
 *
 * @param data The data to copy into the matrix structure.
 * @param I The number of rows in the matrix.
