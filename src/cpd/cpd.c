@@ -114,9 +114,11 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
 
   opts->unconstrained = true;
   for(idx_t m=0; m < MAX_NMODES; ++m) {
+    opts->chunk_sizes[m] = 0;
     opts->constraints[m].which = SPLATT_CON_NONE;
     opts->constraints[m].data = NULL;
   }
+
 
   return opts;
 }

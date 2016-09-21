@@ -45,7 +45,7 @@ static struct argp_option cpd_options[] = {
   {"tol", LONG_TOL, "TOLERANCE", 0, "convergence tolerance (default: 1e-5)"},
 
   {"rank", 'r', "RANK", 0, "rank of factorization (default: 10)"},
-  {"threads", 't', "NTHREADS", 0, "number of threads (default: ${OMP_NUM_THREADS})"},
+  {"threads", 't', "#THREADS", 0, "number of threads (default: ${OMP_NUM_THREADS})"},
   {"tile", LONG_TILE, 0, 0, "use tiling during MTTKRP"},
   {"stem", 's', "PATH", 0, "file stem for factorization output files (default: ./)"},
   {"nowrite", LONG_NOWRITE, 0, 0, "do not write output to file"},
@@ -68,6 +68,7 @@ static struct argp_option cpd_options[] = {
 
     "The following constraints and regularizations are supported:\n", 1},
 
+  {"chunk", 'c', "#ROWS", 0, "chunk size for AO-ADMM", 1},
   {"nonneg", LONG_NONNEG, "MODE", OPTION_ARG_OPTIONAL,
       "non-negative factorization", 1},
   {"smooth", LONG_SMOOTH, "scale[,MODE]", 0, "column smoothness", 1},
@@ -132,6 +133,7 @@ static error_t parse_cpd_opt(
 
   val_t scale = 0.;
   idx_t mode = MAX_NMODES;
+  idx_t size = 0;;
 
   switch(key) {
   case 'h':
@@ -183,6 +185,13 @@ static error_t parse_cpd_opt(
     break;
 
   /* constraints */
+  case 'c':
+    size = strtoull(arg, &arg, 10);
+    for(idx_t m=0; m < MAX_NMODES; ++m) {
+      args->cpd_opts->chunk_sizes[m] = size;
+    }
+    break;
+
   case LONG_NONNEG:
     if(arg) {
       mode = strtoull(arg, &arg, 10) - 1;

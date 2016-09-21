@@ -236,6 +236,12 @@ void cpd_stats2(
   printf("SEED=%d ", global_opts->random_seed);
   printf("THREADS=%d\n", global_opts->num_threads);
 
+  printf("CHUNK-SIZES=%"SPLATT_PF_IDX, cpd_opts->chunk_sizes[0]);
+  for(idx_t m=1; m < num_modes; ++m) {
+    printf(",%"SPLATT_PF_IDX, cpd_opts->chunk_sizes[m]);
+  }
+  printf("\n");
+
   for(idx_t m=0; m < num_modes; ++m) {
     switch(cpd_opts->constraints[m].which) {
     case SPLATT_CON_NONE:

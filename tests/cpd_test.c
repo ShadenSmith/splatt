@@ -48,6 +48,7 @@ CTEST(cpd, cpd_add_constraints)
 
   for(idx_t m=0; m < SPLATT_MAX_NMODES; ++m) {
     ASSERT_EQUAL(SPLATT_CON_NONE, opts->constraints[m].which);
+    ASSERT_EQUAL(0, opts->chunk_sizes[m]);
     ASSERT_NULL(opts->constraints[m].data);
   }
 
