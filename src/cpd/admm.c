@@ -483,7 +483,8 @@ static idx_t p_admm_iterate_chunk(
 
   void const * const cdata = cpd_opts->constraints[mode].data;
 
-  bool const chunked = cpd_opts->chunk_sizes[mode];
+  bool const chunked = (primal->I != ws->duals[mode]->I);
+  //cpd_opts->chunk_sizes[mode];
 
   /* foreach inner iteration */
   idx_t it;
@@ -587,7 +588,7 @@ val_t admm_inner(
   idx_t num_chunks = 1;
   idx_t const chunk_size = cpd_opts->chunk_sizes[mode];
   if(chunk_size > 0) {
-    num_chunks = SS_MAX(1, mats[mode]->I / chunk_size);
+    num_chunks = mats[mode]->I / chunk_size + (mats[mode]->I % chunk_size > 0);
   }
 
   idx_t it = 0;
@@ -598,6 +599,7 @@ val_t admm_inner(
     idx_t const offset = start * rank;
     idx_t const nrows = stop - start;
 
+    /* sub-matrix chunks */
     matrix_t primal;
     matrix_t auxil;
     matrix_t dual;

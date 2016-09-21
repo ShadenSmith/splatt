@@ -279,7 +279,10 @@ void mat_solve_cholesky(
     matrix_t * const cholesky,
     matrix_t * const rhs)
 {
-  timer_start(&timers[TIMER_BACKSOLVE]);
+  /* Chunked AO-ADMM will call this from a parallel region. */
+  if(!splatt_omp_in_parallel()) {
+    timer_start(&timers[TIMER_BACKSOLVE]);
+  }
   int N = (int) cholesky->I;
 
   /* Solve against rhs */
@@ -293,7 +296,9 @@ void mat_solve_cholesky(
     fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
   }
 
-  timer_stop(&timers[TIMER_BACKSOLVE]);
+  if(!splatt_omp_in_parallel()) {
+    timer_stop(&timers[TIMER_BACKSOLVE]);
+  }
 }
 
 
