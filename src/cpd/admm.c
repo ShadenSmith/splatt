@@ -409,7 +409,7 @@ static void p_calc_residual(
   val_t p_resid = 0;
   val_t d_resid = 0;
 
-//#define ROW_CONVERGE
+#define ROW_CONVERGE
 #ifdef ROW_CONVERGE
 
   #pragma omp parallel for reduction(max:p_norm, p_resid, d_resid) \
@@ -439,13 +439,16 @@ static void p_calc_residual(
 #else
   #pragma omp parallel for reduction(+:p_norm, p_resid, d_resid) \
       if(!is_chunked)
-  for(idx_t x=0; x < nrows * ncols; ++x) {
-    val_t const pdiff = matv[x] - auxv[x];
-    val_t const ddiff = matv[x] - init[x];
+  for(idx_t i=0; i < nrows; ++i) {
+    for(idx_t j=0; j < ncols; ++j) {
+      idx_t const index = j + (i*ncols);
+      val_t const pdiff = matv[index] - auxv[index];
+      val_t const ddiff = matv[index] - init[index];
 
-    p_norm  += matv[x] * matv[x];
-    p_resid += pdiff * pdiff;
-    d_resid += ddiff * ddiff;
+      p_norm  += matv[index] * matv[index];
+      p_resid += pdiff * pdiff;
+      d_resid += ddiff * ddiff;
+    }
   }
 #endif
 
