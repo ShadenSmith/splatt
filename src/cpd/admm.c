@@ -405,10 +405,38 @@ static void p_calc_residual(
   idx_t const nrows = mat_primal->I;
   idx_t const ncols = mat_primal->J;
 
-  val_t p_norm = 0.;
-  val_t p_resid = 0.;
-  val_t d_resid = 0.;
+  val_t p_norm  = 0;
+  val_t p_resid = 0;
+  val_t d_resid = 0;
 
+//#define ROW_CONVERGE
+#ifdef ROW_CONVERGE
+
+  #pragma omp parallel for reduction(max:p_norm, p_resid, d_resid) \
+      if(!is_chunked)
+  for(idx_t i=0; i < nrows; ++i) {
+    val_t row_p_norm  = 0;
+    val_t row_p_resid = 0;
+    val_t row_d_resid = 0;
+
+    for(idx_t j=0; j < ncols; ++j) {
+      idx_t const index = j + (i*ncols);
+      val_t const pdiff = matv[index] - auxv[index];
+      val_t const ddiff = matv[index] - init[index];
+      row_p_norm  += matv[index] * matv[index];
+      row_p_resid += pdiff * pdiff;
+      row_d_resid += ddiff * ddiff;
+    }
+
+    /* save the row with the largest primal residual */
+    if(row_p_resid > p_resid) {
+      p_norm  = row_p_norm;
+      p_resid = row_p_resid;
+      d_resid = row_d_resid;
+    }
+  }
+
+#else
   #pragma omp parallel for reduction(+:p_norm, p_resid, d_resid) \
       if(!is_chunked)
   for(idx_t x=0; x < nrows * ncols; ++x) {
@@ -419,6 +447,7 @@ static void p_calc_residual(
     p_resid += pdiff * pdiff;
     d_resid += ddiff * ddiff;
   }
+#endif
 
   *primal_norm  = p_norm;
   *primal_resid = p_resid;
