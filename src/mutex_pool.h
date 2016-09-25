@@ -38,7 +38,7 @@ typedef struct
 
 
 #ifndef SPLATT_DEFAULT_LOCK_PAD
-#define SPLATT_DEFAULT_LOCK_PAD 8
+#define SPLATT_DEFAULT_LOCK_PAD 16
 #endif
 
 
