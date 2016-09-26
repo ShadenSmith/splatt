@@ -289,7 +289,12 @@ int splatt_cpd_cmd(
   /* assign defaults and parse arguments */
   cpd_cmd_args args;
   default_cpd_opts(&args);
+<<<<<<< HEAD
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER | ARGP_NO_HELP, 0, &args);
+=======
+  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
+  srand(args.opts[SPLATT_OPTION_RANDSEED]);
+>>>>>>> master
 
   sptensor_t * tt = NULL;
 

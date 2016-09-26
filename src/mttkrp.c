@@ -8,66 +8,11 @@
 #include "tile.h"
 #include "util.h"
 
-
-/******************************************************************************
- * MUTEX FUNCTIONS
- *****************************************************************************/
+#include "mutex_pool.h"
 
 
-static bool locks_initialized = false;
-
-#ifdef _OPENMP
-#define NLOCKS 1024
-static omp_lock_t locks[NLOCKS*16];
-#endif
-
-/**
-* @brief Initialize all OpenMP locks.
-*/
-static void p_init_locks()
-{
-#ifdef _OPENMP
-  if(!locks_initialized) {
-    for(int i=0; i < NLOCKS; ++i) {
-      omp_init_lock(locks + (i*16));
-    }
-    locks_initialized = true;
-  }
-
-#else
-  if(!locks_initialized) {
-    locks_initialized = true;
-  }
-#endif
-}
-
-/**
-* @brief Set a lock based on some id.
-*
-* @param id The lock to set.
-*/
-static inline void p_splatt_set_lock(
-    int id)
-{
-#ifdef _OPENMP
-  int i = (id % NLOCKS) * 16;
-  omp_set_lock(locks + i);
-#endif
-}
-
-/**
-* @brief Release a lock based on some id.
-*
-* @param id The lock to release.
-*/
-static inline void p_splatt_unset_lock(
-    int id)
-{
-#ifdef _OPENMP
-  int i = (id % NLOCKS) * 16;
-  omp_unset_lock(locks + i);
-#endif
-}
+/* XXX: this is a memory leak until cpd_ws is added/freed. */
+static mutex_pool * pool = NULL;
 
 
 /******************************************************************************
@@ -174,11 +119,11 @@ static inline void p_csf_process_fiber_lock(
   for(idx_t jj=start; jj < end; ++jj) {
     val_t * const restrict leafrow = leafmat + (inds[jj] * nfactors);
     val_t const v = vals[jj];
-    p_splatt_set_lock(inds[jj]);
+    mutex_set_lock(pool, inds[jj]);
     for(idx_t f=0; f < nfactors; ++f) {
       leafrow[f] += v * accumbuf[f];
     }
-    p_splatt_unset_lock(inds[jj]);
+    mutex_unset_lock(pool, inds[jj]);
   }
 }
 
@@ -459,11 +404,11 @@ static void p_csf_mttkrp_internal3(
 
       /* write to fiber row */
       val_t * const restrict ov = ovals  + (fids[f] * nfactors);
-      p_splatt_set_lock(fids[f]);
+      mutex_set_lock(pool, fids[f]);
       for(idx_t r=0; r < nfactors; ++r) {
         ov[r] += rv[r] * accumF[r];
       }
-      p_splatt_unset_lock(fids[f]);
+      mutex_unset_lock(pool, fids[f]);
     }
   }
 }
@@ -513,11 +458,11 @@ static void p_csf_mttkrp_leaf3(
       for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
         val_t const v = vals[jj];
         val_t * const restrict ov = ovals + (inds[jj] * nfactors);
-        p_splatt_set_lock(inds[jj]);
+        mutex_set_lock(pool, inds[jj]);
         for(idx_t r=0; r < nfactors; ++r) {
           ov[r] += v * accumF[r];
         }
-        p_splatt_unset_lock(inds[jj]);
+        mutex_unset_lock(pool, inds[jj]);
       }
     }
   }
@@ -1091,9 +1036,9 @@ static void p_csf_mttkrp_internal(
           fp, fids, vals, mvals, nmodes, nfactors);
 
       val_t * const restrict outbuf = ovals + (noderow * nfactors);
-      p_splatt_set_lock(noderow);
+      mutex_set_lock(pool, noderow);
       p_add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
-      p_splatt_unset_lock(noderow);
+      mutex_unset_lock(pool, noderow);
 
       /* backtrack to next unfinished node */
       do {
@@ -1267,7 +1212,9 @@ void mttkrp_csf(
   double const * const opts)
 {
   timer_start(&timers[TIMER_MTTKRP]);
-  p_init_locks();
+  if(pool == NULL) {
+    pool = mutex_alloc();
+  }
 
   /* clear output matrix */
   matrix_t * const M = mats[MAX_NMODES];
