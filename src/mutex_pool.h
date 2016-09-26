@@ -28,6 +28,8 @@ typedef struct
 
 #ifdef _OPENMP
   omp_lock_t * locks;
+#else
+  volatile int * locks;
 #endif
 } mutex_pool; 
 
