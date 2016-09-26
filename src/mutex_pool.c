@@ -15,9 +15,10 @@ mutex_pool * mutex_alloc_custom(
   pool->pad_size = pad_size;
   
 #ifdef _OPENMP
-  pool->locks = splatt_malloc(num_locks * pad_size * sizeof(omp_lock_t));
+  pool->locks = splatt_malloc(num_locks * pad_size * sizeof(*pool->locks));
   for(int l=0; l < num_locks; ++l) {
-    omp_init_lock(pool->locks + mutex_translate_id(l, num_locks, pad_size));
+    int const lock = mutex_translate_id(l, num_locks, pad_size);
+    omp_init_lock(pool->locks + lock);
   }
 
 #else
@@ -37,7 +38,14 @@ mutex_pool * mutex_alloc()
 void mutex_free(
     mutex_pool * pool)
 {
+#ifdef _OPENMP
+  for(int l=0; l < pool->num_locks; ++l) {
+    int const lock = mutex_translate_id(l, pool->num_locks, pool->pad_size);
+    omp_destroy_lock(pool->locks + lock);
+  }
+#endif
 
+  splatt_free(pool->locks);
   splatt_free(pool);
 }
 
