@@ -10,10 +10,8 @@
 
 #include "mutex_pool.h"
 
-/******************************************************************************
- * MUTEX FUNCTIONS
- *****************************************************************************/
 
+/* XXX: this is a memory leak until cpd_ws is added/freed. */
 static mutex_pool * pool = NULL;
 
 
