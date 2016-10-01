@@ -1231,6 +1231,7 @@ void splatt_tc_ccd(
 #endif
 
   p_transpose_model(model);
+  p_transpose_model(ws->best_model);
 
   /* cleanup */
   csf_free(csf, opts);
