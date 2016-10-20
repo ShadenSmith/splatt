@@ -493,7 +493,7 @@ void mat_solve_normals(
     #pragma omp for schedule(static, 1)
     for(int i=0; i < N; ++i) {
       neqs[i+(i*N)] = 1. + reg;
-      for(int j=i+1; j < N; ++j) {
+      for(int j=0; j < N; ++j) {
         neqs[j+(i*N)] = 1.;
       }
     }
@@ -506,7 +506,7 @@ void mat_solve_normals(
       val_t const * const restrict mat = aTa[m]->vals;
       #pragma omp for schedule(static, 1) nowait
       for(int i=0; i < N; ++i) {
-        for(int j=i; j < N; ++j) {
+        for(int j=0; j < N; ++j) {
           neqs[j+(i*N)] *= mat[j+(i*N)];
         }
       }
@@ -514,24 +514,25 @@ void mat_solve_normals(
   } /* omp parallel */
 
 
-  /* Cholesky factorization */
-  char uplo = 'L';
-  int order = N;
-  int lda = N;
+  /* LU factorization */
+  int * ipiv = splatt_malloc(N * sizeof(*ipiv));
   int info;
-  LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
+  dgetrf_(&N, &N, neqs, &N, ipiv, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
+    fprintf(stderr, "SPLATT: DGETRF returned %d\n", info);
   }
 
 
-  /* Solve against rhs */
-  int nrhs = (int) rhs->I;
-  int ldb = N;
-  LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, rhs->vals, &ldb, &info);
+  /* solve system of equations */
+  int nrhs = rhs->I;
+  char trans = 'N';
+  dgetrs_(&trans, &N, &nrhs, neqs, &N, ipiv, rhs->vals, &N, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
+    fprintf(stderr, "SPLATT: DGETRS returned %d\n", info);
   }
+
+  /* cleanup pivot */
+  splatt_free(ipiv);
 
   timer_stop(&timers[TIMER_INV]);
 }
