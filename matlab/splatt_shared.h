@@ -2,6 +2,7 @@
 #define SPLATTLAB_SHARED_H
 
 #include <splatt.h>
+#include <stdio.h>
 
 
 
@@ -382,7 +383,6 @@ static void p_free_tensor(
     splatt_free_csf(tt, splatt_opts);
   } else if(nargs > 1 && mxIsNumeric(args[0]) && mxIsNumeric(args[1])) {
     splatt_free_csf(tt, splatt_opts);
-    mexPrintf("correct\n");
   } else if(mxIsCell(args[0])) {
     /* pointer is mxMalloc'ed, we don't have to do anything */
   } else {

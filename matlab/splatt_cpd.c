@@ -5,6 +5,8 @@
 #include <string.h>
 #include <splatt.h>
 
+#include <stdio.h>
+
 #include "splatt_shared.h"
 
 
@@ -63,27 +65,28 @@ void mexFunction(
 
   p_free_tensor(nrhs, prhs, tt, cpd_opts);
 
-  mwSize dim = (mwSize) nmodes;
   mxArray * mxLambda = mxCreateDoubleMatrix(nfactors, 1, mxREAL);
   memcpy(mxGetPr(mxLambda), factored.lambda, nfactors * sizeof(double));
 
-  mxArray * matcell = mxCreateCellArray(1, &dim);
-  for(m=0; m < nmodes; ++m) {
-    mxSetCell(matcell, m, mxCreateDoubleMatrix(m+1, nfactors, mxREAL));
-  }
+
+  mxArray * matcell = mxCreateCellMatrix(1, nmodes);
   for(m=0; m < nmodes; ++m) {
     splatt_idx_t const nrows = factored.dims[m];
-    mxSetCell(matcell, m, mxCreateDoubleMatrix(nrows, nfactors, mxREAL));
+
+    mxArray * curr_mat = mxCreateDoubleMatrix(nrows, nfactors, mxREAL);
 
     /* we have to transpose due to column-major ordering in matlab */
-    double * const mxpr = mxGetPr(mxGetCell(matcell, m));
-    double const * const sppr = factored.factors[m];
+    double * const restrict mxpr = mxGetPr(curr_mat);
+    double const * const restrict sppr = factored.factors[m];
     splatt_idx_t i, j;
     for(j=0; j < nfactors; ++j) {
       for(i=0; i < nrows; ++i) {
         mxpr[i + (j*nrows)] = sppr[j + (i*nfactors)];
       }
     }
+
+    /* store in matcell */
+    mxSetCell(matcell, m, curr_mat);
   }
 
   char const * keys[] = {"lambda", "U", "fit"};
