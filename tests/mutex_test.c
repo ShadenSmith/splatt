@@ -36,7 +36,11 @@ CTEST2(mutex, alloc)
 
   ASSERT_EQUAL(SPLATT_DEFAULT_NLOCKS, pool->num_locks);
   ASSERT_EQUAL(SPLATT_DEFAULT_LOCK_PAD, pool->pad_size);
+#ifdef _OPENMP
   ASSERT_NOT_NULL(pool->locks);
+#else
+  ASSERT_NULL(pool->locks);
+#endif
 
   mutex_free(pool);
 }
@@ -50,7 +54,11 @@ CTEST2(mutex, alloc_custom)
 
   ASSERT_EQUAL(10, pool->num_locks);
   ASSERT_EQUAL(100, pool->pad_size);
+#ifdef _OPENMP
   ASSERT_NOT_NULL(pool->locks);
+#else
+  ASSERT_NULL(pool->locks);
+#endif
 
   mutex_free(pool);
 }
