@@ -355,7 +355,8 @@ double cpd_als_iterate(
         }
       }
     }
-    if(it > 0 && fabs(fit - oldfit) < opts[SPLATT_OPTION_TOLERANCE]) {
+    if(fit == 1. || 
+        (it > 0 && fabs(fit - oldfit) < opts[SPLATT_OPTION_TOLERANCE])) {
       break;
     }
     oldfit = fit;
