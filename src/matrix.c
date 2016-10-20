@@ -16,17 +16,28 @@
   void spotrs_(char *, int *, int *, float *, int *, float *, int *, int *);
   void ssyrk_(char *, char *, int *, int *, float *, float *, int *, float *, float *, int *);
 
+  void sgetrf_(int *, int *, float *, int *, int *, int *);
+  void sgetrs_(char *, int *, int *, float *, int *, int *, float *, int *, int *);
+
   #define LAPACK_DPOTRF spotrf_
   #define LAPACK_DPOTRS spotrs_
   #define LAPACK_DSYRK  ssyrk_
+  #define LAPACK_DGETRF sgetrf_
+  #define LAPACK_DGETRS sgetrs_
 #else
   void dpotrf_(char *, int *, double *, int *, int *);
   void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
   void dsyrk_(char *, char *, int *, int *, double *, double *, int *, double *, double *, int *);
 
+  /* LU */
+  void dgetrf_(int *, int *, double *, int *, int *, int *);
+  void dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
+
   #define LAPACK_DPOTRF dpotrf_
   #define LAPACK_DPOTRS dpotrs_
   #define LAPACK_DSYRK  dsyrk_
+  #define LAPACK_DGETRF dgetrf_
+  #define LAPACK_DGETRS dgetrs_
 #endif
 
 
@@ -483,7 +494,7 @@ void mat_solve_normals(
   timer_start(&timers[TIMER_INV]);
 
   /* nfactors */
-  int const N = aTa[0]->J;
+  int N = aTa[0]->J;
 
   /* form upper-triangual normal equations */
   val_t * const restrict neqs = aTa[MAX_NMODES]->vals;
@@ -517,7 +528,7 @@ void mat_solve_normals(
   /* LU factorization */
   int * ipiv = splatt_malloc(N * sizeof(*ipiv));
   int info;
-  dgetrf_(&N, &N, neqs, &N, ipiv, &info);
+  LAPACK_DGETRF(&N, &N, neqs, &N, ipiv, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DGETRF returned %d\n", info);
   }
@@ -526,7 +537,7 @@ void mat_solve_normals(
   /* solve system of equations */
   int nrhs = rhs->I;
   char trans = 'N';
-  dgetrs_(&trans, &N, &nrhs, neqs, &N, ipiv, rhs->vals, &N, &info);
+  LAPACK_DGETRS(&trans, &N, &nrhs, neqs, &N, ipiv, rhs->vals, &N, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DGETRS returned %d\n", info);
   }
