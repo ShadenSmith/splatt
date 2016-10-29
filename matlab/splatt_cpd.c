@@ -76,8 +76,8 @@ void mexFunction(
     mxArray * curr_mat = mxCreateDoubleMatrix(nrows, nfactors, mxREAL);
 
     /* we have to transpose due to column-major ordering in matlab */
-    double * const restrict mxpr = mxGetPr(curr_mat);
-    double const * const restrict sppr = factored.factors[m];
+    double * const mxpr = mxGetPr(curr_mat);
+    double const * const sppr = factored.factors[m];
     splatt_idx_t i, j;
     for(j=0; j < nfactors; ++j) {
       for(i=0; i < nrows; ++i) {
