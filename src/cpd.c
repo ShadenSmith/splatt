@@ -252,7 +252,14 @@ static val_t p_calc_fit(
   /* Compute inner product of tensor with new model */
   val_t const inner = p_tt_kruskal_inner(nmodes, rinfo, thds, lambda, mats,m1);
 
-  val_t const residual = sqrt(ttnormsq + norm_mats - (2 * inner));
+  /*
+   * We actually want sqrt(<X,X> + <Y,Y> - 2<X,Y>), but if the fit is perfect
+   * just make it 0.
+   */
+  val_t residual = ttnormsq + norm_mats - (2 * inner);
+  if(residual > 0.) {
+    residual = sqrt(residual);
+  }
   timer_stop(&timers[TIMER_FIT]);
   return 1 - (residual / sqrt(ttnormsq));
 }

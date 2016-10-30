@@ -499,8 +499,11 @@ void mat_matmul(
   timer_start(&timers[TIMER_MATMUL]);
   /* check dimensions */
   assert(A->J == B->I);
-  assert(C->I == A->I);
-  assert(C->J == B->J);
+  assert(C->I * C->J <= A->I * B->J);
+
+  /* set dimensions */
+  C->I = A->I;
+  C->J = B->J;
 
   val_t const * const restrict av = A->vals;
   val_t const * const restrict bv = B->vals;
@@ -630,6 +633,7 @@ void mat_solve_normals(
     if(info) {
       printf("SPLATT: DGELSS returned %d\n", info);
     }
+    printf("SPLATT:   DGELSS effective rank: %d\n", effective_rank);
 
     splatt_free(conditions);
     splatt_free(work);
