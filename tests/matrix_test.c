@@ -1,9 +1,9 @@
 
 #include "../src/matrix.h"
+#include "../src/thd_info.h"
 #include "ctest/ctest.h"
 #include "splatt_test.h"
 #include <math.h>
-#include <omp.h>
 
 #define NMATS 4
 
@@ -16,7 +16,7 @@ CTEST_DATA(matrix)
 CTEST_SETUP(matrix)
 {
   data->nthreads = 7;
-  omp_set_num_threads(data->nthreads);
+  splatt_omp_set_num_threads(data->nthreads);
 
   data->mats[0] = mat_rand(100, 3);
   data->mats[1] = mat_rand(3, 100);
