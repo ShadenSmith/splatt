@@ -19,15 +19,14 @@
   void sgetrf_(int *, int *, float *, int *, int *, int *);
   void sgetrs_(char *, int *, int *, float *, int *, int *, float *, int *, int *);
 
-  void sgels_(char *, int *, int *, int *, float *, int *, float *, int *, float *, int *, int *);
-
+  void sgelss_(int *, int *, int *, float *, int *, float *, int *, float *, float *,   int *, float *, int *, int *);
 
   #define LAPACK_DPOTRF spotrf_
   #define LAPACK_DPOTRS spotrs_
   #define LAPACK_DSYRK  ssyrk_
   #define LAPACK_DGETRF sgetrf_
   #define LAPACK_DGETRS sgetrs_
-  #define LAPACK_DGELS sgels_
+  #define LAPACK_DGELSS sgelss_
 #else
   void dpotrf_(char *, int *, double *, int *, int *);
   void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
@@ -37,15 +36,15 @@
   void dgetrf_(int *, int *, double *, int *, int *, int *);
   void dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
 
-  /* QR solve */
-  void dgels_(char *, int *, int *, int *, double *, int *, double *, int *, double *, int *, int *);
+  /* SVD solve */
+  void dgelss_(int *, int *, int *, double *, int *, double *, int *, double *, double *,   int *, double *, int *, int *);
 
   #define LAPACK_DPOTRF dpotrf_
   #define LAPACK_DPOTRS dpotrs_
   #define LAPACK_DSYRK  dsyrk_
   #define LAPACK_DGETRF dgetrf_
   #define LAPACK_DGETRS dgetrs_
-  #define LAPACK_DGELS dgels_
+  #define LAPACK_DGELSS dgelss_
 #endif
 
 
@@ -584,12 +583,11 @@ void mat_solve_normals(
 
   val_t * const neqs = aTa[MAX_NMODES]->vals;
 
-  bool is_spd = true;
-
   /* Cholesky factorization */
+  bool is_spd = true;
   LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: Gram matrix is not SPD. Trying *GELS().\n");
+    fprintf(stderr, "SPLATT: Gram matrix is not SPD. Trying `GELSS`.\n");
     is_spd = false;
   }
 
@@ -604,24 +602,36 @@ void mat_solve_normals(
     /* restore gram matrix */
     p_form_gram(aTa[MAX_NMODES], aTa, mode, nmodes, reg);
 
-    char trans = 'N';
+    int effective_rank;
+    val_t * conditions = splatt_malloc(N * sizeof(*conditions));
 
     /* query worksize */
     int lwork = -1;
+
+    val_t rcond = -1.0f;
+
     val_t work_query;
-    LAPACK_DGELS(&trans, &N, &N, &nrhs, neqs, &lda, rhs->vals, &ldb, &work_query,
-        &lwork, &info);
+    LAPACK_DGELSS(&N, &N, &nrhs,
+        neqs, &lda,
+        rhs->vals, &ldb,
+        conditions, &rcond, &effective_rank,
+        &work_query, &lwork, &info);
     lwork = (int) work_query;
 
     /* setup workspace */
     val_t * work = splatt_malloc(lwork * sizeof(*work));
 
-    /* Use a LS solver */
-    LAPACK_DGELS(&trans, &N, &N, &nrhs, neqs, &lda, rhs->vals, &ldb, work, &lwork,
-        &info);
+    /* Use an SVD solver */
+    LAPACK_DGELSS(&N, &N, &nrhs,
+        neqs, &lda,
+        rhs->vals, &ldb,
+        conditions, &rcond, &effective_rank,
+        work, &lwork, &info);
     if(info) {
-      printf("SPLATT: DGELS returned %d\n", info);
+      printf("SPLATT: DGELSS returned %d\n", info);
     }
+
+    splatt_free(conditions);
     splatt_free(work);
   }
 
