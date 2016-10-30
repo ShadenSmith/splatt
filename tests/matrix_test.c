@@ -73,7 +73,11 @@ CTEST2(matrix, matmul)
     /* compare */
     for(idx_t i=0; i < I; ++i) {
       for(idx_t j=0; j < J; ++j) {
+#if SPLATT_VAL_TYPEWIDTH == 32
+        ASSERT_DBL_NEAR_TOL(gv[j+(i*J)], C->vals[j+(i*J)], 1e-4);
+#else
         ASSERT_DBL_NEAR_TOL(gv[j+(i*J)], C->vals[j+(i*J)], 1e-12);
+#endif
       }
     }
 
