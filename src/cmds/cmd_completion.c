@@ -360,11 +360,7 @@ int splatt_tc_cmd(
     printf("MAXTIME=%0.1fs ", ws->max_seconds);
   }
   printf("TOL=%0.1e ", ws->tolerance);
-  if(args.set_seed) {
-    printf("SEED=%u ", args.seed);
-  } else {
-    printf("SEED=time ");
-  }
+  printf("SEED=%u ", args.seed);
 #ifdef SPLATT_USE_MPI
   printf("RANKS=%d ", rinfo.npes);
 #endif
