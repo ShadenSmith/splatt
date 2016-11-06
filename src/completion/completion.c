@@ -495,7 +495,7 @@ tc_ws * tc_ws_alloc(
   /* convergence */
   ws->max_its = 1000;
   ws->num_inner = 1;
-  ws->max_seconds = 1000;
+  ws->max_seconds = -1;
   ws->max_badepochs = 20;
   ws->nbadepochs = 0;
   ws->best_epoch = 0;

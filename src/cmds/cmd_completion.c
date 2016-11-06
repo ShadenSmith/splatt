@@ -23,11 +23,13 @@ static char tc_doc[] =
   "splatt-complete -- Complete a tensor with missing entries.\n"
   "Available tensor completion algorithms are:\n"
   "  als\t\talternating least squares\n"
-  "  ccd\t\tcoordinate descent\n"
-  "  sgd\t\tstochastic gradient descent\n"
+  "  ccd\t\tcoordinate descent (CCD++)\n"
+  "  sgd\t\tstochastic gradient descent\n";
+#if 0
   "  gd\t\tgradient descent\n"
   "  cg\t\tnonlinear conjugate gradient\n"
   "  lbfgs\t\tlimited-memory BFGS\n";
+#endif
 
 
 #define TC_REG 255
@@ -41,13 +43,13 @@ static struct argp_option tc_options[] = {
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
-  {"alg", 'a', "ALG", 0, "which opt algorithm to use (default: als)"},
+  {"alg", 'a', "ALG", 0, "which opt algorithm to use (default: ccd++)"},
   {"nowrite", TC_NOWRITE, 0, 0, "do not write output to file"},
   {"step", 's', "SIZE", 0, "step size (learning rate) for SGD"},
   {"reg", TC_REG, "REGULARIZATION", 0, "L2 regularization (default: 2e-1)"},
-  {"inner", TC_INNER, "NITERS", 0, "number of inner iterations to use during CCD++ (default: 1)"},
+  {"ccdinner", TC_INNER, "NITERS", 0, "number of inner iterations to use during CCD++ (default: 1)"},
   {"seed", TC_SEED, "SEED", 0, "random seed (default: system time)"},
-  {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, <= 0 to disable (default: 1000)"},
+  {"time", TC_TIME, "SECONDS", 0, "maximum number of seconds, (default: none)"},
   {"tol", TC_TOL, "TOLERANCE", 0, "converge if RMSE-vl has not improved by TOLERANCE in 20 epochs (default: 1e-4)"},
   {0}
 };
@@ -136,7 +138,7 @@ static void default_tc_opts(
     args->ifnames[n] = NULL;
   }
 
-  args->which_alg = SPLATT_TC_ALS;
+  args->which_alg = SPLATT_TC_CCD;
   args->write = true;
   args->nfactors = 10;
   args->learn_rate = -1.;
