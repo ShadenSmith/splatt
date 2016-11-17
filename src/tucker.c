@@ -362,7 +362,7 @@ thd_info * tucker_alloc_thds(
 
   idx_t const maxfactor = nfactors[argmax_elem(nfactors, nmodes)];
 
-  thd_info * thds =  thd_init(nthreads, 5,
+  thd_info * thds =  thd_init(nthreads, 3,
     /* nnz accumulation & buffers */
     (TTMC_BUFROWS * maxcols * sizeof(val_t)),
     /* fids */
