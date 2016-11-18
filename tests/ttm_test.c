@@ -126,7 +126,7 @@ static void p_csf_ttm(
       for(idx_t mtest=2; mtest < nmodes; ++mtest) {
         /* skip if out of order */
         if(perm[mtest] < perm[mtest-1]) {
-          return;
+          goto CLEANUP;
         }
       }
       break;
@@ -136,7 +136,7 @@ static void p_csf_ttm(
       for(idx_t mtest=1; mtest < nmodes; ++mtest) {
         /* skip this if out of order */
         if(perm[mtest] < perm[mtest-1]) {
-          return;
+          goto CLEANUP;
         }
       }
       break;
@@ -150,7 +150,7 @@ static void p_csf_ttm(
       for(idx_t mtest=1; mtest < nmodes; ++mtest) {
         /* skip this if out of order */
         if(perm[mtest] < perm[mtest-1]) {
-          return;
+          goto CLEANUP;
         }
       }
       break;
@@ -166,6 +166,7 @@ static void p_csf_ttm(
     p_compare_vecs(test, gold, outdim, outdim);
   }
 
+  CLEANUP:
   csf_free(csf, opts);
   thd_free(thds, opts[SPLATT_OPTION_NTHREADS]);
   free(gold);
@@ -175,6 +176,7 @@ static void p_csf_ttm(
 
 CTEST_DATA(ttm)
 {
+  double * opts;
   idx_t ntensors;
   idx_t nfactors[MAX_NMODES];
   sptensor_t * tensors[MAX_DSETS];
@@ -184,6 +186,9 @@ CTEST_DATA(ttm)
 
 CTEST_SETUP(ttm)
 {
+  data->opts = splatt_default_opts();
+  data->opts[SPLATT_OPTION_NTHREADS] = 7;
+
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     data->nfactors[m] = 3;//+m;
   }
@@ -204,7 +209,12 @@ CTEST_SETUP(ttm)
 
 CTEST_TEARDOWN(ttm)
 {
+  splatt_free_opts(data->opts);
+
   for(idx_t i=0; i < data->ntensors; ++i) {
+    for(idx_t m=0; m < data->tensors[i]->nmodes; ++m) {
+      mat_free(data->mats[i][m]);
+    }
     tt_free(data->tensors[i]);
   }
 }
@@ -237,100 +247,74 @@ CTEST2(ttm, tenout_alloc)
 
 CTEST2(ttm, csf_one_notile)
 {
-  idx_t const nthreads = 1;
-
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  data->opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
+  data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
-
-    p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
+    p_csf_ttm(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
 
 
 CTEST2(ttm, csf_two_notile)
 {
-  idx_t const nthreads = 7;
-
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  data->opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
+  data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
-
-    p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
+    p_csf_ttm(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
 
 
 CTEST2(ttm, csf_all_notile)
 {
-  idx_t const nthreads = 7;
-
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  data->opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
+  data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
-    p_csf_ttm(opts, tt, data->mats[i], data->nfactors);
+    p_csf_ttm(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
 
 
 CTEST2(ttm, rearrange_core_one)
 {
-  idx_t const nthreads = 7;
-
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  data->opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
+  data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
 
-    p_csf_core(opts, tt, data->mats[i], data->nfactors);
+    p_csf_core(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
 
 
 CTEST2(ttm, rearrange_core_two)
 {
-  idx_t const nthreads = 7;
-
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  data->opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
+  data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
 
-    p_csf_core(opts, tt, data->mats[i], data->nfactors);
+    p_csf_core(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
 
 
 CTEST2(ttm, rearrange_core_all)
 {
-  idx_t const nthreads = 7;
-
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = nthreads;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
+  data->opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
+  data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
     sptensor_t * tt = data->tensors[i];
-    p_csf_core(opts, tt, data->mats[i], data->nfactors);
+    p_csf_core(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
 
