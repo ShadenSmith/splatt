@@ -159,6 +159,7 @@ splatt_graph * graph_alloc(
 void graph_free(
     splatt_graph * graph);
 
+
 #define hgraph_uncut splatt_hgraph_uncut
 /**
 * @brief Given a hypergraph partitioning, return a list of the uncut nets.
@@ -173,6 +174,25 @@ idx_t * hgraph_uncut(
   hgraph_t const * const hg,
   idx_t const * const parts,
   idx_t * const nnotcut);
+
+
+
+#ifdef SPLATT_USE_METIS
+#define metis_part splatt_metis_part
+/**
+* @brief Partition a graph using Metis with default options.
+*
+* @param graph The graph to partition.
+* @param num_partitions The number of partitions to use.
+* @param[out] edgecut The edgecut of the resulting partitioning.
+*
+* @return A partitioning of the vertices.
+*/
+splatt_idx_t *  metis_part(
+    splatt_graph * graph,
+    splatt_idx_t const num_partitions,
+    splatt_idx_t * const edgecut);
+#endif
 
 
 #ifdef SPLATT_USE_PATOH

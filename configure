@@ -1,7 +1,26 @@
 #!/bin/bash
-# Copyright 2014-2015, Dominique LaSalle. Used with permission.
-# Modified by Shaden Smith, 2015-2016.
 
+# The MIT License (MIT)
+#
+# Copyright (c) 2014-2016, Dominique LaSalle and Shaden Smith
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 
 ###############################################################################
@@ -40,10 +59,10 @@ show_help() {
   echo "    Set the C compiler."
   #echo "  --cxx=<cxx>"
   #echo "    Set the C++ compiler."
-  echo "  --debug"
-  echo "    Turn off optimizations and build with debugging symbols and assertions."
-  echo "  --dev"
-  echo "    Build in development mode. Warnings and extra logging enabled."
+
+  echo ""
+  echo "  --max-modes=<#>"
+  echo "    Set the maxmimum number of tensor modes (default: 8)."
 
   echo ""
   echo "  --with-index-size={32,64}"
@@ -51,9 +70,12 @@ show_help() {
   echo "  --with-precision={single,double}"
   echo "    Use single or double precision floating point values (default: double)."
 
-  echo ""
-  echo "  --with-max-modes=<#>"
-  echo "    Set the maxmimum number of tensor modes (default: 8)."
+  echo "  --intel"
+  echo "    Use the Intel compiler (icc), MKL, and possibly Intel-specific optimizations."
+  echo "  --debug"
+  echo "    Turn off optimizations and build with debugging symbols and assertions."
+  echo "  --dev"
+  echo "    Build in development mode. Warnings and extra logging enabled."
 
   echo ""
   echo "LIBRARY OPTIONS"
@@ -76,6 +98,13 @@ show_help() {
   echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
   echo "  --download-blas-lapack"
   echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
+
+  # Metis
+  echo "";
+  echo "  --with-metis"
+  echo "    Build with Metis support. Let CMake auto-detect Metis environment."
+  echo "  --with-metis-lib=<lib>"
+  echo "    Set the Metis library (e.g., /usr/.../libmetis.a)."
 
   echo ""
   echo "INSTALLATION OPTIONS:"
@@ -123,6 +152,11 @@ for i in "${@}"; do
     --cxx=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=${i#*=}"
     ;;
+
+    --intel)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DINTEL_OPT=1"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=icc"
+    ;;
     # debug
     --debug)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"
@@ -155,7 +189,7 @@ for i in "${@}"; do
         die "Unknown precision: ${PRECISION}. Choose between {single,double}."
       fi
     ;;
-    --with-max-modes=*)
+    --max-modes=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
     ;;
 
@@ -191,6 +225,14 @@ for i in "${@}"; do
       CONFIG_FLAGS="${CONFIG_FLAGS} -DMPICXX=${i#*=}"
     ;;
 
+
+    # Metis
+    --with-metis)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_METIS=1"
+    ;;
+    --with-metis-lib=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_METIS_LIB=${i#*=}"
+    ;;
 
 
     ## INSTALL OPTIONS

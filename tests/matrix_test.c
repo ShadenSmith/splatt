@@ -1,9 +1,9 @@
 
 #include "../src/matrix.h"
+#include "../src/thd_info.h"
 #include "ctest/ctest.h"
 #include "splatt_test.h"
 #include <math.h>
-#include <omp.h>
 
 #define NMATS 4
 
@@ -16,7 +16,7 @@ CTEST_DATA(matrix)
 CTEST_SETUP(matrix)
 {
   data->nthreads = 7;
-  omp_set_num_threads(data->nthreads);
+  splatt_omp_set_num_threads(data->nthreads);
 
   data->mats[0] = mat_rand(100, 3);
   data->mats[1] = mat_rand(3, 100);
@@ -89,7 +89,6 @@ CTEST2(matrix, transpose_colmajor)
 }
 
 
-
 CTEST2(matrix, matmul)
 {
   for(idx_t m=0; m < NMATS; ++m) {
@@ -130,7 +129,11 @@ CTEST2(matrix, matmul)
     /* compare */
     for(idx_t i=0; i < I; ++i) {
       for(idx_t j=0; j < J; ++j) {
+#if SPLATT_VAL_TYPEWIDTH == 32
+        ASSERT_DBL_NEAR_TOL(gv[j+(i*J)], C->vals[j+(i*J)], 1e-4);
+#else
         ASSERT_DBL_NEAR_TOL(gv[j+(i*J)], C->vals[j+(i*J)], 1e-12);
+#endif
       }
     }
 
@@ -139,7 +142,6 @@ CTEST2(matrix, matmul)
     mat_free(gold);
   }
 }
-
 
 CTEST2(matrix, ata)
 {
@@ -268,4 +270,3 @@ CTEST(matrix, vec_normalize)
 
   ASSERT_DBL_NEAR_TOL(1., sqrt(observed), 1e-16);
 }
-

@@ -53,8 +53,7 @@ static mxArray * p_pack_csf(
   }
 
   /* create splatt_csf matlab struct */
-  mwSize dim = (mwSize) ntensors;
-  mxArray * csf = mxCreateCellArray(1, &dim);
+  mxArray * csf = mxCreateCellMatrix(1, (mwSize) ntensors);
 
   splatt_idx_t t;
   for(t=0; t < ntensors; ++t) {
@@ -76,8 +75,7 @@ static mxArray * p_pack_csf(
     p_mk_uint64(curr, "tile_dims", 1, tt[t].tile_dims);
 
     /* sparsity pattern for each tile */
-    dim = (mwSize) tt[t].ntiles;
-    mxArray * sparsities = mxCreateCellArray(1, &dim);
+    mxArray * sparsities = mxCreateCellMatrix(1, (mwSize) tt[t].ntiles);
 
     splatt_idx_t tile;
     for(tile=0; tile < tt[t].ntiles; ++tile) {
@@ -97,8 +95,7 @@ static mxArray * p_pack_csf(
       }
 
       /* copy fptrs */
-      dim = (mwSize) nmodes-1;
-      mxArray * mxfptrs = mxCreateCellArray(1, &dim);
+      mxArray * mxfptrs = mxCreateCellMatrix(1, (mwSize) nmodes-1);
       splatt_idx_t m;
       for(m=0; m < nmodes-1; ++m) {
         mxArray * fp = mxCreateNumericMatrix(1, pt->nfibs[m]+1, mxUINT64_CLASS, mxREAL);
@@ -109,8 +106,7 @@ static mxArray * p_pack_csf(
       mxSetField(curr_tile, 0, "fptr", mxfptrs);
 
       /* copy fids */
-      dim = (mwSize) nmodes;
-      mxArray * mxfids = mxCreateCellArray(1, &dim);
+      mxArray * mxfids = mxCreateCellMatrix(1, (mwSize) nmodes);
 
       mxArray * has_fids = mxCreateNumericMatrix(1, nmodes, mxINT32_CLASS,
           mxREAL);

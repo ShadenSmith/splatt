@@ -1,5 +1,7 @@
 #!/bin/bash
 
 # Regular tests
-./build/Linux-x86_64/bin/test
+
+BUILDDIR="build/$(uname -s)-$(uname -m)"
+./${BUILDDIR}/bin/test
 

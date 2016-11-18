@@ -80,3 +80,39 @@ CTEST2(graph, graph_convert)
     graph_free(graph);
   }
 }
+
+
+#ifdef SPLATT_USE_METIS
+CTEST2(graph, metis_part)
+{
+  for(idx_t i=0; i < data->ntensors; ++i) {
+    sptensor_t * const tt = data->tensors[i];
+    splatt_graph * graph = graph_convert(tt);
+
+    idx_t mycut = 0;
+    idx_t cut = 0;
+    idx_t * parts = metis_part(graph, 8, &cut);
+
+    /* now make sure cut actually matches */
+    for(idx_t v=0; v < graph->nvtxs; ++v) {
+      idx_t partA = parts[v];
+      for(idx_t e=graph->eptr[v]; e < graph->eptr[v+1]; ++e) {
+        idx_t partB = parts[graph->eind[e]];
+
+        if(partA != partB) {
+          if(graph->ewgts != NULL) {
+            mycut += graph->ewgts[e];
+          } else {
+            ++mycut;
+          }
+        }
+      }
+    }
+    /* / 2 because of undirected graph */
+    ASSERT_EQUAL(cut, mycut / 2);
+
+    splatt_free(parts);
+    graph_free(graph);
+  }
+}
+#endif

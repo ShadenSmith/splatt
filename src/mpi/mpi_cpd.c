@@ -91,10 +91,6 @@ static val_t p_tt_kruskal_inner(
 
 #ifdef SPLATT_USE_MPI
   timer_start(&timers[TIMER_MPI_FIT]);
-  timer_start(&timers[TIMER_MPI_IDLE]);
-  MPI_Barrier(rinfo->comm_3d);
-  timer_stop(&timers[TIMER_MPI_IDLE]);
-
   MPI_Allreduce(&myinner, &inner, 1, SPLATT_MPI_VAL, MPI_SUM, rinfo->comm_3d);
   timer_stop(&timers[TIMER_MPI_FIT]);
 #else
@@ -189,7 +185,14 @@ static val_t p_calc_fit(
   /* Compute inner product of tensor with new model */
   val_t const inner = p_tt_kruskal_inner(nmodes, rinfo, thds, lambda, mats,m1);
 
-  val_t const residual = sqrt(ttnormsq + norm_mats - (2 * inner));
+  /*
+   * We actually want sqrt(<X,X> + <Y,Y> - 2<X,Y>), but if the fit is perfect
+   * just make it 0.
+   */
+  val_t residual = ttnormsq + norm_mats - (2 * inner);
+  if(residual > 0.) {
+    residual = sqrt(residual);
+  }
   timer_stop(&timers[TIMER_FIT]);
   return 1 - (residual / sqrt(ttnormsq));
 }
@@ -274,10 +277,6 @@ static void p_reduce_rows_all2all(
   int const * const restrict nbr2local_ptr = rinfo->local2nbr_ptr[m];
   int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
   int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
-
-  timer_start(&timers[TIMER_MPI_IDLE]);
-  MPI_Barrier(rinfo->layer_comm[m]);
-  timer_stop(&timers[TIMER_MPI_IDLE]);
 
   timer_start(&timers[TIMER_MPI_COMM]);
   /* exchange rows */
@@ -596,10 +595,6 @@ static void p_update_rows_all2all(
       int const * const restrict nbr2local_ptr = rinfo->local2nbr_ptr[m];
       int const * const restrict nbr2globs_disp = rinfo->nbr2globs_disp[m];
       int const * const restrict nbr2local_disp = rinfo->local2nbr_disp[m];
-
-      timer_start(&timers[TIMER_MPI_IDLE]);
-      MPI_Barrier(rinfo->layer_comm[m]);
-      timer_stop(&timers[TIMER_MPI_IDLE]);
 
       /* exchange rows */
       timer_start(&timers[TIMER_MPI_COMM]);

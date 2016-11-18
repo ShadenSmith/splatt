@@ -9,64 +9,12 @@
 #include "util.h"
 
 
+#include "mutex_pool.h"
 
-/******************************************************************************
- * MUTEX FUNCTIONS
- *****************************************************************************/
-static bool locks_initialized = false;
 
-#ifdef _OPENMP
-#define NLOCKS 1024
-static omp_lock_t locks[NLOCKS*16];
-#endif
+/* XXX: this is a memory leak until cpd_ws is added/freed. */
+static mutex_pool * pool = NULL;
 
-/**
-* @brief Initialize all OpenMP locks.
-*/
-static void p_init_locks()
-{
-#ifdef _OPENMP
-  if(!locks_initialized) {
-    for(int i=0; i < NLOCKS; ++i) {
-      omp_init_lock(locks + (i*16));
-    }
-    locks_initialized = true;
-  }
-
-#else
-  if(!locks_initialized) {
-    locks_initialized = true;
-  }
-#endif
-}
-
-/**
-* @brief Set a lock based on some id.
-*
-* @param id The lock to set.
-*/
-static inline void p_splatt_set_lock(
-    int id)
-{
-#ifdef _OPENMP
-  int i = (id % NLOCKS) * 16;
-  omp_set_lock(locks + i);
-#endif
-}
-
-/**
-* @brief Release a lock based on some id.
-*
-* @param id The lock to release.
-*/
-static inline void p_splatt_unset_lock(
-    int id)
-{
-#ifdef _OPENMP
-  int i = (id % NLOCKS) * 16;
-  omp_unset_lock(locks + i);
-#endif
-}
 
 
 /******************************************************************************
@@ -357,11 +305,11 @@ static inline void p_csf_process_fiber_lock(
     val_t * const restrict leafrow = tenout + (inds[jj] * ncols);
     val_t const v = vals[jj];
 
-    p_splatt_set_lock(inds[jj]);
+    mutex_set_lock(pool, inds[jj]);
     for(idx_t f=0; f < ncols; ++f) {
       leafrow[f] += v * accumbuf[f];
     }
-    p_splatt_unset_lock(inds[jj]);
+    mutex_unset_lock(pool, inds[jj]);
   }
 }
 
@@ -605,9 +553,9 @@ static void p_csf_ttmc_intl3(
 
       /* accumulate outer product into tenout */
       val_t * const restrict outv = tenout + (fids[f] * rankA * rankB);
-      p_splatt_set_lock(fids[f]);
+      mutex_set_lock(pool, fids[f]);
       p_twovec_outer_prod_accum(av, rankA, accum_nnz, rankB, outv);
-      p_splatt_unset_lock(fids[f]);
+      mutex_unset_lock(pool, fids[f]);
     } /* foreach fiber */
   } /* foreach slice */
 }
@@ -675,11 +623,11 @@ static void p_csf_ttmc_leaf3(
       for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
         val_t const v = vals[jj];
         val_t * const restrict outv = tenout + (inds[jj] * rankA * rankB);
-        p_splatt_set_lock(inds[jj]);
+        mutex_set_lock(pool, inds[jj]);
         for(idx_t r=0; r < rankA * rankB; ++r) {
           outv[r] += v * accum_oprod[r];
         }
-        p_splatt_unset_lock(inds[jj]);
+        mutex_unset_lock(pool, inds[jj]);
       }
 
     } /* foreach fiber */
@@ -986,11 +934,11 @@ static void p_csf_ttmc_internal(
       idx_t const noderow = fids[outdepth][idxstack[outdepth]];
       val_t * const restrict outv = tenout + (noderow * ncols);
       assert(ncols == ncols_lvl[outdepth-1] * ncols_lvl[outdepth+1]);
-      p_splatt_set_lock(noderow);
+      mutex_set_lock(pool, noderow);
       p_twovec_outer_prod_accum(buf[outdepth-1], ncols_lvl[outdepth-1],
                                 buf[outdepth], ncols_lvl[outdepth+1],
                                 outv);
-      p_splatt_unset_lock(noderow);
+      mutex_unset_lock(pool, noderow);
       /* clear buffer -- hacked to be outdepth+1 */
       for(idx_t f=0; f < ncols_lvl[outdepth+1]; ++f) {
         buf[outdepth][f] = 0.;
@@ -1128,8 +1076,10 @@ void ttmc_csf(
   /* clear out stale results */
   p_clear_tenout(tenout, mats, tensors->nmodes, mode, tensors->dims);
 
-  omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
-	p_init_locks();
+  splatt_omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
+  if(pool == NULL) {
+    pool = mutex_alloc();
+  }
 
   idx_t nmodes = tensors[0].nmodes;
   /* find out which level in the tree this is */
@@ -1187,7 +1137,9 @@ void ttmc_stream(
 {
   idx_t const nmodes = tt->nmodes;
 
-  p_init_locks();
+  if(pool == NULL) {
+    pool = mutex_alloc();
+  }
 
   /* clear out stale results */
   p_clear_tenout(tenout, mats, nmodes, mode, tt->dims);
@@ -1251,13 +1203,13 @@ void ttmc_stream(
               curr_buff, buff_size,
               buffers[m]);
         } else {
-          p_splatt_set_lock(tt->ind[mode][n]);
+          mutex_set_lock(pool, tt->ind[mode][n]);
           /* accumulate into output on the first mode (last to be processed) */
           p_twovec_outer_prod_accum(
               mvals[m] + (tt->ind[m][n] * nfactors[m]), nfactors[m],
               curr_buff, buff_size,
               outrow);
-          p_splatt_unset_lock(tt->ind[mode][n]);
+          mutex_unset_lock(pool, tt->ind[mode][n]);
         }
 
         /* next buffer */
