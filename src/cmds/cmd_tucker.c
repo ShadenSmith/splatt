@@ -161,9 +161,9 @@ int splatt_tucker_cmd(
   tt_free(tt);
 
   splatt_tucker_t factored;
-  int ret = splatt_tucker_als(nfactors, nmodes, csf, args.opts, &factored);
+  int ret = splatt_tucker_hooi(nfactors, nmodes, csf, args.opts, &factored);
   if(ret != SPLATT_SUCCESS) {
-    fprintf(stderr, "splatt_tucker_als returned %d. Aborting.\n", ret);
+    fprintf(stderr, "splatt_tucker_hooi returned %d. Aborting.\n", ret);
     return EXIT_FAILURE;
   }
 

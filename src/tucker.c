@@ -24,7 +24,7 @@
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
-int splatt_tucker_als(
+int splatt_tucker_hooi(
     splatt_idx_t const * const nfactors,
     splatt_idx_t const nmodes,
     splatt_csf const * const tensors,

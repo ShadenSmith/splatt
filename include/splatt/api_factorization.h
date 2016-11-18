@@ -46,7 +46,8 @@ int splatt_cpd_als(
 
 
 /**
-* @brief Compute the Tucker decomposition using alternating least squares.
+* @brief Compute the Tucker decomposition using higher-order orthogonal
+*        iterations (HOOI).
 *
 * @param nfactors The number of factors to use for each mode.
 * @param nmodes The number of modes in the tensor.
@@ -56,7 +57,7 @@ int splatt_cpd_als(
 *
 * @return SPLATT error code (splatt_error_t). SPLATT_SUCCESS on success.
 */
-int splatt_tucker_als(
+int splatt_tucker_hooi(
     splatt_idx_t const * const nfactors,
     splatt_idx_t const nmodes,
     splatt_csf const * const tensors,

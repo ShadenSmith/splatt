@@ -48,7 +48,7 @@ int main(int argc, char ** argv)
     splatt_init_timers();
 
     splatt_tucker_t factored;
-    ret = splatt_tucker_als(rank, nmodes, csf, opts, &factored);
+    ret = splatt_tucker_hooi(rank, nmodes, csf, opts, &factored);
 
     splatt_report_times();
 
