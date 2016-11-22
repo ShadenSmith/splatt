@@ -87,7 +87,7 @@ int splatt_ttmc_full(
   make_core(ttmc_buf, matrices[nmodes-1], tenout, nmodes, nmodes-1, ncolumns,
       nrows);
   splatt_free(ttmc_buf);
-  
+
   /* Permute to invert tensors[nmodes-1].dim_perm. */
   permute_core(tensors, tenout, ncolumns, options);
 

@@ -324,7 +324,7 @@ CTEST2(ttm, ttmc_full)
   sptensor_t * tt = tt_alloc(3, 3);
   tt->dims[0] = 3;
   tt->dims[1] = 3;
-  tt->dims[2] = 3;
+  tt->dims[2] = 2;
 
   tt->vals[0] = 1.;
   tt->ind[0][0] = 0;
@@ -364,7 +364,62 @@ CTEST2(ttm, ttmc_full)
     ASSERT_DBL_NEAR_TOL(6., core[x], 1e-12);
   }
 
+  /* Now adjust matrices to get unique values in core */
+  /* A = [1 0.5; 1 0.5] */
+  mats[0][0] = 1.0;
+  mats[0][1] = 0.5;
+  mats[0][2] = 1.0;
+  mats[0][3] = 0.5;
+  mats[0][4] = 1.0;
+  mats[0][5] = 0.5;
+
+  /* B = [0.3 1 ; 0.3 1] */
+  mats[1][0] = 0.3;
+  mats[1][1] = 1.0;
+  mats[1][2] = 0.3;
+  mats[1][3] = 1.0;
+  mats[1][4] = 0.3;
+  mats[1][5] = 1.0;
+
+  /* C = [1 2 ; 3 4] */
+  mats[2][0] = 1.0;
+  mats[2][1] = 2.0;
+  mats[2][2] = 3.0;
+  mats[2][3] = 4.0;
+
+
+  /*
+   * ttm(tt, mats, 't')
+	 * ans(:,:,1) = 
+	 *     4.8000   16.0000
+	 *     2.4000    8.0000
+	 * ans(:,:,2) = 
+	 *     6.6000   22.0000
+	 *     3.3000   11.0000
+   *
+   *  Core should be stored "row major", so fibers going into the screen are
+   *  contiguous.
+	 */
+
+  val_t * gold = splatt_malloc(core_size * sizeof(*gold));
+  ASSERT_EQUAL(8, core_size);
+  gold[0] = 4.8;
+  gold[1] = 6.6;
+  gold[2] = 16.;
+  gold[3] = 22.;
+  gold[4] = 2.4;
+  gold[5] = 3.3;
+  gold[6] = 8.0;
+  gold[7] = 11.;
+
+  ret = splatt_ttmc_full(ncolumns, csf, mats, core, opts);
+  ASSERT_EQUAL(SPLATT_SUCCESS, ret);
+  for(idx_t x=0; x < core_size; ++x) {
+    ASSERT_DBL_NEAR_TOL(gold[x], core[x], 1e-12);
+  }
+
   tt_free(tt);
+  splatt_free(gold);
   splatt_free(core);
   splatt_free_csf(csf, opts);
   splatt_free_opts(opts);

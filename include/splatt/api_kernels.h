@@ -49,6 +49,7 @@ int splatt_mttkrp(
     double const * const options);
 
 
+
 /**
 * @brief Tensor times Matrix (TTM) chain. Multiplies a sparse tensor in CSF
 *        form by all matrices except one.
@@ -84,8 +85,12 @@ int splatt_ttmc(
 
 /**
 * @brief Tensor times Matrix (TTM) chain. Multiplies every mode of a sparse
-*        tensor stored in CSF by the supplied matrices..
-*        
+*        tensor stored in CSF by the supplied row-major matrices. The matrices
+*        should have as many rows as the corresponding dimension of the tensor.
+*
+*        This is equivalent to the Tensor Toolbox function:
+*
+*        tenout = ttm(tensors, matrices, 't');
 *
 *        ** NOTE **
 *
