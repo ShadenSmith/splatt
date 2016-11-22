@@ -38,6 +38,7 @@ typedef enum
   TIMER_LVL0,   /* LEVEL 0 */
   TIMER_ALL,
   TIMER_CPD,
+  TIMER_TUCKER,
   TIMER_REORDER,
   TIMER_CONVERT,
   TIMER_LVL1,   /* LEVEL 1 */

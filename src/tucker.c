@@ -426,6 +426,7 @@ double tucker_hooi_iterate(
     idx_t const * const nfactors,
     double const * const opts)
 {
+  timer_start(&timers[TIMER_TUCKER]);
   idx_t const nmodes = tensors->nmodes;
 
   tucker_ws ws;
@@ -456,6 +457,7 @@ double tucker_hooi_iterate(
   double fit = 0;
 
   val_t const ttnormsq = csf_frobsq(tensors);
+
 
   /* foreach iteration */
   idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
@@ -511,6 +513,7 @@ double tucker_hooi_iterate(
 
   permute_core(tensors, core, nfactors, opts);
 
+  timer_stop(&timers[TIMER_TUCKER]);
   return fit;
 }
 
