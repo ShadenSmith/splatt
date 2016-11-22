@@ -48,8 +48,7 @@ int splatt_ttmc(
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
   idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
   splatt_omp_set_num_threads(nthreads);
-  thd_info * thds =  thd_init(nthreads, 1,
-    (maxcols * sizeof(val_t)) + 64);
+  thd_info * thds = ttmc_alloc_thds(nthreads, tensors, ncolumns, options);
 
   ttmc_csf(tensors, mats, tenout, mode, thds, options);
 
@@ -72,7 +71,6 @@ int splatt_ttmc_full(
     double const * const options)
 {
   idx_t const nmodes = tensors->nmodes;
-  return SPLATT_SUCCESS;
 
   idx_t const nrows = tensors->dims[nmodes-1];
   idx_t ncols = 1;
@@ -82,9 +80,8 @@ int splatt_ttmc_full(
 
   /* TTMc with all but the last mode. */
   val_t * ttmc_buf = splatt_malloc(nrows * ncols * sizeof(*ttmc_buf));
-  printf("actual ttmc\n");
+
   splatt_ttmc(nmodes-1, ncolumns, tensors, matrices, ttmc_buf, options);
-  printf("done ttmc\n");
 
   /* Multiply with the last mode. */
   make_core(ttmc_buf, matrices[nmodes-1], tenout, nmodes, nmodes-1, ncolumns,
@@ -1670,5 +1667,34 @@ void permute_core(
   par_memcpy(core, newcore, ncols[nmodes] * sizeof(*core));
   splatt_free(newcore);
 }
+
+
+
+thd_info * ttmc_alloc_thds(
+    idx_t const nthreads,
+    splatt_csf const * const tensors,
+    idx_t const * const nfactors,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+
+  /* find # columns for each TTMc and output core */
+  idx_t ncols[MAX_NMODES+1];
+  ttmc_compute_ncols(nfactors, nmodes, ncols);
+  idx_t const maxcols = ncols[argmax_elem(ncols, nmodes)];
+
+  idx_t const maxfactor = nfactors[argmax_elem(nfactors, nmodes)];
+
+  thd_info * thds = thd_init(nthreads, 3,
+    /* nnz accumulation & buffers */
+    (TTMC_BUFROWS * maxcols * sizeof(val_t)),
+    /* fids */
+    (TTMC_BUFROWS * sizeof(idx_t)) ,
+    /* actual rows corresponding to fids */
+    (maxfactor * TTMC_BUFROWS * sizeof(val_t)));
+
+  return thds;
+}
+
 
 

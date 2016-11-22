@@ -57,7 +57,7 @@ static void p_csf_core(
   val_t * test_core = calloc(core_size, sizeof(*test_core));
 
   splatt_csf * csf = csf_alloc(tt, opts);
-  thd_info * thds =  tucker_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
+  thd_info * thds =  ttmc_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
       nfactors, opts);
 
   /* make a matrix out of TTMc */
@@ -113,7 +113,7 @@ static void p_csf_ttm(
   splatt_csf * csf = csf_alloc(tt, opts);
   idx_t perm[MAX_NMODES];
 
-  thd_info * thds =  tucker_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
+  thd_info * thds =  ttmc_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
       nfactors, opts);
 
   for(idx_t m=0; m < nmodes; ++m) {
@@ -358,13 +358,11 @@ CTEST2(ttm, ttmc_full)
   idx_t const core_size = ncolumns[0] * ncolumns[1] * ncolumns[2];
   val_t * core = splatt_malloc(core_size * sizeof(*core));
 
-  printf("\nstarting ttmc\n");
   int ret = splatt_ttmc_full(ncolumns, csf, mats, core, opts);
   ASSERT_EQUAL(SPLATT_SUCCESS, ret);
   for(idx_t x=0; x < core_size; ++x) {
     ASSERT_DBL_NEAR_TOL(6., core[x], 1e-12);
   }
-  printf("done\n");
 
   tt_free(tt);
   splatt_free(core);

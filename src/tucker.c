@@ -263,33 +263,6 @@ double tucker_calc_fit(
 }
 
 
-thd_info * tucker_alloc_thds(
-    idx_t const nthreads,
-    splatt_csf const * const tensors,
-    idx_t const * const nfactors,
-    double const * const opts)
-{
-  idx_t const nmodes = tensors->nmodes;
-
-  /* find # columns for each TTMc and output core */
-  idx_t ncols[MAX_NMODES+1];
-  ttmc_compute_ncols(nfactors, nmodes, ncols);
-  idx_t const maxcols = ncols[argmax_elem(ncols, nmodes)];
-
-  idx_t const maxfactor = nfactors[argmax_elem(nfactors, nmodes)];
-
-  thd_info * thds =  thd_init(nthreads, 3,
-    /* nnz accumulation & buffers */
-    (TTMC_BUFROWS * maxcols * sizeof(val_t)),
-    /* fids */
-    (TTMC_BUFROWS * sizeof(idx_t)) ,
-    /* actual rows corresponding to fids */
-    (maxfactor * TTMC_BUFROWS * sizeof(val_t)));
-
-  return thds;
-}
-
-
 double tucker_hooi_iterate(
     splatt_csf const * const tensors,
     matrix_t ** mats,
@@ -319,7 +292,7 @@ double tucker_hooi_iterate(
   /* thread structures */
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
   omp_set_num_threads(nthreads);
-  thd_info * thds =  tucker_alloc_thds(nthreads, tensors, nfactors, opts);
+  thd_info * thds =  ttmc_alloc_thds(nthreads, tensors, nfactors, opts);
 
   sp_timer_t itertime;
   sp_timer_t modetime[MAX_NMODES];

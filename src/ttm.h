@@ -224,4 +224,21 @@ void permute_core(
     double const * const opts);
 
 
+#define ttmc_alloc_thds splatt_ttmc_alloc_thds
+/**
+* @brief Allocate thread structures for TTMc.
+*
+* @param nthreads The number of threads we will use.
+* @param tensors The CSF tensor(s).
+* @param nfactors The number of columns in each mode.
+* @param opts The options used during allocation/factorization.
+*
+* @return Thread buffers to be freed by `thd_free()`.
+*/
+thd_info * ttmc_alloc_thds(
+    idx_t const nthreads,
+    splatt_csf const * const tensors,
+    idx_t const * const nfactors,
+    double const * const opts);
+
 #endif
