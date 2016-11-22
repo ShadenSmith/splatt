@@ -81,6 +81,38 @@ int splatt_ttmc(
 
 
 
+
+/**
+* @brief Tensor times Matrix (TTM) chain. Multiplies every mode of a sparse
+*        tensor stored in CSF by the supplied matrices..
+*        
+*
+*        ** NOTE **
+*
+*        The output is a tensor has dimensions (ncolumns[0] x ...) with a
+*        "row major" layout. The last mode has stride 1, the second to last
+*        mode has stride ncolumns[nmodes-1], and so on. For example, if the
+*        output is of size F1 x F2 x F3, entry G(i,j,k) is found at
+*        tenout[(i * F2 * F3) + (j * F3) + k].
+*
+*
+* @param ncolumns Then number of columns in each matrix.
+* @param tensors The CSF tensor to multiply with.
+* @param matrices The row-major matrices to multipy with.
+* @param tenout The output tensor.
+* @param options SPLATT options array.
+*
+* @return SPLATT error code. SPLATT_SUCCESS on success.
+*/
+int splatt_ttmc_full(
+    splatt_idx_t const * const ncolumns,
+    splatt_csf const * const tensors,
+    splatt_val_t ** matrices,
+    splatt_val_t * const tenout,
+    double const * const options);
+
+
+
 /** @} */
 
 

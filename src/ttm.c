@@ -64,10 +64,96 @@ int splatt_ttmc(
 
 
 
+int splatt_ttmc_full(
+    splatt_idx_t const * const ncolumns,
+    splatt_csf const * const tensors,
+    splatt_val_t ** matrices,
+    splatt_val_t * const tenout,
+    double const * const options)
+{
+  idx_t const nmodes = tensors->nmodes;
+  return SPLATT_SUCCESS;
+
+  idx_t const nrows = tensors->dims[nmodes-1];
+  idx_t ncols = 1;
+  for(idx_t m=0; m < nmodes-1; ++m) {
+    ncols *= ncolumns[m];
+  }
+
+  /* TTMc with all but the last mode. */
+  val_t * ttmc_buf = splatt_malloc(nrows * ncols * sizeof(*ttmc_buf));
+  printf("actual ttmc\n");
+  splatt_ttmc(nmodes-1, ncolumns, tensors, matrices, ttmc_buf, options);
+  printf("done ttmc\n");
+
+  /* Multiply with the last mode. */
+  make_core(ttmc_buf, matrices[nmodes-1], tenout, nmodes, nmodes-1, ncolumns,
+      nrows);
+  splatt_free(ttmc_buf);
+  
+  /* Permute to invert tensors[nmodes-1].dim_perm. */
+  permute_core(tensors, tenout, ncolumns, options);
+
+  return SPLATT_SUCCESS;
+}
+
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+
+/**
+* @brief Fill an array with the mode permutation used to compute a Tucker core.
+*
+* @param tensors The CSF tensor.
+* @param[out] perm The permutation array to fill.
+* @param opts The options used to allocate 'tensors'
+*/
+static void p_fill_core_perm(
+    splatt_csf const * const tensors,
+    idx_t * const perm,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+
+  splatt_csf_type const which = opts[SPLATT_OPTION_CSF_ALLOC];
+  switch(which) {
+  case SPLATT_CSF_ONEMODE:
+    memcpy(perm, tensors[0].dim_perm, nmodes * sizeof(*perm));
+    break;
+
+  case SPLATT_CSF_TWOMODE:
+    /* if longest mode was the last mode */
+    if(nmodes-1 == tensors[0].dim_perm[nmodes-1]) {
+      memcpy(perm, tensors[1].dim_perm, nmodes * sizeof(*perm));
+    } else {
+      memcpy(perm, tensors[0].dim_perm, nmodes * sizeof(*perm));
+    }
+    break;
+
+  case SPLATT_CSF_ALLMODE:
+    memcpy(perm, tensors[nmodes-1].dim_perm, nmodes * sizeof(*perm));
+    break;
+
+  default:
+    /* XXX */
+    fprintf(stderr, "SPLATT: splatt_csf_type %d not recognized.\n", which);
+    break;
+  }
+
+  /* If we did not compute the last mode on root, adjust permutation by moving
+   * the last computed mode to front. */
+  if(perm[0] != nmodes-1) {
+    for(idx_t m=0; m < nmodes; ++m) {
+      /* move last mode to beginning and shift to fit */
+      if(perm[m] == nmodes-1) {
+        memmove(perm+1, perm, m * sizeof(*perm));
+        perm[0] = nmodes-1;
+      }
+    }
+  }
+}
 
 /**
 * @brief Count the number of columns in the output of ttmc with 'mode'
@@ -1471,3 +1557,118 @@ idx_t ttmc_coord_count_flops(
 
   return tt->nnz * nnzflops;
 }
+
+
+void make_core(
+    val_t * ttmc,
+    val_t * lastmat,
+    val_t * core,
+    idx_t const nmodes,
+    idx_t const mode,
+    idx_t const * const nfactors,
+    idx_t const nlongrows)
+{
+	timer_start(&timers[TIMER_MATMUL]);
+  idx_t ncols = 1;
+  for(idx_t m=0; m < nmodes; ++m) {
+    if(m != mode) {
+      ncols *= nfactors[m];
+    }
+  }
+
+  /* C = A' * B */
+  val_t * A = lastmat;
+  val_t * B = ttmc;
+  val_t * C = core;
+
+  int M = nfactors[mode];
+  int N = ncols;
+  int K = nlongrows;
+
+  char transA = 'T';
+  char transB = 'N';
+  val_t alpha = 1.;
+  val_t beta = 0;
+
+  /* C' = B' * A, but transA/B are flipped to account for row-major ordering */
+	BLAS_GEMM(
+      &transB, &transA,
+      &N, &M, &K,
+      &alpha,
+      B, &N,
+      A, &M,
+      &beta,
+      C, &N);
+
+	timer_stop(&timers[TIMER_MATMUL]);
+}
+
+
+
+void ttmc_compute_ncols(
+    idx_t const * const nfactors,
+    idx_t const nmodes,
+    idx_t * const ncols)
+{
+  /* initialize */
+  for(idx_t m=0; m <= nmodes; ++m) {
+    ncols[m] = 1;
+  }
+
+  /* fill in all modes, plus ncols[nmodes] which stores core size */
+  for(idx_t m=0; m <= nmodes; ++m) {
+    for(idx_t moff=0; moff < nmodes; ++moff) {
+      /* skip the mode we are computing */
+      if(moff != m) {
+        ncols[m] *= nfactors[moff];
+      }
+    }
+  }
+}
+
+
+
+void permute_core(
+    splatt_csf const * const tensors,
+    val_t * const core,
+    idx_t const * const nfactors,
+    double const * const opts)
+{
+  idx_t const nmodes = tensors->nmodes;
+  idx_t ncols[MAX_NMODES+1];
+  ttmc_compute_ncols(nfactors, nmodes, ncols);
+
+  idx_t perm[MAX_NMODES];
+  p_fill_core_perm(tensors, perm, opts);
+
+  val_t * newcore = splatt_malloc(ncols[nmodes] * sizeof(*newcore));
+
+  /* translate each entry in the core tensor individually */
+  #pragma omp parallel for
+  for(idx_t x=0; x < ncols[nmodes]; ++x) {
+    idx_t ind[MAX_NMODES];
+    /* translate x into ind, respecting the natural ordering of modes */
+    idx_t id = x;
+    for(idx_t m=nmodes; m-- != 0; ){
+      ind[m] = id % nfactors[m];
+      id /= nfactors[m];
+    }
+
+    /* translate ind to an index into core, accounting for permutation */
+    idx_t mult = ncols[nmodes-1];
+    idx_t translated = mult * ind[perm[0]];
+    for(idx_t m=1; m < nmodes; ++m) {
+      mult /= nfactors[perm[m]];
+      translated += mult * ind[perm[m]];
+    }
+
+    /* now copy */
+    newcore[x] = core[translated];
+  }
+
+  /* copy permuted core into old core */
+  par_memcpy(core, newcore, ncols[nmodes] * sizeof(*core));
+  splatt_free(newcore);
+}
+
+

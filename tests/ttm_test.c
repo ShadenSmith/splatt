@@ -319,3 +319,56 @@ CTEST2(ttm, rearrange_core_all)
 }
 
 
+CTEST2(ttm, ttmc_full)
+{
+  sptensor_t * tt = tt_alloc(3, 3);
+  tt->dims[0] = 3;
+  tt->dims[1] = 3;
+  tt->dims[2] = 3;
+
+  tt->vals[0] = 1.;
+  tt->ind[0][0] = 0;
+  tt->ind[1][0] = 0;
+  tt->ind[2][0] = 0;
+
+  tt->vals[1] = 2.;
+  tt->ind[0][1] = 1;
+  tt->ind[1][1] = 1;
+  tt->ind[2][1] = 1;
+
+  tt->vals[2] = 3.;
+  tt->ind[0][2] = 2;
+  tt->ind[1][2] = 2;
+  tt->ind[2][2] = 1;
+
+  double * opts = splatt_default_opts();
+  splatt_csf * csf = csf_alloc(tt, opts);
+  idx_t ncolumns[MAX_NMODES];
+
+  /* factors of all 1 */
+  val_t * mats[MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    ncolumns[m] = 2;
+    mats[m] = splatt_malloc(tt->dims[m] * ncolumns[m] * sizeof(**mats));
+    for(idx_t x=0; x < tt->dims[m] * ncolumns[m]; ++x) {
+      mats[m][x] = 1.;
+    }
+  }
+
+  idx_t const core_size = ncolumns[0] * ncolumns[1] * ncolumns[2];
+  val_t * core = splatt_malloc(core_size * sizeof(*core));
+
+  printf("\nstarting ttmc\n");
+  int ret = splatt_ttmc_full(ncolumns, csf, mats, core, opts);
+  ASSERT_EQUAL(SPLATT_SUCCESS, ret);
+  for(idx_t x=0; x < core_size; ++x) {
+    ASSERT_DBL_NEAR_TOL(6., core[x], 1e-12);
+  }
+  printf("done\n");
+
+  tt_free(tt);
+  splatt_free(core);
+  splatt_free_csf(csf, opts);
+  splatt_free_opts(opts);
+}
+
