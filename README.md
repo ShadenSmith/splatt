@@ -106,7 +106,7 @@ vary based on the MPI implementation. For example, OpenMPI supports:
 This would fully utilize 16 sockets, each with 8 cores to compute a rank-25 CPD
 of `mytensor.tns`. To alternatively use one MPI rank per core:
 
-### Example 3
+### Example 4
 
     $ mpirun -np 128 splatt cpd mytensor.tns -r 25 -t 1
 

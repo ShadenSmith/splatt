@@ -11,9 +11,114 @@
 #include <math.h>
 
 
+#if   SPLATT_VAL_TYPEWIDTH == 32
+  void spotrf_(char *, int *, float *, int *, int *);
+  void spotrs_(char *, int *, int *, float *, int *, float *, int *, int *);
+  void ssyrk_(char *, char *, int *, int *, float *, float *, int *, float *, float *, int *);
+
+  void sgetrf_(int *, int *, float *, int *, int *, int *);
+  void sgetrs_(char *, int *, int *, float *, int *, int *, float *, int *, int *);
+
+  void sgelss_(int *, int *, int *, float *, int *, float *, int *, float *, float *,   int *, float *, int *, int *);
+
+  #define LAPACK_DPOTRF spotrf_
+  #define LAPACK_DPOTRS spotrs_
+  #define LAPACK_DSYRK  ssyrk_
+  #define LAPACK_DGETRF sgetrf_
+  #define LAPACK_DGETRS sgetrs_
+  #define LAPACK_DGELSS sgelss_
+#else
+  void dpotrf_(char *, int *, double *, int *, int *);
+  void dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
+  void dsyrk_(char *, char *, int *, int *, double *, double *, int *, double *, double *, int *);
+
+  /* LU */
+  void dgetrf_(int *, int *, double *, int *, int *, int *);
+  void dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
+
+  /* SVD solve */
+  void dgelss_(int *, int *, int *, double *, int *, double *, int *, double *, double *,   int *, double *, int *, int *);
+
+  #define LAPACK_DPOTRF dpotrf_
+  #define LAPACK_DPOTRS dpotrs_
+  #define LAPACK_DSYRK  dsyrk_
+  #define LAPACK_DGETRF dgetrf_
+  #define LAPACK_DGETRS dgetrs_
+  #define LAPACK_DGELSS dgelss_
+#endif
+
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+
+/**
+* @brief Form the Gram matrix from A^T * A.
+*
+* @param[out] neq_matrix The matrix to fill.
+* @param aTa The individual Gram matrices.
+* @param mode Which mode we are computing for.
+* @param nmodes How many total modes.
+* @param reg Regularization parameter (to add to the diagonal).
+*/
+static void p_form_gram(
+    matrix_t * neq_matrix,
+    matrix_t * * aTa,
+    idx_t const mode,
+    idx_t const nmodes,
+    val_t const reg)
+{
+  /* nfactors */
+  int N = aTa[0]->J;
+
+  /* form upper-triangual normal equations */
+  val_t * const restrict neqs = neq_matrix->vals;
+  #pragma omp parallel
+  {
+    /* first initialize with 1s */
+    #pragma omp for schedule(static, 1)
+    for(int i=0; i < N; ++i) {
+      neqs[i+(i*N)] = 1. + reg;
+      for(int j=0; j < N; ++j) {
+        neqs[j+(i*N)] = 1.;
+      }
+    }
+
+    /* now Hadamard product all (A^T * A) matrices */
+    for(idx_t m=0; m < nmodes; ++m) {
+      if(m == mode) {
+        continue;
+      }
+
+      val_t const * const restrict mat = aTa[m]->vals;
+      #pragma omp for schedule(static, 1)
+      for(int i=0; i < N; ++i) {
+        /* 
+         * `mat` is symmetric but stored upper right triangular, so be careful
+         * to only access that.
+         */
+
+        /* copy upper triangle */
+        for(int j=i; j < N; ++j) {
+          neqs[j+(i*N)] *= mat[j+(i*N)];
+        }
+      }
+    } /* foreach mode */
+
+    #pragma omp barrier
+
+    /* now copy lower triangular */
+    #pragma omp for schedule(static, 1)
+    for(int i=0; i < N; ++i) {
+      for(int j=0; j < i; ++j) {
+        neqs[j+(i*N)] = neqs[i+(j*N)];
+      }
+    }
+  } /* omp parallel */
+}
+
+
 
 static void p_mat_2norm(
   matrix_t * const A,
@@ -427,8 +532,11 @@ void mat_matmul(
   timer_start(&timers[TIMER_MATMUL]);
   /* check dimensions */
   assert(A->J == B->I);
-  assert(C->I == A->I);
-  assert(C->J == B->J);
+  assert(C->I * C->J <= A->I * B->J);
+
+  /* set dimensions */
+  C->I = A->I;
+  C->J = B->J;
 
   val_t const * const restrict av = A->vals;
   val_t const * const restrict bv = B->vals;
@@ -520,7 +628,6 @@ void mat_form_gram(
 }
 
 
-
 void mat_solve_normals(
   idx_t const mode,
   idx_t const nmodes,
@@ -531,54 +638,70 @@ void mat_solve_normals(
   timer_start(&timers[TIMER_INV]);
 
   /* nfactors */
-  int const N = aTa[0]->J;
+  int N = aTa[0]->J;
 
-  /* form upper-triangual normal equations */
-  val_t * const restrict neqs = aTa[MAX_NMODES]->vals;
-  #pragma omp parallel
-  {
-    /* first initialize */
-    #pragma omp for schedule(static, 1)
-    for(int i=0; i < N; ++i) {
-      neqs[i+(i*N)] = 1. + reg;
-      for(int j=i+1; j < N; ++j) {
-        neqs[j+(i*N)] = 1.;
-      }
-    }
+  p_form_gram(aTa[MAX_NMODES], aTa, mode, nmodes, reg);
 
-    for(idx_t m=0; m < nmodes; ++m) {
-      if(m == mode) {
-        continue;
-      }
+  int info;
+  char uplo = 'L';
+  int lda = N;
+  int ldb = N;
+  int order = N;
+  int nrhs = (int) rhs->I;
 
-      val_t const * const restrict mat = aTa[m]->vals;
-      #pragma omp for schedule(static, 1) nowait
-      for(int i=0; i < N; ++i) {
-        for(int j=i; j < N; ++j) {
-          neqs[j+(i*N)] *= mat[j+(i*N)];
-        }
-      }
-    }
-  } /* omp parallel */
-
+  val_t * const neqs = aTa[MAX_NMODES]->vals;
 
   /* Cholesky factorization */
-  char uplo = 'L';
-  int order = N;
-  int lda = N;
-  int info;
+  bool is_spd = true;
   LAPACK_DPOTRF(&uplo, &order, neqs, &lda, &info);
   if(info) {
-    fprintf(stderr, "SPLATT: DPOTRF returned %d\n", info);
+    fprintf(stderr, "SPLATT: Gram matrix is not SPD. Trying `GELSS`.\n");
+    is_spd = false;
   }
 
+  /* Continue with Cholesky */
+  if(is_spd) {
+    /* Solve against rhs */
+    LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, rhs->vals, &ldb, &info);
+    if(info) {
+      fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
+    }
+  } else {
+    /* restore gram matrix */
+    p_form_gram(aTa[MAX_NMODES], aTa, mode, nmodes, reg);
 
-  /* Solve against rhs */
-  int nrhs = (int) rhs->I;
-  int ldb = N;
-  LAPACK_DPOTRS(&uplo, &order, &nrhs, neqs, &lda, rhs->vals, &ldb, &info);
-  if(info) {
-    fprintf(stderr, "SPLATT: DPOTRS returned %d\n", info);
+    int effective_rank;
+    val_t * conditions = splatt_malloc(N * sizeof(*conditions));
+
+    /* query worksize */
+    int lwork = -1;
+
+    val_t rcond = -1.0f;
+
+    val_t work_query;
+    LAPACK_DGELSS(&N, &N, &nrhs,
+        neqs, &lda,
+        rhs->vals, &ldb,
+        conditions, &rcond, &effective_rank,
+        &work_query, &lwork, &info);
+    lwork = (int) work_query;
+
+    /* setup workspace */
+    val_t * work = splatt_malloc(lwork * sizeof(*work));
+
+    /* Use an SVD solver */
+    LAPACK_DGELSS(&N, &N, &nrhs,
+        neqs, &lda,
+        rhs->vals, &ldb,
+        conditions, &rcond, &effective_rank,
+        work, &lwork, &info);
+    if(info) {
+      printf("SPLATT: DGELSS returned %d\n", info);
+    }
+    printf("SPLATT:   DGELSS effective rank: %d\n", effective_rank);
+
+    splatt_free(conditions);
+    splatt_free(work);
   }
 
   timer_stop(&timers[TIMER_INV]);
