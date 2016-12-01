@@ -8,6 +8,70 @@
 #include "../stats.h"
 #include "../thd_info.h"
 #include "../cpd/cpd.h"
+#include "cmd_cpd_constraint.h"
+
+
+
+
+
+
+/******************************************************************************
+ * HELPER FUNCTIONS
+ *****************************************************************************/
+
+/**
+* @brief Parse an argument from argp and attempt to add a constraint or
+*        regularization to 'cpd'. Returns 'true' on success.
+*
+* @param cmd_arg The argument string. E.g., 'l1,1e-2,3,4'.
+* @param valid_cmds An array of valid commands (either constraints or
+*                   regularizations).
+* @param[out] cpd The CPD options structure to modify.
+*
+* @return Whether the addition was successful (if it is well-formed and valid).
+*/
+static bool p_add_constraint(
+    char * cmd_arg,
+    regcon_cmd * valid_cmds,
+    splatt_cpd_opts * opts)
+{
+  bool success = true;
+  char * arg_buf[MAX_NMODES * 2];
+
+  int num_args = 0;
+  char * ptr = strtok(cmd_arg, ",");
+  while(ptr != NULL) {
+    /* copy arg */
+    arg_buf[num_args] = splatt_malloc(strlen(ptr)+1);
+    strcpy(arg_buf[num_args], ptr);
+    ++num_args;
+
+    /* next arg */
+    ptr = strtok(NULL, ",");
+  }
+
+  /* Search for the constraint and call the handle. */
+  for(int c=0; valid_cmds[c].name != NULL; ++c) {
+    if(strcmp(arg_buf[0], valid_cmds[c].name) == 0) {
+      /* +1 and -1 so we skip the name */
+      success = valid_cmds[c].handle(arg_buf+1, num_args-1, opts);
+      goto CLEANUP;
+    }
+  }
+
+  /* ERROR */
+  fprintf(stderr, "SPLATT: constraint/regularization '%s' not found.",
+      arg_buf[0]);
+  success = false;
+
+  CLEANUP:
+  for(int c=0; c < num_args; ++c) {
+    splatt_free(arg_buf[c]);
+  }
+
+  return success;
+}
+
 
 
 /******************************************************************************
@@ -19,21 +83,30 @@ static char cpd_doc[] =
 
 
 /* start above non-printable ASCII */
-typedef enum
+enum
 {
   LONG_SEED = 127,
   LONG_NOWRITE,
   LONG_TILE,
   LONG_TOL,
+
+  /* constraints and regularizations*/
+  LONG_CON,
+  LONG_REG,
+
+  /* ADMM tuning */
   LONG_INNER_ITS,
   LONG_INNER_TOL,
+};
 
-  /* constraints */
-  LONG_NONNEG,
-  LONG_L1,
-  LONG_L2,
-  LONG_SMOOTH,
-} splatt_long_opt;
+/* option groupings */
+enum
+{
+  CMD_GROUP_CPD,
+  CMD_GROUP_PERFORMANCE,
+  CMD_GROUP_CONSTRAINT,
+  CMD_GROUP_ADMM,
+};
 
 
 static struct argp_option cpd_options[] = {
@@ -45,40 +118,25 @@ static struct argp_option cpd_options[] = {
   {"tol", LONG_TOL, "TOLERANCE", 0, "convergence tolerance (default: 1e-5)"},
 
   {"rank", 'r', "RANK", 0, "rank of factorization (default: 10)"},
-  {"threads", 't', "#THREADS", 0, "number of threads (default: ${OMP_NUM_THREADS})"},
-  {"tile", LONG_TILE, 0, 0, "use tiling during MTTKRP"},
-  {"stem", 's', "PATH", 0, "file stem for factorization output files (default: ./)"},
+  {"stem", 's', "PATH", 0, "file stem for output files (default: ./)"},
   {"nowrite", LONG_NOWRITE, 0, 0, "do not write output to file"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
 
-  {0, 0, 0, 0,
-    "\nConstraints and Regularizations\n"
-    "-------------------------------\n"
-    "splatt uses AO-ADMM [Huang & Sidiropoulos 2015] to enforce constraints "
-    "and regularizations. All regularizations require a 'scale' parameter "
-    "which scales the penalty term in the objective function. "
-    "All constraints and regularizations optionally accept a 'mode' parameter "
-    "as a comma-separated list. When no modes are specified, the constraint "
-    "or regularization is applied to all modes.\n\n"
+  {"threads", 't', "#THREADS", 0, "number of threads (default: ${OMP_NUM_THREADS})", CMD_GROUP_PERFORMANCE},
+  {"tile", LONG_TILE, 0, 0, "use tiling during MTTKRP", CMD_GROUP_PERFORMANCE},
 
-    "NOTE: only one constraint or regularization can be applied per mode. "
-    "Existing ones can be overwritten, so '--nonneg --smooth=10.0,4' will find "
-    "a model with non-negative factors except the fourth, which will have "
-    "smooth columns.\n\n"
+  {0, 0, 0, 0, CPD_CONSTRAINT_DOC, CMD_GROUP_CONSTRAINT},
+  {"con", LONG_CON, "CON[,MODELIST]", 0, "constrained factorization", CMD_GROUP_CONSTRAINT},
+  {"reg", LONG_REG, "REG,MULT[,MODELIST]", 0, "regularized factorization", CMD_GROUP_CONSTRAINT},
 
-    "The following constraints and regularizations are supported:\n", 1},
 
-  {"chunk", 'c', "#ROWS", 0, "chunk size for AO-ADMM", 1},
-  {"nonneg", LONG_NONNEG, "MODE", OPTION_ARG_OPTIONAL,
-      "non-negative factorization", 1},
-  {"smooth", LONG_SMOOTH, "scale[,MODE]", 0, "column smoothness", 1},
-  {"l1", LONG_L1, "scale[,MODE]", 0, "l1 regularization", 1},
-  {"l2", LONG_L2, "scale[,MODE]", 0, "l2 regularization", 1},
-
+  {0, 0, 0, 0, "Options for tuning ADMM behavior:", CMD_GROUP_ADMM},
+  {"block", 'b', "#ROWS", 0, "number of rows per ADMM block "
+      "(applicable for row-separable constraints; default: 50)", CMD_GROUP_ADMM},
   {"inner-its", LONG_INNER_ITS, "#ITS", 0,
-      "maximum number of inner ADMM iterations to use (default: 20)", 1},
+      "maximum number of inner ADMM iterations to use (default: 20)", CMD_GROUP_ADMM},
   {"inner-tol", LONG_INNER_TOL, "TOLERANCE", 0,
-      "convergence tolerance of inner ADMM iterations (default: 1e-2)", 1},
+      "convergence tolerance of inner ADMM iterations (default: 1e-2)", CMD_GROUP_ADMM},
   { 0 }
 };
 
@@ -133,7 +191,7 @@ static error_t parse_cpd_opt(
 
   val_t scale = 0.;
   idx_t mode = MAX_NMODES;
-  idx_t size = 0;;
+  idx_t size = 0;
 
   switch(key) {
   case 'h':
@@ -145,13 +203,6 @@ static error_t parse_cpd_opt(
     break;
   case LONG_TOL:
     args->cpd_opts->tolerance = atof(arg);
-    break;
-
-  case LONG_INNER_ITS:
-    args->cpd_opts->max_inner_iterations = strtoull(arg, &arg, 10);
-    break;
-  case LONG_INNER_TOL:
-    args->cpd_opts->inner_tolerance = atof(arg);
     break;
 
   case 't':
@@ -184,14 +235,30 @@ static error_t parse_cpd_opt(
     srand(args->global_opts->random_seed);
     break;
 
-  /* constraints */
-  case 'c':
+  /* ADMM tuning */
+  case LONG_INNER_ITS:
+    args->cpd_opts->max_inner_iterations = strtoull(arg, &arg, 10);
+    break;
+  case LONG_INNER_TOL:
+    args->cpd_opts->inner_tolerance = atof(arg);
+    break;
+  case 'b':
     size = strtoull(arg, &arg, 10);
     for(idx_t m=0; m < MAX_NMODES; ++m) {
       args->cpd_opts->chunk_sizes[m] = size;
     }
     break;
 
+  /* constraints */
+  case LONG_CON:
+  case LONG_REG:
+    if(!p_add_constraint(arg, constraint_cmds, args->cpd_opts)) {
+      argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
+    }
+    break;
+
+
+#if 0
   case LONG_NONNEG:
     if(arg) {
       mode = strtoull(arg, &arg, 10) - 1;
@@ -256,6 +323,7 @@ static error_t parse_cpd_opt(
       /* all modes */
       splatt_cpd_reg_smooth(args->cpd_opts, mode, scale);
     }
+#endif
 
 
   case ARGP_KEY_ARG:

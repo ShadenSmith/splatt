@@ -61,7 +61,6 @@ typedef struct
   
   /* chunked AO-ADMM. 0=unchunked */
   splatt_idx_t chunk_sizes[SPLATT_MAX_NMODES];
-
 } splatt_cpd_opts;
 
 
