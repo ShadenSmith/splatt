@@ -117,6 +117,8 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
     opts->chunk_sizes[m] = 0;
     opts->constraints[m].which = SPLATT_CON_NONE;
     opts->constraints[m].data = NULL;
+
+    opts->cpd_constraints[m] = NULL;
   }
 
 
@@ -129,6 +131,10 @@ void splatt_free_cpd_opts(
 {
   /* if constraints, free data */
   splatt_cpd_con_clear(opts, MAX_NMODES);
+
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    splatt_free_constraint(opts->cpd_constraints[m]);
+  }
 
   /* free options pointer */
   splatt_free(opts);

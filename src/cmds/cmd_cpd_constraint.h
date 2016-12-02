@@ -30,17 +30,30 @@
 
 
 /**
-* @brief Structure for adding a constraint/regularization during command-line
-*        argument parsing.
+* @brief Structure for adding a constraint during command-line argument
+*        parsing.
 */
 typedef struct
 {
-  /** How to specify the constraint/regularization. E.g., --con=<name> */
+  /** How to specify the constraint. E.g., --con=<name> */
   char * name;
-  /** Function which parses args[:] and adds the constraint to cpd. */
-  bool (* handle) (char * * args, int num_args, splatt_cpd_opts * cpd);
-} regcon_cmd;
+  /** Function which adds a constraint to modes marked in modes_included[:]. */
+  bool (* handle) (splatt_cpd_opts * opts, bool * modes_included);
+} constraint_cmd;
 
+
+/**
+* @brief Structure for adding a regularization during command-line argument
+*        parsing.
+*/
+typedef struct
+{
+  /** How to specify the regularization. E.g., --reg=<name> */
+  char * name;
+  /** Function which adds a regularization to modes marked in
+   *  modes_included[:]. */
+  bool (* handle) (splatt_cpd_opts * opts, bool * modes_included, val_t mult);
+} regularization_cmd;
 
 
 
@@ -53,12 +66,16 @@ typedef struct
 
 /* Just makes function prototypes easier. */
 #define PROTO_CONSTRAINT_HANDLE(handle_name) \
-    bool handle_name(char * * args, int num_args, splatt_cpd_opts * cpd)
+    bool handle_name(splatt_cpd_opts * cpd, bool * modes_included)
+
+#define PROTO_REGULARIZATION_HANDLE(handle_name) \
+    bool handle_name(splatt_cpd_opts * cpd, bool * modes_included, val_t mult)
 
 
 /* FUNCTION PROTOTYPES. ADD YOURS TO THIS LIST. */
-//PROTO_CONSTRAINT_HANDLE( ntf_handle );
-//PROTO_CONSTRAINT_HANDLE( lasso_handle );
+PROTO_CONSTRAINT_HANDLE( splatt_register_nonneg );
+
+//PROTO_REGULARIZATION_HANDLE( lasso_handle );
 
 
 
@@ -94,10 +111,15 @@ static char const CPD_CONSTRAINT_DOC[] =
 
 
 
-/* ADD TO THIS LIST. MULTIPLE ENTRIES RESULT IN ALIASES. */
-static regcon_cmd constraint_cmds[] = {
-  //{"nonneg", ntf_handle} ,
-  //{"ntf",    ntf_handle} ,
+/* ADD TO THESE LISTS. MULTIPLE ENTRIES RESULT IN ALIASES. */
+static constraint_cmd constraint_cmds[] = {
+  {"nonneg", splatt_register_nonneg} ,
+  {"ntf",    splatt_register_nonneg} ,
+  { NULL, NULL }
+};
+
+
+static regularization_cmd regularization_cmds[] = {
   //{"l1",    lasso_handle} ,
   //{"lasso", lasso_handle} ,
   { NULL, NULL }
@@ -106,52 +128,5 @@ static regcon_cmd constraint_cmds[] = {
 /******************************************************************************
  * END EDITS
  *****************************************************************************/
-
-
-
-
-
-
-
-/******************************************************************************
- * HELPER FUNCTIONS
- *****************************************************************************/
-
-/**
-* @brief Fill a boolean array with the modes specified by the 1-indexed list
-*        'args'. If the list is empty, mark all of them.
-*
-* @param[out] is_mode_set Marker array for each mode.
-* @param args Array of command line arguments.
-* @param num_args The length of 'args'.
-*/
-static void cmd_parse_modelist(
-    bool * is_mode_set,
-    char * * args,
-    int num_args)
-{
-  /* no args? all modes set */
-  if(num_args == 0) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      is_mode_set[m] = true;
-    }
-    return;
-  }
-
-  for(idx_t m=0; m < MAX_NMODES; ++m) {
-    is_mode_set[m] = false;
-  }
-
-  /* parse modes */
-  for(int i=0; i < num_args; ++i) {
-    idx_t mode = strtoull(args[i], &args[i], 10) - 1;
-    assert(mode < MAX_NMODES);
-
-    is_mode_set[mode] = true;
-  }
-}
-
-
-
 
 #endif

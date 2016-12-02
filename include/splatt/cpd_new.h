@@ -11,6 +11,14 @@
 #define SPLATT_API_CPD_NEW_H
 
 
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
+#include <stdbool.h>
+
+#include "cpd.h"
+
+
 
 /******************************************************************************
  * TYPES
@@ -24,11 +32,11 @@
 typedef struct
 {
   /** Is the proximity operator row-separable? Aids in parallelization. */
-  unsigned int row_separable     : 1;
+  bool row_separable;
 
   /** Does the constraint induce sparsity in the factor? May be exploited
    *  during MTTKRP. */
-  unsigned int sparsity_inducing : 1;
+  bool sparsity_inducing;
 } splatt_con_hints;
 
 
@@ -75,7 +83,7 @@ typedef struct
                       splatt_idx_t const offset,
                       void * data,
                       splatt_val_t const rho,
-                      int const should_parallelize);
+                      bool const should_parallelize);
 
 
   /** Modify Gram and RHS matrices for a closed-form solve instead of ADMM
@@ -87,12 +95,16 @@ typedef struct
                       splatt_idx_t const ncols,
                       void * data);
 
-  /** Cleanup function. This can perform any post-processing on the factor
-   *  or deallocate any data used by the constraint. */
+  /** Post-processing function. This will be called after the factorization has
+   *  completed. */
   void (* post_func) (splatt_val_t * vals,
                       splatt_idx_t const nrows,
                       splatt_idx_t const ncols,
                       void * data);
+  
+  /** Deallocation function. This should deallocate any data. */
+  void (* free_func) (void * data);
+
 } splatt_cpd_constraint;
 
 
@@ -106,9 +118,40 @@ typedef struct
 extern "C" {
 #endif
 
-// splatt_alloc_constraint();
-// splatt_register_constraint();
-// splatt_free_constraint();
+
+/**
+* @brief Allocate and initialize a constraint structure. All fields are
+*        initalized to 'identity' values, meaning no additional work is
+*        performed during factorization unless specified.
+*
+* @return A constraint structure, to be freed by splatt_free_constraint().
+*/
+splatt_cpd_constraint * splatt_alloc_constraint();
+
+
+
+/**
+* @brief Register a constraint with a mode of a CPD.
+*
+* @param opts Specifications for the CPD.
+* @param mode The mode to associate the constraint with.
+* @param con A constraint allocated by splatt_alloc_constraint().
+*/
+void splatt_register_constraint(
+    splatt_cpd_opts * const opts,
+    splatt_idx_t const mode,
+    splatt_cpd_constraint const * const con);
+
+
+
+/**
+* @brief Deallocate any memory associated with a constraint. If con->free_func
+*        is non-NULL, it will also be called.
+*
+* @param con The constraint to free.
+*/
+void splatt_free_constraint(
+    splatt_cpd_constraint * const con);
 
 
 #ifdef __cplusplus

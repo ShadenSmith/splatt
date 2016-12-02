@@ -19,20 +19,57 @@
  * HELPER FUNCTIONS
  *****************************************************************************/
 
+
+
 /**
-* @brief Parse an argument from argp and attempt to add a constraint or
-*        regularization to 'cpd'. Returns 'true' on success.
+* @brief Fill a boolean array with the modes specified by the 1-indexed list
+*        'args'. If the list is empty, mark all of them.
+*
+* @param[out] is_mode_set Marker array for each mode.
+* @param args Array of command line arguments.
+* @param num_args The length of 'args'.
+*/
+static void p_cmd_parse_modelist(
+    bool * is_mode_set,
+    char * * args,
+    int num_args)
+{
+  /* no args? all modes set */
+  if(num_args == 0) {
+    for(idx_t m=0; m < MAX_NMODES; ++m) {
+      is_mode_set[m] = true;
+    }
+    return;
+  }
+
+  for(idx_t m=0; m < MAX_NMODES; ++m) {
+    is_mode_set[m] = false;
+  }
+
+  /* parse modes */
+  for(int i=0; i < num_args; ++i) {
+    idx_t mode = strtoull(args[i], &args[i], 10) - 1;
+    assert(mode < MAX_NMODES);
+
+    is_mode_set[mode] = true;
+  }
+}
+
+
+
+/**
+* @brief Parse an argument from argp and attempt to add a constraint to 'cpd'.
+*        Returns true on success.
 *
 * @param cmd_arg The argument string. E.g., 'l1,1e-2,3,4'.
-* @param valid_cmds An array of valid commands (either constraints or
-*                   regularizations).
+* @param valid_cmds An array of valid constaints.
 * @param[out] cpd The CPD options structure to modify.
 *
 * @return Whether the addition was successful (if it is well-formed and valid).
 */
 static bool p_add_constraint(
     char * cmd_arg,
-    regcon_cmd * valid_cmds,
+    constraint_cmd * valid_cmds,
     splatt_cpd_opts * opts)
 {
   bool success = true;
@@ -50,18 +87,82 @@ static bool p_add_constraint(
     ptr = strtok(NULL, ",");
   }
 
+  /* +1 and -1 so we skip the name */
+  bool modes[MAX_NMODES];
+  p_cmd_parse_modelist(modes, arg_buf+1, num_args-1);
+
   /* Search for the constraint and call the handle. */
   for(int c=0; valid_cmds[c].name != NULL; ++c) {
     if(strcmp(arg_buf[0], valid_cmds[c].name) == 0) {
-      /* +1 and -1 so we skip the name */
-      success = valid_cmds[c].handle(arg_buf+1, num_args-1, opts);
+      success = valid_cmds[c].handle(opts, modes);
       goto CLEANUP;
     }
   }
-
   /* ERROR */
-  fprintf(stderr, "SPLATT: constraint/regularization '%s' not found.",
-      arg_buf[0]);
+  fprintf(stderr, "SPLATT: constraint '%s' not found.", arg_buf[0]);
+  success = false;
+
+  CLEANUP:
+  for(int c=0; c < num_args; ++c) {
+    splatt_free(arg_buf[c]);
+  }
+
+  return success;
+}
+
+
+
+/**
+* @brief Parse an argument from argp and attempt to add a regularization to
+*        'cpd'.  Returns true on success.
+*
+* @param cmd_arg The argument string. E.g., 'l1,1e-2,3,4'.
+* @param valid_cmds An array of valid regularizations.
+* @param[out] cpd The CPD options structure to modify.
+*
+* @return Whether the addition was successful (if it is well-formed and valid).
+*/
+static bool p_add_regularization(
+    char * cmd_arg,
+    regularization_cmd * valid_cmds,
+    splatt_cpd_opts * opts)
+{
+  bool success = true;
+  char * arg_buf[MAX_NMODES * 2];
+
+  int num_args = 0;
+  char * ptr = strtok(cmd_arg, ",");
+  while(ptr != NULL) {
+    /* copy arg */
+    arg_buf[num_args] = splatt_malloc(strlen(ptr)+1);
+    strcpy(arg_buf[num_args], ptr);
+    ++num_args;
+
+    /* next arg */
+    ptr = strtok(NULL, ",");
+  }
+
+  if(num_args < 2) {
+    fprintf(stderr, "SPLATT: regularizations require 'MULT' parameter.\n");
+    success = false;
+    goto CLEANUP;
+  }
+
+  val_t const multiplier = strtod(arg_buf[1], NULL);
+
+  /* +2 and -2 so we skip the name and multiplier */
+  bool modes[MAX_NMODES];
+  p_cmd_parse_modelist(modes, arg_buf+2, num_args-2);
+
+  /* Search for the regularization and call the handle. */
+  for(int c=0; valid_cmds[c].name != NULL; ++c) {
+    if(strcmp(arg_buf[0], valid_cmds[c].name) == 0) {
+      success = valid_cmds[c].handle(opts, modes, multiplier);
+      goto CLEANUP;
+    }
+  }
+  /* ERROR */
+  fprintf(stderr, "SPLATT: regularization '%s' not found.", arg_buf[0]);
   success = false;
 
   CLEANUP:
@@ -251,8 +352,12 @@ static error_t parse_cpd_opt(
 
   /* constraints */
   case LONG_CON:
-  case LONG_REG:
     if(!p_add_constraint(arg, constraint_cmds, args->cpd_opts)) {
+      argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
+    }
+    break;
+  case LONG_REG:
+    if(!p_add_regularization(arg, regularization_cmds, args->cpd_opts)) {
       argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
     }
     break;

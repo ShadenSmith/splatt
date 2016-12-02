@@ -58,6 +58,8 @@ typedef struct
   /* constraints */
   bool unconstrained; /* true if NO constraints or regularizations applied */
   splatt_constraint constraints[SPLATT_MAX_NMODES];
+
+  splatt_cpd_constraint cpd_constraints[SPLATT_MAX_NMODES];
   
   /* chunked AO-ADMM. 0=unchunked */
   splatt_idx_t chunk_sizes[SPLATT_MAX_NMODES];

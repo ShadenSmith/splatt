@@ -558,8 +558,17 @@ val_t admm_inner(
 
   idx_t const rank = mats[mode]->J;
 
+  splatt_cpd_constraint * con = cpd_opts->cpd_constraints[mode];
+
   /* (A^T * A) .* (B^T * B) .* .... ) */
   mat_form_gram(ws->aTa, ws->gram, ws->nmodes, mode);
+
+  /* setup closed-form solution if applicable */
+  if(con != NULL && con->clos_func != NULL) {
+    con->clos_func(mats[mode]->vals, ws->gram->vals, mats[mode]->I, rank,
+        con->data);
+  }
+
 
   splatt_con_type const which_reg = cpd_opts->constraints[mode].which;
   void const * const cdata        = cpd_opts->constraints[mode].data;

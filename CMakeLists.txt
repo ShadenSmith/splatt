@@ -38,6 +38,8 @@ file(GLOB SPLATT_SOURCES
       src/*.c
       src/ccp/*.c
       src/cpd/*.c
+      src/cpd/constraints/*.c
+      src/cpd/constraints/*.cc
       ${MPI_SOURCES})
 
 # Generate splatt library
