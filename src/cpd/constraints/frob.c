@@ -39,7 +39,7 @@ void frob_gram(
 
 
 /**
-* @brief Free the single (val_t *) allocated for Frobenius regularization.
+* @brief Free the single val_t allocated for Frobenius regularization.
 *
 * @param data The data to free.
 */

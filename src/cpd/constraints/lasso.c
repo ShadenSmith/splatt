@@ -1,70 +1,107 @@
 
-#if 0
+
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
+
+#include "../admm.h"
+
+
+
+
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
+
 /**
-* @brief Perform Lasso regularization via soft thresholding.
+* @brief The proximal update for a L1-regularized factorization (LASSO) via
+*        soft thresholding with lambda/rho.
 *
-* @param[out] mat_primal The primal variable (factor matrix) to update.
-* @param penalty The current penalty parameter (rho).
-* @param ws CPD workspace data -- used for regularization parameter.
-* @param mode The mode we are updating.
-* @param data Constraint-specific data -- we store lambda in this.
-* @param is_chunked Whether this is a chunk of a larger matrix.
+* @param[out] primal The row-major matrix to update.
+* @param nrows The number of rows in primal.
+* @param ncols The number of columns in primal.
+* @param offset Not used.
+* @param data Not used.
+* @param rho Not used.
+* @param should_parallelize If true, parallelize.
 */
-static void p_proximity_l1(
-    matrix_t  * const mat_primal,
-    matrix_t const * const mat_auxil,
-    matrix_t const * const mat_dual,
-    val_t const penalty,
-    void const * const data,
-    bool const is_chunked)
+void lasso_prox(
+    val_t * primal,
+    idx_t const nrows,
+    idx_t const ncols,
+    idx_t const offset,
+    void * data,
+    val_t const rho,
+    bool const should_parallelize)
 {
-  idx_t const I = mat_primal->I;
-  idx_t const J = mat_primal->J;
-
-  val_t       * const restrict matv = mat_primal->vals;
-  val_t const * const restrict auxl = mat_auxil->vals;
-  val_t const * const restrict dual = mat_dual->vals;
-
   val_t const lambda = *((val_t *) data);
-  val_t const mult = lambda / penalty;
+  val_t const mult = lambda / rho;
 
-  #pragma omp parallel for schedule(static) if(!is_chunked)
-  for(idx_t x=0; x < I * J; ++x) {
-    val_t const v = auxl[x] - dual[x];
+  #pragma omp parallel for schedule(static) if(should_parallelize)
+  for(idx_t x=0; x < nrows * ncols; ++x) {
+    val_t const v = primal[x];
 
     /* TODO: could this be done faster? */
     if(v > mult) {
-      matv[x] = v - mult;
+      primal[x] = v - mult;
     } else if(v < -mult) {
-      matv[x] = v + mult;
+      primal[x] = v + mult;
     } else {
-      matv[x] = 0.;
+      primal[x] = 0.;
     }
   }
 }
 
 
-void splatt_cpd_reg_l1(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale)
+/**
+* @brief Free the single val_t allocated for L1 regularization.
+*
+* @param data The data to free.
+*/
+void lasso_free(
+    void * data)
 {
-  /* MAX_NMODES will simply apply regularization to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_reg_l1(cpd_opts, m, scale);
-    }
-    return;
-  }
-
-  splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->unconstrained = false;
-  cpd_opts->constraints[mode].which = SPLATT_REG_L1;
-  val_t * lambda = splatt_malloc(sizeof(*lambda));
-  *lambda = scale;
-  cpd_opts->constraints[mode].data = (void *) lambda;
+  splatt_free(data);
 }
 
 
-#endif
+
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+
+splatt_error_type splatt_register_lasso(
+    splatt_cpd_opts * opts,
+    splatt_val_t const multiplier,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes)
+{
+  splatt_cpd_constraint * lasso_con = NULL;
+  for(idx_t m = 0; m < num_modes; ++m) {
+    idx_t const mode = modes_included[m];
+
+    lasso_con = splatt_alloc_constraint(SPLATT_CON_ADMM);
+
+    lasso_con->prox_func = lasso_prox;
+    lasso_con->free_func = lasso_free;
+
+    /* important hints */
+    lasso_con->hints.row_separable     = true;
+    lasso_con->hints.sparsity_inducing = true;
+
+    sprintf(lasso_con->description, "L1-REG (%0.1e)", multiplier);
+
+    /* store multiplier */
+    val_t * mult = splatt_malloc(sizeof(*mult));
+    *mult = multiplier;
+    lasso_con->data = mult;
+
+    /* store the constraint for use */
+    splatt_register_constraint(opts, mode, lasso_con);
+  }
+    
+  return SPLATT_SUCCESS;
+}
+

@@ -118,9 +118,9 @@ static char const CPD_CONSTRAINT_DOC[] =
     "\n"
     "The following regularizations are supported:\n"
     "  frob\t\tFrobenius norm (Tikhonov regularization)\n"
-#if 0
     "  l1\t\tsparsity (LASSO)\n"
     "  lasso\t(l1 alias)\n"
+#if 0
     "  smooth\tsmooth columns\n"
 #endif
     "";
@@ -136,9 +136,9 @@ static constraint_cmd constraint_cmds[] = {
 
 
 static regularization_cmd regularization_cmds[] = {
-  {"frob", splatt_register_frob},
-  //{"l1",    lasso_handle} ,
-  //{"lasso", lasso_handle} ,
+  {"frob",  splatt_register_frob},
+  {"l1",    splatt_register_lasso},
+  {"lasso", splatt_register_lasso},
   { NULL, NULL }
 };
 

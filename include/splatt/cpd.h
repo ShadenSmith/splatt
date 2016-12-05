@@ -193,6 +193,24 @@ splatt_error_type splatt_register_frob(
     splatt_idx_t const num_modes);
 
 
+/**
+* @brief Register an L1-norm (LASSO) regularization with a list of
+*        modes.
+*
+* @param[out] opts The CPD options structure to modify.
+* @param multiplier The \lambda penalty multiplier.
+* @param modes_included A list of the modes to register.
+* @param num_modes The length of 'modes_included'.
+*
+* @return SPLATT error code.
+*/
+splatt_error_type splatt_register_lasso(
+    splatt_cpd_opts * opts,
+    splatt_val_t const multiplier,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes);
+
+
 /** }@ */
 
 
