@@ -7,18 +7,18 @@
 
 
 
-
 /******************************************************************************
- * API FUNCTIONS
+ * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-splatt_cpd_constraint * splatt_alloc_constraint(
-    splatt_con_solve_type const solve_type)
+/**
+* @brief Reset the fields of a CPD constraint.
+*
+* @param[out] con The constraint to reset.
+*/
+static void p_clear_constraint(
+    splatt_cpd_constraint * con)
 {
-  splatt_cpd_constraint * con = splatt_malloc(sizeof(*con));
-
-  con->solve_type = solve_type;
-
   /* zero out structures */
   memset(&(con->hints), 0, sizeof(con->hints));
 
@@ -26,48 +26,22 @@ splatt_cpd_constraint * splatt_alloc_constraint(
 
   /* function pointers */
   con->init_func = NULL;
+  con->gram_func = NULL;
   con->prox_func = NULL;
-  con->clos_func = NULL;
+  con->clsd_func = NULL;
   con->post_func = NULL;
   con->free_func = NULL;
 
   asprintf(&(con->description), "UNCONSTRAINED");
-
-  return con;
 }
 
 
-void splatt_register_constraint(
-    splatt_cpd_opts * const opts,
-    splatt_idx_t const mode,
-    splatt_cpd_constraint * con)
-{
-  /* first clear out any constraint that already existed */
-  splatt_free_constraint(opts->constraints[mode]);
-
-  /* now save the new one */
-  opts->constraints[mode] = con;
-}
 
 
-void splatt_free_constraint(
-    splatt_cpd_constraint * con)
-{
-  if(con == NULL) {
-    return;
-  }
 
-  /* Allow constraint to clean up after itself. */
-  if(con->free_func != NULL) {
-    con->free_func(con->data);
-  }
-
-  free(con->description);
-
-  /* Now just delete pointer. */
-  splatt_free(con);
-}
-
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
 
 void cpd_init_constraints(
     splatt_cpd_opts * const opts,
@@ -99,3 +73,70 @@ void cpd_finalize_constraints(
     }
   }
 }
+
+
+
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+
+splatt_cpd_constraint * splatt_alloc_constraint(
+    splatt_con_solve_type const solve_type)
+{
+  splatt_cpd_constraint * con = splatt_malloc(sizeof(*con));
+  con->solve_type = solve_type;
+
+  /* initialize values */
+  p_clear_constraint(con);
+
+  return con;
+}
+
+
+void splatt_register_constraint(
+    splatt_cpd_opts * const opts,
+    splatt_idx_t const mode,
+    splatt_cpd_constraint * con)
+{
+  /* first clear out any constraint that already existed */
+  splatt_free_constraint(opts->constraints[mode]);
+
+  /* now save the new one */
+  opts->constraints[mode] = con;
+}
+
+
+void splatt_clear_constraint(
+    splatt_cpd_constraint * con)
+{
+  assert(con != NULL);
+
+  /* Allow constraint to clean up after itself. */
+  if(con->free_func != NULL) {
+    con->free_func(con->data);
+  }
+  free(con->description);
+
+  /* now initialize */
+  p_clear_constraint(con);
+}
+
+
+void splatt_free_constraint(
+    splatt_cpd_constraint * con)
+{
+  if(con == NULL) {
+    return;
+  }
+
+  /* Allow constraint to clean up after itself. */
+  if(con->free_func != NULL) {
+    con->free_func(con->data);
+  }
+
+  free(con->description);
+  splatt_free(con);
+}
+
+

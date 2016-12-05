@@ -12,15 +12,117 @@
 
 
 /******************************************************************************
- * INCLUDES
- *****************************************************************************/
-#include "cpd_constraints.h"
-
-
-
-/******************************************************************************
  * TYPES
  *****************************************************************************/
+
+
+/**
+* @brief Provide hints about a constraint which may be utilized to improve
+*        performance.
+*/
+typedef struct
+{
+  /** Is the proximity operator row-separable? Aids in parallelization. */
+  bool row_separable;
+
+  /** Does the constraint induce sparsity in the factor? May be exploited
+   *  during MTTKRP. */
+  bool sparsity_inducing;
+} splatt_con_hints;
+
+
+/**
+* @brief How will the constraint/regularization be enforced?
+*/
+typedef enum
+{
+  /** Constraint/regularization has a closed form solution. */
+  SPLATT_CON_CLOSEDFORM,
+  /** Use ADMM. */
+  SPLATT_CON_ADMM
+} splatt_con_solve_type;
+
+
+/**
+* @brief A constraint or regularization imposed during a CPD factorization.
+*/
+typedef struct
+{
+  /** Whether there is a closed form solution or ADMM iterations are used. */
+  splatt_con_solve_type solve_type;
+
+  /** Performance hints. */
+  splatt_con_hints hints;
+
+  /** Arbitrary data. Often a penalty weight or other. */
+  void * data;
+
+  /** String description of the constraint. E.g., 'NONNEGATIVE' or 'LASSO'. */
+  char * description;
+
+  /** Initialization function for constraint. This can be used to allocate
+   *  buffers and/or manipulate the factor values before the factorization
+   *  begins. This function is called after 'vals' has been initialized. */
+  void (* init_func) (splatt_val_t * vals,
+                      splatt_idx_t const nrows,
+                      splatt_idx_t const ncols,
+                      void ** data);
+
+  /**
+  * @brief Modify the Gram matrix before computing a Cholesky factorization.
+  *
+  * @param[out] gram The NxN Gram matrix to modify.
+  * @param N The dimension of the Gram matrix.
+  * @param data Private constraint data.
+  */
+  void (* gram_func) (splatt_val_t * restrict gram,
+                      splatt_idx_t const N,
+                      void * data);
+
+  /** Apply the proximity operator to the (nrows x ncols) primal matrix. This
+   *  may be a submatrix which starts at row 'offset'. 'rho' is the multiplier
+   *  for the current ADMM iteration which some constraints need to consider.
+   *  For example, L1 regularization should use soft thresholding around
+   *  lambda/rho. */
+  void (* prox_func) (splatt_val_t * primal,
+                      splatt_idx_t const nrows,
+                      splatt_idx_t const ncols,
+                      splatt_idx_t const offset,
+                      void * data,
+                      splatt_val_t const rho,
+                      bool const should_parallelize);
+
+
+
+  /**
+  * @brief Setup a the primal (RHS) matrix before forward/backward solves
+  *        during a closed form solve.
+  *
+  * @param[out] primal The matrix to setup.
+  * @param nrows The number of rows.
+  * @param ncols The number of columns.
+  * @param data Private constraint data.
+  */
+  void (* clsd_func) (splatt_val_t * restrict primal,
+                      splatt_idx_t const nrows,
+                      splatt_idx_t const ncols,
+                      void * data);
+
+  /** Post-processing function. This will be called after the factorization has
+   *  completed. */
+  void (* post_func) (splatt_val_t * vals,
+                      splatt_idx_t const nrows,
+                      splatt_idx_t const ncols,
+                      void * data);
+  
+  /** Deallocation function. This should deallocate any data. */
+  void (* free_func) (void * data);
+
+} splatt_cpd_constraint;
+
+
+
+
 typedef struct
 {
   /* convergence */
@@ -72,6 +174,31 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void);
 */
 void splatt_free_cpd_opts(
     splatt_cpd_opts * const opts);
+
+
+
+/**
+* @brief Allocate and initialize a constraint structure. All fields are
+*        initalized to 'identity' values, meaning no additional work is
+*        performed during factorization unless specified.
+*
+* @param solve_type How the constraint will be enforced.
+*
+* @return A constraint structure, to be freed by splatt_free_constraint().
+*/
+splatt_cpd_constraint * splatt_alloc_constraint(
+    splatt_con_solve_type const solve_type);
+
+
+
+/**
+* @brief Deallocate any memory associated with a constraint. If con->free_func
+*        is non-NULL, it will also be called.
+*
+* @param con The constraint to free.
+*/
+void splatt_free_constraint(
+    splatt_cpd_constraint * const con);
 
 
 /**

@@ -36,7 +36,7 @@ static void p_setup_auxiliary(
     matrix_t const * const mat_dual,
     val_t const penalty,
     matrix_t * const mat_auxil,
-    bool const is_chunked)
+    bool const should_parallelize)
 {
   idx_t const I = mat_primal->I;
   idx_t const J = mat_primal->J;
@@ -47,7 +47,7 @@ static void p_setup_auxiliary(
   val_t const * const restrict primal = mat_primal->vals;
   val_t const * const restrict dual   = mat_dual->vals;
 
-  #pragma omp parallel for schedule(static) if(!is_chunked)
+  #pragma omp parallel for schedule(static) if(should_parallelize)
   for(idx_t x=0; x < I * J; ++x) {
     aux[x] = mttkrp[x] + penalty * (primal[x] + dual[x]);
   }
@@ -100,7 +100,7 @@ static val_t p_update_dual(
 * @param mat_dual The dual matrix.
 * @param should_parallelize Whether we should parallelize.
 */
-static void p_setup_prox(
+static void p_setup_proximity(
     matrix_t       * const mat_primal,
     matrix_t const * const mat_auxil,
     matrix_t const * const mat_dual,
@@ -152,7 +152,7 @@ static void p_calc_residual(
   val_t p_resid = 0;
   val_t d_resid = 0;
 
-#define ROW_CONVERGE
+//#define ROW_CONVERGE
 #ifdef ROW_CONVERGE
 
   #pragma omp parallel for reduction(max:p_norm, p_resid, d_resid) \
@@ -203,13 +203,11 @@ static void p_calc_residual(
 
 
 /**
-* @brief Optimally compute the new primal variable when no regularization or
-*        only L2 regularization is present.
+* @brief Optimally update the primal variable using a closed-form solution.
 *
 * @param[out] primal The matrix to update.
 * @param ws CPD workspace.
-* @param which_reg Which regularization we are using.
-* @param cdata The constraint data -- 'lambda' if L2 regularization is used.
+* @param con The constraint we are enforcing.
 */
 static void p_constraint_closedform(
     matrix_t * const primal,
@@ -217,10 +215,10 @@ static void p_constraint_closedform(
     splatt_cpd_constraint * con)
 {
   /* Modify primal/Gram matrices if necessary. */
-  if(con->clos_func != NULL) {
+  if(con->clsd_func != NULL) {
     idx_t const nrows = primal->I;
     idx_t const ncols = primal->J;
-    con->clos_func(primal->vals, ws->gram->vals, nrows, ncols, con->data);
+    con->clsd_func(primal->vals, nrows, ncols, con->data);
   }
 
   mat_cholesky(ws->gram);
@@ -246,7 +244,8 @@ static idx_t p_admm_iterate_chunk(
     val_t const rho,
     cpd_ws * const ws,
     splatt_cpd_opts const * const cpd_opts,
-    splatt_global_opts const * const global_opts)
+    splatt_global_opts const * const global_opts,
+    bool const should_parallelize)
 {
   idx_t const rank = primal->J;
 
@@ -256,43 +255,41 @@ static idx_t p_admm_iterate_chunk(
   val_t primal_residual = 0.;
   val_t dual_residual   = 0.;
 
-  bool const chunked = (primal->I != ws->duals[mode]->I);
-  //cpd_opts->chunk_sizes[mode];
-
   /* foreach inner iteration */
   idx_t it;
   for(it=0; it < cpd_opts->max_inner_iterations; ++it) {
     /* save starting point for convergence check */
     size_t const bytes = primal->I * rank * sizeof(*primal->vals);
-    if(chunked) {
+    if(should_parallelize) {
       memcpy(init_buf->vals, primal->vals, bytes);
     } else {
       par_memcpy(init_buf->vals, primal->vals, bytes);
     }
 
     /* auxiliary = MTTKRP + (rho .* (primal + dual)) */
-    p_setup_auxiliary(primal, mttkrp_buf, dual, rho, auxil, chunked);
+    p_setup_auxiliary(primal, mttkrp_buf, dual, rho, auxil,
+        should_parallelize);
 
     /* Cholesky against auxiliary */
     mat_solve_cholesky(ws->gram, auxil);
 
-    p_setup_prox(primal, auxil, dual, !chunked);
+    p_setup_proximity(primal, auxil, dual, should_parallelize);
 
     /* APPLY CONSTRAINT / REGULARIZATION */
     if(con->prox_func != NULL) {
       con->prox_func(primal->vals, primal->I, rank, 0, con->data, rho,
-          !chunked);
+          should_parallelize);
     } else {
       fprintf(stderr, "SPLATT: WARNING no proximity operator specified for "
                       "constraint '%s'\n.", con->description);
     }
 
     /* update dual: U += (primal - auxiliary) */
-    dual_norm = p_update_dual(primal, auxil, dual, chunked);
+    dual_norm = p_update_dual(primal, auxil, dual, should_parallelize);
 
     /* check ADMM convergence */
-    p_calc_residual(primal, auxil, init_buf,
-        &primal_norm, &primal_residual, &dual_residual, chunked);
+    p_calc_residual(primal, auxil, init_buf, &primal_norm, &primal_residual,
+        &dual_residual, should_parallelize);
 
     /* converged? */
     if((primal_residual <= cpd_opts->inner_tolerance * primal_norm) &&
@@ -327,6 +324,9 @@ val_t admm_inner(
 
   /* (A^T * A) .* (B^T * B) .* .... ) */
   mat_form_gram(ws->aTa, ws->gram, ws->nmodes, mode);
+  if(con->gram_func != NULL) {
+    con->gram_func(ws->gram->vals, rank, con->data);
+  }
 
   /* these can be solved optimally without ADMM iterations */
   if(con->solve_type == SPLATT_CON_CLOSEDFORM) {
@@ -338,8 +338,6 @@ val_t admm_inner(
     }
     return 0.;
   }
-
-  void const * const cdata = con->data;
 
   /* Add penalty to diagonal -- value taken from AO-ADMM paper */
   val_t const rho = mat_trace(ws->gram) / (val_t) rank;
@@ -355,7 +353,6 @@ val_t admm_inner(
   if(chunk_size > 0) {
     num_chunks = mats[mode]->I / chunk_size + (mats[mode]->I % chunk_size > 0);
   }
-
   idx_t it = 0;
   #pragma omp parallel for schedule(dynamic) reduction(+:it) if(num_chunks > 1)
   for(idx_t c=0; c < num_chunks; ++c) {
@@ -383,9 +380,13 @@ val_t admm_inner(
     mat_fillptr(&init_buf, ws->mat_init->vals + offset, nrows, rank,
         ws->mat_init->rowmajor);
 
+    /* should the ADMM kernels parallelize themselves? */
+    bool const should_parallelize = (num_chunks == 1);
+
     /* Run ADMM to convergence and record total ADMM its per row. */
     it += nrows * p_admm_iterate_chunk(&primal, &auxil, &dual, ws->gram,
-        &mttkrp, &init_buf, mode, con, rho, ws, cpd_opts, global_opts);
+        &mttkrp, &init_buf, mode, con, rho, ws, cpd_opts, global_opts,
+        should_parallelize);
   } /* foreach chunk */
 
   timer_stop(&timers[TIMER_ADMM]);
