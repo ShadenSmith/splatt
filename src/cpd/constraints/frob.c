@@ -80,7 +80,7 @@ splatt_error_type splatt_register_frob(
      * still a good hint to provide for future proofing. */
     frob_con->hints.row_separable = true;
 
-    asprintf(&(frob_con->description), "FROBENIUS-REG (%0.1e)", multiplier);
+    sprintf(frob_con->description, "FROBENIUS-REG (%0.1e)", multiplier);
 
     /* store multiplier */
     val_t * mult = splatt_malloc(sizeof(*mult));

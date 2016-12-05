@@ -32,7 +32,7 @@ static void p_clear_constraint(
   con->post_func = NULL;
   con->free_func = NULL;
 
-  asprintf(&(con->description), "UNCONSTRAINED");
+  sprintf(con->description, "UNCONSTRAINED");
 }
 
 
@@ -116,7 +116,6 @@ void splatt_clear_constraint(
   if(con->free_func != NULL) {
     con->free_func(con->data);
   }
-  free(con->description);
 
   /* now initialize */
   p_clear_constraint(con);
@@ -135,7 +134,6 @@ void splatt_free_constraint(
     con->free_func(con->data);
   }
 
-  free(con->description);
   splatt_free(con);
 }
 

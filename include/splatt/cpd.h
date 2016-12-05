@@ -58,7 +58,7 @@ typedef struct
   void * data;
 
   /** String description of the constraint. E.g., 'NON-NEGATIVE' or 'LASSO'. */
-  char * description;
+  char description[256];
 
   /** Initialization function for constraint. This can be used to allocate
    *  buffers and/or manipulate the factor values before the factorization
