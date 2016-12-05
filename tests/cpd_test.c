@@ -31,6 +31,7 @@ CTEST_TEARDOWN(cpd)
 
 
 
+#if 0
 CTEST(cpd, cpd_opt_alloc)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
@@ -154,3 +155,4 @@ CTEST(cpd, cpd)
 {
 
 }
+#endif

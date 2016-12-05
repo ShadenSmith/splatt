@@ -243,28 +243,11 @@ void cpd_stats2(
   printf("\n");
 
   for(idx_t m=0; m < num_modes; ++m) {
-    switch(cpd_opts->constraints[m].which) {
-    case SPLATT_CON_NONE:
-      break;
-    case SPLATT_CON_NONNEG:
-      printf("  constraint: mode=%"SPLATT_PF_IDX" NONNEG\n", m+1);
-      break;
-    case SPLATT_REG_L1:
-      printf("  regularize: mode=%"SPLATT_PF_IDX" L1 (%"SPLATT_PF_VAL")\n",
-          m+1, *((val_t *) cpd_opts->constraints[m].data));
-      break;
-    case SPLATT_REG_L2:
-      printf("  regularize: mode=%"SPLATT_PF_IDX" L2 (%"SPLATT_PF_VAL")\n",
-          m+1, *((val_t *) cpd_opts->constraints[m].data));
-      break;
-    case SPLATT_REG_SMOOTHNESS:
-      printf("  regularize: mode=%"SPLATT_PF_IDX
-             " SMOOTH (%"SPLATT_PF_VAL")\n",
-          m+1, *((val_t *) cpd_opts->constraints[m].data));
-      break;
+    if(cpd_opts->constraints[m]->description != NULL) {
+      printf("  %s mode: %"SPLATT_PF_IDX"\n",
+          cpd_opts->constraints[m]->description, m+1);
     }
   }
-
 
   printf("\n");
 }

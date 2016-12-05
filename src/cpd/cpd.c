@@ -29,28 +29,6 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 
-#if 0
-/**
-* @brief Resets serial and MPI timers that were activated during some CPD
-*        pre-processing.
-*/
-static void p_reset_cpd_timers()
-{
-  timer_reset(&timers[TIMER_ATA]);
-#ifdef SPLATT_USE_MPI
-  timer_reset(&timers[TIMER_MPI]);
-  timer_reset(&timers[TIMER_MPI_IDLE]);
-  timer_reset(&timers[TIMER_MPI_COMM]);
-  timer_reset(&timers[TIMER_MPI_ATA]);
-  timer_reset(&timers[TIMER_MPI_REDUCE]);
-  timer_reset(&timers[TIMER_MPI_NORM]);
-  timer_reset(&timers[TIMER_MPI_UPDATE]);
-  timer_reset(&timers[TIMER_MPI_FIT]);
-#endif
-}
-#endif
-
-
 
 
 
@@ -112,13 +90,9 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
   opts->inner_tolerance = 1e-2;
   opts->max_inner_iterations = 20;
 
-  opts->unconstrained = true;
   for(idx_t m=0; m < MAX_NMODES; ++m) {
-    opts->chunk_sizes[m] = 0;
-    opts->constraints[m].which = SPLATT_CON_NONE;
-    opts->constraints[m].data = NULL;
-
-    opts->cpd_constraints[m] = NULL;
+    opts->chunk_sizes[m] = 50;
+    opts->constraints[m] = splatt_alloc_constraint(SPLATT_CON_CLOSEDFORM);
   }
 
 
@@ -129,11 +103,9 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
 void splatt_free_cpd_opts(
     splatt_cpd_opts * opts)
 {
-  /* if constraints, free data */
-  splatt_cpd_con_clear(opts, MAX_NMODES);
-
+  /* free constraints */
   for(idx_t m=0; m < MAX_NMODES; ++m) {
-    splatt_free_constraint(opts->cpd_constraints[m]);
+    splatt_free_constraint(opts->constraints[m]);
   }
 
   /* free options pointer */
@@ -280,7 +252,7 @@ double cpd_iterate(
   }
 
   /* absorb into lambda if no constraints/regularizations */
-  if(cpd_opts->unconstrained) {
+  if(ws->unconstrained) {
     cpd_post_process(mats, factored->lambda, ws, cpd_opts, global_opts);
   }
 
@@ -349,6 +321,7 @@ cpd_ws * cpd_alloc_ws(
 
 
   /* AO-ADMM */
+  ws->unconstrained = false;
   ws->auxil    = mat_alloc(maxdim, rank);
   ws->mat_init = mat_alloc(maxdim, rank);
   for(idx_t m=0; m < nmodes; ++m) {

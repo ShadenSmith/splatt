@@ -1,23 +1,14 @@
 /**
-* @file api_cpd.h
-* @brief Functions and structures related to the CPD factorization.
+* @file cpd_constraints.h
+* @brief Functions and structures related to constrained CPD factorization.
 * @author Shaden Smith
 * @version 2.0.0
 * @date 2016-11-26
 */
 
 
-#ifndef SPLATT_API_CPD_NEW_H
-#define SPLATT_API_CPD_NEW_H
-
-
-/******************************************************************************
- * INCLUDES
- *****************************************************************************/
-#include <stdbool.h>
-
-#include "cpd.h"
-
+#ifndef SPLATT_API_CPD_CONSTRAINTS_H
+#define SPLATT_API_CPD_CONSTRAINTS_H
 
 
 /******************************************************************************
@@ -41,11 +32,13 @@ typedef struct
 
 
 /**
-* @brief 
+* @brief How will the constraint/regularization be enforced?
 */
 typedef enum
 {
+  /** Constraint/regularization has a closed form solution. */
   SPLATT_CON_CLOSEDFORM,
+  /** Use ADMM. */
   SPLATT_CON_ADMM
 } splatt_con_solve_type;
 
@@ -63,6 +56,9 @@ typedef struct
 
   /** Arbitrary data. Often a penalty weight or other. */
   void * data;
+
+  /** String description of the constraint. E.g., 'NONNEGATIVE' or 'LASSO'. */
+  char * description;
 
   /** Initialization function for constraint. This can be used to allocate
    *  buffers and/or manipulate the factor values before the factorization
@@ -109,6 +105,11 @@ typedef struct
 
 
 
+
+
+
+
+
 /******************************************************************************
  * API FUNCTIONS
  *****************************************************************************/
@@ -124,23 +125,12 @@ extern "C" {
 *        initalized to 'identity' values, meaning no additional work is
 *        performed during factorization unless specified.
 *
+* @param solve_type How the constraint will be enforced.
+*
 * @return A constraint structure, to be freed by splatt_free_constraint().
 */
-splatt_cpd_constraint * splatt_alloc_constraint();
-
-
-
-/**
-* @brief Register a constraint with a mode of a CPD.
-*
-* @param opts Specifications for the CPD.
-* @param mode The mode to associate the constraint with.
-* @param con A constraint allocated by splatt_alloc_constraint().
-*/
-void splatt_register_constraint(
-    splatt_cpd_opts * const opts,
-    splatt_idx_t const mode,
-    splatt_cpd_constraint const * const con);
+splatt_cpd_constraint * splatt_alloc_constraint(
+    splatt_con_solve_type const solve_type);
 
 
 

@@ -12,11 +12,12 @@
  * API FUNCTIONS
  *****************************************************************************/
 
-splatt_cpd_constraint * splatt_alloc_constraint()
+splatt_cpd_constraint * splatt_alloc_constraint(
+    splatt_con_solve_type const solve_type)
 {
   splatt_cpd_constraint * con = splatt_malloc(sizeof(*con));
 
-  con->solve_type = SPLATT_CON_CLOSEDFORM;
+  con->solve_type = solve_type;
 
   /* zero out structures */
   memset(&(con->hints), 0, sizeof(con->hints));
@@ -29,6 +30,8 @@ splatt_cpd_constraint * splatt_alloc_constraint()
   con->clos_func = NULL;
   con->post_func = NULL;
   con->free_func = NULL;
+
+  asprintf(&(con->description), "UNCONSTRAINED");
 
   return con;
 }
@@ -54,6 +57,8 @@ void splatt_free_constraint(
   if(con->free_func != NULL) {
     con->free_func(con->data);
   }
+
+  free(con->description);
 
   /* Now just delete pointer. */
   splatt_free(con);

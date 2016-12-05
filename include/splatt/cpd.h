@@ -11,40 +11,16 @@
 #define SPLATT_API_CPD_H
 
 
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
+#include "cpd_constraints.h"
+
 
 
 /******************************************************************************
- * OPTIONS
+ * TYPES
  *****************************************************************************/
-
-
-typedef enum
-{
-  SPLATT_CON_NONE,
-  SPLATT_REG_L1,
-  SPLATT_REG_L2,
-  SPLATT_CON_NONNEG,
-  SPLATT_REG_SMOOTHNESS,
-
-#if 0
-  SPLATT_CON_SYMMETRY,
-  SPLATT_CON_SIMPLEX,
-  SPLATT_CON_CUSTOM,
-#endif
-
-} splatt_con_type;
-
-
-
-typedef struct
-{
-  splatt_con_type which;
-
-  /* Arbitrary data -- often a lambda parameter. */
-  void * data;
-} splatt_constraint;
-
-
 typedef struct
 {
   /* convergence */
@@ -56,11 +32,8 @@ typedef struct
   splatt_idx_t max_inner_iterations;
 
   /* constraints */
-  bool unconstrained; /* true if NO constraints or regularizations applied */
-  splatt_constraint constraints[SPLATT_MAX_NMODES];
+  splatt_cpd_constraint * constraints[SPLATT_MAX_NMODES];
 
-  splatt_cpd_constraint cpd_constraints[SPLATT_MAX_NMODES];
-  
   /* chunked AO-ADMM. 0=unchunked */
   splatt_idx_t chunk_sizes[SPLATT_MAX_NMODES];
 } splatt_cpd_opts;
@@ -101,34 +74,18 @@ void splatt_free_cpd_opts(
     splatt_cpd_opts * const opts);
 
 
-
-void splatt_cpd_reg_l1(
-    splatt_cpd_opts * const cpd_opts,
+/**
+* @brief Register a constraint with a mode of a CPD.
+*
+* @param opts Specifications for the CPD.
+* @param mode The mode to associate the constraint with.
+* @param con A constraint allocated by splatt_alloc_constraint().
+*/
+void splatt_register_constraint(
+    splatt_cpd_opts * const opts,
     splatt_idx_t const mode,
-    splatt_val_t const scale);
+    splatt_cpd_constraint const * const con);
 
-
-void splatt_cpd_reg_l2(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale);
-
-
-void splatt_cpd_reg_smooth(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale);
-
-
-
-void splatt_cpd_con_nonneg(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode);
-
-
-void splatt_cpd_con_clear(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode);
 
 /** }@ */
 

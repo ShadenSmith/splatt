@@ -75,6 +75,8 @@ bool splatt_register_nonneg(
     ntf_con->hints.row_separable     = true;
     ntf_con->hints.sparsity_inducing = true;
 
+    asprintf(&(ntf_con->description), "NON-NEGATIVITY");
+
     /* add to the CPD factorization */
     splatt_register_constraint(opts, mode, ntf_con);
 

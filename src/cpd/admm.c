@@ -12,256 +12,6 @@
 
 
 
-/******************************************************************************
- * TYPES
- *****************************************************************************/
-
-
-typedef struct
-{
-  val_t lambda;
-  matrix_t * banded;
-  int      * pivot;
-} reg_smooth_ws;
-
-
-
-
-/******************************************************************************
- * PRIVATE FUNCTIONS
- *****************************************************************************/
-
-/**
-* @brief Initialize the banded matrix B^T * B, where B is a tri-diagonal matrix
-*        with 2's on the diagonal and 1's on the sub/super-diagonals. The
-*        result is a banded matrix with bandwidth 2, stored col-major:
-*
-*                                 0   0   0   0   0
-*                                 0   0   0   0   0
-*                                 5  -4   1   0   0
-*           penalty * (lambda *  -4   6  -4   1   0  + diag(penalty))
-*                                 1  -4   6  -4   1
-*                                 0   1  -4   6  -4
-*                                 0   0   1  -4   5
-*
-*        The additional 2 rows at the top are for fill-in during LU
-*        factorization.
-*
-*        This routine then computes the LU factorization of this matrix using
-*        DGBTRF.
-*
-* @param[out] smooth The smoothness workspace to initialize.
-* @param I The dimension of the mode with smoothness.
-* @param penalty The current penalty term of the ADMM iteration.
-*/
-static void p_form_banded(
-    reg_smooth_ws * const smooth,
-    idx_t const I,
-    val_t const penalty)
-{
-  val_t * vals = smooth->banded->vals;
-
-  val_t const lambda = smooth->lambda;
-
-  /* first column is special */
-  vals[2+2+0] =  (5. * lambda) + penalty;
-  vals[2+2+1] = -4. * lambda;
-  vals[2+2+2] =  1. * lambda;
-
-  /* all columns except the last */
-  idx_t const nrows = smooth->banded->I; /* account for extra rows */
-  for(idx_t i=1; i < I-1; ++i) {
-    vals += nrows;
-
-    /* offset into current column */
-    if(i > 1) {
-      vals[2+0] =  1. * lambda;
-    }
-
-    vals[2+1] = -4. * lambda;
-    vals[2+2] = (6. * lambda) + penalty; /* rho gets added to diagonal */
-    vals[2+3] = -4. * lambda;
-
-    if(i < I-2) {
-      vals[2+4] =  1. * lambda;
-    }
-  }
-
-  /* last column is special, too */
-  vals += nrows;
-  vals[2+0] =  1. * lambda;
-  vals[2+1] = -4. * lambda;
-  vals[2+2] = (5. * lambda) + penalty;
-
-  /* compute the LU factorization */
-  int nbands = 2;
-  int M = (int) I;
-  int N = (int) I;
-  int KL = (int) nbands;
-  int KU = (int) nbands;
-  int lda = (int) (2 * nbands) + nbands + 1;
-  int info = 0;
-  LAPACK_DGBTRF(&M, &N, &KL, &KU, smooth->banded->vals, &lda, smooth->pivot, &info);
-  if(info) {
-    fprintf(stderr, "SPLATT: DGBTRF returned %d\n", info);
-  }
-}
-
-
-
-static void p_init_smooth(
-    reg_smooth_ws * const smooth,
-    idx_t const I)
-{
-  /* This will be a matrix stored in LAPACK banded format. We allocate
-   * diagonal + upper/lower bands + another 2 bands for LU fill-in. */
-  int const nbands = 2;
-  smooth->banded = mat_alloc(1 + (nbands * 3), I);
-  smooth->banded->rowmajor = 0;
-  smooth->pivot = splatt_malloc(I * sizeof(*smooth->pivot));
-}
-
-
-
-
-/******************************************************************************
- * PROXIMITY OPERATORS
- *
- *                Used to enforce ADMM constraints.
- *
- * This class of functions operate on (H\tilde^T - U), the difference between
- * the auxiliary and the dual variables. All proximity functions are expected
- * to take the same function signature.
- *****************************************************************************/
-
-
-/**
-* @brief Perform Lasso regularization via soft thresholding.
-*
-* @param[out] mat_primal The primal variable (factor matrix) to update.
-* @param penalty The current penalty parameter (rho).
-* @param ws CPD workspace data -- used for regularization parameter.
-* @param mode The mode we are updating.
-* @param data Constraint-specific data -- we store lambda in this.
-* @param is_chunked Whether this is a chunk of a larger matrix.
-*/
-static void p_proximity_l1(
-    matrix_t  * const mat_primal,
-    matrix_t const * const mat_auxil,
-    matrix_t const * const mat_dual,
-    val_t const penalty,
-    void const * const data,
-    bool const is_chunked)
-{
-  idx_t const I = mat_primal->I;
-  idx_t const J = mat_primal->J;
-
-  val_t       * const restrict matv = mat_primal->vals;
-  val_t const * const restrict auxl = mat_auxil->vals;
-  val_t const * const restrict dual = mat_dual->vals;
-
-  val_t const lambda = *((val_t *) data);
-  val_t const mult = lambda / penalty;
-
-  #pragma omp parallel for schedule(static) if(!is_chunked)
-  for(idx_t x=0; x < I * J; ++x) {
-    val_t const v = auxl[x] - dual[x];
-
-    /* TODO: could this be done faster? */
-    if(v > mult) {
-      matv[x] = v - mult;
-    } else if(v < -mult) {
-      matv[x] = v + mult;
-    } else {
-      matv[x] = 0.;
-    }
-  }
-}
-
-
-/**
-* @brief Apply the proximity operator to enforce column smoothness. This solves
-*        a banded linear system and performs a few matrix transposes.
-*
-* @param[out] mat_primal The primal variable (factor matrix) to update.
-* @param penalty The current penalty parameter (rho).
-* @param ws CPD workspace data -- used for regularization parameter.
-* @param mode The mode we are updating.
-* @param data Constraint-specific data -- a reg_smooth_ws struct pointer.
-* @param is_chunked Whether this is a chunk of a larger matrix.
-*/
-static void p_proximity_smooth(
-    matrix_t  * const mat_primal,
-    matrix_t const * const mat_auxil,
-    matrix_t const * const mat_dual,
-    val_t const penalty,
-    void const * const data,
-    bool const is_chunked)
-{
-  assert(!is_chunked);
-
-  idx_t const I = mat_primal->I;
-  idx_t const J = mat_primal->J;
-
-  val_t       * const restrict matv = mat_primal->vals;
-  val_t       * const restrict auxl = mat_auxil->vals;
-  val_t const * const restrict dual = mat_dual->vals;
-
-  reg_smooth_ws * smooth = (reg_smooth_ws *) data;
-
-  /* allocate if this is the first time */
-  if(smooth->banded == NULL) {
-    p_init_smooth(smooth, I);
-  }
-
-  /* form the banded matrix and compute its LU factorization */
-  p_form_banded(smooth, I, penalty);
-
-  /* form and transpose the RHS */
-  #pragma omp parallel
-  {
-    for(idx_t j=0; j < J; ++j) {
-      #pragma omp for schedule(static) nowait
-      for(idx_t i=0; i < I; ++i) {
-        idx_t const old = j + (i*J);
-        idx_t const new = i + (j*I);
-        matv[new] = auxl[old] - dual[old];
-      }
-    }
-  } /* end omp parallel */
-
-  /* solve the linear system of equations */
-  char trans = 'N';
-  int N = (int) I;
-  int KL = 2;
-  int KU = 2;
-  int nrhs = (int) J;
-  int lda = (int) (2 * KL) + KU + 1;
-  int ldb = N;
-  int info;
-
-  LAPACK_DGBTRS(&trans, &N, &KL, &KU, &nrhs, smooth->banded->vals, &lda,
-      smooth->pivot, matv, &ldb, &info);
-  if(info) {
-    fprintf(stderr, "SPLATT: DGBTRS returned %d\n", info);
-  }
-
-  /* now transpose back and multiply by penalty */
-  #pragma omp parallel for schedule(static)
-  for(idx_t i=0; i < I; ++i) {
-    for(idx_t j=0; j < J; ++j) {
-      idx_t const old = i + (j*I);
-      idx_t const new = j + (i*J);
-      auxl[new] = matv[old] * penalty;
-    }
-  }
-
-  /* now copy back to mat_primal... */
-  par_memcpy(matv, auxl, I * J * sizeof(*matv));
-}
-
-
-
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
@@ -341,6 +91,32 @@ static val_t p_update_dual(
   return norm;
 }
 
+
+/**
+* @brief Initialize the primal matrix with (auxil - dual).
+* 
+* @param[out] mat_primal The primal matrix to initialize.
+* @param mat_auxil The auxiliary matrix.
+* @param mat_dual The dual matrix.
+* @param should_parallelize Whether we should parallelize.
+*/
+static void p_setup_prox(
+    matrix_t       * const mat_primal,
+    matrix_t const * const mat_auxil,
+    matrix_t const * const mat_dual,
+    bool const should_parallelize)
+{
+  val_t       * const restrict primal = mat_primal->vals;
+  val_t const * const restrict auxil = mat_auxil->vals;
+  val_t const * const restrict dual = mat_dual->vals;
+
+  idx_t const N = mat_primal->I * mat_primal->J;
+
+  #pragma omp parallel for schedule(static) if(should_parallelize)
+  for(idx_t x=0; x < N; ++x) {
+    primal[x] = auxil[x] - dual[x];
+  }
+}
 
 
 /**
@@ -435,16 +211,16 @@ static void p_calc_residual(
 * @param which_reg Which regularization we are using.
 * @param cdata The constraint data -- 'lambda' if L2 regularization is used.
 */
-static void p_admm_optimal_regs(
+static void p_constraint_closedform(
     matrix_t * const primal,
     cpd_ws * const ws,
-    splatt_con_type which_reg,
-    void const * const cdata)
+    splatt_cpd_constraint * con)
 {
-  /* Add to the diagonal for L2 regularization. */
-  if(which_reg == SPLATT_REG_L2) {
-    val_t const reg = *((val_t *) cdata);
-    mat_add_diag(ws->gram, reg);
+  /* Modify primal/Gram matrices if necessary. */
+  if(con->clos_func != NULL) {
+    idx_t const nrows = primal->I;
+    idx_t const ncols = primal->J;
+    con->clos_func(primal->vals, ws->gram->vals, nrows, ncols, con->data);
   }
 
   mat_cholesky(ws->gram);
@@ -466,7 +242,7 @@ static idx_t p_admm_iterate_chunk(
     matrix_t * mttkrp_buf,
     matrix_t * init_buf,
     idx_t mode,
-    idx_t which_reg,
+    splatt_cpd_constraint * const con,
     val_t const rho,
     cpd_ws * const ws,
     splatt_cpd_opts const * const cpd_opts,
@@ -479,8 +255,6 @@ static idx_t p_admm_iterate_chunk(
   val_t dual_norm       = 0.;
   val_t primal_residual = 0.;
   val_t dual_residual   = 0.;
-
-  void const * const cdata = cpd_opts->constraints[mode].data;
 
   bool const chunked = (primal->I != ws->duals[mode]->I);
   //cpd_opts->chunk_sizes[mode];
@@ -502,25 +276,16 @@ static idx_t p_admm_iterate_chunk(
     /* Cholesky against auxiliary */
     mat_solve_cholesky(ws->gram, auxil);
 
-    /* APPLY CONSTRAINT / REGULARIZATION */
-    /* primal = proximity(auxiliary) */
-    switch(which_reg) {
-    case SPLATT_CON_NONNEG:
-      p_proximity_nonneg(primal, auxil, dual, rho, cdata, chunked);
-      break;
-    case SPLATT_REG_L1:
-      p_proximity_l1(primal, auxil, dual, rho, cdata, chunked);
-      break;
-    case SPLATT_REG_SMOOTHNESS:
-      p_proximity_smooth(primal, auxil, dual, rho, cdata, chunked);
-      break;
+    p_setup_prox(primal, auxil, dual, !chunked);
 
-    case SPLATT_CON_NONE:
-    case SPLATT_REG_L2:
-      /* XXX: NONE and L2 should have been caught already. */
-      assert(false);
-      break;
-    } /* proximity operatior */
+    /* APPLY CONSTRAINT / REGULARIZATION */
+    if(con->prox_func != NULL) {
+      con->prox_func(primal->vals, primal->I, rank, 0, con->data, rho,
+          !chunked);
+    } else {
+      fprintf(stderr, "SPLATT: WARNING no proximity operator specified for "
+                      "constraint '%s'\n.", con->description);
+    }
 
     /* update dual: U += (primal - auxiliary) */
     dual_norm = p_update_dual(primal, auxil, dual, chunked);
@@ -558,31 +323,23 @@ val_t admm_inner(
 
   idx_t const rank = mats[mode]->J;
 
-  splatt_cpd_constraint * con = cpd_opts->cpd_constraints[mode];
+  splatt_cpd_constraint * con = cpd_opts->constraints[mode];
 
   /* (A^T * A) .* (B^T * B) .* .... ) */
   mat_form_gram(ws->aTa, ws->gram, ws->nmodes, mode);
 
-  /* setup closed-form solution if applicable */
-  if(con != NULL && con->clos_func != NULL) {
-    con->clos_func(mats[mode]->vals, ws->gram->vals, mats[mode]->I, rank,
-        con->data);
-  }
-
-
-  splatt_con_type const which_reg = cpd_opts->constraints[mode].which;
-  void const * const cdata        = cpd_opts->constraints[mode].data;
-
   /* these can be solved optimally without ADMM iterations */
-  if(which_reg == SPLATT_CON_NONE || which_reg == SPLATT_REG_L2) {
-    p_admm_optimal_regs(mats[mode], ws, which_reg, cdata);
+  if(con->solve_type == SPLATT_CON_CLOSEDFORM) {
+    p_constraint_closedform(mats[mode], ws, con);
 
     /* Absorb columns into column_weights if no constraints are applied */
-    if(cpd_opts->unconstrained) {
+    if(ws->unconstrained) {
       mat_normalize(mats[mode], column_weights, MAT_NORM_2, NULL, ws->thds);
     }
     return 0.;
   }
+
+  void const * const cdata = con->data;
 
   /* Add penalty to diagonal -- value taken from AO-ADMM paper */
   val_t const rho = mat_trace(ws->gram) / (val_t) rank;
@@ -628,7 +385,7 @@ val_t admm_inner(
 
     /* Run ADMM to convergence and record total ADMM its per row. */
     it += nrows * p_admm_iterate_chunk(&primal, &auxil, &dual, ws->gram,
-        &mttkrp, &init_buf, mode, which_reg, rho, ws, cpd_opts, global_opts);
+        &mttkrp, &init_buf, mode, con, rho, ws, cpd_opts, global_opts);
   } /* foreach chunk */
 
   timer_stop(&timers[TIMER_ADMM]);
@@ -637,125 +394,5 @@ val_t admm_inner(
   return (val_t) it / (val_t) mats[mode]->I;
 }
 
-
-
-void splatt_cpd_reg_l1(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale)
-{
-  /* MAX_NMODES will simply apply regularization to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_reg_l1(cpd_opts, m, scale);
-    }
-    return;
-  }
-
-  splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->unconstrained = false;
-  cpd_opts->constraints[mode].which = SPLATT_REG_L1;
-  val_t * lambda = splatt_malloc(sizeof(*lambda));
-  *lambda = scale;
-  cpd_opts->constraints[mode].data = (void *) lambda;
-}
-
-
-void splatt_cpd_reg_l2(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale)
-{
-  /* MAX_NMODES will simply apply regularization to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_reg_l2(cpd_opts, m, scale);
-    }
-    return;
-  }
-
-  splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->unconstrained = false;
-  cpd_opts->constraints[mode].which = SPLATT_REG_L2;
-  val_t * lambda = splatt_malloc(sizeof(*lambda));
-  *lambda = scale;
-  cpd_opts->constraints[mode].data = (void *) lambda;
-}
-
-
-void splatt_cpd_reg_smooth(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale)
-{
-  /* MAX_NMODES will simply apply regularization to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_reg_smooth(cpd_opts, m, scale);
-    }
-    return;
-  }
-
-  splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->unconstrained = false;
-  cpd_opts->constraints[mode].which = SPLATT_REG_SMOOTHNESS;
-
-  reg_smooth_ws * smooth = splatt_malloc(sizeof(*smooth));
-  smooth->lambda = scale;
-  smooth->banded = NULL; /* to be allocated when we know the dimension */
-  cpd_opts->constraints[mode].data = (void *) smooth;
-}
-
-
-void splatt_cpd_con_clear(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode)
-{
-  /* MAX_NMODES will operate on all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_con_clear(cpd_opts, m);
-    }
-    return;
-  }
-
-  reg_smooth_ws * smooth = NULL;
-
-  switch(cpd_opts->constraints[mode].which) {
-    /* no-ops */
-    case SPLATT_CON_NONE:
-    case SPLATT_CON_NONNEG:
-      break;
-
-    case SPLATT_REG_L1:
-      splatt_free(cpd_opts->constraints[mode].data);
-      break;
-    case SPLATT_REG_L2:
-      splatt_free(cpd_opts->constraints[mode].data);
-      break;
-    case SPLATT_REG_SMOOTHNESS:
-      smooth = cpd_opts->constraints[mode].data;
-      mat_free(smooth->banded);
-      splatt_free(smooth->pivot);
-      splatt_free(smooth);
-      break;
-  }
-
-  /* clear just in case */
-  cpd_opts->constraints[mode].which = SPLATT_CON_NONE;
-  cpd_opts->constraints[mode].data = NULL;
-
-  /* check if no constraints */
-  cpd_opts->unconstrained = true;
-  for(idx_t m=0; m < MAX_NMODES; ++m) {
-    if(cpd_opts->constraints[mode].which != SPLATT_CON_NONE) {
-      cpd_opts->unconstrained = false;
-      break;
-    }
-  }
-}
 
 

@@ -41,6 +41,8 @@ typedef struct
 
   /* AO-ADMM */
 
+  bool unconstrained; /* true if NO constraints or regularizations applied */
+
   matrix_t * auxil; /** Auxiliary matrix for AO-ADMM factorization. */
   matrix_t * duals[MAX_NMODES]; /** Dual matrices for AO-ADMM factorization. */
   matrix_t * mat_init; /** Store the initial primal variable each ADMM iteration. */
