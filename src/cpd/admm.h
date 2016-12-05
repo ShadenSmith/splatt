@@ -38,5 +38,31 @@ val_t admm_inner(
 
 
 
+#define cpd_init_constraints splatt_cpd_init_constraints
+/**
+* @brief Call init_func() on all constraints.
+*
+* @param opts CPD parameters containing the constraints.
+* @param primals Primal matrices (the factors).
+* @param nmodes The number of modes.
+*/
+void cpd_init_constraints(
+    splatt_cpd_opts * const opts,
+    matrix_t * * primals,
+    idx_t const nmodes);
+
+
+#define cpd_finalize_constraints splatt_cpd_finalize_constraints
+/**
+* @brief Call post_func() on all constraints.
+*
+* @param opts CPD parameters containing the constraints.
+* @param primals Primal matrices (the factors).
+* @param nmodes The number of modes.
+*/
+void cpd_finalize_constraints(
+    splatt_cpd_opts * const opts,
+    matrix_t * * primals,
+    idx_t const nmodes);
 
 #endif

@@ -108,7 +108,7 @@ double cpd_iterate(
     splatt_csf const * const tensor,
     idx_t rank,
     cpd_ws * const ws,
-    splatt_cpd_opts const * const cpd_opts,
+    splatt_cpd_opts * const cpd_opts,
     splatt_global_opts const * const global_opts,
     splatt_kruskal * factored);
 

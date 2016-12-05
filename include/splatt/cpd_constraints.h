@@ -65,7 +65,7 @@ typedef struct
    *  begins. This function is called after 'vals' has been initialized. */
   void (* init_func) (splatt_val_t * vals,
                       splatt_idx_t const nrows,
-                      splatt_idx_t const ncolstype,
+                      splatt_idx_t const ncols,
                       void ** data);
 
   /** Apply the proximity operator to the (nrows x ncols) primal matrix. This

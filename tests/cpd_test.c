@@ -31,11 +31,9 @@ CTEST_TEARDOWN(cpd)
 
 
 
-#if 0
 CTEST(cpd, cpd_opt_alloc)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
-  ASSERT_EQUAL(true, opts->unconstrained);
 
   ASSERT_NOT_NULL(opts);
 
@@ -43,14 +41,14 @@ CTEST(cpd, cpd_opt_alloc)
 }
 
 
+#if 0
 CTEST(cpd, cpd_add_constraints)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
 
   for(idx_t m=0; m < SPLATT_MAX_NMODES; ++m) {
-    ASSERT_EQUAL(SPLATT_CON_NONE, opts->constraints[m].which);
-    ASSERT_EQUAL(0, opts->chunk_sizes[m]);
-    ASSERT_NULL(opts->constraints[m].data);
+    ASSERT_NOT_NULL(opts->constraints[m]);
+    ASSERT_NULL(opts->constraints[m]->data);
   }
 
   /* just one mode */
@@ -67,6 +65,7 @@ CTEST(cpd, cpd_add_constraints)
 
   splatt_free_cpd_opts(opts);
 }
+
 
 CTEST(cpd, cpd_add_constraints_allmodes)
 {

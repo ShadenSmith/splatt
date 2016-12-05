@@ -160,7 +160,7 @@ double cpd_iterate(
     splatt_csf const * const tensor,
     idx_t const rank,
     cpd_ws * const ws,
-    splatt_cpd_opts const * const cpd_opts,
+    splatt_cpd_opts * const cpd_opts,
     splatt_global_opts const * const global_opts,
     splatt_kruskal * factored)
 {
@@ -174,6 +174,9 @@ double cpd_iterate(
     mat_normalize(mats[m], factored->lambda, MAT_NORM_2, NULL, ws->thds);
   }
   mats[MAX_NMODES] = ws->mttkrp_buf;
+
+  /* allow constraints to initialize */
+  cpd_init_constraints(cpd_opts, mats, nmodes);
 
   /* reset column weights */
   for(idx_t r=0; r < rank; ++r) {
@@ -254,6 +257,8 @@ double cpd_iterate(
   /* absorb into lambda if no constraints/regularizations */
   if(ws->unconstrained) {
     cpd_post_process(mats, factored->lambda, ws, cpd_opts, global_opts);
+  } else {
+    cpd_finalize_constraints(cpd_opts, mats, nmodes);
   }
 
   splatt_free(opts);

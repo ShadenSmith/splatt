@@ -84,7 +84,7 @@ void splatt_free_cpd_opts(
 void splatt_register_constraint(
     splatt_cpd_opts * const opts,
     splatt_idx_t const mode,
-    splatt_cpd_constraint const * const con);
+    splatt_cpd_constraint * const con);
 
 
 /** }@ */
