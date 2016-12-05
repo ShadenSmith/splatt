@@ -37,8 +37,11 @@ typedef struct
 {
   /** How to specify the constraint. E.g., --con=<name> */
   char * name;
-  /** Function which adds a constraint to modes marked in modes_included[:]. */
-  bool (* handle) (splatt_cpd_opts * opts, bool * modes_included);
+  /** Function which adds a constraint to modes in modes_included[:]. */
+  splatt_error_type (* handle) (
+                   splatt_cpd_opts * opts,
+                   idx_t const * const modes_included,
+                   idx_t const num_modes);
 } constraint_cmd;
 
 
@@ -50,9 +53,12 @@ typedef struct
 {
   /** How to specify the regularization. E.g., --reg=<name> */
   char * name;
-  /** Function which adds a regularization to modes marked in
-   *  modes_included[:]. */
-  bool (* handle) (splatt_cpd_opts * opts, bool * modes_included, val_t mult);
+  /** Function which adds a constraint to modes in modes_included[:]. */
+  splatt_error_type (* handle) (
+                   splatt_cpd_opts * opts,
+                   val_t const multiplier,
+                   idx_t const * const modes_included,
+                   idx_t const num_modes);
 } regularization_cmd;
 
 
@@ -66,16 +72,21 @@ typedef struct
 
 /* Just makes function prototypes easier. */
 #define PROTO_CONSTRAINT_HANDLE(handle_name) \
-    bool handle_name(splatt_cpd_opts * cpd, bool * modes_included)
+    splatt_error_type handle_name(splatt_cpd_opts * cpd, \
+                   idx_t const * const modes_included, \
+                   idx_t const * const num_modes)
 
 #define PROTO_REGULARIZATION_HANDLE(handle_name) \
-    bool handle_name(splatt_cpd_opts * cpd, bool * modes_included, val_t mult)
+    splatt_error_type handle_name(splatt_cpd_opts * cpd, \
+                   val_t const multiplier, \
+                   idx_t const * const modes_included, \
+                   idx_t const * const num_modes)
 
 
-/* FUNCTION PROTOTYPES. ADD YOURS TO THIS LIST. */
-PROTO_CONSTRAINT_HANDLE( splatt_register_nonneg );
+/* FUNCTION PROTOTYPES. ADD YOURS HERE OR 'include/splatt/cpd.h'. */
 
-//PROTO_REGULARIZATION_HANDLE( lasso_handle );
+//PROTO_CONSTRAINT_HANDLE( splatt_register_nonneg );
+//PROTO_REGULARIZATION_HANDLE( splatt_register_lasso );
 
 
 
@@ -98,28 +109,34 @@ static char const CPD_CONSTRAINT_DOC[] =
     "The following constraints are supported:\n"
     "  nonneg\tnon-negativity \n"
     "  ntf\t\t(nonneg alias)\n"
+#if 0
     "  orth\t\torthogonality\n"
     "  rowsimp\trows lie in a probability simplex\n"
     "  colsimp\tcolumns lie in a probability simplex\n"
     "  symm\t\tsymmetry (matching factor matrices, >1 mode required)\n"
+#endif
     "\n"
     "The following regularizations are supported:\n"
     "  frob\t\tFrobenius norm (Tikhonov regularization)\n"
+#if 0
     "  l1\t\tsparsity (LASSO)\n"
     "  lasso\t(l1 alias)\n"
-    "  smooth\tsmooth columns\n";
+    "  smooth\tsmooth columns\n"
+#endif
+    "";
 
 
 
 /* ADD TO THESE LISTS. MULTIPLE ENTRIES RESULT IN ALIASES. */
 static constraint_cmd constraint_cmds[] = {
-  {"nonneg", splatt_register_nonneg} ,
-  {"ntf",    splatt_register_nonneg} ,
+  {"nonneg", splatt_register_nonneg},
+  {"ntf",    splatt_register_nonneg},
   { NULL, NULL }
 };
 
 
 static regularization_cmd regularization_cmds[] = {
+  {"frob", splatt_register_frob},
   //{"l1",    lasso_handle} ,
   //{"lasso", lasso_handle} ,
   { NULL, NULL }

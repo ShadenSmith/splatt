@@ -244,8 +244,8 @@ void cpd_stats2(
 
   for(idx_t m=0; m < num_modes; ++m) {
     if(cpd_opts->constraints[m]->description != NULL) {
-      printf("  %s mode: %"SPLATT_PF_IDX"\n",
-          cpd_opts->constraints[m]->description, m+1);
+      printf("  mode: %"SPLATT_PF_IDX" %s\n",
+          m+1, cpd_opts->constraints[m]->description);
     }
   }
 

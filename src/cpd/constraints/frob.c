@@ -1,57 +1,99 @@
 
+/******************************************************************************
+ * INCLUDES
+ *****************************************************************************/
+
+#include "../admm.h"
+
+
+
+
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
+
+
+/**
+* @brief Interpret data as a scalar to add to the Gram diagonal. The scalar is
+*        \lambda, the penalty multiplier on the Tikhonov regularization.
+*
+* @param[out] gram The Gram matrix to update.
+* @param N The dimension of the matrix.
+* @param data Interpreted as a val_t scalar.
+*/
+void frob_gram(
+    val_t * restrict gram,
+    splatt_idx_t const N,
+    void * data)
+{
+  /* convert (void *) to val_t */
+  val_t const mult = *((val_t *) data);
+
+  /* add mult to diagonal */
+  for(idx_t n=0; n < N; ++n) {
+    gram[n + (n * N)] += mult;
+  }
+}
 
 
 
 /**
-* @brief Optimally compute the new primal variable when no regularization or
-*        only L2 regularization is present.
+* @brief Free the single (val_t *) allocated for Frobenius regularization.
 *
-* @param[out] primal The matrix to update.
-* @param ws CPD workspace.
-* @param which_reg Which regularization we are using.
-* @param cdata The constraint data -- 'lambda' if L2 regularization is used.
+* @param data The data to free.
 */
-static void p_admm_optimal_regs(
-    matrix_t * const primal,
-    cpd_ws * const ws,
-    splatt_con_type which_reg,
-    void const * const cdata)
+void frob_free(
+    void * data)
 {
-  /* Add to the diagonal for L2 regularization. */
-  if(which_reg == SPLATT_REG_L2) {
-    val_t const reg = *((val_t *) cdata);
-    mat_add_diag(ws->gram, reg);
-  }
-
-  mat_cholesky(ws->gram);
-
-  /* Copy and then solve directly against MTTKRP */
-  size_t const bytes = primal->I * primal->J * sizeof(*primal->vals);
-  par_memcpy(primal->vals, ws->mttkrp_buf->vals, bytes);
-  mat_solve_cholesky(ws->gram, primal);
+  splatt_free(data);
 }
 
 
-void splatt_cpd_reg_l2(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale)
+
+
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+
+
+splatt_error_type splatt_register_frob(
+    splatt_cpd_opts * opts,
+    splatt_val_t const multiplier,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes)
 {
-  /* MAX_NMODES will simply apply regularization to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_reg_l2(cpd_opts, m, scale);
-    }
-    return;
+  splatt_cpd_constraint * frob_con = NULL;
+  for(idx_t m = 0; m < num_modes; ++m) {
+    idx_t const mode = modes_included[m];
+
+    frob_con = splatt_alloc_constraint(SPLATT_CON_CLOSEDFORM);
+
+    /* Tikhonov regularization only requires a modified Gram matrix. */
+    frob_con->gram_func = frob_gram;
+
+    /* Remember to clean up */
+    frob_con->free_func = frob_free;
+
+    /* Not actually used because it has a closed form solution. But, this is
+     * still a good hint to provide for future proofing. */
+    frob_con->hints.row_separable = true;
+
+    asprintf(&(frob_con->description), "FROBENIUS-REG (%0.1e)", multiplier);
+
+    /* store multiplier */
+    val_t * mult = splatt_malloc(sizeof(*mult));
+    *mult = multiplier;
+    frob_con->data = mult;
+
+    /* store the constraint for use */
+    splatt_register_constraint(opts, mode, frob_con);
   }
 
-  //splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->constraints[mode].which = SPLATT_REG_L2;
-  val_t * lambda = splatt_malloc(sizeof(*lambda));
-  *lambda = scale;
-  cpd_opts->constraints[mode].data = (void *) lambda;
+  return SPLATT_SUCCESS;
 }
+
 
 
 

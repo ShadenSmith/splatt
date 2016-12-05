@@ -57,7 +57,7 @@ typedef struct
   /** Arbitrary data. Often a penalty weight or other. */
   void * data;
 
-  /** String description of the constraint. E.g., 'NONNEGATIVE' or 'LASSO'. */
+  /** String description of the constraint. E.g., 'NON-NEGATIVE' or 'LASSO'. */
   char * description;
 
   /** Initialization function for constraint. This can be used to allocate
@@ -151,6 +151,51 @@ typedef struct
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+/**
+ * \defgroup constraint_api Functions for configuring a CPD factorization.
+ *  @{
+ */
+
+
+/**
+* @brief Register a non-negativity constraint with a list of modes.
+*
+* @param[out] opts The CPD options structure to modify.
+* @param modes_included A list of the modes to register.
+* @param num_modes The length of 'modes_included'.
+*
+* @return SPLATT error code.
+*/
+splatt_error_type splatt_register_nonneg(
+    splatt_cpd_opts * opts,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes);
+
+
+
+/**
+* @brief Register a Frobenius norm (Tiknohov) regularization with a list of
+*        modes.
+*
+* @param[out] opts The CPD options structure to modify.
+* @param multiplier The \lambda penalty multiplier.
+* @param modes_included A list of the modes to register.
+* @param num_modes The length of 'modes_included'.
+*
+* @return SPLATT error code.
+*/
+splatt_error_type splatt_register_frob(
+    splatt_cpd_opts * opts,
+    splatt_val_t const multiplier,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes);
+
+
+/** }@ */
+
+
 
 
 

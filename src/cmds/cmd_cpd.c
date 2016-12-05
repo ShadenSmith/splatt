@@ -22,37 +22,79 @@
 
 
 /**
-* @brief Fill a boolean array with the modes specified by the 1-indexed list
+* @brief Return an array with the modes specified by the 1-indexed list
 *        'args'. If the list is empty, mark all of them.
 *
-* @param[out] is_mode_set Marker array for each mode.
 * @param args Array of command line arguments.
-* @param num_args The length of 'args'.
+* @param num_args On input, the length of 'args'. On output, the length of the
+*                 returned list.
+*
+* @return A list of the specified modes.
 */
-static void p_cmd_parse_modelist(
-    bool * is_mode_set,
+static idx_t * p_cmd_parse_modelist(
     char * * args,
-    int num_args)
+    int * num_args)
 {
+  idx_t * modes = splatt_malloc(MAX_NMODES * sizeof(*modes));
+
   /* no args? all modes set */
-  if(num_args == 0) {
+  if(*num_args == 0) {
+    *num_args = MAX_NMODES;
+
     for(idx_t m=0; m < MAX_NMODES; ++m) {
-      is_mode_set[m] = true;
+      modes[m] = m;
     }
-    return;
+    return modes;
   }
 
   for(idx_t m=0; m < MAX_NMODES; ++m) {
-    is_mode_set[m] = false;
+    modes[m] = SPLATT_MAX_NMODES;
   }
+
 
   /* parse modes */
-  for(int i=0; i < num_args; ++i) {
-    idx_t mode = strtoull(args[i], &args[i], 10) - 1;
+  int mode_len = 0;
+  for(int i=0; i < *num_args; ++i) {
+    idx_t mode = strtoull(args[i], NULL, 10) - 1;
     assert(mode < MAX_NMODES);
-
-    is_mode_set[mode] = true;
+    
+    modes[mode_len++] = mode;
   }
+
+  /* store length */
+  *num_args = mode_len;
+
+  return modes;
+}
+
+
+/**
+* @brief Split 'cmd_arg' into strings using ',' as a delimiter. split_args[]
+*        must already exist and be at least of length MAX_NMODES*2.
+*
+* @param cmd_arg The string to split.
+* @param[out] split_args The list of split strings. NOTE: must be freed.
+* @param[out] num_args The length of split_args.
+*/
+static void p_split_args(
+    char * cmd_arg,
+    char * * split_args,
+    int * num_args)
+{
+  int N = 0;
+
+  char * ptr = strtok(cmd_arg, ",");
+  while(ptr != NULL) {
+    /* copy arg */
+    split_args[N] = splatt_malloc(strlen(ptr)+1);
+    strcpy(split_args[N], ptr);
+    ++N;
+
+    /* next arg */
+    ptr = strtok(NULL, ",");
+  }
+
+  *num_args = N;
 }
 
 
@@ -73,36 +115,29 @@ static bool p_add_constraint(
     splatt_cpd_opts * opts)
 {
   bool success = true;
+
+  /* split args on ',' */
   char * arg_buf[MAX_NMODES * 2];
-
-  int num_args = 0;
-  char * ptr = strtok(cmd_arg, ",");
-  while(ptr != NULL) {
-    /* copy arg */
-    arg_buf[num_args] = splatt_malloc(strlen(ptr)+1);
-    strcpy(arg_buf[num_args], ptr);
-    ++num_args;
-
-    /* next arg */
-    ptr = strtok(NULL, ",");
-  }
+  int num_args;
+  p_split_args(cmd_arg, arg_buf, &num_args);
 
   /* +1 and -1 so we skip the name */
-  bool modes[MAX_NMODES];
-  p_cmd_parse_modelist(modes, arg_buf+1, num_args-1);
+  int mode_len = num_args - 1;
+  idx_t * modes = p_cmd_parse_modelist(arg_buf+1, &mode_len);
 
   /* Search for the constraint and call the handle. */
   for(int c=0; valid_cmds[c].name != NULL; ++c) {
     if(strcmp(arg_buf[0], valid_cmds[c].name) == 0) {
-      success = valid_cmds[c].handle(opts, modes);
+      success = valid_cmds[c].handle(opts, modes, mode_len);
       goto CLEANUP;
     }
   }
   /* ERROR */
-  fprintf(stderr, "SPLATT: constraint '%s' not found.", arg_buf[0]);
+  fprintf(stderr, "SPLATT: constraint '%s' not found.\n", arg_buf[0]);
   success = false;
 
   CLEANUP:
+  splatt_free(modes);
   for(int c=0; c < num_args; ++c) {
     splatt_free(arg_buf[c]);
   }
@@ -128,19 +163,11 @@ static bool p_add_regularization(
     splatt_cpd_opts * opts)
 {
   bool success = true;
+
+  /* split args on ',' */
   char * arg_buf[MAX_NMODES * 2];
-
-  int num_args = 0;
-  char * ptr = strtok(cmd_arg, ",");
-  while(ptr != NULL) {
-    /* copy arg */
-    arg_buf[num_args] = splatt_malloc(strlen(ptr)+1);
-    strcpy(arg_buf[num_args], ptr);
-    ++num_args;
-
-    /* next arg */
-    ptr = strtok(NULL, ",");
-  }
+  int num_args;
+  p_split_args(cmd_arg, arg_buf, &num_args);
 
   if(num_args < 2) {
     fprintf(stderr, "SPLATT: regularizations require 'MULT' parameter.\n");
@@ -151,21 +178,22 @@ static bool p_add_regularization(
   val_t const multiplier = strtod(arg_buf[1], NULL);
 
   /* +2 and -2 so we skip the name and multiplier */
-  bool modes[MAX_NMODES];
-  p_cmd_parse_modelist(modes, arg_buf+2, num_args-2);
+  int mode_len = num_args - 2;
+  idx_t * modes = p_cmd_parse_modelist(arg_buf+2, &mode_len);
 
   /* Search for the regularization and call the handle. */
   for(int c=0; valid_cmds[c].name != NULL; ++c) {
     if(strcmp(arg_buf[0], valid_cmds[c].name) == 0) {
-      success = valid_cmds[c].handle(opts, modes, multiplier);
+      success = valid_cmds[c].handle(opts, multiplier, modes, mode_len);
       goto CLEANUP;
     }
   }
   /* ERROR */
-  fprintf(stderr, "SPLATT: regularization '%s' not found.", arg_buf[0]);
+  fprintf(stderr, "SPLATT: regularization '%s' not found.\n", arg_buf[0]);
   success = false;
 
   CLEANUP:
+  splatt_free(modes);
   for(int c=0; c < num_args; ++c) {
     splatt_free(arg_buf[c]);
   }
@@ -353,12 +381,12 @@ static error_t parse_cpd_opt(
   /* constraints */
   case LONG_CON:
     if(!p_add_constraint(arg, constraint_cmds, args->cpd_opts)) {
-      argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
+      argp_state_help(state, stdout, ARGP_HELP_EXIT_ERR);
     }
     break;
   case LONG_REG:
     if(!p_add_regularization(arg, regularization_cmds, args->cpd_opts)) {
-      argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
+      argp_state_help(state, stdout, ARGP_HELP_EXIT_ERR);
     }
     break;
 

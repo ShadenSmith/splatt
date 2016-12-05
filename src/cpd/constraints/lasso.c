@@ -1,4 +1,5 @@
 
+#if 0
 /**
 * @brief Perform Lasso regularization via soft thresholding.
 *
@@ -66,3 +67,4 @@ void splatt_cpd_reg_l1(
 }
 
 
+#endif
