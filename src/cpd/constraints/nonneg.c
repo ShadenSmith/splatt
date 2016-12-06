@@ -28,7 +28,7 @@
 * @param rho Not used.
 * @param should_parallelize If true, parallelize.
 */
-void nonneg_prox(
+void splatt_nonneg_prox(
     val_t * primal,
     idx_t const nrows,
     idx_t const ncols,
@@ -65,7 +65,7 @@ splatt_error_type splatt_register_nonneg(
     splatt_cpd_constraint * ntf_con = splatt_alloc_constraint(SPLATT_CON_ADMM);
 
     /* only fill the details that are used */
-    ntf_con->prox_func = nonneg_prox;
+    ntf_con->prox_func = splatt_nonneg_prox;
 
     /* set hints to assist optimizations */
     ntf_con->hints.row_separable     = true;

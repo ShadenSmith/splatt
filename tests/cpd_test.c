@@ -1,6 +1,7 @@
 #include "../src/csf.h"
 #include "../src/cpd/cpd.h"
 #include "../src/sptensor.h"
+#include "../src/util.h"
 
 #include "ctest/ctest.h"
 #include "splatt_test.h"
@@ -44,7 +45,7 @@ CTEST(cpd, cpd_opt_alloc)
 }
 
 
-CTEST(cpd, cpd_add_constraints)
+CTEST(cpd, cpd_register_constraints)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
 
@@ -53,110 +54,101 @@ CTEST(cpd, cpd_add_constraints)
     ASSERT_NULL(opts->constraints[m]->data);
   }
 
-#if 0
-  /* just one mode */
-  splatt_cpd_con_nonneg(opts, 0);
-  ASSERT_EQUAL(SPLATT_CON_NONNEG, opts->constraints[0].which);
-  ASSERT_NULL(opts->constraints[0].data);
-  ASSERT_EQUAL(false, opts->unconstrained);
+  splatt_cpd_constraint * con = splatt_alloc_constraint(SPLATT_CON_CLOSEDFORM);
+  sprintf(con->description, "TEST");
 
-  /* clear */
-  splatt_cpd_con_clear(opts, 0);
-  ASSERT_EQUAL(SPLATT_CON_NONE, opts->constraints[0].which);
-  ASSERT_NULL(opts->constraints[0].data);
-  ASSERT_EQUAL(true, opts->unconstrained);
-#endif
+  /* initial register */
+  splatt_register_constraint(opts, 0, con);
+  ASSERT_EQUAL(0, strcmp("TEST", opts->constraints[0]->description));
+
+  /* overwrite */
+  con = splatt_alloc_constraint(SPLATT_CON_CLOSEDFORM);
+  sprintf(con->description, "TEST2");
+  splatt_register_constraint(opts, 0, con);
+  ASSERT_EQUAL(0, strcmp("TEST2", opts->constraints[0]->description));
 
   splatt_free_cpd_opts(opts);
 }
 
 
-#if 0
-CTEST(cpd, cpd_add_constraints_allmodes)
+
+/*
+ * NON-NEGATIVE
+ */
+void splatt_nonneg_prox(
+    val_t * primal,
+    idx_t const nrows,
+    idx_t const ncols,
+    idx_t const offset,
+    void * data,
+    val_t const rho,
+    bool const should_parallelize);
+CTEST(cpd, cpd_constraint_nonneg)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
 
-  splatt_cpd_con_nonneg(opts, MAX_NMODES);
-  ASSERT_EQUAL(false, opts->unconstrained);
+  idx_t mode = 1;
+  int success = splatt_register_nonneg(opts, &mode, 1);
+  ASSERT_EQUAL(SPLATT_SUCCESS, success);
+  ASSERT_EQUAL(0, strcmp(opts->constraints[mode]->description, "NON-NEGATIVE"));
 
-  for(idx_t m=0; m < MAX_NMODES; ++m) {
-    ASSERT_EQUAL(SPLATT_CON_NONNEG, opts->constraints[m].which);
-    ASSERT_NULL(opts->constraints[m].data);
+  /* test the projection */
+  idx_t nrows = 10;
+  idx_t ncols = 2;
+  val_t * vals = splatt_malloc(nrows * ncols * sizeof(*vals));
+
+  fill_rand(vals, nrows * ncols);
+  vals[0] = -1.0; /* force at least one negative */
+
+  splatt_nonneg_prox(vals, nrows, ncols, 0, NULL, 0, true);
+
+  for(idx_t x=0; x < nrows * ncols; ++x) {
+    ASSERT_EQUAL(true, (vals[x] >= 0.));
   }
 
+  splatt_free(vals);
   splatt_free_cpd_opts(opts);
 }
 
 
-
-CTEST(cpd, cpd_add_constraints_clear)
-{
-  splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
-  ASSERT_EQUAL(true, opts->unconstrained);
-
-  splatt_cpd_reg_l1(opts, MAX_NMODES, 0.01);
-  ASSERT_EQUAL(false, opts->unconstrained);
-
-  splatt_cpd_con_clear(opts, MAX_NMODES);
-  for(idx_t m=0; m < MAX_NMODES; ++m) {
-    ASSERT_EQUAL(SPLATT_CON_NONE, opts->constraints[m].which);
-    ASSERT_NULL(opts->constraints[m].data);
-  }
-
-  ASSERT_EQUAL(true, opts->unconstrained);
-
-  splatt_free_cpd_opts(opts);
-}
-
-
-CTEST(cpd, cpd_add_constraints_param)
+/*
+ * LASSO
+ */
+void splatt_lasso_prox(
+    val_t * primal,
+    idx_t const nrows,
+    idx_t const ncols,
+    idx_t const offset,
+    void * data,
+    val_t const rho,
+    bool const should_parallelize);
+CTEST(cpd, cpd_constraint_lasso)
 {
   splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
 
-  val_t reg = 0.01;
+  idx_t mode = 1;
+  val_t const mult = 0.01;
+  int success = splatt_register_lasso(opts, mult, &mode, 1);
+  ASSERT_EQUAL(SPLATT_SUCCESS, success);
 
-  /* L1 */
-  splatt_cpd_reg_l1(opts, 0, reg);
-  ASSERT_NOT_NULL(opts->constraints[0].data);
-  ASSERT_DBL_NEAR_TOL(reg, *((val_t *) opts->constraints[0].data), 0.);
+  /* test the projection */
+  idx_t nrows = 10;
+  idx_t ncols = 2;
+  val_t * vals = splatt_malloc(nrows * ncols * sizeof(*vals));
+  fill_rand(vals, nrows * ncols);
 
-  splatt_cpd_con_clear(opts, 0);
+  vals[0] = mult; /* force a 0 */
+  vals[1] =  1. + mult;
+  vals[2] = -1. - mult;
 
-  /* L2 */
-  splatt_cpd_reg_l2(opts, 0, reg);
-  ASSERT_NOT_NULL(opts->constraints[0].data);
-  ASSERT_DBL_NEAR_TOL(reg, *((val_t *) opts->constraints[0].data), 0.);
+  splatt_lasso_prox(vals, nrows, ncols, 0, (void *) &mult, 1., true);
 
+  ASSERT_DBL_NEAR_TOL( 0., vals[0], 0.);
+  ASSERT_DBL_NEAR_TOL( 1., vals[1], 0.);
+  ASSERT_DBL_NEAR_TOL(-1., vals[2], 0.);
+
+  splatt_free(vals);
   splatt_free_cpd_opts(opts);
 }
 
 
-CTEST(cpd, cpd_add_constraints_overwrite)
-{
-  splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
-
-  val_t reg = 0.01;
-
-  splatt_cpd_reg_l1(opts, MAX_NMODES, reg);
-  for(idx_t m=0; m < MAX_NMODES; ++m) {
-    ASSERT_EQUAL(SPLATT_REG_L1, opts->constraints[m].which);
-    ASSERT_NOT_NULL(opts->constraints[m].data);
-    ASSERT_DBL_NEAR_TOL(reg, *((val_t *) opts->constraints[m].data), 0.);
-  }
-
-  splatt_cpd_con_nonneg(opts, 1);
-  ASSERT_EQUAL(SPLATT_CON_NONNEG, opts->constraints[1].which);
-  ASSERT_NULL(opts->constraints[1].data);
-  /* mode 0 still intact? */
-  ASSERT_NOT_NULL(opts->constraints[0].data);
-  ASSERT_DBL_NEAR_TOL(reg, *((val_t *) opts->constraints[0].data), 0.);
-
-  splatt_free_cpd_opts(opts);
-}
-
-
-CTEST(cpd, cpd)
-{
-
-}
-#endif
