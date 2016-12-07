@@ -32,6 +32,8 @@ CTEST_TEARDOWN(reorder)
 
 CTEST2(reorder, shuffle)
 {
+  srand(1);
+
   memcpy(data->buffer, data->fororder, data->N * sizeof(*data->buffer));
 
   /* do this 10 times */

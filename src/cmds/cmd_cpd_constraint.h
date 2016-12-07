@@ -109,9 +109,9 @@ static char const CPD_CONSTRAINT_DOC[] =
     "The following constraints are supported:\n"
     "  nonneg\tnon-negativity \n"
     "  ntf\t\t(nonneg alias)\n"
+    "  rowsimp\trows lie in a probability simplex\n"
 #if 0
     "  orth\t\torthogonality\n"
-    "  rowsimp\trows lie in a probability simplex\n"
     "  colsimp\tcolumns lie in a probability simplex\n"
     "  symm\t\tsymmetry (matching factor matrices, >1 mode required)\n"
 #endif
@@ -131,6 +131,7 @@ static char const CPD_CONSTRAINT_DOC[] =
 static constraint_cmd constraint_cmds[] = {
   {"nonneg", splatt_register_nonneg},
   {"ntf",    splatt_register_nonneg},
+  {"rowsimp",    splatt_register_rowsimp},
   { NULL, NULL }
 };
 
