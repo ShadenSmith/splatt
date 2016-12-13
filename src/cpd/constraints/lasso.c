@@ -26,7 +26,7 @@
 * @param rho Not used.
 * @param should_parallelize If true, parallelize.
 */
-void lasso_prox(
+void splatt_lasso_prox(
     val_t * primal,
     idx_t const nrows,
     idx_t const ncols,
@@ -59,7 +59,7 @@ void lasso_prox(
 *
 * @param data The data to free.
 */
-void lasso_free(
+void splatt_lasso_free(
     void * data)
 {
   splatt_free(data);
@@ -84,8 +84,8 @@ splatt_error_type splatt_register_lasso(
 
     lasso_con = splatt_alloc_constraint(SPLATT_CON_ADMM);
 
-    lasso_con->prox_func = lasso_prox;
-    lasso_con->free_func = lasso_free;
+    lasso_con->prox_func = splatt_lasso_prox;
+    lasso_con->free_func = splatt_lasso_free;
 
     /* important hints */
     lasso_con->hints.row_separable     = true;
