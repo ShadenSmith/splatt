@@ -18,8 +18,8 @@
 /**
 * @brief The proximal update for a non-negative factorization. This routine
 *        projects 'primal' onto the non-negative orthant while adding a Frob.
-*        norm regularizer. This scales primal by inv((rho/(lambda+rho)) * eye),
-*        or more simply divides each entry by (rho/(lambda+rho)). It then
+*        norm regularizer. This scales primal by rho*inv((lambda+rho) * eye),
+*        or more simply multiplies each entry by (rho/(lambda+rho)). It then
 *        projects to the non-negative orthant.
 *
 * @param[out] primal The row-major matrix to update.
@@ -40,7 +40,7 @@ void nonneg_frob_prox(
     bool const should_parallelize)
 {
   val_t const lambda = *((val_t *) data);
-  val_t const mult = (lambda + rho) / rho;
+  val_t const mult = rho / (lambda + rho);
 
   #pragma omp parallel for if(should_parallelize)
   for(idx_t i=0; i < nrows; ++i) {
