@@ -16,33 +16,11 @@
 
 
 /**
-* @brief Interpret data as a scalar to add to the Gram diagonal. The scalar is
-*        \lambda, the penalty multiplier on the Tikhonov regularization.
-*
-* @param[out] gram The Gram matrix to update.
-* @param N The dimension of the matrix.
-* @param data Interpreted as a val_t scalar.
-*/
-void nonneg_frob_gram(
-    val_t * restrict gram,
-    splatt_idx_t const N,
-    void * data)
-{
-  /* convert (void *) to val_t */
-  val_t const mult = *((val_t *) data);
-
-  /* add mult to diagonal */
-  for(idx_t n=0; n < N; ++n) {
-    gram[n + (n * N)] += mult;
-  }
-}
-
-
-
-/**
 * @brief The proximal update for a non-negative factorization. This routine
-*        projects 'primal' onto the non-negative orthant. Simply, it zeroes
-*        out negative entries.
+*        projects 'primal' onto the non-negative orthant while adding a Frob.
+*        norm regularizer. This scales primal by inv((rho/(lambda+rho)) * eye),
+*        or more simply divides each entry by (rho/(lambda+rho)). It then
+*        projects to the non-negative orthant.
 *
 * @param[out] primal The row-major matrix to update.
 * @param nrows The number of rows in primal.
@@ -61,11 +39,15 @@ void nonneg_frob_prox(
     val_t const rho,
     bool const should_parallelize)
 {
+  val_t const lambda = *((val_t *) data);
+  val_t const mult = (lambda + rho) / rho;
+
   #pragma omp parallel for if(should_parallelize)
   for(idx_t i=0; i < nrows; ++i) {
     for(idx_t j=0; j < ncols; ++j) {
       idx_t const index = j + (i*ncols);
-      primal[index] = (primal[index] > 0.) ? primal[index] : 0.;
+      val_t const new_val = primal[index] * mult;
+      primal[index] = (new_val > 0.) ? new_val : 0.;
     }
   }
 }
@@ -100,7 +82,6 @@ splatt_error_type splatt_register_ntf_frob(
 
     splatt_cpd_constraint * ntf_con = splatt_alloc_constraint(SPLATT_CON_ADMM);
 
-    ntf_con->gram_func = nonneg_frob_gram;
     ntf_con->prox_func = nonneg_frob_prox;
     ntf_con->free_func = nonneg_frob_free;
 
