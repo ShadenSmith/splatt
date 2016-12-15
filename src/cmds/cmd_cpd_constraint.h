@@ -86,7 +86,8 @@ typedef struct
 /* FUNCTION PROTOTYPES. ADD YOURS HERE OR 'include/splatt/cpd.h'. */
 
 //PROTO_CONSTRAINT_HANDLE( splatt_register_nonneg );
-//PROTO_REGULARIZATION_HANDLE( splatt_register_lasso );
+PROTO_REGULARIZATION_HANDLE( splatt_register_ntf_frob );
+PROTO_REGULARIZATION_HANDLE( splatt_register_ntf_lasso );
 
 
 
@@ -120,6 +121,8 @@ static char const CPD_CONSTRAINT_DOC[] =
     "  frob\t\tFrobenius norm (Tikhonov regularization)\n"
     "  l1\t\tsparsity (LASSO)\n"
     "  lasso\t(l1 alias)\n"
+    "  ntf-frob\tFrobenius norm with non-negativity constraint\n"
+    "  ntf-l1\tL1 with non-negativity constraint\n"
 #if 0
     "  smooth\tsmooth columns\n"
 #endif
@@ -140,6 +143,8 @@ static regularization_cmd regularization_cmds[] = {
   {"frob",  splatt_register_frob},
   {"l1",    splatt_register_lasso},
   {"lasso", splatt_register_lasso},
+  {"ntf-frob", splatt_register_ntf_frob},
+  {"ntf-l1", splatt_register_ntf_lasso},
   { NULL, NULL }
 };
 
