@@ -72,20 +72,20 @@ typedef struct
 
 /* Just makes function prototypes easier. */
 #define PROTO_CONSTRAINT_HANDLE(handle_name) \
-    splatt_error_type handle_name(splatt_cpd_opts * cpd, \
+    splatt_error_type handle_name( \
+                   splatt_cpd_opts * cpd, \
                    idx_t const * const modes_included, \
-                   idx_t const * const num_modes)
+                   idx_t const num_modes)
 
 #define PROTO_REGULARIZATION_HANDLE(handle_name) \
-    splatt_error_type handle_name(splatt_cpd_opts * cpd, \
+    splatt_error_type handle_name( \
+                   splatt_cpd_opts * cpd, \
                    val_t const multiplier, \
                    idx_t const * const modes_included, \
-                   idx_t const * const num_modes)
+                   idx_t const num_modes)
 
 
 /* FUNCTION PROTOTYPES. ADD YOURS HERE OR 'include/splatt/cpd.h'. */
-
-//PROTO_CONSTRAINT_HANDLE( splatt_register_nonneg );
 PROTO_REGULARIZATION_HANDLE( splatt_register_ntf_frob );
 PROTO_REGULARIZATION_HANDLE( splatt_register_ntf_lasso );
 
