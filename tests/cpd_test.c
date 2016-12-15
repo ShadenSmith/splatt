@@ -194,3 +194,41 @@ CTEST(cpd, cpd_constraint_rowsimp)
 }
 
 
+void splatt_colsimp_prox(
+    val_t * primal,
+    idx_t const nrows,
+    idx_t const ncols,
+    idx_t const offset,
+    void * data,
+    val_t const rho,
+    bool const should_parallelize);
+CTEST(cpd, cpd_constraint_colsimp)
+{
+  splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
+
+  idx_t mode = 1;
+  int success = splatt_register_colsimp(opts, &mode, 1);
+  ASSERT_EQUAL(SPLATT_SUCCESS, success);
+
+  /* test the projection */
+  idx_t nrows = 100;
+  idx_t ncols = 11;
+  val_t * vals = splatt_malloc(nrows * ncols * sizeof(*vals));
+  fill_rand(vals, nrows * ncols);
+
+  splatt_colsimp_prox(vals, nrows, ncols, 0, NULL, 1., true);
+
+  for(idx_t j=0; j < ncols; ++j) {
+    val_t sum = 0;
+    for(idx_t i=0; i < nrows; ++i) {
+      sum += vals[j + (i*ncols)];
+
+      ASSERT_TRUE(vals[j + (i*ncols)] >= 0.);
+    }
+    ASSERT_DBL_NEAR_TOL(1.0, sum, 1e-12);
+  }
+
+  splatt_free(vals);
+  splatt_free_cpd_opts(opts);
+}
+

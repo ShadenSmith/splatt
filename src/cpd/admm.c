@@ -350,9 +350,10 @@ val_t admm_inner(
   /* Compute number of chunks */
   idx_t num_chunks = 1;
   idx_t const chunk_size = cpd_opts->chunk_sizes[mode];
-  if(chunk_size > 0) {
+  if(con->hints.row_separable && chunk_size > 0) {
     num_chunks = mats[mode]->I / chunk_size + (mats[mode]->I % chunk_size > 0);
   }
+
   idx_t it = 0;
   #pragma omp parallel for schedule(dynamic) reduction(+:it) if(num_chunks > 1)
   for(idx_t c=0; c < num_chunks; ++c) {
