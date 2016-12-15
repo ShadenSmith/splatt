@@ -54,12 +54,6 @@ void splatt_rowsimp_prox(
         row_buf[j] = row[j];
       }
       std::sort(row_buf, row_buf + ncols, std::greater<val_t>());
-#if 1
-      for(idx_t j=0; j < ncols; ++j) {
-        printf("%10.2e ", row_buf[j]);
-      }
-      printf(" -> ");
-#endif
 
       val_t running_sum = -1.; /* only -1 once */
       idx_t pivot;
@@ -75,50 +69,18 @@ void splatt_rowsimp_prox(
         }
       }
       val_t const theta = running_sum / ((val_t) pivot);
-#if 0
-      if(pivot != ncols -1) {
-        printf("%lu -> theta = (%0.2f / %0.2f)\n", i, running_sum, (val_t) pivot);
-      }
-#endif
 
       /* update row */
       for(idx_t j=0; j < ncols; ++j) {
-        //printf("(%0.2f - %0.2f) ", row[j], theta);
         row[j] -= theta;
         row[j] = SS_MAX(row[j], 0.);
       }
-      val_t sum = 0;
-      for(idx_t j=0; j < ncols; ++j) {
-        printf("%10.2e ", row[j]);
-        sum += row[j];
-      }
-      printf(" (%0.2f)\n", sum);
     }
 
     splatt_free(row_buf);
   } /* end omp parallel */
-  printf("\n\n-----\n\n");
 }
 
-
-void splatt_rowsimp_init(
-    splatt_val_t * vals,
-    splatt_idx_t const nrows,
-    splatt_idx_t const ncols,
-    void ** data)
-{
-  #pragma omp parallell for schedule(static)
-  for(idx_t i=0; i < nrows; ++i) {
-    val_t sum = 0.;
-    for(idx_t j=0; j < ncols; ++j) {
-      sum += fabs(vals[j + (i*ncols)]);
-    }
-
-    for(idx_t j=0; j < ncols; ++j) {
-      vals[j + (i*ncols)] = fabs(vals[j + (i*ncols)]) / sum;
-    }
-  }
-}
 
 
 /******************************************************************************
@@ -137,7 +99,6 @@ splatt_error_type splatt_register_rowsimp(
     splatt_cpd_constraint * con = splatt_alloc_constraint(SPLATT_CON_ADMM);
 
     /* only fill the details that are used */
-    //con->init_func = splatt_rowsimp_init;
     con->prox_func = splatt_rowsimp_prox;
 
     /* set hints to assist optimizations */
