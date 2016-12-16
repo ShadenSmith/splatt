@@ -87,3 +87,22 @@ CTEST2(matrix, matmul)
   }
 }
 
+CTEST2(matrix, mat_zero)
+{
+  idx_t const nrows = 10;
+  idx_t const ncols = 10;
+
+  matrix_t * mat = mat_zero(nrows, ncols);
+
+  ASSERT_NOT_NULL(mat);
+  ASSERT_NOT_NULL(mat->vals);
+  ASSERT_EQUAL(1, mat->rowmajor);
+  ASSERT_EQUAL(nrows, mat->I);
+  ASSERT_EQUAL(ncols, mat->J);
+
+  for(idx_t x=0; x < nrows * ncols; ++x) {
+    ASSERT_DBL_NEAR_TOL(0., mat->vals[x], 0.);
+  }
+
+  mat_free(mat);
+}

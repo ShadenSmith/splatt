@@ -776,6 +776,24 @@ matrix_t * mat_rand(
 }
 
 
+matrix_t * mat_zero(
+  idx_t const nrows,
+  idx_t const ncols)
+{
+  matrix_t * mat = mat_alloc(nrows, ncols);
+
+  /* Initialize in parallel in case system is NUMA. This may bring a small
+   * improvement. */
+  #pragma omp parallel for schedule(static)
+  for(idx_t i=0; i < nrows; ++i) {
+    for(idx_t j=0; j < ncols; ++j) {
+      mat->vals[j + (i*ncols)] = 0.;
+    }
+  }
+
+  return mat;
+}
+
 
 matrix_t * mat_mkptr(
     val_t * const data,

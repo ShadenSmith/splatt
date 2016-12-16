@@ -39,8 +39,51 @@ CTEST(cpd, cpd_opt_alloc)
   ASSERT_NOT_NULL(opts);
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     ASSERT_NOT_NULL(opts->constraints[m]);
+    ASSERT_EQUAL(0, strcmp(opts->constraints[m]->description, "UNCONSTRAINED"));
   }
 
+  splatt_free_cpd_opts(opts);
+}
+
+CTEST2(cpd, cpd_alloc_ws)
+{
+  splatt_cpd_opts * opts = splatt_alloc_cpd_opts();
+  splatt_global_opts * gopts = splatt_alloc_global_opts();
+
+  double * csf_opts = splatt_default_opts();
+  csf_opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
+  splatt_csf * csf = csf_alloc(data->tt, csf_opts);
+
+  /* Allocate an unconstrained ws */
+
+  cpd_ws * ws = cpd_alloc_ws(csf, 10, opts, gopts);
+
+  ASSERT_TRUE(ws->unconstrained);
+  for(idx_t m=0; m < csf->nmodes; ++m) {
+    ASSERT_NULL(ws->duals[m]);
+  }
+  ASSERT_NULL(ws->auxil);
+  ASSERT_NULL(ws->mat_init);
+
+  cpd_free_ws(ws);
+
+  /* Register a constraint */
+  idx_t mode = 0;
+  splatt_register_nonneg(opts, &mode, 1);
+
+  ws = cpd_alloc_ws(csf, 10, opts, gopts);
+  ASSERT_FALSE(ws->unconstrained);
+  ASSERT_NOT_NULL(ws->duals[0]);
+  for(idx_t m=1; m < csf->nmodes; ++m) {
+    ASSERT_NULL(ws->duals[m]);
+  }
+  ASSERT_NOT_NULL(ws->auxil);
+  ASSERT_NOT_NULL(ws->mat_init);
+  cpd_free_ws(ws);
+
+  csf_free(csf, csf_opts);
+  splatt_free_opts(csf_opts);
+  splatt_free_global_opts(gopts);
   splatt_free_cpd_opts(opts);
 }
 

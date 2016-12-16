@@ -273,6 +273,21 @@ matrix_t * mat_alloc(
   idx_t const ncols);
 
 
+#define mat_zero splatt_mat_zero
+/**
+* @brief Allocate a dense matrix and initialize with zero.  Matrix must be
+*        freed with mat_free().
+*
+* @param nrows The number of rows in the matrix.
+* @param ncols The number of columns in the matrix.
+*
+* @return The allocated zero matrix.
+*/
+matrix_t * mat_zero(
+  idx_t const nrows,
+  idx_t const ncols);
+
+
 #define mat_free splatt_mat_free
 /**
 * @brief Free a matrix allocated with mat_alloc(). This also frees the matrix

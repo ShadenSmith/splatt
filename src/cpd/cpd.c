@@ -324,16 +324,27 @@ cpd_ws * cpd_alloc_ws(
   idx_t const maxdim = tensor->dims[argmax_elem(tensor->dims, nmodes)];
   ws->mttkrp_buf = mat_alloc(maxdim, rank);
 
-
-  /* AO-ADMM */
-  ws->unconstrained = false;
-  ws->auxil    = mat_alloc(maxdim, rank);
-  ws->mat_init = mat_alloc(maxdim, rank);
+  /* Setup structures needed for constraints. */
+  ws->unconstrained = true;
   for(idx_t m=0; m < nmodes; ++m) {
-    ws->duals[m] = mat_alloc(tensor->dims[m], rank);
+    /* allocate duals if we need to perform ADMM */
+    if(cpd_opts->constraints[m]->solve_type != SPLATT_CON_CLOSEDFORM) {
+      ws->duals[m] = mat_zero(tensor->dims[m], rank);
+    } else {
+      ws->duals[m] = NULL;
+    }
 
-    /* duals should be 0 */
-    memset(ws->duals[m]->vals, 0, tensor->dims[m] * rank * sizeof(val_t));
+    if(strcmp(cpd_opts->constraints[m]->description, "UNCONSTRAINED") != 0) {
+      ws->unconstrained = false;
+    }
+  }
+
+  if(ws->unconstrained) {
+    ws->auxil    = NULL;
+    ws->mat_init = NULL;
+  } else {
+    ws->auxil    = mat_alloc(maxdim, rank);
+    ws->mat_init = mat_alloc(maxdim, rank);
   }
 
   return ws;
