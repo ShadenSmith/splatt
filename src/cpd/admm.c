@@ -28,7 +28,7 @@
 * @param penalty The penalty parameter, 'rho'. This could also be used during
 *                l2 (Tikhonov) regularization.
 * @param[out] mat_auxil The auxiliary matrix.
-* @param is_chunked Whether this is a chunk of a larger matrix.
+* @param should_parallelize Whether we should parallelize.
 */
 static void p_setup_auxiliary(
     matrix_t const * const mat_primal,
@@ -63,7 +63,7 @@ static void p_setup_auxiliary(
 * @param mat_primal The newest primal variable.
 * @param mat_auxil The newest auxiliary variable.
 * @param[out] mat_dual The dual variable to update.
-* @param is_chunked Whether this is a chunk of a larger matrix.
+* @param should_parallelize Whether we should parallelize.
 *
 * @return The norm of the new dual; || mat_dual ||_F^2.
 */
@@ -71,7 +71,7 @@ static val_t p_update_dual(
     matrix_t const * const mat_primal,
     matrix_t const * const mat_auxil,
     matrix_t * const mat_dual,
-    bool const is_chunked)
+    bool const should_parallelize)
 {
   idx_t const I = mat_primal->I;
   idx_t const J = mat_primal->J;
@@ -82,7 +82,8 @@ static val_t p_update_dual(
 
   val_t norm = 0.;
 
-  #pragma omp parallel for schedule(static) reduction(+:norm) if(!is_chunked)
+  #pragma omp parallel for schedule(static) reduction(+:norm) \
+      if(should_parallelize)
   for(idx_t x=0; x < I * J; ++x) {
     dual[x] += matv[x] - auxl[x];
     norm += dual[x] * dual[x];
@@ -130,7 +131,7 @@ static void p_setup_proximity(
 * @param[out] primal_resid The residual of the primal variable;
 *             norm(mat_primal - mat_auxil)^2.
 * @param[out] dual_resid The dual residual; norm(mat_primal - mat_init)^2.
-* @param is_chunked Whether this is a chunk of a larger matrix.
+* @param should_parallelize Whether we should parallelize.
 */
 static void p_calc_residual(
     matrix_t const * const mat_primal,
@@ -139,7 +140,7 @@ static void p_calc_residual(
     val_t * primal_norm,
     val_t * primal_resid,
     val_t * dual_resid,
-    bool const is_chunked)
+    bool const should_parallelize)
 {
   val_t const * const restrict matv = mat_primal->vals;
   val_t const * const restrict auxv = mat_auxil->vals;
@@ -156,7 +157,7 @@ static void p_calc_residual(
 #ifdef ROW_CONVERGE
 
   #pragma omp parallel for reduction(max:p_norm, p_resid, d_resid) \
-      if(!is_chunked)
+      if(should_parallelize)
   for(idx_t i=0; i < nrows; ++i) {
     val_t row_p_norm  = 0;
     val_t row_p_resid = 0;
@@ -181,7 +182,7 @@ static void p_calc_residual(
 
 #else
   #pragma omp parallel for reduction(+:p_norm, p_resid, d_resid) \
-      if(!is_chunked)
+      if(should_parallelize)
   for(idx_t i=0; i < nrows; ++i) {
     for(idx_t j=0; j < ncols; ++j) {
       idx_t const index = j + (i*ncols);
