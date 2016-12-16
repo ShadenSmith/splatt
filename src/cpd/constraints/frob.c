@@ -22,7 +22,7 @@
 * @param N The dimension of the matrix.
 * @param data Interpreted as a val_t scalar.
 */
-void frob_gram(
+void splatt_frob_gram(
     val_t * restrict gram,
     splatt_idx_t const N,
     void * data)
@@ -43,7 +43,7 @@ void frob_gram(
 *
 * @param data The data to free.
 */
-void frob_free(
+void splatt_frob_free(
     void * data)
 {
   splatt_free(data);
@@ -71,10 +71,10 @@ splatt_error_type splatt_register_frob(
     frob_con = splatt_alloc_constraint(SPLATT_CON_CLOSEDFORM);
 
     /* Tikhonov regularization only requires a modified Gram matrix. */
-    frob_con->gram_func = frob_gram;
+    frob_con->gram_func = splatt_frob_gram;
 
     /* Remember to clean up */
-    frob_con->free_func = frob_free;
+    frob_con->free_func = splatt_frob_free;
 
     /* Not actually used because it has a closed form solution. But, this is
      * still a good hint to provide for future proofing. */
