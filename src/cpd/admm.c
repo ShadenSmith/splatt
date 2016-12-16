@@ -388,8 +388,8 @@ val_t admm_inner(
     bool const should_parallelize = (num_chunks == 1);
 
     /* Run ADMM until convergence and record total ADMM its per row. */
-    idx_t const chunk_iters =  nrows * p_admm_iterate_chunk(&primal, &auxil,
-        &dual, ws->gram, &mttkrp, &init_buf, mode, con, rho, ws, cpd_opts,
+    idx_t const chunk_iters =  p_admm_iterate_chunk(&primal, &auxil, &dual,
+        ws->gram, &mttkrp, &init_buf, mode, con, rho, ws, cpd_opts,
         global_opts, should_parallelize);
     it += chunk_iters * nrows;
   } /* foreach chunk */

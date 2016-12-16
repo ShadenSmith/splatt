@@ -236,7 +236,10 @@ void cpd_stats2(
   printf("SEED=%d ", global_opts->random_seed);
   printf("THREADS=%d\n", global_opts->num_threads);
 
-  printf("CHUNK-SIZES=%"SPLATT_PF_IDX, cpd_opts->chunk_sizes[0]);
+  printf("MAX-INNER-ITS=%"SPLATT_PF_IDX" INNER-TOL=%0.1e\n",
+      cpd_opts->max_inner_iterations, cpd_opts->inner_tolerance);
+
+  printf("BLOCK-SIZES=%"SPLATT_PF_IDX, cpd_opts->chunk_sizes[0]);
   for(idx_t m=1; m < num_modes; ++m) {
     printf(",%"SPLATT_PF_IDX, cpd_opts->chunk_sizes[m]);
   }
