@@ -18,6 +18,14 @@
  * INCLUDES
  *****************************************************************************/
 #ifdef SPLATT_USE_MPI
+
+/* 
+ * Any C++ exports break things due to SPLATT having a mixture of C and C++
+ * sources.
+ */
+#define OMPI_SKIP_MPICXX 0
+#define MPICH_SKIP_MPICXX 0
+
 #include <mpi.h>
 #endif
 

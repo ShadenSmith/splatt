@@ -931,7 +931,7 @@ void mpi_write_mats(
   char const * const basename,
   idx_t const nmodes)
 {
-  char * fname;
+  char * fname = splatt_malloc(4096 * sizeof(*fname));
   idx_t const nfactors = mats[0]->J;
 
   MPI_Status status;
@@ -965,7 +965,7 @@ void mpi_write_mats(
   for(idx_t m=0; m < nmodes; ++m) {
     /* root handles the writing */
     if(rinfo->rank == 0) {
-      asprintf(&fname, "%s%"SPLATT_PF_IDX".mat", basename, m+1);
+      sprintf(fname, "%s%"SPLATT_PF_IDX".mat", basename, m+1);
       matbuf->I = rinfo->global_dims[m];
 
       /* copy root's matrix to buffer */
@@ -999,7 +999,7 @@ void mpi_write_mats(
       mat_write(matbuf, fname);
 
       /* clean up */
-      free(fname);
+      splatt_free(fname);
     } else {
       /* send matrix to root */
       MPI_Send(&(rinfo->layer_starts[m]), 1, SPLATT_MPI_IDX, 0, 0, rinfo->comm_3d);

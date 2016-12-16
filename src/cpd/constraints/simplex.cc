@@ -13,6 +13,7 @@ extern "C" {
 #include <functional>
 
 
+
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
@@ -30,7 +31,7 @@ static void p_project_vector(
     val_t * const restrict buffer,
     idx_t const N)
 {
-  /* sort row into non-increasing order */
+  /* sort buffer into non-increasing order */
   for(idx_t j=0; j < N; ++j) {
     buffer[j] = projected[j];
   }
