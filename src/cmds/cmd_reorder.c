@@ -124,15 +124,12 @@ int splatt_reorder(
   if(args.ofname != NULL) {
     tt_write(tt, args.ofname);
 
-    char * fbuf = NULL;
+    char * fbuf = splatt_malloc(512 * sizeof(*fbuf));;
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      asprintf(&fbuf, "%s.mode%"SPLATT_PF_IDX".perm", args.ofname, m);
-
+      sprintf(fbuf, "%s.mode%"SPLATT_PF_IDX".perm", args.ofname, m);
       perm_write(perm->perms[m], tt->dims[m], fbuf);
-
-      free(fbuf);
-      fbuf = NULL;
     }
+    splatt_free(fbuf);
   }
 
   perm_free(perm);

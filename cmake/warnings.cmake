@@ -1,18 +1,18 @@
 
 if(SPLATT_WARNINGS)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-missing-field-initializers")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-parameter")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable")
-  #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-result")
-  #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -pedantic")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -Wall")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -Wextra")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -Wno-missing-field-initializers")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -Wno-unused-parameter")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -Wno-unused-variable")
+  #set(SPLATT_FLAGS "${SPLATT_FLAGS} -Wno-unused-result")
+  #set(SPLATT_FLAGS "${SPLATT_FLAGS} -Wno-unused-function")
   # Unfortunately, these warnings pop up in GCC 5.1 despite our MAX_NMODES checks
-  #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-array-bounds")
+  #set(SPLATT_FLAGS "${SPLATT_FLAGS} -Wno-array-bounds")
 else()
   # turn off warning entirely for release builds
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -w")
 endif()
 
 

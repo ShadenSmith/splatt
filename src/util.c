@@ -50,11 +50,8 @@ char * bytes_str(
     size /= 1024.;
     ++suff;
   }
-  char * ret = NULL;
-  if(asprintf(&ret, "%0.2f%s", size, suffix[suff]) == -1) {
-    fprintf(stderr, "SPLATT: asprintf failed with %zu bytes.\n", bytes);
-    ret = NULL;
-  }
+  char * ret = splatt_malloc(512 * sizeof(*ret));
+  sprintf(ret, "%0.2f%s", size, suffix[suff]);
   return ret;
 }
 

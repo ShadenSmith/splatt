@@ -8,7 +8,6 @@
 
 #include "admm.h"
 #include "../util.h"
-#include "../io.h"
 
 
 
@@ -352,7 +351,10 @@ val_t admm_inner(
   idx_t num_chunks = 1;
   idx_t const chunk_size = cpd_opts->chunk_sizes[mode];
   if(con->hints.row_separable && chunk_size > 0) {
-    num_chunks = mats[mode]->I / chunk_size + (mats[mode]->I % chunk_size > 0);
+    num_chunks =  (mats[mode]->I / chunk_size);
+    if(mats[mode]->I % chunk_size > 0) {
+      ++num_chunks;
+    }
   }
 
   idx_t it = 0;
@@ -385,10 +387,11 @@ val_t admm_inner(
     /* should the ADMM kernels parallelize themselves? */
     bool const should_parallelize = (num_chunks == 1);
 
-    /* Run ADMM to convergence and record total ADMM its per row. */
-    it += nrows * p_admm_iterate_chunk(&primal, &auxil, &dual, ws->gram,
-        &mttkrp, &init_buf, mode, con, rho, ws, cpd_opts, global_opts,
-        should_parallelize);
+    /* Run ADMM until convergence and record total ADMM its per row. */
+    idx_t const chunk_iters =  nrows * p_admm_iterate_chunk(&primal, &auxil,
+        &dual, ws->gram, &mttkrp, &init_buf, mode, con, rho, ws, cpd_opts,
+        global_opts, should_parallelize);
+    it += chunk_iters * nrows;
   } /* foreach chunk */
 
   timer_stop(&timers[TIMER_ADMM]);

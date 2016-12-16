@@ -57,8 +57,8 @@ show_help() {
   echo "    Set the build directory (default: ./build/<arch>/)."
   echo "  --cc=<cc>"
   echo "    Set the C compiler."
-  #echo "  --cxx=<cxx>"
-  #echo "    Set the C++ compiler."
+  echo "  --cxx=<cxx>"
+  echo "    Set the C++ compiler."
 
   echo ""
   echo "  --max-modes=<#>"
@@ -86,8 +86,8 @@ show_help() {
   echo "    Build with MPI support. Let CMake auto-detect MPI environment."
   echo "  --with-mpicc=<cc>"
   echo "    Set the MPI C compiler. Other configuration options may be determined by CMake."
-  #echo "  --with-mpicxx=<cxx>"
-  #echo "    Set the MPI C++ compiler. Other configuration options may be determined by CMake."
+  echo "  --with-mpicxx=<cxx>"
+  echo "    Set the MPI C++ compiler. Other configuration options may be determined by CMake."
   echo ""
 
   # BLAS/LAPACK
@@ -152,11 +152,12 @@ for i in "${@}"; do
     --cxx=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=${i#*=}"
     ;;
-
     --intel)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DINTEL_OPT=1"
       CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_C_COMPILER=icc"
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DCMAKE_CXX_COMPILER=icpc"
     ;;
+
     # debug
     --debug)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DDEBUG=1"

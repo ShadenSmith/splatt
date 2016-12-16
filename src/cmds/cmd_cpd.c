@@ -610,22 +610,22 @@ int splatt_cpd_cmd2(
 
   /* write output */
   if(args.write) {
-    char * lambda_name = NULL;
+    char * lambda_name = splatt_malloc(512 * sizeof(*lambda_name));
     if(args.stem) {
-      asprintf(&lambda_name, "%s.lambda.mat", args.stem);
+      sprintf(lambda_name, "%s.lambda.mat", args.stem);
     } else {
-      asprintf(&lambda_name, "lambda.mat");
+      sprintf(lambda_name, "lambda.mat");
     }
     vec_write(factored->lambda, args.nfactors, lambda_name);
-    free(lambda_name);
+    splatt_free(lambda_name);
 
 
     for(idx_t m=0; m < csf->nmodes; ++m) {
-      char * matfname = NULL;
+      char * matfname = splatt_malloc(512 * sizeof(*matfname));
       if(args.stem) {
-        asprintf(&matfname, "%s.mode%"SPLATT_PF_IDX".mat", args.stem, m+1);
+        sprintf(matfname, "%s.mode%"SPLATT_PF_IDX".mat", args.stem, m+1);
       } else {
-        asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
+        sprintf(matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
       }
 
       matrix_t tmpmat;
@@ -635,7 +635,7 @@ int splatt_cpd_cmd2(
       tmpmat.vals = factored->factors[m];
 
       mat_write(&tmpmat, matfname);
-      free(matfname);
+      splatt_free(matfname);
     }
   }
 

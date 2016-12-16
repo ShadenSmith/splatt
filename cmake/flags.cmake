@@ -1,16 +1,15 @@
 
-add_definitions(-D_GNU_SOURCE)
+set(CMAKE_C_STANDARD   99)
+set(CMAKE_CXX_STANDARD 11)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_DEFINES}")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -funroll-loops")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstrict-aliasing")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+set(SPLATT_FLAGS "${SPLATT_FLAGS} -funroll-loops")
+set(SPLATT_FLAGS "${SPLATT_FLAGS} -fstrict-aliasing")
+set(SPLATT_FLAGS "${SPLATT_FLAGS} -fPIC")
 
 if(${CMAKE_C_COMPILER_ID} STREQUAL "Intel")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -xHost")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -xHost")
 else()
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftree-vectorize")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -march=native")
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} -ftree-vectorize")
 endif()
+

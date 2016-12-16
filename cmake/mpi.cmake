@@ -15,7 +15,9 @@ if (DEFINED USE_MPI)
   add_definitions(-DSPLATT_USE_MPI=${USE_MPI})
   find_package(MPI REQUIRED)
   include_directories(SYSTEM ${MPI_INCLUDE_PATH})
-  file(GLOB MPI_SOURCES src/mpi/*.c)
+  file(GLOB MPI_SOURCES
+      src/mpi/*.c
+      src/mpi/*.cc)
   set(SPLATT_LIBS ${SPLATT_LIBS} ${MPI_C_LIBRARIES})
 else()
   set(MPI_SOURCES "")

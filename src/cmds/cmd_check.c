@@ -93,11 +93,8 @@ int splatt_check(
       for(idx_t m=0; m < tt->nmodes; ++m) {
         idx_t const * const map = tt->indmap[m];
         if(map != NULL) {
-          char * buf = NULL;
-          if(asprintf(&buf, "mode%"SPLATT_PF_IDX".map", m+1) == -1) {
-            fprintf(stderr, "SPLATT: asprintf failed\n");
-            abort();
-          }
+          char * buf = splatt_malloc(512 * sizeof(*buf));
+          sprintf(buf, "mode%"SPLATT_PF_IDX".map", m+1);
           FILE * fout = fopen(buf, "w");
           for(idx_t i=0; i < tt->dims[m]; ++i) {
             fprintf(fout, "%"SPLATT_PF_IDX"\n", 1+map[i]);
