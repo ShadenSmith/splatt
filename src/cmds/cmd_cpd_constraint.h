@@ -72,21 +72,22 @@ typedef struct
 
 /* Just makes function prototypes easier. */
 #define PROTO_CONSTRAINT_HANDLE(handle_name) \
-    splatt_error_type handle_name(splatt_cpd_opts * cpd, \
+    splatt_error_type handle_name( \
+                   splatt_cpd_opts * cpd, \
                    idx_t const * const modes_included, \
-                   idx_t const * const num_modes)
+                   idx_t const num_modes)
 
 #define PROTO_REGULARIZATION_HANDLE(handle_name) \
-    splatt_error_type handle_name(splatt_cpd_opts * cpd, \
+    splatt_error_type handle_name( \
+                   splatt_cpd_opts * cpd, \
                    val_t const multiplier, \
                    idx_t const * const modes_included, \
-                   idx_t const * const num_modes)
+                   idx_t const num_modes)
 
 
 /* FUNCTION PROTOTYPES. ADD YOURS HERE OR 'include/splatt/cpd.h'. */
-
-//PROTO_CONSTRAINT_HANDLE( splatt_register_nonneg );
-//PROTO_REGULARIZATION_HANDLE( splatt_register_lasso );
+PROTO_REGULARIZATION_HANDLE( splatt_register_ntf_frob );
+PROTO_REGULARIZATION_HANDLE( splatt_register_ntf_lasso );
 
 
 
@@ -109,10 +110,10 @@ static char const CPD_CONSTRAINT_DOC[] =
     "The following constraints are supported:\n"
     "  nonneg\tnon-negativity \n"
     "  ntf\t\t(nonneg alias)\n"
-#if 0
-    "  orth\t\torthogonality\n"
     "  rowsimp\trows lie in a probability simplex\n"
     "  colsimp\tcolumns lie in a probability simplex\n"
+#if 0
+    "  orth\t\torthogonality\n"
     "  symm\t\tsymmetry (matching factor matrices, >1 mode required)\n"
 #endif
     "\n"
@@ -120,6 +121,8 @@ static char const CPD_CONSTRAINT_DOC[] =
     "  frob\t\tFrobenius norm (Tikhonov regularization)\n"
     "  l1\t\tsparsity (LASSO)\n"
     "  lasso\t(l1 alias)\n"
+    "  ntf-frob\tFrobenius norm with non-negativity constraint\n"
+    "  ntf-l1\tL1 with non-negativity constraint\n"
 #if 0
     "  smooth\tsmooth columns\n"
 #endif
@@ -131,6 +134,8 @@ static char const CPD_CONSTRAINT_DOC[] =
 static constraint_cmd constraint_cmds[] = {
   {"nonneg", splatt_register_nonneg},
   {"ntf",    splatt_register_nonneg},
+  {"rowsimp",    splatt_register_rowsimp},
+  {"colsimp",    splatt_register_colsimp},
   { NULL, NULL }
 };
 
@@ -139,6 +144,8 @@ static regularization_cmd regularization_cmds[] = {
   {"frob",  splatt_register_frob},
   {"l1",    splatt_register_lasso},
   {"lasso", splatt_register_lasso},
+  {"ntf-frob", splatt_register_ntf_frob},
+  {"ntf-l1", splatt_register_ntf_lasso},
   { NULL, NULL }
 };
 

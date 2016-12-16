@@ -174,6 +174,41 @@ splatt_error_type splatt_register_nonneg(
     splatt_idx_t const num_modes);
 
 
+/**
+* @brief Register a row simplex constraint with a list of modes. Rows of the
+*        affected factor will be projected onto the probability simplex. This
+*        means that they will have non-negative values, and rows will sum to
+*        one.
+*
+* @param[out] opts The CPD options structure to modify.
+* @param modes_included A list of the modes to register.
+* @param num_modes The length of 'modes_included'.
+*
+* @return SPLATT error code.
+*/
+splatt_error_type splatt_register_rowsimp(
+    splatt_cpd_opts * opts,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes);
+
+
+/**
+* @brief Register a column simplex constraint with a list of modes. Columns of
+*        the affected factor will be projected onto the probability simplex.
+*        This means that they will have non-negative values, and columns will
+*        sum to one.
+*
+* @param[out] opts The CPD options structure to modify.
+* @param modes_included A list of the modes to register.
+* @param num_modes The length of 'modes_included'.
+*
+* @return SPLATT error code.
+*/
+splatt_error_type splatt_register_colsimp(
+    splatt_cpd_opts * opts,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes);
+
 
 /**
 * @brief Register a Frobenius norm (Tiknohov) regularization with a list of

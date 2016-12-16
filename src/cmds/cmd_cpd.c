@@ -163,6 +163,7 @@ static bool p_add_regularization(
     splatt_cpd_opts * opts)
 {
   bool success = true;
+  idx_t * modes = NULL;
 
   /* split args on ',' */
   char * arg_buf[MAX_NMODES * 2];
@@ -179,7 +180,7 @@ static bool p_add_regularization(
 
   /* +2 and -2 so we skip the name and multiplier */
   int mode_len = num_args - 2;
-  idx_t * modes = p_cmd_parse_modelist(arg_buf+2, &mode_len);
+  modes = p_cmd_parse_modelist(arg_buf+2, &mode_len);
 
   /* Search for the regularization and call the handle. */
   for(int c=0; valid_cmds[c].name != NULL; ++c) {
