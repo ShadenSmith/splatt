@@ -123,9 +123,7 @@ static char const CPD_CONSTRAINT_DOC[] =
     "  lasso\t(l1 alias)\n"
     "  ntf-frob\tFrobenius norm with non-negativity constraint\n"
     "  ntf-l1\tL1 with non-negativity constraint\n"
-#if 0
     "  smooth\tsmooth columns\n"
-#endif
     "";
 
 
@@ -146,6 +144,7 @@ static regularization_cmd regularization_cmds[] = {
   {"lasso", splatt_register_lasso},
   {"ntf-frob", splatt_register_ntf_frob},
   {"ntf-l1", splatt_register_ntf_lasso},
+  {"smooth", splatt_register_smooth},
   { NULL, NULL }
 };
 

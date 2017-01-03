@@ -66,7 +66,7 @@ typedef struct
   void (* init_func) (splatt_val_t * vals,
                       splatt_idx_t const nrows,
                       splatt_idx_t const ncols,
-                      void ** data);
+                      void * data);
 
   /**
   * @brief Modify the Gram matrix before computing a Cholesky factorization.
@@ -245,6 +245,22 @@ splatt_error_type splatt_register_lasso(
     splatt_idx_t const * const modes_included,
     splatt_idx_t const num_modes);
 
+
+/**
+* @brief Register an column smoothness regularization with a list of modes.
+*
+* @param[out] opts The CPD options structure to modify.
+* @param multiplier The \lambda penalty multiplier.
+* @param modes_included A list of the modes to register.
+* @param num_modes The length of 'modes_included'.
+*
+* @return SPLATT error code.
+*/
+splatt_error_type splatt_register_smooth(
+    splatt_cpd_opts * opts,
+    splatt_val_t const multiplier,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes);
 
 /** }@ */
 

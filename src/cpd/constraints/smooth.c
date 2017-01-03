@@ -1,12 +1,10 @@
 
-#if 0
 
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
 
-#include "../../base.h"
-#include "../../matrix.h"
+#include "../admm.h"
 
 
 /******************************************************************************
@@ -17,11 +15,10 @@
 typedef struct
 {
   val_t lambda;
+  matrix_t * transpose_buffer;
   matrix_t * banded;
   int      * pivot;
-} reg_smooth_ws;
-
-
+} smooth_ws;
 
 
 /******************************************************************************
@@ -36,7 +33,7 @@ typedef struct
 *                                 0   0   0   0   0
 *                                 0   0   0   0   0
 *                                 5  -4   1   0   0
-*           penalty * (lambda *  -4   6  -4   1   0  + diag(penalty))
+*               rho * (lambda *  -4   6  -4   1   0  + diag(rho))
 *                                 1  -4   6  -4   1
 *                                 0   1  -4   6  -4
 *                                 0   0   1  -4   5
@@ -49,19 +46,19 @@ typedef struct
 *
 * @param[out] smooth The smoothness workspace to initialize.
 * @param I The dimension of the mode with smoothness.
-* @param penalty The current penalty term of the ADMM iteration.
+* @param rho The current penalty term of the ADMM iteration.
 */
 static void p_form_banded(
-    reg_smooth_ws * const smooth,
+    smooth_ws * const smooth,
     idx_t const I,
-    val_t const penalty)
+    val_t const rho)
 {
   val_t * vals = smooth->banded->vals;
 
   val_t const lambda = smooth->lambda;
 
   /* first column is special */
-  vals[2+2+0] =  (5. * lambda) + penalty;
+  vals[2+2+0] =  (5. * lambda) + rho;
   vals[2+2+1] = -4. * lambda;
   vals[2+2+2] =  1. * lambda;
 
@@ -76,7 +73,7 @@ static void p_form_banded(
     }
 
     vals[2+1] = -4. * lambda;
-    vals[2+2] = (6. * lambda) + penalty; /* rho gets added to diagonal */
+    vals[2+2] = (6. * lambda) + rho; /* add rho to diagonal */
     vals[2+3] = -4. * lambda;
 
     if(i < I-2) {
@@ -88,7 +85,7 @@ static void p_form_banded(
   vals += nrows;
   vals[2+0] =  1. * lambda;
   vals[2+1] = -4. * lambda;
-  vals[2+2] = (5. * lambda) + penalty;
+  vals[2+2] = (5. * lambda) + rho;
 
   /* compute the LU factorization */
   int nbands = 2;
@@ -105,17 +102,22 @@ static void p_form_banded(
 }
 
 
-
-static void p_init_smooth(
-    reg_smooth_ws * const smooth,
-    idx_t const I)
+void splatt_smooth_init(
+    splatt_val_t * vals,
+    splatt_idx_t const nrows,
+    splatt_idx_t const ncols,
+    void * data)
 {
+  smooth_ws * ws = data;
+
   /* This will be a matrix stored in LAPACK banded format. We allocate
    * diagonal + upper/lower bands + another 2 bands for LU fill-in. */
   int const nbands = 2;
-  smooth->banded = mat_alloc(1 + (nbands * 3), I);
-  smooth->banded->rowmajor = 0;
-  smooth->pivot = splatt_malloc(I * sizeof(*smooth->pivot));
+  ws->banded = mat_alloc(1 + (nbands * 3), nrows);
+  ws->banded->rowmajor = 0;
+  ws->pivot = splatt_malloc(nrows* sizeof(*ws->pivot));
+
+  ws->transpose_buffer = mat_alloc(nrows, ncols);
 }
 
 
@@ -125,109 +127,121 @@ static void p_init_smooth(
 * @brief Apply the proximity operator to enforce column smoothness. This solves
 *        a banded linear system and performs a few matrix transposes.
 *
-* @param[out] mat_primal The primal variable (factor matrix) to update.
-* @param penalty The current penalty parameter (rho).
-* @param ws CPD workspace data -- used for regularization parameter.
-* @param mode The mode we are updating.
-* @param data Constraint-specific data -- a reg_smooth_ws struct pointer.
-* @param is_chunked Whether this is a chunk of a larger matrix.
+* @param[out] primal The row-major matrix to update.
+* @param nrows The number of rows in primal.
+* @param ncols The number of columns in primal.
+* @param offset Not used.
+* @param data Workspace.
+* @param rho Multiplier on the regularization.
+* @param should_parallelize If true, parallelize.
 */
-static void p_proximity_smooth(
-    matrix_t  * const mat_primal,
-    matrix_t const * const mat_auxil,
-    matrix_t const * const mat_dual,
-    val_t const penalty,
-    void const * const data,
-    bool const is_chunked)
+void splatt_smooth_prox(
+    val_t * primal,
+    idx_t const nrows,
+    idx_t const ncols,
+    idx_t const offset,
+    void * data,
+    val_t const rho,
+    bool const should_parallelize)
 {
-  assert(!is_chunked);
+  assert(offset == 0);
 
-  idx_t const I = mat_primal->I;
-  idx_t const J = mat_primal->J;
+  smooth_ws * ws = data;
 
-  val_t       * const restrict matv = mat_primal->vals;
-  val_t       * const restrict auxl = mat_auxil->vals;
-  val_t const * const restrict dual = mat_dual->vals;
-
-  reg_smooth_ws * smooth = (reg_smooth_ws *) data;
-
-  /* allocate if this is the first time */
-  if(smooth->banded == NULL) {
-    p_init_smooth(smooth, I);
-  }
+  val_t * const restrict buf = ws->transpose_buffer->vals;
 
   /* form the banded matrix and compute its LU factorization */
-  p_form_banded(smooth, I, penalty);
+  p_form_banded(ws, nrows, rho);
 
-  /* form and transpose the RHS */
-  #pragma omp parallel
+  /* transpose the RHS (primal) */
+  #pragma omp parallel if(should_parallelize)
   {
-    for(idx_t j=0; j < J; ++j) {
+    for(idx_t j=0; j < ncols; ++j) {
       #pragma omp for schedule(static) nowait
-      for(idx_t i=0; i < I; ++i) {
-        idx_t const old = j + (i*J);
-        idx_t const new = i + (j*I);
-        matv[new] = auxl[old] - dual[old];
+      for(idx_t i=0; i < nrows; ++i) {
+        idx_t const old = j + (i*ncols);
+        idx_t const new = i + (j*nrows);
+        buf[new] = primal[old];
       }
     }
   } /* end omp parallel */
 
   /* solve the linear system of equations */
   char trans = 'N';
-  int N = (int) I;
+  int N = (int) nrows;
   int KL = 2;
   int KU = 2;
-  int nrhs = (int) J;
+  int nrhs = (int) ncols;
   int lda = (int) (2 * KL) + KU + 1;
   int ldb = N;
   int info;
 
-  LAPACK_DGBTRS(&trans, &N, &KL, &KU, &nrhs, smooth->banded->vals, &lda,
-      smooth->pivot, matv, &ldb, &info);
+  LAPACK_DGBTRS(&trans, &N, &KL, &KU, &nrhs, ws->banded->vals, &lda,
+      ws->pivot, buf, &ldb, &info);
   if(info) {
     fprintf(stderr, "SPLATT: DGBTRS returned %d\n", info);
   }
 
-  /* now transpose back and multiply by penalty */
-  #pragma omp parallel for schedule(static)
-  for(idx_t i=0; i < I; ++i) {
-    for(idx_t j=0; j < J; ++j) {
-      idx_t const old = i + (j*I);
-      idx_t const new = j + (i*J);
-      auxl[new] = matv[old] * penalty;
+  /* now transpose back and multiply by rho */
+  #pragma omp parallel for schedule(static) if(should_parallelize)
+  for(idx_t i=0; i < nrows; ++i) {
+    for(idx_t j=0; j < ncols; ++j) {
+      idx_t const old = i + (j*nrows);
+      idx_t const new = j + (i*ncols);
+      primal[new] = buf[old] * rho;
     }
   }
-
-  /* now copy back to mat_primal... */
-  par_memcpy(matv, auxl, I * J * sizeof(*matv));
 }
 
 
-
-
-void splatt_cpd_reg_smooth(
-    splatt_cpd_opts * const cpd_opts,
-    splatt_idx_t const mode,
-    splatt_val_t const scale)
+/**
+* @brief Free the smoothness workspace.
+*
+* @param data The data to free.
+*/
+void splatt_smooth_free(
+    void * data)
 {
-  /* MAX_NMODES will simply apply regularization to all modes */
-  if(mode == MAX_NMODES) {
-    for(idx_t m=0; m < MAX_NMODES; ++m) {
-      splatt_cpd_reg_smooth(cpd_opts, m, scale);
-    }
-    return;
-  }
+  smooth_ws * ws = data;
 
-  splatt_cpd_con_clear(cpd_opts, mode);
-
-  cpd_opts->unconstrained = false;
-  cpd_opts->constraints[mode].which = SPLATT_REG_SMOOTHNESS;
-
-  reg_smooth_ws * smooth = splatt_malloc(sizeof(*smooth));
-  smooth->lambda = scale;
-  smooth->banded = NULL; /* to be allocated when we know the dimension */
-  cpd_opts->constraints[mode].data = (void *) smooth;
+  mat_free(ws->banded);
+  mat_free(ws->transpose_buffer);
+  splatt_free(ws->pivot);
+  splatt_free(ws);
 }
 
 
-#endif
+
+
+/******************************************************************************
+ * API FUNCTIONS
+ *****************************************************************************/
+
+splatt_error_type splatt_register_smooth(
+    splatt_cpd_opts * opts,
+    splatt_val_t const multiplier,
+    splatt_idx_t const * const modes_included,
+    splatt_idx_t const num_modes)
+{
+  for(idx_t m=0; m < num_modes; ++m) {
+    idx_t const mode = modes_included[m];
+    splatt_cpd_constraint * con = splatt_alloc_constraint(SPLATT_CON_ADMM);
+
+    con->prox_func = splatt_smooth_prox;
+    con->init_func = splatt_smooth_init;
+    con->free_func = splatt_smooth_free;
+
+    sprintf(con->description, "SMOOTH-COL");
+
+    smooth_ws * ws = splatt_malloc(sizeof(*ws));
+    ws->lambda = multiplier;
+
+    con->data = ws;
+
+    splatt_register_constraint(opts, mode, con);
+  }
+
+  return SPLATT_SUCCESS;
+}
+
+
