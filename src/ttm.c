@@ -15,6 +15,16 @@
 /* XXX: this is a memory leak until cpd_ws is added/freed. */
 static mutex_pool * pool = NULL;
 
+/* Count FLOPS during ttmc */
+#ifndef SPLATT_TTMC_FLOPS
+#define SPLATT_TTMC_FLOPS 1
+
+static size_t nflops = 0;
+#endif
+
+#ifndef SPLATT_TTMC_PREFETCH
+#define SPLATT_TTMC_PREFETCH 0
+#endif
 
 
 /******************************************************************************
@@ -251,6 +261,7 @@ static inline void p_twovec_outer_prod_tiled(
     idx_t const nfibers,
     val_t * const restrict out)
 {
+#if 1
   val_t alpha = 1.;
   val_t beta = 1.;
   char transA = 'N';
@@ -266,6 +277,14 @@ static inline void p_twovec_outer_prod_tiled(
       accums_buf, &M,   /* A */
       fids_buf, &N,     /* B */
       &beta, out, &M);  /* C */
+#else
+  for(idx_t k=0; k < nfibers; ++k) {
+    p_twovec_outer_prod_accum(
+        fids_buf+(k*ncol_fids), ncol_fids,
+        accums_buf+(k*ncol_accums), ncol_accums,
+        out);
+  }
+#endif
 }
 
 
@@ -300,6 +319,15 @@ static inline void p_flush_oprods(
     return;
   }
 
+#if SPLATT_TTMC_PREFETCH == 1
+    __builtin_prefetch(factor + (row_ids[0] * factor_ncols), 0, 0);
+#endif
+
+#if SPLATT_TTMC_FLOPS == 1
+  #pragma omp atomic
+  nflops += 2 * (factor_ncols + ncol_accums * naccum);
+#endif
+
   /* don't do the gather step or call to BLAS_GEMM */
   if(naccum == 1) {
     p_twovec_outer_prod_accum(factor + (row_ids[0] * factor_ncols),
@@ -308,13 +336,23 @@ static inline void p_flush_oprods(
   }
 
   /* gather rows into row_buffer */
-  for(idx_t row=0; row < naccum; ++row) {
+  for(idx_t row=0; row < naccum-1; ++row) {
+#if SPLATT_TTMC_PREFETCH == 1
+    __builtin_prefetch(factor + (row_ids[row+1] * factor_ncols), 0, 0);
+#endif
+
     val_t       * const restrict accum = row_buffer + (row * factor_ncols);
     val_t const * const restrict av = factor + (row_ids[row] * factor_ncols);
-
     for(idx_t f=0; f < factor_ncols; ++f) {
       accum[f] = av[f];
     }
+  }
+
+  /* last accum */
+  val_t       * const restrict accum = row_buffer + ((naccum-1) * factor_ncols);
+  val_t const * const restrict av = factor + (row_ids[naccum-1] * factor_ncols);
+  for(idx_t f=0; f < factor_ncols; ++f) {
+    accum[f] = av[f];
   }
 
   /* dgemm */
@@ -370,6 +408,10 @@ static inline void p_csf_process_fiber(
       accumbuf[f] += v * row[f];
     }
   }
+#if SPLATT_TTMC_FLOPS == 1
+    #pragma omp atomic
+    nflops += 2 * nfactors * (end - start);
+#endif
 }
 
 
@@ -455,6 +497,10 @@ static inline void p_propagate_up(
       p_twovec_outer_prod_accum(fibrow, ncols_mat[depth],
                           buf[depth+1], ncols_lvl[depth+1],
                           buf[depth]);
+#if SPLATT_TTMC_FLOPS == 1
+      #pragma omp atomic
+      nflops += 2 * (ncols_mat[depth], ncols_lvl[depth+1]);
+#endif
       /* clear */
       for(idx_t f=0; f < ncols_lvl[depth+1]; ++f) {
         buf[depth+1][f] = 0.;
@@ -556,10 +602,15 @@ static void p_csf_ttmc_root3(
           accum_nnz[r] += v * bv[r];
         }
       }
+#if SPLATT_TTMC_FLOPS == 1
+      #pragma omp atomic
+      nflops += 2 * rankB * (fptr[f+1] - fptr[f]);
+#endif
+
 
       /* accumulate outer product into tenout */
       accum_fids[naccum++] = fids[f];
-      if(naccum == TTMC_BUFROWS) {
+      if((TTMC_BUFROWS == 1) || (naccum == TTMC_BUFROWS)) {
         p_flush_oprods(accum_oprod, accum_fids, avals, rankA,
                        accum_nnz_raw, rankB, naccum, outv);
         naccum = 0;
@@ -633,12 +684,20 @@ static void p_csf_ttmc_intl3(
           accum_nnz[r] += v * bv[r];
         }
       }
+#if SPLATT_TTMC_FLOPS == 1
+      #pragma omp atomic
+      nflops += 2 * rankB * (fptr[f+1] - fptr[f]);
+#endif
 
       /* accumulate outer product into tenout */
       val_t * const restrict outv = tenout + (fids[f] * rankA * rankB);
       mutex_set_lock(pool, fids[f]);
       p_twovec_outer_prod_accum(av, rankA, accum_nnz, rankB, outv);
       mutex_unset_lock(pool, fids[f]);
+#if SPLATT_TTMC_FLOPS == 1
+      #pragma omp atomic
+      nflops += 2 * rankA * rankB;
+#endif
     } /* foreach fiber */
   } /* foreach slice */
 }
@@ -712,6 +771,11 @@ static void p_csf_ttmc_leaf3(
         }
         mutex_unset_lock(pool, inds[jj]);
       }
+
+#if SPLATT_TTMC_FLOPS == 1
+      #pragma omp atomic
+      nflops += 2 * rankA * rankB * (fptr[f+1] - fptr[f]);
+#endif
 
     } /* foreach fiber */
   }
@@ -873,18 +937,21 @@ static void p_csf_ttmc_root(
   val_t * mvals[MAX_NMODES]; /* permuted factors */
   val_t * buf[MAX_NMODES];   /* accumulation buffer */
   for(idx_t m=0; m < nmodes; ++m) {
-    buf[m] = calloc(ncols_lvl[m], sizeof(**buf));
+    buf[m] = splatt_malloc(ncols_lvl[m] * sizeof(**buf));
+    for(idx_t f=0; f < ncols_lvl[m]; ++f) {
+      buf[m][f] = 0.;
+    }
+
     mvals[m] = mats[csf->dim_perm[m]]->vals;
   }
-  idx_t const nfibs = csf->pt[tile_id].nfibs[0];
 
+  idx_t const nfibs = csf->pt[tile_id].nfibs[0];
   idx_t const * const * const restrict fp
       = (idx_t const * const *) csf->pt[tile_id].fptr;
   idx_t const * const * const restrict fids
       = (idx_t const * const *) csf->pt[tile_id].fids;
 
   idx_t idxstack[MAX_NMODES];
-
 
   #pragma omp for schedule(dynamic, 16) nowait
   for(idx_t s=0; s < nfibs; ++s) {
@@ -899,6 +966,10 @@ static void p_csf_ttmc_root(
     for(idx_t f=0; f < ncols; ++f) {
       orow[f] += obuf[f];
     }
+#if SPLATT_TTMC_FLOPS == 1
+    #pragma omp atomic
+    nflops += ncols;
+#endif
   } /* foreach outer slice */
 
   /* cleanup */
@@ -1003,6 +1074,10 @@ static void p_csf_ttmc_internal(
         p_twovec_outer_prod(buf[depth], ncols_lvl[depth],
                             drow, ncols_mat[depth+1],
                             buf[depth+1]);
+#if SPLATT_TTMC_FLOPS == 1
+        #pragma omp atomic
+        nflops += 2 * (ncols_lvl[depth], ncols_mat[depth+1]);
+#endif
       }
       ++depth;
       assert(depth == outdepth);
@@ -1022,6 +1097,10 @@ static void p_csf_ttmc_internal(
                                 buf[outdepth], ncols_lvl[outdepth+1],
                                 outv);
       mutex_unset_lock(pool, noderow);
+#if SPLATT_TTMC_FLOPS == 1
+      #pragma omp atomic
+      nflops += 2 * (ncols_lvl[depth-1], ncols_lvl[depth+1]);
+#endif
       /* clear buffer -- hacked to be outdepth+1 */
       for(idx_t f=0; f < ncols_lvl[outdepth+1]; ++f) {
         buf[outdepth][f] = 0.;
@@ -1156,6 +1235,8 @@ void ttmc_csf(
     thd_info * const thds,
     double const * const opts)
 {
+  nflops = 0;
+
   /* clear out stale results */
   p_clear_tenout(tenout, mats, tensors->nmodes, mode, tensors->dims);
 
@@ -1167,6 +1248,9 @@ void ttmc_csf(
   idx_t nmodes = tensors[0].nmodes;
   /* find out which level in the tree this is */
   idx_t outdepth = MAX_NMODES;
+
+  sp_timer_t ttmc_time;
+  timer_fstart(&ttmc_time);
 
   /* choose which TTM function to use */
   splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
@@ -1207,6 +1291,14 @@ void ttmc_csf(
     fprintf(stderr, "SPLATT: only SPLATT_CSF_ALLMODE supported for TTM.\n");
     exit(1);
   }
+  timer_stop(&ttmc_time);
+
+#if SPLATT_TTMC_FLOPS == 1
+  printf("  TTMc: %0.3fs (%0.3f GFLOPS)\n", ttmc_time.seconds,
+      1e-9 * (double) nflops / ttmc_time.seconds);
+#else
+  printf("  TTMc: %0.3fs\n", ttmc_time.seconds);
+#endif
 }
 
 
