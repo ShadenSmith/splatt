@@ -21,6 +21,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install argp-standalone ; fi
 
 script:
-  - ./configure --with-precision=single && make && ./scripts/test.sh
-  - ./configure --with-precision=double && make && ./scripts/test.sh
-  - ./configure --debug --with-precision=single && make && ./scripts/test.sh
+  - ./configure --precision=single && make && ./scripts/test.sh
+  - ./configure --precision=double && make && ./scripts/test.sh
+  - ./configure --debug --precision=single && make && ./scripts/test.sh
+  - ./configure --debug --index-size=32 && make && ./scripts/test.sh
