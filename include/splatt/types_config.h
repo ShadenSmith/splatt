@@ -35,8 +35,8 @@
  * values to 32 will decrease memory consumption at the cost of precision and
  * maximum supported tensor size. */
 
-#define SPLATT_IDX_TYPEWIDTH 32
-#define SPLATT_VAL_TYPEWIDTH 64
+#define SPLATT_IDX_TYPEWIDTH @CONFIG_IDX_WIDTH@
+#define SPLATT_VAL_TYPEWIDTH @CONFIG_VAL_WIDTH@
 
 
 /* Set type constants based on width. */
