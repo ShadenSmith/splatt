@@ -12,8 +12,18 @@
 #include "mutex_pool.h"
 
 
-/* XXX: this is a memory leak until cpd_ws is added/freed. */
+/* XXX: this is a memory leak */
 static mutex_pool * pool = NULL;
+
+
+
+/**
+* @brief The number of rows we will buffer for DGEMM when propagating up
+*        partial computations of TTMc (sum of outer products).
+*/
+static idx_t const TTMC_BUFROWS = 128;
+
+
 
 /* Count FLOPS during ttmc */
 #ifndef SPLATT_TTMC_FLOPS
@@ -23,7 +33,7 @@ static size_t nflops = 0;
 #endif
 
 #ifndef SPLATT_TTMC_PREFETCH
-#define SPLATT_TTMC_PREFETCH 0
+#define SPLATT_TTMC_PREFETCH 1
 #endif
 
 
@@ -499,7 +509,7 @@ static inline void p_propagate_up(
                           buf[depth]);
 #if SPLATT_TTMC_FLOPS == 1
       #pragma omp atomic
-      nflops += 2 * (ncols_mat[depth], ncols_lvl[depth+1]);
+      nflops += 2 * (ncols_mat[depth] * ncols_lvl[depth+1]);
 #endif
       /* clear */
       for(idx_t f=0; f < ncols_lvl[depth+1]; ++f) {
@@ -1076,7 +1086,7 @@ static void p_csf_ttmc_internal(
                             buf[depth+1]);
 #if SPLATT_TTMC_FLOPS == 1
         #pragma omp atomic
-        nflops += 2 * (ncols_lvl[depth], ncols_mat[depth+1]);
+        nflops += 2 * (ncols_lvl[depth] * ncols_mat[depth+1]);
 #endif
       }
       ++depth;
@@ -1099,7 +1109,7 @@ static void p_csf_ttmc_internal(
       mutex_unset_lock(pool, noderow);
 #if SPLATT_TTMC_FLOPS == 1
       #pragma omp atomic
-      nflops += 2 * (ncols_lvl[depth-1], ncols_lvl[depth+1]);
+      nflops += 2 * (ncols_lvl[depth-1] * ncols_lvl[depth+1]);
 #endif
       /* clear buffer -- hacked to be outdepth+1 */
       for(idx_t f=0; f < ncols_lvl[outdepth+1]; ++f) {
@@ -1294,10 +1304,10 @@ void ttmc_csf(
   timer_stop(&ttmc_time);
 
 #if SPLATT_TTMC_FLOPS == 1
-  printf("  TTMc: %0.3fs (%0.3f GFLOPS)\n", ttmc_time.seconds,
+  printf("    TTMc: %0.3fs (%0.3f GFLOPS)\n", ttmc_time.seconds,
       1e-9 * (double) nflops / ttmc_time.seconds);
 #else
-  printf("  TTMc: %0.3fs\n", ttmc_time.seconds);
+  printf("    TTMc: %0.3fs\n", ttmc_time.seconds);
 #endif
 }
 
