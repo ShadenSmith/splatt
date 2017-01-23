@@ -27,13 +27,13 @@ static idx_t const TTMC_BUFROWS = 128;
 
 /* Count FLOPS during ttmc */
 #ifndef SPLATT_TTMC_FLOPS
-#define SPLATT_TTMC_FLOPS 1
+#define SPLATT_TTMC_FLOPS 0
 
 static size_t nflops = 0;
 #endif
 
 #ifndef SPLATT_TTMC_PREFETCH
-#define SPLATT_TTMC_PREFETCH 1
+#define SPLATT_TTMC_PREFETCH 0
 #endif
 
 
@@ -75,7 +75,7 @@ int splatt_ttmc(
   /* cleanup */
   thd_free(thds, nthreads);
   for(idx_t m=0; m < nmodes; ++m) {
-    free(mats[m]);
+    splatt_free(mats[m]);
   }
 
   return SPLATT_SUCCESS;
@@ -492,10 +492,7 @@ static inline void p_propagate_up(
 
     /* exit early if there is no propagation to do... */
     if(init_depth == nmodes-2) {
-      for(idx_t f=0; f < ncols_lvl[depth+1]; ++f) {
-        out[f] = buf[depth+1][f];
-      }
-      return;
+      break;
     }
 
     /* Propagate up until we reach a node with more children to process */
@@ -504,9 +501,10 @@ static inline void p_propagate_up(
       val_t const * const restrict fibrow
           = mvals[depth] + (fids[depth][idxstack[depth]] * ncols_mat[depth]);
       assert(ncols_lvl[depth] == ncols_lvl[depth+1] * ncols_mat[depth]);
-      p_twovec_outer_prod_accum(fibrow, ncols_mat[depth],
-                          buf[depth+1], ncols_lvl[depth+1],
-                          buf[depth]);
+      p_twovec_outer_prod_accum(
+          fibrow, ncols_mat[depth],
+          buf[depth+1], ncols_lvl[depth+1],
+          buf[depth]);
 #if SPLATT_TTMC_FLOPS == 1
       #pragma omp atomic
       nflops += 2 * (ncols_mat[depth] * ncols_lvl[depth+1]);
@@ -896,7 +894,7 @@ static void p_csf_ttmc_leaf(
 
   /* cleanup */
   for(idx_t m=0; m < nmodes-1; ++m) {
-    free(buf[m]);
+    splatt_free(buf[m]);
   }
 }
 
@@ -984,7 +982,7 @@ static void p_csf_ttmc_root(
 
   /* cleanup */
   for(idx_t m=0; m < nmodes-1; ++m) {
-    free(buf[m]);
+    splatt_free(buf[m]);
   }
 }
 
@@ -1126,7 +1124,7 @@ static void p_csf_ttmc_internal(
 
   /* cleanup */
   for(idx_t m=0; m < nmodes-1; ++m) {
-    free(buf[m]);
+    splatt_free(buf[m]);
   }
 }
 
