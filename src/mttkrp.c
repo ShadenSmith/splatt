@@ -47,7 +47,7 @@ int splatt_mttkrp(
   idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
   splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 3,
-    (ncolumns * ncolumns * sizeof(val_t)) + 64,
+    (nmodes * ncolumns * sizeof(val_t)) + 64,
     0,
     (nmodes * ncolumns * sizeof(val_t)) + 64);
 
