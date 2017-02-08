@@ -82,6 +82,7 @@ void csf_free(
   double const * const opts);
 
 
+#define csf_free_mode splatt_csf_free_mode
 /**
 * @brief Free the memory allocated for one CSF representation. This should be
 *        paired with csf_alloc_mode().
@@ -93,6 +94,7 @@ void csf_free_mode(
 
 
 
+#define csf_ntensors splatt_csf_ntensors
 /**
 * @brief Return the number of tensors allocated.
 *

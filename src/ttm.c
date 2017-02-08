@@ -1141,24 +1141,21 @@ static inline void p_root_decide(
     double const * const opts)
 {
   idx_t const nmodes = tensor->nmodes;
-  #pragma omp parallel
-  {
-    timer_start(&thds[omp_get_thread_num()].ttime);
-    /* tile id */
-    idx_t tid = 0;
-    switch(tensor->which_tile) {
-    case SPLATT_NOTILE:
-      p_csf_ttmc_root(tensor, 0, mats, tenout, thds);
-      break;
+  timer_start(&thds[omp_get_thread_num()].ttime);
+  /* tile id */
+  idx_t tid = 0;
+  switch(tensor->which_tile) {
+  case SPLATT_NOTILE:
+    p_csf_ttmc_root(tensor, 0, mats, tenout, thds);
+    break;
 
-    /* XXX */
-    default:
-      fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
-      exit(1);
-      break;
-    }
-    timer_stop(&thds[omp_get_thread_num()].ttime);
-  } /* end omp parallel */
+  /* XXX */
+  default:
+    fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
+    exit(1);
+    break;
+  }
+  timer_stop(&thds[omp_get_thread_num()].ttime);
 
 }
 
@@ -1175,24 +1172,21 @@ static void p_intl_decide(
 
   idx_t const nmodes = csf->nmodes;
 
-  #pragma omp parallel
-  {
-    timer_start(&thds[omp_get_thread_num()].ttime);
-    /* tile id */
-    idx_t tid = 0;
-    switch(csf->which_tile) {
-    case SPLATT_NOTILE:
-      p_csf_ttmc_internal(csf, 0, mats, tenout, mode, thds);
-      break;
+  timer_start(&thds[omp_get_thread_num()].ttime);
+  /* tile id */
+  idx_t tid = 0;
+  switch(csf->which_tile) {
+  case SPLATT_NOTILE:
+    p_csf_ttmc_internal(csf, 0, mats, tenout, mode, thds);
+    break;
 
-    /* XXX */
-    default:
-      fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
-      exit(1);
-      break;
-    }
-    timer_stop(&thds[omp_get_thread_num()].ttime);
+  /* XXX */
+  default:
+    fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
+    exit(1);
+    break;
   }
+  timer_stop(&thds[omp_get_thread_num()].ttime);
 }
 
 
@@ -1208,25 +1202,22 @@ static void p_leaf_decide(
   idx_t const nmodes = csf->nmodes;
   idx_t const depth = nmodes - 1;
 
-  #pragma omp parallel
-  {
-    timer_start(&thds[omp_get_thread_num()].ttime);
+  timer_start(&thds[omp_get_thread_num()].ttime);
 
-    /* tile id */
-    idx_t tid = 0;
-    switch(csf->which_tile) {
-    case SPLATT_NOTILE:
-      p_csf_ttmc_leaf(csf, 0, mats, tenout, thds);
-      break;
+  /* tile id */
+  idx_t tid = 0;
+  switch(csf->which_tile) {
+  case SPLATT_NOTILE:
+    p_csf_ttmc_leaf(csf, 0, mats, tenout, thds);
+    break;
 
-    /* XXX */
-    default:
-      fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
-      exit(1);
-      break;
-    }
-    timer_stop(&thds[omp_get_thread_num()].ttime);
-  } /* end omp parallel */
+  /* XXX */
+  default:
+    fprintf(stderr, "SPLATT: TTM does not support tiling yet.\n");
+    exit(1);
+    break;
+  }
+  timer_stop(&thds[omp_get_thread_num()].ttime);
 }
 
 
@@ -1253,52 +1244,103 @@ void ttmc_csf(
     pool = mutex_alloc();
   }
 
-  idx_t nmodes = tensors[0].nmodes;
-  /* find out which level in the tree this is */
-  idx_t outdepth = MAX_NMODES;
+  idx_t const nrows = tensors[0].dims[mode];
+  idx_t ncols = 1;
+  for(idx_t m=0; m < tensors[0].nmodes; ++m) {
+    if(m != mode) {
+      ncols *= mats[m]->J;
+    }
+  }
+
+  val_t * output_bufs[splatt_omp_get_max_threads()];
+
+  bool privatized = false;
+  if(false && tensors[0].dims[mode] < 1000) {
+    privatized = true;
+  }
 
   sp_timer_t ttmc_time;
   timer_fstart(&ttmc_time);
 
-  /* choose which TTM function to use */
-  splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
-  switch(which) {
+  #pragma omp parallel
+  {
+    val_t * ttmc_output = tenout;
 
-  case SPLATT_CSF_ONEMODE:
-    outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
-    if(outdepth == 0) {
-      p_root_decide(tensors+0, mats, tenout, mode, thds, opts);
-    } else if(outdepth == nmodes - 1) {
-      p_leaf_decide(tensors+0, mats, tenout, mode, thds, opts);
-    } else {
-      p_intl_decide(tensors+0, mats, tenout, mode, thds, opts);
+    if(privatized) {
+      size_t const nbytes = nrows * ncols * sizeof(**output_bufs);
+      int const tid = splatt_omp_get_thread_num();
+      output_bufs[tid] = splatt_malloc(nbytes);
+      memset(output_bufs[tid], 0, nbytes);
+
+      /* set thread-local output */
+      ttmc_output = output_bufs[tid];
     }
-    break;
 
+    idx_t nmodes = tensors[0].nmodes;
+    /* find out which level in the tree this is */
+    idx_t outdepth = MAX_NMODES;
 
-  case SPLATT_CSF_TWOMODE:
-    /* longest mode handled via second tensor's root */
-    if(mode == tensors[0].dim_perm[nmodes-1]) {
-      p_root_decide(tensors+1, mats, tenout, mode, thds, opts);
-    /* root and internal modes are handled via first tensor */
-    } else {
+    /* choose which TTM function to use */
+    splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
+    switch(which) {
+
+    case SPLATT_CSF_ONEMODE:
       outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
       if(outdepth == 0) {
-        p_root_decide(tensors+0, mats, tenout, mode, thds, opts);
+        p_root_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
+      } else if(outdepth == nmodes - 1) {
+        p_leaf_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
       } else {
-        p_intl_decide(tensors+0, mats, tenout, mode, thds, opts);
+        p_intl_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
       }
+      break;
+
+
+    case SPLATT_CSF_TWOMODE:
+      /* longest mode handled via second tensor's root */
+      if(mode == tensors[0].dim_perm[nmodes-1]) {
+        p_root_decide(tensors+1, mats, ttmc_output, mode, thds, opts);
+      /* root and internal modes are handled via first tensor */
+      } else {
+        outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
+        if(outdepth == 0) {
+          p_root_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
+        } else {
+          p_intl_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
+        }
+      }
+      break;
+
+    case SPLATT_CSF_ALLMODE:
+      p_root_decide(tensors+mode, mats, ttmc_output, mode, thds, opts);
+      break;
+
+    default:
+      fprintf(stderr, "SPLATT: only SPLATT_CSF_ALLMODE supported for TTM.\n");
+      exit(1);
     }
-    break;
 
-  case SPLATT_CSF_ALLMODE:
-    p_root_decide(tensors+mode, mats, tenout, mode, thds, opts);
-    break;
+    if(privatized) {
+      #pragma omp barrier
 
-  default:
-    fprintf(stderr, "SPLATT: only SPLATT_CSF_ALLMODE supported for TTM.\n");
-    exit(1);
-  }
+      /* Perform a reduction on the thread-private output buffers. */
+      #pragma omp for schedule(static)
+      for(idx_t i=0; i < nrows; ++i) {
+        val_t * const restrict tenout_slice = tenout + (i*ncols);
+
+        for(int t=0; t < splatt_omp_get_num_threads(); ++t) {
+          val_t const * const restrict thread_slice = output_bufs[t]+(i*ncols);
+          for(idx_t j=0; j < ncols; ++j) {
+            tenout_slice[j] += thread_slice[j];
+          }
+        }
+      }
+
+      /* free thread memory */
+      splatt_free(output_bufs[splatt_omp_get_thread_num()]);
+    } /* if parallelized */
+  } /* end omp parallel */
+
   timer_stop(&ttmc_time);
 
 #if SPLATT_TTMC_FLOPS == 1
@@ -1460,23 +1502,23 @@ idx_t tenout_dim(
 void ttmc_fill_flop_tbl(
     sptensor_t * const tt,
     idx_t const * const nfactors,
-    idx_t table[MAX_NMODES][MAX_NMODES])
+    size_t table[MAX_NMODES][MAX_NMODES])
 {
   /* just assume no tiling... */
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
 
   /* flops if we used just CSF-1 or CSF-A */
-  idx_t csf1[MAX_NMODES];
-  idx_t csf2[MAX_NMODES];
-  idx_t csfa[MAX_NMODES];
+  size_t csf1[MAX_NMODES];
+  size_t csf2[MAX_NMODES];
+  size_t csfa[MAX_NMODES];
 
   idx_t const smallest_mode = argmin_elem(tt->dims, tt->nmodes);
   idx_t const largest_mode = argmax_elem(tt->dims, tt->nmodes);
 
   /* foreach CSF rep */
   for(idx_t i=0; i < tt->nmodes; ++i) {
-    printf("MODE-%lu:  ", i);
+    printf("MODE-%"SPLATT_PF_IDX":  ", i);
 
     splatt_csf csf;
     csf_alloc_mode(tt, CSF_SORTED_SMALLFIRST_MINUSONE, i, &csf, opts);
@@ -1484,7 +1526,7 @@ void ttmc_fill_flop_tbl(
     /* foreach mode of computation */
     for(idx_t j=0; j < tt->nmodes; ++j) {
 
-      idx_t const flops = ttmc_csf_count_flops(&csf, j, nfactors);
+      size_t const flops = ttmc_csf_count_flops(&csf, j, nfactors);
       /* store result */
       table[i][j] = flops;
       printf("%0.3e  ", (double)flops);
@@ -1505,7 +1547,7 @@ void ttmc_fill_flop_tbl(
       }
     } /* end foreach mode of computation */
 
-    idx_t total = 0;
+    size_t total = 0;
     for(idx_t m=0; m < tt->nmodes; ++m) {
       total += table[i][m];
     }
@@ -1520,7 +1562,7 @@ void ttmc_fill_flop_tbl(
 
   /* print stats for each allocation scheme */
 
-  idx_t total;
+  size_t total;
 
   /* csf-1 and csf-a */
   total = 0;
@@ -1556,7 +1598,7 @@ void ttmc_fill_flop_tbl(
   total = 0;
   /* foreach mode */
   for(idx_t j=0; j < tt->nmodes; ++j) {
-    idx_t best = 0;
+    size_t best = 0;
     /* foreach csf */
     for(idx_t i=0; i < tt->nmodes; ++i) {
       if(table[i][j] <= table[best][j]) {
@@ -1577,7 +1619,7 @@ void ttmc_fill_flop_tbl(
   total = 0;
   printf("COORD:  ");
   for(idx_t m=0; m < tt->nmodes; ++m) {
-    idx_t const coord_flops = ttmc_coord_count_flops(tt, m, nfactors);
+    size_t const coord_flops = ttmc_coord_count_flops(tt, m, nfactors);
     printf("%0.3e  ", (double)coord_flops);
     total += coord_flops;
   }
@@ -1588,7 +1630,7 @@ void ttmc_fill_flop_tbl(
   printf("CUSTOM MODES:");
   for(idx_t m=0; m < tt->nmodes; ++m) {
     if(mode_used[m]) {
-      printf(" %lu", m);
+      printf(" %"SPLATT_PF_IDX, m);
     }
   }
   printf("\n");
@@ -1596,23 +1638,23 @@ void ttmc_fill_flop_tbl(
 }
 
 
-idx_t ttmc_csf_count_flops(
+size_t ttmc_csf_count_flops(
     splatt_csf const * const csf,
     idx_t const mode,
     idx_t const * const nfactors)
 {
   idx_t const depth = csf_mode_depth(mode, csf->dim_perm, csf->nmodes);
 
-  idx_t flops = 0;
+  size_t flops = 0;
 
   /* foreach tile */
   for(idx_t tile=0; tile < csf->ntiles; ++tile) {
-    idx_t out_size = nfactors[csf->dim_perm[0]];
+    size_t out_size = (size_t)nfactors[csf->dim_perm[0]];
 
-    /* move down tree */
+    /* move down tree (no 2 needed as it is assignment, not accumulation) */
     for(idx_t d=1; d < depth; ++d) {
-      out_size *= nfactors[csf->dim_perm[d]];
-      flops += csf->pt[tile].nfibs[d] * out_size;
+      out_size *= (size_t) nfactors[csf->dim_perm[d]];
+      flops += (size_t) csf->pt[tile].nfibs[d] * out_size;
     }
 
     out_size = 1;
@@ -1620,14 +1662,14 @@ idx_t ttmc_csf_count_flops(
     /* move up tree */
     /* nmodes -> depth (exclusive) */
     for(idx_t d=csf->nmodes; d-- != depth+1; ) {
-      out_size *= nfactors[csf->dim_perm[d]];
-      flops += csf->pt[tile].nfibs[d] * out_size;
+      out_size *= (size_t) nfactors[csf->dim_perm[d]];
+      flops += 2 * (size_t) csf->pt[tile].nfibs[d] * out_size;
     }
 
     /* final join if internal/leaf mode */
     if(depth > 0) {
-      out_size = p_ttmc_outncols(nfactors, csf->nmodes, mode);
-      flops += csf->pt[tile].nfibs[depth] * out_size;
+      out_size = (size_t) p_ttmc_outncols(nfactors, csf->nmodes, mode);
+      flops += 2 * (size_t)csf->pt[tile].nfibs[depth] * out_size;
     }
   } /* end foreach tile */
 
@@ -1636,23 +1678,26 @@ idx_t ttmc_csf_count_flops(
 
 
 
-idx_t ttmc_coord_count_flops(
+size_t ttmc_coord_count_flops(
     sptensor_t const * const tt,
     idx_t const mode,
     idx_t const * const nfactors)
 {
-  /* first compute nested kronecker products cost */
-  idx_t nnzflops = 0;
-  idx_t accum = 1;
-  for(idx_t m=tt->nmodes; m-- != 0; ) {
+  /* flops to grow kronecker products */
+  size_t accum_flops = 0;
+  size_t ncols = nfactors[0];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
     if(m != mode) {
-      accum *= nfactors[m];
-      /* cost of kron at depth d */
-      nnzflops += accum;
+      accum_flops += (size_t) tt->nnz * ncols;
+      ncols *= (size_t) nfactors[m];
     }
   }
 
-  return tt->nnz * nnzflops;
+  /* add actual addition to output tensor */
+  accum_flops += 2 * (size_t) tt->nnz \
+     *  (size_t) p_ttmc_outncols(nfactors, tt->nmodes, mode);
+
+  return accum_flops;
 }
 
 

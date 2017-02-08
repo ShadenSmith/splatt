@@ -157,8 +157,9 @@ int splatt_tucker_cmd(
     core_size *= nfactors[m];
   }
 
-  idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
-  //ttmc_fill_flop_tbl(tt, nfactors, table);
+  size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
+  ttmc_fill_flop_tbl(tt, nfactors, table);
+  return EXIT_SUCCESS;
 
   splatt_csf * csf = csf_alloc(tt, args.opts);
 

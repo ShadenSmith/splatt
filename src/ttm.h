@@ -122,7 +122,7 @@ idx_t tenout_dim(
 void ttmc_fill_flop_tbl(
     sptensor_t * const tt,
     idx_t const * const nfactors,
-    idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES]);
+    size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES]);
 
 
 
@@ -137,7 +137,7 @@ void ttmc_fill_flop_tbl(
 *
 * @return The number of floating point operations.
 */
-idx_t ttmc_csf_count_flops(
+size_t ttmc_csf_count_flops(
     splatt_csf const * const csf,
     idx_t const mode,
     idx_t const * const nfactors);
@@ -154,7 +154,7 @@ idx_t ttmc_csf_count_flops(
 *
 * @return The number of floating point operations.
 */
-idx_t ttmc_coord_count_flops(
+size_t ttmc_coord_count_flops(
     sptensor_t const * const tt,
     idx_t const mode,
     idx_t const * const nfactors);
