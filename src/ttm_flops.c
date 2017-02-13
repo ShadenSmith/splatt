@@ -177,6 +177,177 @@ static size_t p_coord_count_flops(
 
 
 
+
+/**
+* @brief Traverse ALL permutations of tt->nmodes and fill a flop table.
+*
+* @param tt The tensor.
+* @param nfactors The ranks of the modes.
+* @param table The table to fill, must be at least (nmodes! x nmodes).
+* @param perms The actual permutations.
+* @param nperms running count or # permutations.
+* @param prefix Permutation state.
+* @param nprefix Permutation state.
+* @param suffix Permutation state.
+* @param nsuffix Permutation state.
+*/
+static void permute_all_csf(
+    sptensor_t * const tt,
+    idx_t const * const nfactors,
+    size_t * const table,
+    idx_t * const perms,
+    idx_t * nperms,
+    idx_t * prefix,
+    idx_t nprefix,
+    idx_t * suffix,
+    idx_t nsuffix)
+{
+  /* if we have arrived at a permutation */
+  if(nsuffix == 0) {
+    double * opts = splatt_default_opts();
+    opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+
+    /* Construct CSF */
+    splatt_csf csf;
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      csf.dim_perm[m] = prefix[m];
+
+      idx_t const row = *nperms;
+      perms[m + (row * tt->nmodes)] = prefix[m];
+      printf(" %lu", prefix[m]);
+    }
+
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      idx_t const row = *nperms;
+    }
+    printf("  ->");
+
+    csf_alloc_mode(tt, CSF_MODE_CUSTOM, 0, &csf, opts);
+
+    /* fill table row */
+    size_t local_flops = 0;
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      size_t const flops = p_count_csf_flops(&csf, m, nfactors);
+      table[m + ((*nperms) * tt->nmodes)] = flops;
+      printf("  %0.10e", (double) flops);
+      local_flops += flops;
+    }
+    printf("  = %0.10e\n", (double) local_flops);
+
+    /* next row */
+    (*nperms)++;
+
+    csf_free_mode(&csf);
+    splatt_free_opts(opts);
+    return;
+  }
+
+
+  /* continue with permutation generation */
+  idx_t * new_prefix = splatt_malloc((nprefix+1) * sizeof(*new_prefix));
+  idx_t * new_suffix = splatt_malloc((nsuffix-1) * sizeof(*new_prefix));
+
+  for(idx_t i=0; i < nsuffix; ++i) {
+    /* add suffix[j] to new_prefix */
+    for(idx_t j=0; j < nprefix; ++j) {
+      new_prefix[j] = prefix[j];
+    }
+    new_prefix[nprefix] = suffix[i];
+
+    /* remove suffix[j] from suffix */
+    idx_t ptr = 0;
+    for(idx_t j=0; j < nsuffix; ++j) {
+      if(j != i) {
+        new_suffix[ptr++] = suffix[j];
+      }
+    }
+
+    permute_all_csf(tt, nfactors, table, perms,
+        nperms, new_prefix, nprefix + 1, new_suffix, nsuffix-1);
+  }
+
+  splatt_free(new_prefix);
+  splatt_free(new_suffix);
+}
+
+
+
+static size_t p_ttmc_csf_optimal_flops(
+    sptensor_t * const tt,
+    idx_t const * const nfactors)
+{
+  idx_t const nmodes = tt->nmodes;
+  /* nmodes! */
+  idx_t nreps = 1;
+  for(idx_t m=1; m <= nmodes; ++m) {
+    nreps *= m;
+  }
+
+  size_t * table = splatt_malloc(nreps * nmodes * sizeof(*table));
+  idx_t * perms  = splatt_malloc(nreps * nmodes * sizeof(*perms));
+
+  /* now go over all permutations */
+  idx_t * initial_perm = splatt_malloc(nmodes * sizeof(*initial_perm));
+  for(idx_t m=0; m < nmodes; ++m) {
+    initial_perm[m] = m;
+  }
+
+  idx_t nperms = 0;
+
+  /* do all of the permutations */
+  permute_all_csf(tt, nfactors, table, perms,
+      &nperms, NULL, 0, initial_perm, nmodes);
+
+  idx_t best_rep[MAX_NMODES];
+  size_t best_flops[MAX_NMODES];
+
+  /* now select optimal value for each mode */
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    /* initialize with first representation */
+    best_rep[m] = 0;
+    best_flops[m] = table[m];
+
+    /* foreach row */
+    for(idx_t i=0; i < nreps; ++i) {
+      size_t flops = table[m + (i * tt->nmodes)];
+
+      if(flops < best_flops[m]) {
+        best_flops[m] = flops;
+        best_rep[m] = i;
+      }
+    }
+  }
+
+  size_t total_flops = 0;
+  printf("CSF-O:");
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    total_flops += best_flops[m];
+    printf("  %0.10e", (double) best_flops[m]);
+  }
+  printf("   = %0.10e\n", (double) total_flops);
+  printf("  OPTIMAL REPS:");
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    printf("  (");
+    idx_t const row = best_rep[m];
+    for(idx_t j=0; j < tt->nmodes; ++j) {
+      printf("%"SPLATT_PF_IDX, perms[j + (row * tt->nmodes)]);
+      if(j < tt->nmodes-1) {
+        printf(", ");
+      }
+    }
+    printf(")");
+  }
+  printf("\n");
+
+  splatt_free(initial_perm);
+  splatt_free(table);
+  splatt_free(perms);
+  return 0;
+}
+
+
+
+
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -294,9 +465,21 @@ void ttmc_fill_flop_tbl(
     printf("%0.10e  ", (double) table[best][j]);
   }
   printf(" = %0.10e\n", (double) total);
+  /* print CSF needed */
+  printf("  CUSTOM MODES:");
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    if(mode_used[m]) {
+      printf(" %"SPLATT_PF_IDX, m);
+    }
+  }
+  printf("\n");
 
+#define COMPUTE_OPTIMAL_FLOPS
+#ifdef  COMPUTE_OPTIMAL_FLOPS
+  p_ttmc_csf_optimal_flops(tt, nfactors);
+#endif
 
-
+  printf("\n");
   /* coordinate form */
   total = 0;
   printf("COORD:  ");
@@ -308,13 +491,7 @@ void ttmc_fill_flop_tbl(
   printf(" = %0.10e\n", (double)total);
   printf("\n");
 
-  /* print CSF needed */
-  printf("CUSTOM MODES:");
-  for(idx_t m=0; m < tt->nmodes; ++m) {
-    if(mode_used[m]) {
-      printf(" %"SPLATT_PF_IDX, m);
-    }
-  }
-  printf("\n");
-
 }
+
+
+
