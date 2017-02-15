@@ -28,7 +28,7 @@ static struct argp_option tucker_options[] = {
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
   {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
-  {"csf", 'c', "CSF", 0, "CSF allocation ({one,two,all} default: two)"},
+  {"csf", 'c', "#CSF", 0, "number of CSF allocations (default: 2)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   { 0 }
 };
@@ -39,6 +39,7 @@ typedef struct
   int write;       /** do we write output to file? */
   double * opts;   /** splatt options */
   idx_t nfactors;
+  idx_t max_csf;
 } tucker_cmd_args;
 
 
@@ -54,6 +55,7 @@ static void default_tucker_opts(
   args->ifname    = NULL;
   args->write     = DEFAULT_WRITE;
   args->nfactors  = DEFAULT_NFACTORS;
+  args->max_csf = 2;
 }
 
 
@@ -93,13 +95,8 @@ static error_t parse_tucker_opt(
     break;
 
   case 'c':
-    if(strcmp(arg, "one") == 0) {
-      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
-    } else if(strcmp(arg, "two") == 0) {
-      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_TWOMODE;
-    } else {
-      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
-    }
+    args->max_csf = atoi(arg);
+    break;
 
   case TT_SEED:
     args->opts[SPLATT_OPTION_RANDSEED] = atoi(arg);
@@ -157,9 +154,25 @@ int splatt_tucker_cmd(
     core_size *= nfactors[m];
   }
 
+#if 1
   size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
   ttmc_fill_flop_tbl(tt, nfactors, table);
+
+  idx_t csf_assign[MAX_NMODES];
+  idx_t num_csf;
+  splatt_csf * csf_best = ttmc_choose_csf(tt, nfactors, args.max_csf, &num_csf,
+      csf_assign);
+
+  printf("assigned: %lu\n", num_csf);
+  for(idx_t c=0; c < num_csf; ++c) {
+    printf("(");
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      printf(" %lu", csf_best[c].dim_perm[m]);
+    }
+    printf(" )\n");
+  }
   return EXIT_SUCCESS;
+#endif
 
   splatt_csf * csf = csf_alloc(tt, args.opts);
 

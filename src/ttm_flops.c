@@ -495,3 +495,147 @@ void ttmc_fill_flop_tbl(
 
 
 
+splatt_csf * ttmc_choose_csf(
+    sptensor_t * const tt,
+    idx_t const * const nfactors,
+    idx_t max_tensors,
+    idx_t * num_chosen_tensors,
+    idx_t * csf_assignments)
+{
+  /* Bound number of CSF representations. */
+  max_tensors = SS_MIN(max_tensors, tt->nmodes);
+
+  /*
+   * First construct the 'max_tensors' best tensors that we can.
+   */
+
+  /* Allocate the CSF pointers. */
+  splatt_csf * * tensors = splatt_malloc(max_tensors * sizeof(*tensors));
+  for(idx_t c=0; c < max_tensors; ++c) {
+    tensors[c] = splatt_malloc(sizeof(**tensors));
+  }
+
+  /* Allocate table of flop costs. */
+  size_t * table = splatt_malloc(max_tensors * tt->nmodes * sizeof(*table));
+
+  /* Marker for modes which have already been optimized. */
+  bool mode_optimized[MAX_NMODES];
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    mode_optimized[m] = false;
+  }
+
+  double * opts = splatt_default_opts();
+  opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
+
+  /* The first CSF is always CSF-1. */
+  csf_alloc_mode(tt, CSF_SORTED_SMALLFIRST, 0, tensors[0], opts);
+  for(idx_t m=0; m < tt->nmodes; ++m ) {
+    table[m] = p_count_csf_flops(tensors[0], m, nfactors);
+  }
+  mode_optimized[tensors[0]->dim_perm[0]] = true;
+
+  /* Now select the remaining (max_tensors - 1) modes greedily. */
+  for(idx_t csf_rep=1; csf_rep < max_tensors; ++csf_rep) {
+    idx_t worst_mode   = MAX_NMODES; /* invalid value */
+    size_t worst_flops = 0;
+    /* select the most expensive mode */
+    for(idx_t c=0; c < csf_rep; ++c) {
+      for(idx_t m=0; m < tt->nmodes; ++m) {
+        /* don't construct the same CSF twice. */
+        if(mode_optimized[m]) {
+          continue;
+        }
+
+        size_t const flops = table[m + (c*tt->nmodes)];
+        if(flops > worst_flops) {
+          worst_flops = flops;
+          worst_mode = m;
+        }
+      }
+    } /* select most expensive mode */
+
+    /* construct CSF and count flops */
+    csf_alloc_mode(tt, CSF_SORTED_SMALLFIRST_MINUSONE, worst_mode,
+        tensors[csf_rep], opts);
+    for(idx_t m=0; m < tt->nmodes; ++m ) {
+      size_t const flops = p_count_csf_flops(tensors[csf_rep], m, nfactors);
+      table[m + (csf_rep * tt->nmodes)] = flops;
+    }
+    mode_optimized[worst_mode] = true;
+  } /* greedy CSF construction */
+
+
+
+  printf("GREEDY:");
+  size_t total_flops = 0;
+
+  /*
+   * Now go over CSF's and select the best for each mode.
+   */
+  bool * csf_used = splatt_malloc(max_tensors * sizeof(*csf_used));
+  for(idx_t c=0; c < max_tensors; ++c) {
+    csf_used[c] = false;
+  }
+  *num_chosen_tensors = 0;
+  for(idx_t m=0; m < tt->nmodes; ++m) {
+    idx_t best_rep = 0;
+    size_t best_flops = table[m];
+    for(idx_t c=0; c < max_tensors; ++c) {
+      size_t const flops = table[m + (c * tt->nmodes)];
+      if(flops < best_flops) {
+        best_flops = flops;
+        best_rep = c;
+      }
+    }
+    csf_assignments[m] = best_rep;
+    if(!csf_used[best_rep]) {
+      ++(*num_chosen_tensors);
+    }
+    csf_used[best_rep] = true;
+
+    total_flops += best_flops;
+    printf("  %0.10e", (double) best_flops);
+  }
+  printf("  = %0.10e\n", (double) total_flops);
+
+
+  /*
+   * Remove unused CSFs and compress csf_assignments[] to account for new
+   * numbering.
+   */
+  splatt_csf * csf_ret = splatt_malloc((*num_chosen_tensors) * sizeof(*csf_ret));
+  idx_t csf_ptr = 0;
+  for(idx_t c=0; c < max_tensors; ++c) {
+    if(csf_used[c]) {
+      /* copy over structure contents -- shallow copy is correct here */
+      memcpy(&(csf_ret[csf_ptr]), tensors[c], sizeof(*csf_ret));
+
+      /* update numbering in assignments */
+      for(idx_t m=0; m < tt->nmodes; ++m) {
+        if(csf_assignments[m] == c) {
+          csf_assignments[m] = csf_ptr;
+        }
+      }
+      ++csf_ptr;
+
+    } else {
+      csf_free_mode(tensors[c]);
+    }
+
+    /* just delete the pointer */
+    splatt_free(tensors[c]);
+  }
+
+  splatt_free_opts(opts);
+  splatt_free(table);
+  splatt_free(csf_used);
+  splatt_free(tensors);
+
+  return csf_ret;
+}
+
+
+
+
+
+

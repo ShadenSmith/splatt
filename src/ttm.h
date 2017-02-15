@@ -200,5 +200,12 @@ void ttmc_fill_flop_tbl(
     size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES]);
 
 
+splatt_csf * ttmc_choose_csf(
+    sptensor_t * const tt,
+    idx_t const * const nfactors,
+    idx_t max_tensors,
+    idx_t * num_chosen_tensors,
+    idx_t * csf_assignments);
+
 
 #endif
