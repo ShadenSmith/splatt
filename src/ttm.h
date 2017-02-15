@@ -11,6 +11,9 @@
 #include "thd_info.h"
 
 
+/* XXX GLOBALS */
+extern idx_t ttmc_num_csf;
+extern idx_t ttmc_csf_assign[MAX_NMODES];
 
 /******************************************************************************
  * PUBLIC FUNCTIONS

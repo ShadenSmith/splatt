@@ -52,6 +52,7 @@ static void default_tucker_opts(
   tucker_cmd_args * args)
 {
   args->opts = splatt_default_opts();
+  args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
   args->ifname    = NULL;
   args->write     = DEFAULT_WRITE;
   args->nfactors  = DEFAULT_NFACTORS;
@@ -156,25 +157,23 @@ int splatt_tucker_cmd(
 
 #if 1
   size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
-  ttmc_fill_flop_tbl(tt, nfactors, table);
+  //ttmc_fill_flop_tbl(tt, nfactors, table);
 
-  idx_t csf_assign[MAX_NMODES];
-  idx_t num_csf;
-  splatt_csf * csf_best = ttmc_choose_csf(tt, nfactors, args.max_csf, &num_csf,
-      csf_assign);
+  splatt_csf * csf = ttmc_choose_csf(tt, nfactors, args.max_csf, &ttmc_num_csf,
+      ttmc_csf_assign);
 
-  printf("assigned: %lu\n", num_csf);
-  for(idx_t c=0; c < num_csf; ++c) {
+  printf("assigned: %lu\n", ttmc_num_csf);
+  for(idx_t c=0; c < ttmc_num_csf; ++c) {
     printf("(");
     for(idx_t m=0; m < tt->nmodes; ++m) {
-      printf(" %lu", csf_best[c].dim_perm[m]);
+      printf(" %lu", csf[c].dim_perm[m]);
     }
     printf(" )\n");
   }
-  return EXIT_SUCCESS;
-#endif
-
+  //return EXIT_SUCCESS;
+#else
   splatt_csf * csf = csf_alloc(tt, args.opts);
+#endif
 
   idx_t const nmodes = tt->nmodes;
   tt_free(tt);
@@ -206,7 +205,12 @@ int splatt_tucker_cmd(
   }
 
   /* free up the ftensor allocations */
+#if 0
   csf_free(csf, args.opts);
+#endif
+  for(idx_t m=0; m < ttmc_num_csf; ++m) {
+    csf_free_mode(csf + m);
+  }
 
   /* output + cleanup */
   splatt_free_tucker(&factored);

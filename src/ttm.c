@@ -11,6 +11,8 @@
 
 #include "mutex_pool.h"
 
+idx_t ttmc_num_csf;
+idx_t ttmc_csf_assign[MAX_NMODES];
 
 /* XXX: this is a memory leak */
 static mutex_pool * pool = NULL;
@@ -1277,47 +1279,17 @@ void ttmc_csf(
     }
 
     idx_t nmodes = tensors[0].nmodes;
+
     /* find out which level in the tree this is */
-    idx_t outdepth = MAX_NMODES;
+    splatt_csf const * const curr_csf = &(tensors[ttmc_csf_assign[mode]]);
+    idx_t const outdepth = csf_mode_depth(mode, curr_csf->dim_perm, nmodes);
 
-    /* choose which TTM function to use */
-    splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
-    switch(which) {
-
-    case SPLATT_CSF_ONEMODE:
-      outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
-      if(outdepth == 0) {
-        p_root_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
-      } else if(outdepth == nmodes - 1) {
-        p_leaf_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
-      } else {
-        p_intl_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
-      }
-      break;
-
-
-    case SPLATT_CSF_TWOMODE:
-      /* longest mode handled via second tensor's root */
-      if(mode == tensors[0].dim_perm[nmodes-1]) {
-        p_root_decide(tensors+1, mats, ttmc_output, mode, thds, opts);
-      /* root and internal modes are handled via first tensor */
-      } else {
-        outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
-        if(outdepth == 0) {
-          p_root_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
-        } else {
-          p_intl_decide(tensors+0, mats, ttmc_output, mode, thds, opts);
-        }
-      }
-      break;
-
-    case SPLATT_CSF_ALLMODE:
-      p_root_decide(tensors+mode, mats, ttmc_output, mode, thds, opts);
-      break;
-
-    default:
-      fprintf(stderr, "SPLATT: only SPLATT_CSF_ALLMODE supported for TTM.\n");
-      exit(1);
+    if(outdepth == 0) {
+      p_root_decide(curr_csf, mats, ttmc_output, mode, thds, opts);
+    } else if(outdepth == nmodes - 1) {
+      p_leaf_decide(curr_csf, mats, ttmc_output, mode, thds, opts);
+    } else {
+      p_intl_decide(curr_csf, mats, ttmc_output, mode, thds, opts);
     }
 
     if(privatized) {
