@@ -80,6 +80,7 @@ void csf_free(
   double const * const opts);
 
 
+#define csf_free_mode splatt_csf_free_mode
 /**
 * @brief Free the memory allocated for one CSF representation. This should be
 *        paired with csf_alloc_mode().
@@ -88,6 +89,7 @@ void csf_free(
 */
 void csf_free_mode(
     splatt_csf * const csf);
+
 
 #define csf_storage splatt_csf_storage
 /**
@@ -136,31 +138,44 @@ void csf_find_mode_order(
   idx_t * const perm_dims);
 
 
-#define csf_mode_depth splatt_csf_mode_depth
+#define csf_mode_to_depth splatt_csf_mode_to_depth
 /**
 * @brief Map a mode (in the input system) to the tree level that it is found.
 *        This is equivalent to the inverse dim_perm.
 *
+* @param csf The CSF tensor.
 * @param mode The mode (relative to the input) to lookup.
-* @param perm The dimenison permutation.
-* @param nmodes The number of modes.
 *
 * @return The level of the tree that mode is mapped to.
 */
-static inline idx_t csf_mode_depth(
-  idx_t const mode,
-  idx_t const * const perm,
-  idx_t const nmodes)
+static inline idx_t csf_mode_to_depth(
+    splatt_csf const * const csf,
+    idx_t const mode)
 {
-  for(idx_t m=0; m < nmodes; ++m) {
-    if(perm[m] == mode) {
-      return m;
-    }
-  }
-
-  /* XXX: ERROR */
-  assert(1 == 2);
-  return MAX_NMODES;
+  assert(mode < csf->nmodes);
+  return csf->dim_iperm[mode];
 }
+
+
+
+#define csf_depth_to_mode splatt_csf_depth_to_mode
+/**
+* @brief Map a level in the CSF tree (zero-indexed, measured from root) to the
+*        actual mode in the tensor, respecting any mode permutation.
+*
+* @param csf The CSF tensor.
+* @param level The level in the tree.
+*
+* @return The actual mode in the tensor.
+*/
+static inline idx_t csf_depth_to_mode(
+    splatt_csf const * const csf,
+    idx_t const level)
+{
+  assert(level < csf->nmodes);
+  return csf->dim_perm[level];
+}
+
+
 
 #endif
