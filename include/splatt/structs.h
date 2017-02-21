@@ -94,6 +94,10 @@ typedef struct splatt_csf
   /** @brief How many tiles there are. */
   splatt_idx_t ntiles;
 
+  /** @brief How many modes of the tensor (i.e., CSF levels) are tiled. Counted
+   *         from the leaf (bottom) mode. */
+  splatt_idx_t ntiled_modes;
+
   /** @brief For a dense tiling, how many tiles along each mode. */
   splatt_idx_t tile_dims[SPLATT_MAX_NMODES];
 

@@ -44,6 +44,12 @@ static void p_csf_mttkrp(
   idx_t const nthreads = opts[SPLATT_OPTION_NTHREADS];
   for(idx_t i=0; i < ntensors; ++i) {
     sptensor_t * const tt = tensors[i];
+
+    /* skip tensors with more tiles than modes (which are ignored) */
+    if((idx_t)opts[SPLATT_OPTION_TILELEVEL] > tt->nmodes) {
+      continue;
+    }
+
     splatt_csf * cs = splatt_csf_alloc(tt, opts);
 
     /* add 64 bytes to avoid false sharing */
@@ -165,26 +171,12 @@ CTEST2(mttkrp, csf_all_notile)
   opts[SPLATT_OPTION_NTHREADS]   = 7;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
-  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
+  opts[SPLATT_OPTION_TILELEVEL]  = 0;
 
   p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
       data->nfactors);
 }
 
-
-CTEST2(mttkrp, csf_all_densetile)
-{
-  idx_t const nthreads = 7;
-
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
-  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
-
-  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
-      data->nfactors);
-}
 
 
 CTEST2(mttkrp, csf_all_densetile_alldepth)
@@ -196,8 +188,8 @@ CTEST2(mttkrp, csf_all_densetile_alldepth)
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
 
-  for(splatt_idx_t i=1; i <= SPLATT_MAX_NMODES; ++i) {
-    opts[SPLATT_OPTION_TILEDEPTH]  = i;
+  for(splatt_idx_t i=0; i <= SPLATT_MAX_NMODES; ++i) {
+    opts[SPLATT_OPTION_TILELEVEL]  = i;
     p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
         data->nfactors);
   }
@@ -213,24 +205,12 @@ CTEST2(mttkrp, csf_one_notile)
   opts[SPLATT_OPTION_NTHREADS]   = 7;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
-  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
+  opts[SPLATT_OPTION_TILELEVEL]  = 0;
 
   p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
       data->nfactors);
 }
 
-
-CTEST2(mttkrp, csf_one_densetile)
-{
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
-  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
-
-  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
-      data->nfactors);
-}
 
 
 CTEST2(mttkrp, csf_one_densetile_alldepth)
@@ -240,8 +220,8 @@ CTEST2(mttkrp, csf_one_densetile_alldepth)
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ONEMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
 
-  for(splatt_idx_t i=1; i <= SPLATT_MAX_NMODES; ++i) {
-    opts[SPLATT_OPTION_TILEDEPTH]  = i;
+  for(splatt_idx_t i=0; i <= SPLATT_MAX_NMODES; ++i) {
+    opts[SPLATT_OPTION_TILELEVEL]  = i;
     p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
         data->nfactors);
   }
@@ -256,25 +236,11 @@ CTEST2(mttkrp, csf_two_notile)
   opts[SPLATT_OPTION_NTHREADS]   = 7;
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
-  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
+  opts[SPLATT_OPTION_TILELEVEL]  = 0;
 
   p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
       data->nfactors);
 }
-
-
-CTEST2(mttkrp, csf_two_densetile)
-{
-  double * opts = splatt_default_opts();
-  opts[SPLATT_OPTION_NTHREADS]   = 7;
-  opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
-  opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
-  opts[SPLATT_OPTION_TILEDEPTH]  = 0;
-
-  p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
-      data->nfactors);
-}
-
 
 CTEST2(mttkrp, csf_two_densetile_alldepth)
 {
@@ -283,8 +249,8 @@ CTEST2(mttkrp, csf_two_densetile_alldepth)
   opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_TWOMODE;
   opts[SPLATT_OPTION_TILE]       = SPLATT_DENSETILE;
 
-  for(splatt_idx_t i=1; i <= SPLATT_MAX_NMODES; ++i) {
-    opts[SPLATT_OPTION_TILEDEPTH]  = i;
+  for(splatt_idx_t i=0; i <= SPLATT_MAX_NMODES; ++i) {
+    opts[SPLATT_OPTION_TILELEVEL]  = i;
     p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
         data->nfactors);
   }
