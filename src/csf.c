@@ -368,6 +368,7 @@ static void p_csf_alloc_untiled(
   tt_sort(tt, ct->dim_perm[0], ct->dim_perm);
 
   ct->ntiles = 1;
+  ct->ntiled_modes = 0;
   for(idx_t m=0; m < nmodes; ++m) {
     ct->tile_dims[m] = 1;
   }
@@ -411,14 +412,22 @@ static void p_csf_alloc_densetile(
 {
   idx_t const nmodes = tt->nmodes;
 
+  /* how many levels we tile (counting from the bottom) */
+  ct->ntiled_modes = (idx_t)splatt_opts[SPLATT_OPTION_TILELEVEL];
+  ct->ntiled_modes = SS_MIN(ct->ntiled_modes, ct->nmodes);
+
+  /* how many levels from the root do we start tiling? */
+  idx_t const tile_depth = ct->nmodes - ct->ntiled_modes;
+
   idx_t ntiles = 1;
-  for(idx_t m=0; m < ct->nmodes; ++m) {
+  for(idx_t m=0; m < nmodes; ++m) {
     idx_t const depth = csf_mode_depth(m, ct->dim_perm, ct->nmodes);
-    if(depth >= splatt_opts[SPLATT_OPTION_TILEDEPTH]) {
+    if(depth >= tile_depth) {
       ct->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
     } else {
       ct->tile_dims[m] = 1;
     }
+
     ntiles *= ct->tile_dims[m];
   }
 

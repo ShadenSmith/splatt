@@ -1070,7 +1070,7 @@ static void p_root_decide(
       break;
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
-      if(opts[SPLATT_OPTION_TILEDEPTH] > 0) {
+      if(tensor->ntiled_modes < tensor->nmodes) {
         for(idx_t t=0; t < tensor->ntiles; ++t) {
           p_csf_mttkrp_root(tensor, t, mats, thds);
           #pragma omp barrier
@@ -1122,7 +1122,7 @@ static void p_leaf_decide(
       break;
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
-      if(opts[SPLATT_OPTION_TILEDEPTH] > depth) {
+      if(tensor->ntiled_modes == 0) {
         for(idx_t t=0; t < tensor->ntiles; ++t) {
           p_csf_mttkrp_leaf(tensor, 0, mats, thds);
         }
@@ -1171,7 +1171,7 @@ static void p_intl_decide(
       break;
     case SPLATT_DENSETILE:
       /* this mode may not be tiled due to minimum tiling depth */
-      if(opts[SPLATT_OPTION_TILEDEPTH] > depth) {
+      if(tensor->tile_dims[mode] == 1) {
         for(idx_t t=0; t < tensor->ntiles; ++t) {
           p_csf_mttkrp_internal(tensor, t, mats, mode, thds);
         }
