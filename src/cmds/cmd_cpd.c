@@ -17,6 +17,7 @@ static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
   "splatt-cpd -- Compute the CPD of a sparse tensor.\n";
 
+#define TT_CSF 250
 #define TT_REG 251
 #define TT_SEED 252
 #define TT_NOWRITE 253
@@ -28,6 +29,7 @@ static struct argp_option cpd_options[] = {
   {"reg", TT_REG, "REGULARIZATION", 0, "regularization parameter (default: 0)"},
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
+  {"csf", TT_CSF, "#CSF", 0, "how many CSF to use? {one,two,all} default: two"},
   {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file"},
   {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
@@ -113,6 +115,18 @@ static error_t parse_cpd_opt(
     break;
   case 's':
     args->stem = arg;
+    break;
+  case TT_CSF:
+    if(strcmp("one", arg) == 0) {
+      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
+    } else if(strcmp("two", arg) == 0) {
+      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_TWOMODE;
+    } else if(strcmp("all", arg) == 0) {
+      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+    } else {
+      fprintf(stderr, "SPLATT: --csf option '%s' not recognized.\n", arg);
+      argp_usage(state);
+    }
     break;
 
   case TT_SEED:
