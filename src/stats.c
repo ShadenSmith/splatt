@@ -360,7 +360,7 @@ void mpi_cpd_stats(
     break;
   case SPLATT_DENSETILE:
     printf("DENSE TILED-MODES=%"SPLATT_PF_IDX,
-        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+        (idx_t)opts[SPLATT_OPTION_TILELEVEL]);
     break;
   case SPLATT_SYNCTILE:
     printf("SYNC");
