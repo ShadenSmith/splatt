@@ -248,8 +248,8 @@ static void p_csf_mttkrp_root_tiled3(
   idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
   idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
 
-  val_t const * const avals = mats[ct->dim_perm[1]]->vals;
-  val_t const * const bvals = mats[ct->dim_perm[2]]->vals;
+  val_t const * const avals = mats[csf_depth_to_mode(ct, 1)]->vals;
+  val_t const * const bvals = mats[csf_depth_to_mode(ct, 2)]->vals;
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
@@ -307,8 +307,8 @@ static void p_csf_mttkrp_root3(
   idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
   idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
 
-  val_t const * const avals = mats[ct->dim_perm[1]]->vals;
-  val_t const * const bvals = mats[ct->dim_perm[2]]->vals;
+  val_t const * const avals = mats[csf_depth_to_mode(ct, 1)]->vals;
+  val_t const * const bvals = mats[csf_depth_to_mode(ct, 2)]->vals;
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
@@ -367,8 +367,8 @@ static void p_csf_mttkrp_internal3(
   idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
   idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
 
-  val_t const * const avals = mats[ct->dim_perm[0]]->vals;
-  val_t const * const bvals = mats[ct->dim_perm[2]]->vals;
+  val_t const * const avals = mats[csf_depth_to_mode(ct, 0)]->vals;
+  val_t const * const bvals = mats[csf_depth_to_mode(ct, 2)]->vals;
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
@@ -430,8 +430,8 @@ static void p_csf_mttkrp_leaf3(
   idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
   idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
 
-  val_t const * const avals = mats[ct->dim_perm[0]]->vals;
-  val_t const * const bvals = mats[ct->dim_perm[1]]->vals;
+  val_t const * const avals = mats[csf_depth_to_mode(ct, 0)]->vals;
+  val_t const * const bvals = mats[csf_depth_to_mode(ct, 1)]->vals;
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
@@ -501,7 +501,7 @@ static void p_csf_mttkrp_root_tiled(
 
   int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
-    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    mvals[m] = mats[csf_depth_to_mode(ct, m)]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
     memset(buf[m], 0, nfactors * sizeof(val_t));
@@ -562,7 +562,7 @@ static void p_csf_mttkrp_root(
 
   int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
-    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    mvals[m] = mats[csf_depth_to_mode(ct, m)]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
     memset(buf[m], 0, nfactors * sizeof(val_t));
@@ -607,8 +607,8 @@ static void p_csf_mttkrp_leaf_tiled3(
   idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
   idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
 
-  val_t const * const avals = mats[ct->dim_perm[0]]->vals;
-  val_t const * const bvals = mats[ct->dim_perm[1]]->vals;
+  val_t const * const avals = mats[csf_depth_to_mode(ct, 0)]->vals;
+  val_t const * const bvals = mats[csf_depth_to_mode(ct, 1)]->vals;
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
@@ -676,7 +676,7 @@ static void p_csf_mttkrp_leaf_tiled(
 
   int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
-    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    mvals[m] = mats[csf_depth_to_mode(ct, m)]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
   }
@@ -758,7 +758,7 @@ static void p_csf_mttkrp_leaf(
 
   int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
-    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    mvals[m] = mats[csf_depth_to_mode(ct, m)]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
   }
@@ -826,8 +826,8 @@ static void p_csf_mttkrp_internal_tiled3(
   idx_t const * const restrict fids = ct->pt[tile_id].fids[1];
   idx_t const * const restrict inds = ct->pt[tile_id].fids[2];
 
-  val_t const * const avals = mats[ct->dim_perm[0]]->vals;
-  val_t const * const bvals = mats[ct->dim_perm[2]]->vals;
+  val_t const * const avals = mats[csf_depth_to_mode(ct, 0)]->vals;
+  val_t const * const bvals = mats[csf_depth_to_mode(ct, 2)]->vals;
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
@@ -897,7 +897,7 @@ static void p_csf_mttkrp_internal_tiled(
   idx_t const nfactors = mats[0]->J;
 
   /* find out which level in the tree this is */
-  idx_t outdepth = csf_mode_depth(mode, ct->dim_perm, nmodes);
+  idx_t const outdepth = csf_mode_to_depth(ct, mode);
 
   val_t * mvals[MAX_NMODES];
   val_t * buf[MAX_NMODES];
@@ -905,7 +905,7 @@ static void p_csf_mttkrp_internal_tiled(
 
   int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
-    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    mvals[m] = mats[csf_depth_to_mode(ct, m)]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
     memset(buf[m], 0, nfactors * sizeof(val_t));
@@ -985,7 +985,7 @@ static void p_csf_mttkrp_internal(
   idx_t const nfactors = mats[0]->J;
 
   /* find out which level in the tree this is */
-  idx_t outdepth = csf_mode_depth(mode, ct->dim_perm, nmodes);
+  idx_t const outdepth = csf_mode_to_depth(ct, mode);
 
   val_t * mvals[MAX_NMODES];
   val_t * buf[MAX_NMODES];
@@ -993,7 +993,7 @@ static void p_csf_mttkrp_internal(
 
   int const tid = splatt_omp_get_thread_num();
   for(idx_t m=0; m < nmodes; ++m) {
-    mvals[m] = mats[ct->dim_perm[m]]->vals;
+    mvals[m] = mats[csf_depth_to_mode(ct, m)]->vals;
     /* grab the next row of buf from thds */
     buf[m] = ((val_t *) thds[tid].scratch[2]) + (nfactors * m);
     memset(buf[m], 0, nfactors * sizeof(val_t));
@@ -1158,7 +1158,7 @@ static void p_intl_decide(
     double const * const opts)
 {
   idx_t const nmodes = tensor->nmodes;
-  idx_t const depth = csf_mode_depth(mode, tensor->dim_perm, nmodes);
+  idx_t const depth = csf_mode_to_depth(tensor, mode);
 
   #pragma omp parallel
   {
@@ -1230,7 +1230,7 @@ void mttkrp_csf(
   splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
   switch(which) {
   case SPLATT_CSF_ONEMODE:
-    outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
+    outdepth = csf_mode_to_depth(&(tensors[0]), mode);
     if(outdepth == 0) {
       p_root_decide(tensors+0, mats, mode, thds, opts);
     } else if(outdepth == nmodes - 1) {
@@ -1242,11 +1242,11 @@ void mttkrp_csf(
 
   case SPLATT_CSF_TWOMODE:
     /* longest mode handled via second tensor's root */
-    if(mode == tensors[0].dim_perm[nmodes-1]) {
+    if(mode == csf_depth_to_mode(&(tensors[0]), nmodes-1)) {
       p_root_decide(tensors+1, mats, mode, thds, opts);
     /* root and internal modes are handled via first tensor */
     } else {
-      outdepth = csf_mode_depth(mode, tensors[0].dim_perm, nmodes);
+      outdepth = csf_mode_to_depth(&(tensors[0]), mode);
       if(outdepth == 0) {
         p_root_decide(tensors+0, mats, mode, thds, opts);
       } else {

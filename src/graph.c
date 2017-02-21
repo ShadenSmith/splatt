@@ -184,7 +184,7 @@ static adj_t p_count_adj_size(
 
 /**
 * @brief Compute the offset of a certain CSF tree depth (when all indices are
-*        mapped to vertices). This accounts for csf->dim_perm.
+*        mapped to vertices). This accounts for CSF mode permutation.
 *
 *        For example, with no permutation and depth=2, this returns
 *        csf->dims[0] + csf->dims[1].
@@ -198,7 +198,7 @@ static idx_t p_calc_offset(
     splatt_csf const * const csf,
     idx_t const depth)
 {
-  idx_t const mode = csf->dim_perm[depth];
+  idx_t const mode = csf_depth_to_mode(csf, depth);
   idx_t offset = 0;
   for(idx_t m=0; m < mode; ++m) {
     offset += csf->dims[m];

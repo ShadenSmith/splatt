@@ -222,8 +222,9 @@ static void p_mk_outerptr(
 
   assert(nnzstart < nnzend);
 
-  /* the mode after accounting for dim_perm */
-  idx_t const * const restrict ttind = tt->ind[ct->dim_perm[0]] + nnzstart;
+  /* grap top-level indices */
+  idx_t const * const restrict ttind =
+      nnzstart + tt->ind[csf_depth_to_mode(ct, 0)];
 
   /* count fibers */
   idx_t nfibs = 1;
@@ -234,7 +235,7 @@ static void p_mk_outerptr(
     }
   }
   ct->pt[tile_id].nfibs[0] = nfibs;
-  assert(nfibs <= ct->dims[ct->dim_perm[0]]);
+  assert(nfibs <= ct->dims[csf_depth_to_mode(ct, 0)]);
 
   /* grab sparsity pattern */
   csf_sparsity * const pt = ct->pt + tile_id;
@@ -299,7 +300,8 @@ static void p_mk_fptr(
     return;
   }
   /* the mode after accounting for dim_perm */
-  idx_t const * const restrict ttind = tt->ind[ct->dim_perm[mode]] + nnzstart;
+  idx_t const * const restrict ttind =
+      nnzstart + tt->ind[csf_depth_to_mode(ct, mode)];
 
   csf_sparsity * const pt = ct->pt + tile_id;
 
@@ -380,7 +382,7 @@ static void p_csf_alloc_untiled(
   pt->nfibs[nmodes-1] = ct->nnz;
   pt->fids[nmodes-1] = splatt_malloc(ct->nnz * sizeof(**(pt->fids)));
   pt->vals           = splatt_malloc(ct->nnz * sizeof(*(pt->vals)));
-  memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]],
+  memcpy(pt->fids[nmodes-1], tt->ind[csf_depth_to_mode(ct, nmodes-1)],
       ct->nnz * sizeof(**(pt->fids)));
   memcpy(pt->vals, tt->vals, ct->nnz * sizeof(*(pt->vals)));
 
@@ -421,7 +423,7 @@ static void p_csf_alloc_densetile(
 
   idx_t ntiles = 1;
   for(idx_t m=0; m < nmodes; ++m) {
-    idx_t const depth = csf_mode_depth(m, ct->dim_perm, ct->nmodes);
+    idx_t const depth = csf_mode_to_depth(ct, m);
     if(depth >= tile_depth) {
       ct->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
     } else {
@@ -460,23 +462,39 @@ static void p_csf_alloc_densetile(
       continue;
     }
 
-    /* last row of fptr is just nonzero inds */
-    pt->nfibs[nmodes-1] = ptnnz;
+    idx_t const leaves = nmodes-1;
 
-    pt->fids[nmodes-1] = splatt_malloc(ptnnz * sizeof(**(pt->fids)));
-    memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]] + startnnz,
+    /* last row of fptr is just nonzero inds */
+    pt->nfibs[leaves] = ptnnz;
+
+    pt->fids[leaves] = splatt_malloc(ptnnz * sizeof(**(pt->fids)));
+    memcpy(pt->fids[leaves], tt->ind[csf_depth_to_mode(ct, leaves)] + startnnz,
         ptnnz * sizeof(**(pt->fids)));
 
     pt->vals = splatt_malloc(ptnnz * sizeof(*(pt->vals)));
     memcpy(pt->vals, tt->vals + startnnz, ptnnz * sizeof(*(pt->vals)));
 
     /* create fptr entries for the rest of the modes */
-    for(idx_t m=0; m < tt->nmodes-1; ++m) {
+    for(idx_t m=0; m < leaves; ++m) {
       p_mk_fptr(ct, tt, t, nnz_ptr, m);
     }
   }
 
   free(nnz_ptr);
+}
+
+
+/**
+* @brief Construct dim_iperm, which is the inverse of dim_perm.
+*
+* @param ct The CSF tensor.
+*/
+static void p_fill_dim_iperm(
+    splatt_csf * const ct)
+{
+  for(idx_t level=0; level < ct->nmodes; ++level) {
+    ct->dim_iperm[ct->dim_perm[level]] = level;
+  }
 }
 
 
@@ -505,6 +523,7 @@ static void p_mk_csf(
 
   /* get the indices in order */
   csf_find_mode_order(tt->dims, tt->nmodes, mode_type, mode, ct->dim_perm);
+  p_fill_dim_iperm(ct);
 
   ct->which_tile = splatt_opts[SPLATT_OPTION_TILE];
   switch(ct->which_tile) {
@@ -674,7 +693,7 @@ splatt_csf * csf_alloc(
     tmp_opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
 
     /* allocate with no tiling for the last mode */
-    last_mode = ret[0].dim_perm[tt->nmodes-1];
+    last_mode = csf_depth_to_mode(&(ret[0]), tt->nmodes-1);
     p_mk_csf(ret + 1, tt, CSF_SORTED_MINUSONE, last_mode, tmp_opts);
 
     free(tmp_opts);

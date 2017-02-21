@@ -200,9 +200,9 @@ void stats_csf(
   for(idx_t m=1; m < ct->nmodes; ++m) {
     printf("x%"SPLATT_PF_IDX"", ct->dims[m]);
   }
-  printf(" (%"SPLATT_PF_IDX"", ct->dim_perm[0]);
+  printf(" (%"SPLATT_PF_IDX"", csf_depth_to_mode(ct, 0));
   for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("->%"SPLATT_PF_IDX"", ct->dim_perm[m]);
+    printf("->%"SPLATT_PF_IDX"", csf_depth_to_mode(ct, m));
   }
   printf(")\n");
   printf("ntiles: %"SPLATT_PF_IDX" tile dims: %"SPLATT_PF_IDX"", ct->ntiles,
