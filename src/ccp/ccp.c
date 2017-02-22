@@ -1,5 +1,6 @@
 
 
+
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
@@ -117,12 +118,27 @@ idx_t partition_1d(
 
   nprobes = 0;
 
-  /* use recursive bisectioning with 0 tolerance to get exact solution */
-  idx_t bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
+  idx_t bottleneck = 0;
 
-  /* apply partitioning that we found */
-  bool success = lprobe(weights, nitems, parts, nparts, bottleneck);
-  assert(success == true);
+  /* actual partitioning */
+  if(nitems > nparts) {
+    /* use recursive bisectioning with 0 tolerance to get exact solution */
+    bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
+    /* apply partitioning that we found */
+    bool success = lprobe(weights, nitems, parts, nparts, bottleneck);
+    assert(success == true);
+
+  /* Do a trivial partitioning. Silly, but this happens when tensors have
+   * short modes. */
+  } else {
+    for(idx_t p=0; p < nitems; ++p) {
+      parts[p] = p;
+      bottleneck = SS_MAX(bottleneck, weights[p]);
+    }
+    for(idx_t p=nitems; p <= nparts; ++p) {
+      parts[p] = nitems;
+    }
+  }
 
   timer_stop(&timers[TIMER_PART]);
   return bottleneck;

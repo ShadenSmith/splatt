@@ -5,6 +5,7 @@
 #include "csf.h"
 #include "sort.h"
 #include "tile.h"
+#include "ccp/ccp.h"
 
 #include "io.h"
 
@@ -65,6 +66,39 @@ void splatt_free_csf(
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Count the nonzeros below a given node in a CSF tensor.
+*
+* @param fptr The adjacency pointer of the CSF tensor.
+* @param nmodes The number of modes in the tensor.
+* @param depth The depth of the node
+* @param fiber The id of the node.
+*
+* @return The nonzeros below fptr[depth][fiber].
+*/
+idx_t p_csf_count_nnz(
+    idx_t * * fptr,
+    idx_t const nmodes,
+    idx_t depth,
+    idx_t const fiber)
+{
+  if(depth == nmodes-1) {
+    return 1;
+  }
+
+  idx_t left = fptr[depth][fiber];
+  idx_t right = fptr[depth][fiber+1];
+  ++depth;
+
+  for(; depth < nmodes-1; ++depth) {
+    left = fptr[depth][left];
+    right = fptr[depth][right];
+  }
+
+  return right - left;
+}
+
 
 /**
 * @brief Find a permutation of modes that results in non-increasing mode size.
@@ -746,4 +780,50 @@ val_t csf_frobsq(
 
   return (val_t) norm;
 }
+
+
+idx_t * csf_partition_1d(
+    splatt_csf const * const csf,
+    idx_t const tile_id,
+    idx_t const nparts)
+{
+  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
+
+  idx_t const nslices = csf->pt[tile_id].nfibs[0];
+  idx_t * weights = splatt_malloc(nslices * sizeof(*weights));
+
+  #pragma omp parallel for schedule(static)
+  for(idx_t i=0; i < nslices; ++i) {
+    weights[i] = p_csf_count_nnz(csf->pt[tile_id].fptr, csf->nmodes, 0, i);
+  }
+
+  partition_1d(weights, nslices, parts, nparts);
+  splatt_free(weights);
+
+  return parts;
+}
+
+
+idx_t * csf_partition_tiles_1d(
+    splatt_csf const * const csf,
+    idx_t const nparts)
+{
+  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
+
+  idx_t const nmodes = csf->nmodes;
+  idx_t const ntiles = csf->ntiles;
+  idx_t * weights = splatt_malloc(ntiles * sizeof(*weights));
+
+  #pragma omp parallel for schedule(static)
+  for(idx_t i=0; i < ntiles; ++i) {
+    weights[i] = csf->pt->nfibs[nmodes-1];
+  }
+
+  partition_1d(weights, ntiles, parts, nparts);
+  splatt_free(weights);
+
+  return parts;
+}
+
+
 

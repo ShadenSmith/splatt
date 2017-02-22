@@ -54,7 +54,7 @@ static void p_csf_mttkrp(
 
     /* add 64 bytes to avoid false sharing */
     thd_info * thds = thd_init(nthreads, 3,
-      (nfactors * nfactors * sizeof(val_t)) + 64,
+      (tt->nmodes * nfactors * sizeof(val_t)) + 64,
       0,
       (tt->nmodes * nfactors * sizeof(val_t)) + 64);
 
@@ -70,8 +70,10 @@ static void p_csf_mttkrp(
       mats[i][MAX_NMODES] = gold[i];
       gold[i] = tmp;
 
-      /* compute splatt */
-      mttkrp_csf(cs, mats[i], m, thds, opts);
+      /* compute MTTKRP */
+      splatt_mttkrp_ws * ws = splatt_mttkrp_alloc_ws(cs, nfactors, opts);
+      mttkrp_csf(cs, mats[i], m, thds, ws, opts);
+      splatt_mttkrp_free_ws(ws);
 
       __compare_mats(mats[i][MAX_NMODES], gold[i]);
     }

@@ -51,8 +51,12 @@ int splatt_mttkrp(
     0,
     (nmodes * ncolumns * sizeof(val_t)) + 64);
 
+  splatt_mttkrp_ws * ws = splatt_mttkrp_alloc_ws(tensors, ncolumns, options);
+
   /* do the MTTKRP */
-  mttkrp_csf(tensors, mats, mode, thds, options);
+  mttkrp_csf(tensors, mats, mode, thds, ws, options);
+
+  splatt_mttkrp_free_ws(ws);
 
   /* cleanup */
   thd_free(thds, nthreads);
@@ -65,22 +69,84 @@ int splatt_mttkrp(
 }
 
 
+splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
+    splatt_csf const * const tensors,
+    splatt_idx_t const ncolumns,
+    double const * const opts)
+{
+  splatt_mttkrp_ws * ws = splatt_malloc(sizeof(*ws));
+
+  idx_t num_csf = 0;
+
+  idx_t const num_threads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
+
+  /* map each MTTKRP mode to a CSF tensor */
+  splatt_csf_type which_csf = (splatt_csf_type) opts[SPLATT_OPTION_CSF_ALLOC];
+  for(idx_t m=0; m < tensors->nmodes; ++m) {
+    switch(which_csf) {
+    case SPLATT_CSF_ONEMODE:
+      /* only one tensor, map is easy */
+      ws->mode_csf_map[m] = 0;
+      num_csf = 1;
+      break;
+
+    case SPLATT_CSF_TWOMODE:
+      /* last mode is mapped to second tensor */
+      ws->mode_csf_map[m] = 0;
+      if(csf_mode_to_depth(&(tensors[0]), m) == tensors->nmodes-1) {
+        ws->mode_csf_map[m] = 1;
+      }
+      num_csf = 2;
+      break;
+
+    case SPLATT_CSF_ALLMODE:
+      /* each mode has its own tensor, map is easy */
+      ws->mode_csf_map[m] = m;
+      num_csf = tensors->nmodes;
+      break;
+
+    /* XXX */
+    default:
+      fprintf(stderr, "SPLATT: CSF type '%d' not recognized.\n", which_csf);
+      abort();
+      break;
+    }
+  }
+
+  assert(num_csf > 0);
+  ws->num_csf = num_csf;
+
+  /* Now setup partition info for each CSF. */
+  for(idx_t c=0; c < num_csf; ++c) {
+    ws->tree_partition[c] = NULL;
+  }
+  for(idx_t c=0; c < num_csf; ++c) {
+    splatt_csf const * const csf = &(tensors[c]);
+    if(tensors[c].ntiles > 1) {
+      ws->tree_partition[c] = csf_partition_tiles_1d(csf, num_threads);
+    } else {
+      ws->tree_partition[c] = csf_partition_1d(csf, 0, num_threads);
+    }
+  }
+
+  return ws;
+}
+
+
+void splatt_mttkrp_free_ws(
+    splatt_mttkrp_ws * const ws)
+{
+  for(idx_t c=0; c < ws->num_csf; ++c) {
+    splatt_free(ws->tree_partition[c]);
+  }
+  splatt_free(ws);
+}
+
+
 
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-
-static inline void p_add_hada(
-  val_t * const restrict out,
-  val_t const * const restrict a,
-  val_t const * const restrict b,
-  idx_t const nfactors)
-{
-  for(idx_t f=0; f < nfactors; ++f) {
-    out[f] += a[f] * b[f];
-  }
-}
-
 
 static inline void p_add_hada_clear(
   val_t * const restrict out,
@@ -236,7 +302,8 @@ static void p_csf_mttkrp_root_tiled3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  thd_info * const thds)
+  thd_info * const thds,
+  idx_t const * const restrict partition)
 {
   assert(ct->nmodes == 3);
   val_t const * const vals = ct->pt[tile_id].vals;
@@ -253,11 +320,29 @@ static void p_csf_mttkrp_root_tiled3(
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
-  val_t * const restrict accumF
-      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
+  int const tid = splatt_omp_get_thread_num();
+  val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
+
+  /* write to output */
+  val_t * const restrict writeF = (val_t *) thds[tid].scratch[2];
+  for(idx_t r=0; r < nfactors; ++r) {
+    writeF[r] = 0.;
+  }
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
-  for(idx_t s=0; s < nslices; ++s) {
+
+  /* break up loop by partition */
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
+
+#if 0
+  #pragma omp single
+  printf("part: %lu %lu %lu %lu %lu\n",
+      partition[0], partition[1], partition[2], partition[3], partition[4]);
+  printf("start: %lu stop: %lu\n", start, stop);
+#endif
+
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (sids == NULL) ? s : sids[s];
 
     val_t * const restrict mv = ovals + (fid * nfactors);
@@ -284,10 +369,18 @@ static void p_csf_mttkrp_root_tiled3(
       /* scale inner products by row of A and update to M */
       val_t const * const restrict av = avals  + (fids[f] * nfactors);
       for(idx_t r=0; r < nfactors; ++r) {
-        mv[r] += accumF[r] * av[r];
+        writeF[r] += accumF[r] * av[r];
       }
+    } /* foreach fiber */
+
+    /* flush to output */
+    mutex_set_lock(pool, fid);
+    for(idx_t r=0; r < nfactors; ++r) {
+      mv[r] += writeF[r];
+      writeF[r] = 0.;
     }
-  }
+    mutex_unset_lock(pool, fid);
+  } /* foreach slice (tree) */
 }
 
 
@@ -355,7 +448,8 @@ static void p_csf_mttkrp_internal3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  thd_info * const thds)
+  thd_info * const thds,
+  idx_t const * const restrict partition)
 {
   assert(ct->nmodes == 3);
   val_t const * const vals = ct->pt[tile_id].vals;
@@ -372,12 +466,13 @@ static void p_csf_mttkrp_internal3(
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
-  val_t * const restrict accumF
-      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
+  int const tid = splatt_omp_get_thread_num();
+  val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
-  #pragma omp for schedule(dynamic, 16) nowait
-  for(idx_t s=0; s < nslices; ++s) {
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (sids == NULL) ? s : sids[s];
 
     /* root row */
@@ -418,7 +513,8 @@ static void p_csf_mttkrp_leaf3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  thd_info * const thds)
+  thd_info * const thds,
+  idx_t const * const restrict partition)
 {
   assert(ct->nmodes == 3);
   val_t const * const vals = ct->pt[tile_id].vals;
@@ -435,12 +531,13 @@ static void p_csf_mttkrp_leaf3(
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
-  val_t * const restrict accumF
-      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
+  int const tid = splatt_omp_get_thread_num();
+  val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
-  #pragma omp for schedule(dynamic, 16) nowait
-  for(idx_t s=0; s < nslices; ++s) {
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (sids == NULL) ? s : sids[s];
 
     /* root row */
@@ -473,7 +570,8 @@ static void p_csf_mttkrp_root_tiled(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  thd_info * const thds)
+  thd_info * const thds,
+  idx_t const * const restrict partition)
 {
   /* extract tensor structures */
   idx_t const nmodes = ct->nmodes;
@@ -485,7 +583,7 @@ static void p_csf_mttkrp_root_tiled(
   }
 
   if(nmodes == 3) {
-    p_csf_mttkrp_root_tiled3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_root_tiled3(ct, tile_id, mats, thds, partition);
     return;
   }
 
@@ -512,7 +610,10 @@ static void p_csf_mttkrp_root_tiled(
   idx_t const nfibs = ct->pt[tile_id].nfibs[0];
   assert(nfibs <= mats[MAX_NMODES]->I);
 
-  for(idx_t s=0; s < nfibs; ++s) {
+  /* break up loop by partition */
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nfibs;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
 
     assert(fid < mats[MAX_NMODES]->I);
@@ -520,11 +621,13 @@ static void p_csf_mttkrp_root_tiled(
     p_propagate_up(buf[0], buf, idxstack, 0, s, fp, fids,
         vals, mvals, nmodes, nfactors);
 
-    val_t * const restrict orow = ovals + (fid * nfactors);
+    val_t       * const restrict orow = ovals + (fid * nfactors);
     val_t const * const restrict obuf = buf[0];
+    mutex_set_lock(pool, fid);
     for(idx_t f=0; f < nfactors; ++f) {
       orow[f] += obuf[f];
     }
+    mutex_unset_lock(pool, fid);
   } /* end foreach outer slice */
 }
 
@@ -731,7 +834,8 @@ static void p_csf_mttkrp_leaf(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  thd_info * const thds)
+  thd_info * const thds,
+  idx_t const * const restrict partition)
 {
   /* extract tensor structures */
   val_t const * const vals = ct->pt[tile_id].vals;
@@ -741,7 +845,7 @@ static void p_csf_mttkrp_leaf(
     return;
   }
   if(nmodes == 3) {
-    p_csf_mttkrp_leaf3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_leaf3(ct, tile_id, mats, thds, partition);
     return;
   }
 
@@ -765,8 +869,9 @@ static void p_csf_mttkrp_leaf(
 
   /* foreach outer slice */
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
-  #pragma omp for schedule(dynamic, 16) nowait
-  for(idx_t s=0; s < nslices; ++s) {
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
     idxstack[0] = s;
 
@@ -964,7 +1069,8 @@ static void p_csf_mttkrp_internal(
   idx_t const tile_id,
   matrix_t ** mats,
   idx_t const mode,
-  thd_info * const thds)
+  thd_info * const thds,
+  idx_t const * const partition)
 {
   /* extract tensor structures */
   idx_t const nmodes = ct->nmodes;
@@ -974,7 +1080,7 @@ static void p_csf_mttkrp_internal(
     return;
   }
   if(nmodes == 3) {
-    p_csf_mttkrp_internal3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_internal3(ct, tile_id, mats, thds, partition);
     return;
   }
 
@@ -1002,8 +1108,9 @@ static void p_csf_mttkrp_internal(
 
   /* foreach outer slice */
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
-  #pragma omp for schedule(dynamic, 16) nowait
-  for(idx_t s=0; s < nslices; ++s) {
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
 
     /* push outer slice and fill stack */
@@ -1056,12 +1163,29 @@ static void p_root_decide(
     matrix_t ** mats,
     idx_t const mode,
     thd_info * const thds,
+    splatt_mttkrp_ws * const ws,
+    idx_t const csf_id,
     double const * const opts)
 {
   idx_t const nmodes = tensor->nmodes;
   #pragma omp parallel
   {
-    timer_start(&thds[splatt_omp_get_thread_num()].ttime);
+    int const tid = splatt_omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+#if 1
+    idx_t const * const partition = ws->tree_partition[csf_id];
+
+    /* distribute tiles to threads */
+    if(tensor->ntiles > 1) {
+      for(idx_t tile_id = partition[tid]; tile_id < partition[tid+1]; ++tile_id) {
+        p_csf_mttkrp_root_tiled(tensor, tile_id, mats, thds, NULL);
+      }
+
+    } else {
+      /* instead, parallelize within kernel */
+      p_csf_mttkrp_root_tiled(tensor, 0, mats, thds, partition);
+    }
+#else
     /* tile id */
     idx_t tid = 0;
     switch(tensor->which_tile) {
@@ -1090,12 +1214,11 @@ static void p_root_decide(
       break;
 
     /* XXX */
-    case SPLATT_SYNCTILE:
-      break;
-    case SPLATT_COOPTILE:
+    default:
       break;
     }
-    timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
+#endif
+    timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
 
@@ -1105,6 +1228,8 @@ static void p_leaf_decide(
     matrix_t ** mats,
     idx_t const mode,
     thd_info * const thds,
+    splatt_mttkrp_ws * const ws,
+    idx_t const csf_id,
     double const * const opts)
 {
   idx_t const nmodes = tensor->nmodes;
@@ -1112,8 +1237,32 @@ static void p_leaf_decide(
 
   #pragma omp parallel
   {
-    timer_start(&thds[splatt_omp_get_thread_num()].ttime);
+    int const tid = splatt_omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+#if 1
+    idx_t const * const partition = ws->tree_partition[csf_id];
 
+    /* distribute tiles to threads */
+    if(tensor->ntiles > 1) {
+      idx_t tile_id = 0;
+      /* distribute tiles along leaf mode to avoid synchronization */
+      #pragma omp for schedule(dynamic, 1) nowait
+      for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
+        tile_id = get_next_tileid(TILE_BEGIN, tensor->tile_dims,
+            nmodes, mode, t);
+        while(tile_id != TILE_END) {
+          p_csf_mttkrp_leaf_tiled(tensor, tile_id, mats, thds);
+          tile_id = get_next_tileid(tile_id, tensor->tile_dims,
+              nmodes, mode, t);
+        }
+      } /* foreach tile dim */
+
+    } else {
+      /* instead, parallelize within kernel */
+      p_csf_mttkrp_leaf(tensor, 0, mats, thds, partition);
+    }
+
+#else
     /* tile id */
     idx_t tid = 0;
     switch(tensor->which_tile) {
@@ -1140,12 +1289,11 @@ static void p_leaf_decide(
       break;
 
     /* XXX */
-    case SPLATT_SYNCTILE:
-      break;
-    case SPLATT_COOPTILE:
+    default:
       break;
     }
-    timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
+#endif
+    timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
 
@@ -1155,6 +1303,8 @@ static void p_intl_decide(
     matrix_t ** mats,
     idx_t const mode,
     thd_info * const thds,
+    splatt_mttkrp_ws * const ws,
+    idx_t const csf_id,
     double const * const opts)
 {
   idx_t const nmodes = tensor->nmodes;
@@ -1162,7 +1312,38 @@ static void p_intl_decide(
 
   #pragma omp parallel
   {
-    timer_start(&thds[splatt_omp_get_thread_num()].ttime);
+    int const tid = splatt_omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+
+#if 1
+    idx_t const * const partition = ws->tree_partition[csf_id];
+
+    /* distribute tiles to threads */
+    if(tensor->ntiles > 1) {
+      /* mode is actually tiled ; avoid synchronization */
+      if(tensor->tile_dims[mode] > 1) {
+        idx_t tile_id = 0;
+        #pragma omp for schedule(dynamic, 1) nowait
+        for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
+          tile_id = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes, mode, t);
+          while(tile_id != TILE_END) {
+            p_csf_mttkrp_internal_tiled(tensor, tile_id, mats, mode, thds);
+            tile_id = get_next_tileid(tile_id, tensor->tile_dims, nmodes, mode, t);
+          }
+        }
+
+      /* tiled, but not this mode */
+      } else {
+        for(idx_t tile_id = partition[tid]; tile_id < partition[tid+1]; ++tile_id) {
+          p_csf_mttkrp_internal(tensor, tile_id, mats, mode, thds, NULL);
+        }
+      }
+
+    } else {
+      /* instead, parallelize within kernel */
+      p_csf_mttkrp_internal(tensor, 0, mats, mode, thds, partition);
+    }
+#else
     /* tile id */
     idx_t tid = 0;
     switch(tensor->which_tile) {
@@ -1189,13 +1370,12 @@ static void p_intl_decide(
       break;
 
     /* XXX */
-    case SPLATT_SYNCTILE:
-      break;
-    case SPLATT_COOPTILE:
+    default:
       break;
     }
+#endif
 
-    timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
+    timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
 
@@ -1209,6 +1389,7 @@ void mttkrp_csf(
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds,
+  splatt_mttkrp_ws * const ws,
   double const * const opts)
 {
   if(pool == NULL) {
@@ -1223,10 +1404,24 @@ void mttkrp_csf(
   splatt_omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
 
   idx_t nmodes = tensors[0].nmodes;
+
+#if 1
+  /* choose which MTTKRP function to use */
+  idx_t const which_csf = ws->mode_csf_map[mode];
+  splatt_csf const * const csf = &(tensors[which_csf]);
+  idx_t const outdepth = csf_mode_to_depth(csf, mode);
+  if(outdepth == 0) {
+    p_root_decide(csf, mats, mode, thds, ws, which_csf, opts);
+  } else if(outdepth == nmodes - 1) {
+    p_leaf_decide(csf, mats, mode, thds, ws, which_csf, opts);
+  } else {
+    p_intl_decide(csf, mats, mode, thds, ws, which_csf, opts);
+  }
+
+#else
   /* find out which level in the tree this is */
   idx_t outdepth = MAX_NMODES;
 
-  /* choose which MTTKRP function to use */
   splatt_csf_type which = opts[SPLATT_OPTION_CSF_ALLOC];
   switch(which) {
   case SPLATT_CSF_ONEMODE:
@@ -1259,6 +1454,7 @@ void mttkrp_csf(
     p_root_decide(tensors+mode, mats, mode, thds, opts);
     break;
   }
+#endif
 }
 
 

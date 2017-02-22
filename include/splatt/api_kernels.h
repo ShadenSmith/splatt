@@ -3,13 +3,22 @@
 * @brief Functions for performing tensor kernels (e.g., norm, MTTKRP, TTMc).
 * @author Shaden Smith <shaden@cs.umn.edu>
 * @version 2.0.0
-* @date 2016-05-10
+* @date 2017-02-22
 */
 
 
 
 #ifndef SPLATT_SPLATT_KERNELS_H
 #define SPLATT_SPLATT_KERNELS_H
+
+typedef struct
+{
+  splatt_idx_t num_csf;
+
+  splatt_idx_t mode_csf_map[SPLATT_MAX_NMODES];
+
+  splatt_idx_t * tree_partition[SPLATT_MAX_NMODES];
+} splatt_mttkrp_ws;
 
 
 /*
@@ -47,6 +56,22 @@ int splatt_mttkrp(
     splatt_val_t ** matrices,
     splatt_val_t * const matout,
     double const * const options);
+
+
+splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
+    splatt_csf const * const tensors,
+    splatt_idx_t const ncolumns,
+    double const * const options);
+
+
+/**
+* @brief Free the memory allocated for an MTTKRP workspace.
+*
+* @param ws The workspace to free.
+*/
+void splatt_mttkrp_free_ws(
+    splatt_mttkrp_ws * const ws);
+
 
 /** @} */
 
