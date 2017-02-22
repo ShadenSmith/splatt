@@ -179,12 +179,16 @@ void bench_csf(
       printf("## THREADS %" SPLATT_PF_IDX "\n", nthreads);
     }
 
+    cpd_opts[SPLATT_OPTION_NTHREADS] = nthreads;
+
+    splatt_mttkrp_ws * ws = splatt_mttkrp_alloc_ws(cs, nfactors, cpd_opts);
+
     for(idx_t i=0; i < niters; ++i) {
       timer_fstart(&itertime);
       /* time each mode */
       for(idx_t m=0; m < tt->nmodes; ++m) {
         timer_fstart(&modetime);
-        mttkrp_csf(cs, mats, m, thds, cpd_opts);
+        mttkrp_csf(cs, mats, m, thds, ws, cpd_opts);
         timer_stop(&modetime);
         printf("  mode %" SPLATT_PF_IDX " %0.3fs\n", m+1, modetime.seconds);
         if(opts->write && t == nruns-1 && i == 0) {
@@ -198,6 +202,8 @@ void bench_csf(
       timer_stop(&itertime);
       printf("    its = %3"SPLATT_PF_IDX" (%0.3fs)\n", i+1, itertime.seconds);
     }
+
+    splatt_mttkrp_free_ws(ws);
 
     /* output load balance info */
     if(nruns > 1 || nthreads > 1) {

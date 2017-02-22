@@ -300,6 +300,9 @@ double cpd_als_iterate(
   /* used as buffer space */
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
 
+  /* mttkrp workspace */
+  splatt_mttkrp_ws * mttkrp_ws = splatt_mttkrp_alloc_ws(tensors,nfactors,opts);
+
   /* Compute input tensor norm */
   double oldfit = 0;
   double fit = 0;
@@ -321,7 +324,7 @@ double cpd_als_iterate(
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
-      mttkrp_csf(tensors, mats, m, thds, opts);
+      mttkrp_csf(tensors, mats, m, thds, mttkrp_ws, opts);
       timer_stop(&timers[TIMER_MTTKRP]);
 
 #if 0
@@ -373,6 +376,7 @@ double cpd_als_iterate(
   cpd_post_process(nfactors, nmodes, mats, lambda, thds, nthreads, rinfo);
 
   /* CLEAN UP */
+  splatt_mttkrp_free_ws(mttkrp_ws);
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(aTa[m]);
   }
