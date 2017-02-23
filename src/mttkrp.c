@@ -302,6 +302,7 @@ static void p_csf_mttkrp_root_tiled3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
+  idx_t const mode,
   thd_info * const thds,
   idx_t const * const restrict partition)
 {
@@ -329,19 +330,11 @@ static void p_csf_mttkrp_root_tiled3(
     writeF[r] = 0.;
   }
 
-  idx_t const nslices = ct->pt[tile_id].nfibs[0];
 
   /* break up loop by partition */
+  idx_t const nslices = ct->pt[tile_id].nfibs[0];
   idx_t const start = (partition != NULL) ? partition[tid]   : 0;
   idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
-
-#if 0
-  #pragma omp single
-  printf("part: %lu %lu %lu %lu %lu\n",
-      partition[0], partition[1], partition[2], partition[3], partition[4]);
-  printf("start: %lu stop: %lu\n", start, stop);
-#endif
-
   for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (sids == NULL) ? s : sids[s];
 
@@ -448,6 +441,7 @@ static void p_csf_mttkrp_internal3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
+  idx_t const mode,
   thd_info * const thds,
   idx_t const * const restrict partition)
 {
@@ -513,6 +507,7 @@ static void p_csf_mttkrp_leaf3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
+  idx_t const mode,
   thd_info * const thds,
   idx_t const * const restrict partition)
 {
@@ -570,6 +565,7 @@ static void p_csf_mttkrp_root_tiled(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
+  idx_t const mode,
   thd_info * const thds,
   idx_t const * const restrict partition)
 {
@@ -583,7 +579,7 @@ static void p_csf_mttkrp_root_tiled(
   }
 
   if(nmodes == 3) {
-    p_csf_mttkrp_root_tiled3(ct, tile_id, mats, thds, partition);
+    p_csf_mttkrp_root_tiled3(ct, tile_id, mats, mode, thds, partition);
     return;
   }
 
@@ -698,7 +694,9 @@ static void p_csf_mttkrp_leaf_tiled3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  thd_info * const thds)
+  idx_t const mode,
+  thd_info * const thds,
+  idx_t const * const partition)
 {
   assert(ct->nmodes == 3);
   val_t const * const vals = ct->pt[tile_id].vals;
@@ -715,11 +713,13 @@ static void p_csf_mttkrp_leaf_tiled3(
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
-  val_t * const restrict accumF
-      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
+  int const tid = splatt_omp_get_thread_num();
+  val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
-  for(idx_t s=0; s < nslices; ++s) {
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (sids == NULL) ? s : sids[s];
 
     /* root row */
@@ -752,7 +752,9 @@ static void p_csf_mttkrp_leaf_tiled(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  thd_info * const thds)
+  idx_t const mode,
+  thd_info * const thds,
+  idx_t const * const partition)
 {
   val_t const * const vals = ct->pt[tile_id].vals;
   idx_t const nmodes = ct->nmodes;
@@ -761,7 +763,7 @@ static void p_csf_mttkrp_leaf_tiled(
     return;
   }
   if(nmodes == 3) {
-    p_csf_mttkrp_leaf_tiled3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_leaf_tiled3(ct, tile_id, mats, mode, thds, partition);
     return;
   }
 
@@ -786,7 +788,9 @@ static void p_csf_mttkrp_leaf_tiled(
 
   /* foreach outer slice */
   idx_t const nouter = ct->pt[tile_id].nfibs[0];
-  for(idx_t s=0; s < nouter; ++s) {
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nouter;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
     idxstack[0] = s;
 
@@ -834,6 +838,7 @@ static void p_csf_mttkrp_leaf(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
+  idx_t const mode,
   thd_info * const thds,
   idx_t const * const restrict partition)
 {
@@ -845,7 +850,7 @@ static void p_csf_mttkrp_leaf(
     return;
   }
   if(nmodes == 3) {
-    p_csf_mttkrp_leaf3(ct, tile_id, mats, thds, partition);
+    p_csf_mttkrp_leaf3(ct, tile_id, mats, mode, thds, partition);
     return;
   }
 
@@ -919,7 +924,9 @@ static void p_csf_mttkrp_internal_tiled3(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
-  thd_info * const thds)
+  idx_t const mode,
+  thd_info * const thds,
+  idx_t const * const partition)
 {
   assert(ct->nmodes == 3);
   val_t const * const vals = ct->pt[tile_id].vals;
@@ -936,11 +943,13 @@ static void p_csf_mttkrp_internal_tiled3(
   val_t * const ovals = mats[MAX_NMODES]->vals;
   idx_t const nfactors = mats[MAX_NMODES]->J;
 
-  val_t * const restrict accumF
-      = (val_t *) thds[splatt_omp_get_thread_num()].scratch[0];
+  int const tid = splatt_omp_get_thread_num();
+  val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
 
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
-  for(idx_t s=0; s < nslices; ++s) {
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (sids == NULL) ? s : sids[s];
 
     /* root row */
@@ -980,7 +989,8 @@ static void p_csf_mttkrp_internal_tiled(
   idx_t const tile_id,
   matrix_t ** mats,
   idx_t const mode,
-  thd_info * const thds)
+  thd_info * const thds,
+  idx_t const * const partition)
 {
   /* extract tensor structures */
   idx_t const nmodes = ct->nmodes;
@@ -990,7 +1000,7 @@ static void p_csf_mttkrp_internal_tiled(
     return;
   }
   if(nmodes == 3) {
-    p_csf_mttkrp_internal_tiled3(ct, tile_id, mats, thds);
+    p_csf_mttkrp_internal_tiled3(ct, tile_id, mats, mode, thds, partition);
     return;
   }
 
@@ -1019,7 +1029,9 @@ static void p_csf_mttkrp_internal_tiled(
 
   /* foreach outer slice */
   idx_t const nslices = ct->pt[tile_id].nfibs[0];
-  for(idx_t s=0; s < nslices; ++s) {
+  idx_t const start = (partition != NULL) ? partition[tid]   : 0;
+  idx_t const stop  = (partition != NULL) ? partition[tid+1] : nslices;
+  for(idx_t s=start; s < stop; ++s) {
     idx_t const fid = (fids[0] == NULL) ? s : fids[0][s];
 
     /* push outer slice and fill stack */
@@ -1080,7 +1092,7 @@ static void p_csf_mttkrp_internal(
     return;
   }
   if(nmodes == 3) {
-    p_csf_mttkrp_internal3(ct, tile_id, mats, thds, partition);
+    p_csf_mttkrp_internal3(ct, tile_id, mats, mode, thds, partition);
     return;
   }
 
@@ -1157,6 +1169,84 @@ static void p_csf_mttkrp_internal(
 }
 
 
+
+
+/**
+* @brief Function pointer that performs MTTKRP on a tile of a CSF tree.
+*
+* @param ct The CSF tensor.
+* @param tile_id The tile to process.
+* @param mats The matrices.
+* @param mode The output mode.
+* @param thds Thread structures.
+* @param partition A partitioning of the slices in the tensor, to distribute
+*                  to threads. Use the thread ID to decide which slices to
+*                  process. This may be NULL, in that case simply process all
+*                  slices.
+*/
+typedef void (* csf_mttkrp_func)(
+    splatt_csf const * const ct,
+    idx_t const tile_id,
+    matrix_t ** mats,
+    idx_t const mode,
+    thd_info * const thds,
+    idx_t const * const partition);
+
+
+
+static void p_schedule_tiles(
+    splatt_csf const * const tensor,
+    csf_mttkrp_func atomic_func,
+    csf_mttkrp_func nosync_func,
+    matrix_t ** mats,
+    idx_t const mode,
+    thd_info * const thds,
+    splatt_mttkrp_ws * const ws,
+    idx_t const csf_id,
+    double const * const opts)
+{
+  idx_t const nmodes = tensor->nmodes;
+  idx_t const depth = nmodes - 1;
+
+  #pragma omp parallel
+  {
+    int const tid = splatt_omp_get_thread_num();
+    timer_start(&thds[tid].ttime);
+    idx_t const * const partition = ws->tree_partition[csf_id];
+
+    /* distribute tiles to threads */
+    if(tensor->ntiles > 1) {
+      /* mode is actually tiled -- avoid synchronization */
+      if(tensor->tile_dims[mode] > 1) {
+        idx_t tile_id = 0;
+        #pragma omp for schedule(dynamic, 1) nowait
+        for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
+          tile_id = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes, mode, t);
+          while(tile_id != TILE_END) {
+            nosync_func(tensor, tile_id, mats, mode, thds, NULL);
+            tile_id = get_next_tileid(tile_id, tensor->tile_dims, nmodes, mode, t);
+          }
+        }
+
+      /* tiled, but not this mode. Atomics are still necessary. */
+      } else {
+        for(idx_t tile_id = partition[tid]; tile_id < partition[tid+1]; ++tile_id) {
+          atomic_func(tensor, tile_id, mats, mode, thds, NULL);
+        }
+      }
+
+    /* untiled, parallelize within kernel */
+    } else {
+      atomic_func(tensor, 0, mats, mode, thds, partition);
+    }
+
+    timer_stop(&thds[tid].ttime);
+  } /* end omp parallel */
+}
+
+
+
+#if 0
 /* determine which function to call */
 static void p_root_decide(
     splatt_csf const * const tensor,
@@ -1221,8 +1311,10 @@ static void p_root_decide(
     timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
+#endif
 
 
+#if 0
 static void p_leaf_decide(
     splatt_csf const * const tensor,
     matrix_t ** mats,
@@ -1296,8 +1388,10 @@ static void p_leaf_decide(
     timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
+#endif
 
 
+#if 0
 static void p_intl_decide(
     splatt_csf const * const tensor,
     matrix_t ** mats,
@@ -1378,6 +1472,7 @@ static void p_intl_decide(
     timer_stop(&thds[tid].ttime);
   } /* end omp parallel */
 }
+#endif
 
 
 /******************************************************************************
@@ -1411,11 +1506,15 @@ void mttkrp_csf(
   splatt_csf const * const csf = &(tensors[which_csf]);
   idx_t const outdepth = csf_mode_to_depth(csf, mode);
   if(outdepth == 0) {
-    p_root_decide(csf, mats, mode, thds, ws, which_csf, opts);
+    p_schedule_tiles(csf, p_csf_mttkrp_root_tiled, p_csf_mttkrp_root_tiled,
+        mats, mode, thds, ws, which_csf, opts);
   } else if(outdepth == nmodes - 1) {
-    p_leaf_decide(csf, mats, mode, thds, ws, which_csf, opts);
+    p_schedule_tiles(csf, p_csf_mttkrp_leaf, p_csf_mttkrp_leaf_tiled,
+        mats, mode, thds, ws, which_csf, opts);
   } else {
-    p_intl_decide(csf, mats, mode, thds, ws, which_csf, opts);
+    p_schedule_tiles(csf, p_csf_mttkrp_internal, p_csf_mttkrp_internal_tiled,
+        mats, mode, thds, ws, which_csf, opts);
+    //p_intl_decide(csf, mats, mode, thds, ws, which_csf, opts);
   }
 
 #else
