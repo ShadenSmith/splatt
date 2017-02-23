@@ -1194,18 +1194,31 @@ typedef void (* csf_mttkrp_func)(
 
 
 
+/**
+* @brief Map MTTKRP functions onto a (possibly tiled) CSF tensor. This function
+*        will handle any scheduling required with a partially tiled tensor.
+*
+* @param tensors An array of CSF representations. tensors[csf_id] is processed.
+* @param csf_id Which tensor are we processing?
+* @param atomic_func An MTTKRP function which atomically updates the output.
+* @param nosync_func An MTTKRP function which does not atomically update.
+* @param mats The matrices, with the output stored in mats[MAX_NMODES].
+* @param mode Which mode of 'tensors' is the output (not CSF depth).
+* @param thds Thread structures.
+* @param ws MTTKRP workspace.
+*/
 static void p_schedule_tiles(
-    splatt_csf const * const tensor,
+    splatt_csf const * const tensors,
+    idx_t const csf_id,
     csf_mttkrp_func atomic_func,
     csf_mttkrp_func nosync_func,
     matrix_t ** mats,
     idx_t const mode,
     thd_info * const thds,
-    splatt_mttkrp_ws * const ws,
-    idx_t const csf_id,
-    double const * const opts)
+    splatt_mttkrp_ws * const ws)
 {
-  idx_t const nmodes = tensor->nmodes;
+  splatt_csf const * const csf = &(tensors[csf_id]);
+  idx_t const nmodes = csf->nmodes;
   idx_t const depth = nmodes - 1;
 
   #pragma omp parallel
@@ -1215,29 +1228,31 @@ static void p_schedule_tiles(
     idx_t const * const partition = ws->tree_partition[csf_id];
 
     /* distribute tiles to threads */
-    if(tensor->ntiles > 1) {
+    if(csf->ntiles > 1) {
       /* mode is actually tiled -- avoid synchronization */
-      if(tensor->tile_dims[mode] > 1) {
+      if(csf->tile_dims[mode] > 1) {
         idx_t tile_id = 0;
+
+        /* foreach layer of tiles */
         #pragma omp for schedule(dynamic, 1) nowait
-        for(idx_t t=0; t < tensor->tile_dims[mode]; ++t) {
-          tile_id = get_next_tileid(TILE_BEGIN, tensor->tile_dims, nmodes, mode, t);
+        for(idx_t t=0; t < csf->tile_dims[mode]; ++t) {
+          tile_id = get_next_tileid(TILE_BEGIN, csf->tile_dims, nmodes, mode, t);
           while(tile_id != TILE_END) {
-            nosync_func(tensor, tile_id, mats, mode, thds, NULL);
-            tile_id = get_next_tileid(tile_id, tensor->tile_dims, nmodes, mode, t);
+            nosync_func(csf, tile_id, mats, mode, thds, NULL);
+            tile_id = get_next_tileid(tile_id, csf->tile_dims, nmodes, mode, t);
           }
         }
 
       /* tiled, but not this mode. Atomics are still necessary. */
       } else {
         for(idx_t tile_id = partition[tid]; tile_id < partition[tid+1]; ++tile_id) {
-          atomic_func(tensor, tile_id, mats, mode, thds, NULL);
+          atomic_func(csf, tile_id, mats, mode, thds, NULL);
         }
       }
 
     /* untiled, parallelize within kernel */
     } else {
-      atomic_func(tensor, 0, mats, mode, thds, partition);
+      atomic_func(csf, 0, mats, mode, thds, partition);
     }
 
     timer_stop(&thds[tid].ttime);
@@ -1498,23 +1513,24 @@ void mttkrp_csf(
 
   splatt_omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
 
-  idx_t nmodes = tensors[0].nmodes;
+  idx_t const nmodes = tensors[0].nmodes;
 
 #if 1
   /* choose which MTTKRP function to use */
   idx_t const which_csf = ws->mode_csf_map[mode];
-  splatt_csf const * const csf = &(tensors[which_csf]);
-  idx_t const outdepth = csf_mode_to_depth(csf, mode);
+  idx_t const outdepth = csf_mode_to_depth(&(tensors[which_csf]), mode);
   if(outdepth == 0) {
-    p_schedule_tiles(csf, p_csf_mttkrp_root_tiled, p_csf_mttkrp_root_tiled,
-        mats, mode, thds, ws, which_csf, opts);
+    /* root */
+    p_schedule_tiles(tensors, which_csf, p_csf_mttkrp_root_tiled, p_csf_mttkrp_root_tiled,
+        mats, mode, thds, ws);
   } else if(outdepth == nmodes - 1) {
-    p_schedule_tiles(csf, p_csf_mttkrp_leaf, p_csf_mttkrp_leaf_tiled,
-        mats, mode, thds, ws, which_csf, opts);
+    /* leaf */
+    p_schedule_tiles(tensors, which_csf, p_csf_mttkrp_leaf, p_csf_mttkrp_leaf_tiled,
+        mats, mode, thds, ws);
   } else {
-    p_schedule_tiles(csf, p_csf_mttkrp_internal, p_csf_mttkrp_internal_tiled,
-        mats, mode, thds, ws, which_csf, opts);
-    //p_intl_decide(csf, mats, mode, thds, ws, which_csf, opts);
+    /* internal */
+    p_schedule_tiles(tensors, which_csf, p_csf_mttkrp_internal, p_csf_mttkrp_internal_tiled,
+        mats, mode, thds, ws);
   }
 
 #else
