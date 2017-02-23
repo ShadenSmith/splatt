@@ -75,7 +75,7 @@ static void p_schedule_tiles(
 
   /* Store this in case we privatize */
   val_t * restrict global_output = mats[MAX_NMODES]->vals;
-  
+
   #pragma omp parallel
   {
     int const tid = splatt_omp_get_thread_num();
@@ -1290,8 +1290,10 @@ void mttkrp_csf(
   /* print thread times, if requested */
   if((int)opts[SPLATT_OPTION_VERBOSITY] == SPLATT_VERBOSITY_MAX) {
     printf("MTTKRP mode %"SPLATT_PF_IDX": ", mode+1);
-    printf("  reduction-time: %0.3fs\n", ws->reduction_time);
     thd_time_stats(thds, splatt_omp_get_max_threads());
+    if(ws->is_privatized[mode]) {
+      printf("  reduction-time: %0.3fs\n", ws->reduction_time);
+    }
   }
   thd_reset(thds, splatt_omp_get_max_threads());
 }
@@ -1832,7 +1834,7 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
 
   /* allocate privatization buffer */
   idx_t largest_priv_dim = 0;
-  ws->privatize_buffer =  
+  ws->privatize_buffer =
       splatt_malloc(num_threads * sizeof(*(ws->privatize_buffer)));
   for(idx_t m=0; m < tensors->nmodes; ++m) {
     ws->is_privatized[m] = p_is_privatized(tensors, m, opts);
@@ -1847,6 +1849,17 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
   for(idx_t t=0; t < num_threads; ++t) {
     ws->privatize_buffer[t] = splatt_malloc(largest_priv_dim * ncolumns *
         sizeof(**(ws->privatize_buffer)));
+  }
+  if(largest_priv_dim > 0 &&
+        (int)opts[SPLATT_OPTION_VERBOSITY] == SPLATT_VERBOSITY_MAX) {
+
+    size_t bytes = num_threads * largest_priv_dim * ncolumns *
+        sizeof(**(ws->privatize_buffer));
+    char * bstr = bytes_str(bytes);
+
+    printf("PRIVATIZATION-BUF: %s\n", bstr);
+    printf("\n");
+    free(bstr);
   }
 
   return ws;
