@@ -201,7 +201,7 @@ void thd_time_stats(
   avg_time /= nthreads;
 
   double const imbal = (max_time - avg_time) / max_time;
-  printf("  avg: %0.3fs max: %0.3fs (%0.3f%% imbalance)\n",
+  printf("  avg: %0.3fs max: %0.3fs (%0.1f%% imbalance)\n",
       avg_time, max_time, 100. * imbal);
 }
 

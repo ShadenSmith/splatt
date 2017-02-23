@@ -11,13 +11,24 @@
 #ifndef SPLATT_SPLATT_KERNELS_H
 #define SPLATT_SPLATT_KERNELS_H
 
+#include <stdbool.h>
+
+
+
 typedef struct
 {
   splatt_idx_t num_csf;
+  splatt_idx_t num_threads;
 
   splatt_idx_t mode_csf_map[SPLATT_MAX_NMODES];
 
+  splatt_idx_t * tile_partition[SPLATT_MAX_NMODES];
   splatt_idx_t * tree_partition[SPLATT_MAX_NMODES];
+
+  /* Mode privatization to avoid synchronization */
+  double reduction_time;
+  bool is_privatized[SPLATT_MAX_NMODES];
+  splatt_val_t * * privatize_buffer;
 } splatt_mttkrp_ws;
 
 

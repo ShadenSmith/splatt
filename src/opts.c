@@ -23,6 +23,8 @@ double * splatt_default_opts(void)
   opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_TWOMODE;
   opts[SPLATT_OPTION_TILE]      = SPLATT_NOTILE;
 
+  opts[SPLATT_OPTION_PRIVTHRESH] = 0.01;
+
   /* Tile one level by default. */
   opts[SPLATT_OPTION_TILELEVEL] = 1;
 
