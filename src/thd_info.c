@@ -183,9 +183,29 @@ void thd_times(
   idx_t const nthreads)
 {
   for(idx_t t=0; t < nthreads; ++t) {
-    printf("  thd: %"SPLATT_PF_IDX" %0.3fs\n", t, thds[t].ttime.seconds);
+    printf("  thread: %"SPLATT_PF_IDX" %0.3fs\n", t, thds[t].ttime.seconds);
   }
 }
+
+
+void thd_time_stats(
+  thd_info * thds,
+  idx_t const nthreads)
+{
+  double max_time = 0.;
+  double avg_time = 0.;
+  for(idx_t t=0; t < nthreads; ++t) {
+    avg_time += thds[t].ttime.seconds;
+    max_time = SS_MAX(max_time, thds[t].ttime.seconds);
+  }
+  avg_time /= nthreads;
+
+  double const imbal = (max_time - avg_time) / max_time;
+  printf("  avg: %0.3fs max: %0.3fs (%0.3f%% imbalance)\n",
+      avg_time, max_time, 100. * imbal);
+}
+
+
 
 void thd_reset(
   thd_info * thds,
