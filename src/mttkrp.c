@@ -103,6 +103,11 @@ static void p_schedule_tiles(
      * Distribute tiles to threads in some fashion.
      */
     if(csf->ntiles > 1) {
+      /* We parallelize across tiles, and thus should not distribute within a
+       * tree. This may change if we instead 'split' tiles across a few
+       * threads. */
+      assert(tree_partition == NULL);
+
       /* mode is actually tiled -- avoid synchronization */
       if(csf->tile_dims[mode] > 1) {
         idx_t tile_id = 0;
@@ -127,8 +132,11 @@ static void p_schedule_tiles(
         }
       }
 
-    /* untiled, parallelize within kernel */
+    /*
+     * Untiled, parallelize within kernel.
+     */
     } else {
+      assert(tree_partition != NULL);
       atomic_func(csf, 0, mats, mode, thds, tree_partition);
     }
     timer_stop(&thds[tid].ttime);
@@ -448,7 +456,6 @@ static void p_csf_mttkrp_root3_locked(
 
   int const tid = splatt_omp_get_thread_num();
   val_t * const restrict accumF = (val_t *) thds[tid].scratch[0];
-
 
   /* write to output */
   val_t * const restrict writeF = (val_t *) thds[tid].scratch[2];
@@ -1260,7 +1267,7 @@ void mttkrp_csf(
   M->I = tensors[0].dims[mode];
   memset(M->vals, 0, M->I * M->J * sizeof(val_t));
 
-  splatt_omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
+  splatt_omp_set_num_threads((idx_t) opts[SPLATT_OPTION_NTHREADS]);
 
   idx_t const nmodes = tensors[0].nmodes;
 
@@ -1766,7 +1773,7 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
 
   idx_t num_csf = 0;
 
-  idx_t const num_threads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
+  idx_t const num_threads = splatt_omp_get_max_threads();
   ws->num_threads = num_threads;
 
   /* map each MTTKRP mode to a CSF tensor */
