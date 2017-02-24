@@ -506,11 +506,19 @@ void fill_binary_idx(
   if(header->idx_width == sizeof(splatt_idx_t)) {
     fread(buffer, sizeof(idx_t), count, fin);
   } else {
-    uint32_t ubuf;
-    for(idx_t n=0; n < count; ++n) {
-      fread(&ubuf, sizeof(ubuf), 1, fin);
-      buffer[n] = ubuf;
+
+    /* read in uint32_t in a buffered fashion */
+    idx_t const BUF_LEN = 1024*1024;
+    uint32_t * ubuf = splatt_malloc(BUF_LEN * sizeof(*ubuf));
+    for(idx_t n=0; n < count; n += BUF_LEN) {
+      idx_t const read_count = SS_MIN(BUF_LEN, count - n);
+      fread(ubuf, sizeof(*ubuf), read_count, fin);
+      #pragma omp parallel for schedule(static)
+      for(idx_t i=0; i < read_count; ++i) {
+        buffer[n + i] = ubuf[i];
+      }
     }
+    splatt_free(ubuf);
   }
 }
 
@@ -524,11 +532,25 @@ void fill_binary_val(
   if(header->val_width == sizeof(splatt_val_t)) {
     fread(buffer, sizeof(val_t), count, fin);
   } else {
-    float fbuf;
-    for(idx_t n=0; n < count; ++n) {
-      fread(&fbuf, sizeof(fbuf), 1, fin);
-      buffer[n] = fbuf;
+    /* read in float in a buffered fashion */
+    idx_t const BUF_LEN = 1024*1024;
+
+    /* select whichever SPLATT *is not* configured with. */
+#if SPLATT_VAL_TYPEWIDTH == 64
+    float * ubuf = splatt_malloc(BUF_LEN * sizeof(*ubuf));
+#else
+    double * ubuf = splatt_malloc(BUF_LEN * sizeof(*ubuf));
+#endif
+
+    for(idx_t n=0; n < count; n += BUF_LEN) {
+      idx_t const read_count = SS_MIN(BUF_LEN, count - n);
+      fread(ubuf, sizeof(*ubuf), read_count, fin);
+      #pragma omp parallel for schedule(static)
+      for(idx_t i=0; i < read_count; ++i) {
+        buffer[n + i] = ubuf[i];
+      }
     }
+    splatt_free(ubuf);
   }
 }
 
