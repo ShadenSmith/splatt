@@ -816,7 +816,7 @@ idx_t * csf_partition_tiles_1d(
 
   #pragma omp parallel for schedule(static)
   for(idx_t i=0; i < ntiles; ++i) {
-    weights[i] = csf->pt->nfibs[nmodes-1];
+    weights[i] = csf->pt[i].nfibs[nmodes-1];
   }
 
   partition_1d(weights, ntiles, parts, nparts);
