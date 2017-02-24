@@ -119,7 +119,7 @@ idx_t partition_1d(
   nprobes = 0;
 
   idx_t bottleneck = 0;
-
+  
   /* actual partitioning */
   if(nitems > nparts) {
     /* use recursive bisectioning with 0 tolerance to get exact solution */
