@@ -1849,7 +1849,7 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
     if(ws->is_privatized[m]) {
       largest_priv_dim = SS_MAX(largest_priv_dim, tensors->dims[m]);
       if((int)opts[SPLATT_OPTION_VERBOSITY] == SPLATT_VERBOSITY_MAX) {
-        printf("PRIVATIZING-MODE: %lu\n", m+1);
+        printf("PRIVATIZING-MODE: %"SPLATT_PF_IDX"\n", m+1);
       }
     }
   }
