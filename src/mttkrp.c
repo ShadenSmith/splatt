@@ -152,13 +152,16 @@ static void p_schedule_tiles(
       sp_timer_t reduction_timer;
       timer_fstart(&reduction_timer);
 
-      /* reduction */
       idx_t const num_threads = splatt_omp_get_num_threads();
+      idx_t const elem_per_thread = (nrows * ncols) / num_threads;
+      idx_t const start = tid * elem_per_thread;
+      idx_t const stop  = ((idx_t)tid == num_threads-1) ?
+         (nrows * ncols) : (tid + 1) * elem_per_thread;
+
+      /* reduction */
       for(idx_t t=0; t < num_threads; ++t){
         val_t const * const restrict thread_buf = ws->privatize_buffer[t];
-
-        #pragma omp for schedule(static) nowait
-        for(idx_t x=0; x < nrows * ncols; ++x) {
+        for(idx_t x=start; x < stop; ++x) {
           global_output[x] += thread_buf[x];
         }
       }
