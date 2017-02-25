@@ -15,20 +15,55 @@
 
 
 
+/**
+* @brief Workspace used during MTTKRP. This is allocated outside of MTTKRP
+*        kernels in order to avoid repeated overheads.
+*/
 typedef struct
 {
+  /*
+   * CSF mapping information. We can have up to #modes CSF representations,
+   * so we need to map each mode of MTTKRP to the best option.
+   */
+
+  /** @brief How many CSF representations are available. */
   splatt_idx_t num_csf;
+  /** @brief Mapping of modes -> CSF representations (which CSF to use). */
+  splatt_idx_t mode_csf_map[SPLATT_MAX_NMODES];
+  /** @brief The number of threads which will be used. */
   splatt_idx_t num_threads;
 
-  splatt_idx_t mode_csf_map[SPLATT_MAX_NMODES];
+  /*
+   * Partitioning information. If the CSF is tiled, we distribute tiles to
+   * threads. If the CSF is untiled, we distribute slices to threads.
+   * Partitioning is performed on a per-CSF basis, so we have one for each
+   * mode (the maximum number of CSF).
+   *
+   * In all cases, we rely on static partitioning via chains-on-chains
+   * partitioning.
+   */
 
+  /** @brief A thread partitioning of the tiles in each CSF. NULL if untiled.*/
   splatt_idx_t * tile_partition[SPLATT_MAX_NMODES];
+  /** @brief A thread partitioning of the slices in each CSF. NULL if tiled. */
   splatt_idx_t * tree_partition[SPLATT_MAX_NMODES];
 
-  /* Mode privatization to avoid synchronization */
-  double reduction_time;
+  /*
+   * Privatization information. Privatizing a mode replicates the output matrix
+   * by each thread in order to avoid lock contention. This is useful when
+   * the tensor mode is short.
+   */
+
+  /** @brief Marks if a tensor mode is privatized. */
   bool is_privatized[SPLATT_MAX_NMODES];
+  /** @brief The buffer used by each thread for privatization.
+   *         privatize_buffer[thread_id] is large enough to process the largest
+   *         privatized mode.
+   */
   splatt_val_t * * privatize_buffer;
+
+  /** @brief The time spent on the latest privatized reduction.*/
+  double reduction_time;
 } splatt_mttkrp_ws;
 
 
