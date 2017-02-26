@@ -1261,6 +1261,9 @@ void mttkrp_csf(
   splatt_mttkrp_ws * const ws,
   double const * const opts)
 {
+  /* ensure we use as many threads as our partitioning supports */
+  splatt_omp_set_num_threads(ws->num_threads);
+
   if(pool == NULL) {
     pool = mutex_alloc();
   }
@@ -1269,8 +1272,6 @@ void mttkrp_csf(
   matrix_t * const M = mats[MAX_NMODES];
   M->I = tensors[0].dims[mode];
   memset(M->vals, 0, M->I * M->J * sizeof(val_t));
-
-  splatt_omp_set_num_threads((idx_t) opts[SPLATT_OPTION_NTHREADS]);
 
   idx_t const nmodes = tensors[0].nmodes;
 
