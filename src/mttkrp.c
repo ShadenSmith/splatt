@@ -1788,7 +1788,11 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
 
   idx_t num_csf = 0;
 
+#ifdef _OPENMP
   idx_t const num_threads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
+#else
+  idx_t const num_threads = 1;
+#endif
   ws->num_threads = num_threads;
 
   /* map each MTTKRP mode to a CSF tensor */
