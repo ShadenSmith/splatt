@@ -136,8 +136,8 @@ static void p_schedule_tiles(
     for(idx_t m=0; m < MAX_NMODES; ++m) {
       mats_priv[m] = mats[m];
     }
-    /* each thread gets separate structure, but do a shallow copy of ptr */
-    mats_priv[MAX_NMODES] = splatt_malloc(sizeof(*mats_priv));
+    /* each thread gets separate structure, but do a shallow copy */
+    mats_priv[MAX_NMODES] = splatt_malloc(sizeof(**mats_priv));
     *(mats_priv[MAX_NMODES]) = *(mats[MAX_NMODES]);
 
     /* Give each thread its own private buffer and overwrite atomic
