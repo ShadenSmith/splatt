@@ -1620,16 +1620,18 @@ void mttkrp_stream(
   matrix_t ** mats,
   idx_t const mode)
 {
+  if(pool == NULL) {
+    pool = mutex_alloc();
+  }
+
   matrix_t * const M = mats[MAX_NMODES];
   idx_t const I = tt->dims[mode];
   idx_t const nfactors = M->J;
 
   val_t * const outmat = M->vals;
-  memset(outmat, 0, I * nfactors * sizeof(val_t));
+  memset(outmat, 0, I * nfactors * sizeof(*outmat));
 
   idx_t const nmodes = tt->nmodes;
-
-  val_t * accum = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
 
   val_t * mvals[MAX_NMODES];
   for(idx_t m=0; m < nmodes; ++m) {
@@ -1638,31 +1640,41 @@ void mttkrp_stream(
 
   val_t const * const restrict vals = tt->vals;
 
-  /* stream through nnz */
-  for(idx_t n=0; n < tt->nnz; ++n) {
-    /* initialize with value */
-    for(idx_t f=0; f < nfactors; ++f) {
-      accum[f] = vals[n];
-    }
+  #pragma omp parallel
+  {
+    val_t * restrict accum = splatt_malloc(nfactors * sizeof(*accum));
 
-    for(idx_t m=0; m < nmodes; ++m) {
-      if(m == mode) {
-        continue;
-      }
-      val_t const * const restrict inrow = mvals[m] + (tt->ind[m][n] * nfactors);
+    /* stream through nnz */
+    #pragma omp for schedule(static)
+    for(idx_t n=0; n < tt->nnz; ++n) {
+      /* initialize with value */
       for(idx_t f=0; f < nfactors; ++f) {
-        accum[f] *= inrow[f];
+        accum[f] = vals[n];
       }
+
+      for(idx_t m=0; m < nmodes; ++m) {
+        if(m == mode) {
+          continue;
+        }
+        val_t const * const restrict inrow = mvals[m] + \
+            (tt->ind[m][n] * nfactors);
+        for(idx_t f=0; f < nfactors; ++f) {
+          accum[f] *= inrow[f];
+        }
+      }
+
+      /* write to output */
+      idx_t const out_ind = tt->ind[mode][n];
+      val_t * const restrict outrow = outmat + (tt->ind[mode][n] * nfactors);
+      mutex_set_lock(pool, out_ind);
+      for(idx_t f=0; f < nfactors; ++f) {
+        outrow[f] += accum[f];
+      }
+      mutex_unset_lock(pool, out_ind);
     }
 
-    /* write to output */
-    val_t * const restrict outrow = outmat + (tt->ind[mode][n] * nfactors);
-    for(idx_t f=0; f < nfactors; ++f) {
-      outrow[f] += accum[f];
-    }
-  }
-
-  free(accum);
+    splatt_free(accum);
+  } /* end omp parallel */
 }
 
 
