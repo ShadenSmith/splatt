@@ -98,6 +98,8 @@ show_help() {
   echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
   echo "  --download-blas-lapack"
   echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
+  echo "  --blas-int={int32_t,int64_t,etc.}"
+  echo "    Integer type for BLAS/LAPACK (default: int32_t)."
 
   # Metis
   echo "";
@@ -176,6 +178,10 @@ for i in "${@}"; do
     --precision=*)
       PRECISION=${i#*=}
       CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_VAL_WIDTH=${PRECISION}"
+    ;;
+    --blas-int=*)
+      INT_WIDTH=${i#*=}
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_INT=${INT_WIDTH}"
     ;;
     --max-modes=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
