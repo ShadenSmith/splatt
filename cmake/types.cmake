@@ -2,6 +2,7 @@
 # default widths
 set(CONFIG_VAL_WIDTH 64)
 set(CONFIG_IDX_WIDTH 64)
+set(CONFIG_BLAS_INT int32_t)
 
 # check for user-defined widths
 if (DEFINED USER_IDX_WIDTH)
@@ -26,6 +27,12 @@ if (DEFINED USER_VAL_WIDTH)
       Choose between {single, double}.")
   endif()
   message("Using ${CONFIG_VAL_WIDTH} precision floating point numbers.")
+endif()
+
+
+if (DEFINED USER_BLAS_INT)
+  set(CONFIG_BLAS_INT ${USER_BLAS_INT})
+  message("Using type '${CONFIG_BLAS_INT}' for BLAS/LAPACK integers.")
 endif()
 
 # Configure include/splatt/types.h to include specified type widths.

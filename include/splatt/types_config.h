@@ -39,6 +39,11 @@
 #define SPLATT_VAL_TYPEWIDTH @CONFIG_VAL_WIDTH@
 
 
+/* Type for BLAS/LAPACK integers. This is usually int32_t, but needs to be
+ * int64_t when linking against 64b BLAS (e.g., Matlab's MKL). */
+typedef @CONFIG_BLAS_INT@ splatt_blas_int;
+
+
 /* Set type constants based on width. */
 #if   SPLATT_IDX_TYPEWIDTH == 32
   typedef uint32_t splatt_idx_t;
