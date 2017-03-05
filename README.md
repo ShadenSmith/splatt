@@ -175,13 +175,23 @@ signatures.
 
 
 Octave/Matlab API
-----------------------------
+-----------------
 SPLATT also provides an API callable from Octave and Matlab that wraps the C
 API. To compile the interface just enter the `matlab/` directory from either
 Octave or Matlab and call `make`.
 
     >> cd matlab
     >> make
+
+**NOTE:** Matlab uses a version of LAPACK/BLAS with 64-bit integers. Most
+LAPACK/BLAS libraries use 32-bit integers, and so SPLATT by default provides
+32-bit integers. You should either instruct Matlab to link against a matching
+library, or configure SPLATT to also use 64-bit integers during configuration:
+
+    $ ./configure --blas-int=int64_t
+
+Note that this may break usability of the SPLATT executable or API.
+
 
 After compilation the MEX files will be found in the current directory. You can
 now call those functions directly:
