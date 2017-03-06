@@ -2,7 +2,7 @@
 
 # The MIT License (MIT)
 #
-# Copyright (c) 2014-2016, Dominique LaSalle and Shaden Smith
+# Copyright (c) 2014-2017, Dominique LaSalle and Shaden Smith
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -97,9 +97,14 @@ show_help() {
   echo "  --with-lapack-lib=<lib>"
   echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
   echo "  --download-blas-lapack"
-  echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
+  echo "    Download BLIS & reference LAPACK (requires git & gfortran)."
   echo "  --blas-int={int32_t,int64_t,etc.}"
   echo "    Integer type for BLAS/LAPACK (default: int32_t)."
+  echo "  --with-fortran"
+  echo "    Link against a Fortran library. Some LAPACK libraries require."
+  echo "  --with-fortran-lib=<lib>"
+  echo "    Set the Fortran library (e.g., gfortran or ifort)."
+
 
   # Metis
   echo "";
@@ -185,6 +190,12 @@ for i in "${@}"; do
     ;;
     --max-modes=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
+    ;;
+    --with-fortran)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_FORTRAN=TRUE"
+    ;;
+    --with-fortran-lib=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_FORTRAN_LIB=${i#*=}"
     ;;
 
 

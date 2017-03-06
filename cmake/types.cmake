@@ -2,7 +2,7 @@
 # default widths
 set(CONFIG_VAL_WIDTH 64)
 set(CONFIG_IDX_WIDTH 64)
-set(CONFIG_BLAS_INT int32_t)
+set(CONFIG_BLAS_INT  32)
 
 # check for user-defined widths
 if (DEFINED USER_IDX_WIDTH)
@@ -32,8 +32,17 @@ endif()
 
 if (DEFINED USER_BLAS_INT)
   set(CONFIG_BLAS_INT ${USER_BLAS_INT})
-  message("Using type '${CONFIG_BLAS_INT}' for BLAS/LAPACK integers.")
+  if (${USER_BLAS_INT} STREQUAL "32")
+    set(CONFIG_BLAS_INT 32)
+  elseif (${USER_BLAS_INT} STREQUAL "64")
+    set(CONFIG_BLAS_INT 64)
+  else()
+    message(FATAL_ERROR "Width '${USER_BLAS_INT}' not recognized.\
+      Choose between {32 64}.")
+  endif()
+  message("Using ${CONFIG_BLAS_INT}-bit integers for BLAS/LAPACK.")
 endif()
+
 
 # Configure include/splatt/types.h to include specified type widths.
 configure_file(${CMAKE_SOURCE_DIR}/include/splatt/types_config.h
