@@ -75,7 +75,7 @@ typedef struct
   * @param N The dimension of the Gram matrix.
   * @param data Private constraint data.
   */
-  void (* gram_func) (splatt_val_t * restrict gram,
+  void (* gram_func) (splatt_val_t * gram,
                       splatt_idx_t const N,
                       void * data);
 
@@ -103,7 +103,7 @@ typedef struct
   * @param ncols The number of columns.
   * @param data Private constraint data.
   */
-  void (* clsd_func) (splatt_val_t * restrict primal,
+  void (* clsd_func) (splatt_val_t * primal,
                       splatt_idx_t const nrows,
                       splatt_idx_t const ncols,
                       void * data);
