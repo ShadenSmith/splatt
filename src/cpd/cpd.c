@@ -88,13 +88,12 @@ splatt_cpd_opts * splatt_alloc_cpd_opts(void)
   opts->max_iterations = 200;
 
   opts->inner_tolerance = 1e-2;
-  opts->max_inner_iterations = 20;
+  opts->max_inner_iterations = 50;
 
   for(idx_t m=0; m < MAX_NMODES; ++m) {
     opts->chunk_sizes[m] = 50;
     opts->constraints[m] = splatt_alloc_constraint(SPLATT_CON_CLOSEDFORM);
   }
-
 
   return opts;
 }

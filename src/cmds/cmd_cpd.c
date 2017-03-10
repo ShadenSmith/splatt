@@ -261,12 +261,12 @@ static struct argp_option cpd_options[] = {
 
 
   {0, 0, 0, 0, "Options for tuning ADMM behavior:", CMD_GROUP_ADMM},
-  {"block", 'b', "#ROWS", 0, "number of rows per ADMM block "
-      "(applicable for row-separable constraints; default: 50)", CMD_GROUP_ADMM},
   {"inner-its", LONG_INNER_ITS, "#ITS", 0,
-      "maximum number of inner ADMM iterations to use (default: 20)", CMD_GROUP_ADMM},
+      "maximum number of inner ADMM iterations to use (default: 50)", CMD_GROUP_ADMM},
   {"inner-tol", LONG_INNER_TOL, "TOLERANCE", 0,
       "convergence tolerance of inner ADMM iterations (default: 1e-2)", CMD_GROUP_ADMM},
+  {"block", 'b', "#ROWS", 0, "number of rows per ADMM block "
+      "(applicable for row-separable constraints; default: 50)", CMD_GROUP_ADMM},
   { 0 }
 };
 
@@ -392,74 +392,6 @@ static error_t parse_cpd_opt(
     break;
 
 
-#if 0
-  case LONG_NONNEG:
-    if(arg) {
-      mode = strtoull(arg, &arg, 10) - 1;
-      splatt_cpd_con_nonneg(args->cpd_opts, mode);
-
-      /* grab all remaining modes */
-      while(strlen(arg) > 0) {
-        ++arg;
-        mode = strtoull(arg, &arg, 10) - 1;
-        splatt_cpd_con_nonneg(args->cpd_opts, mode);
-      }
-
-    } else {
-      /* all modes */
-      splatt_cpd_con_nonneg(args->cpd_opts, MAX_NMODES);
-    }
-    break;
-
-  case LONG_L1:
-    scale = strtof(arg, &arg);
-    if(strlen(arg) > 0) {
-      /* for each comma separated mode */
-      do {
-        ++arg; /* skip , */
-        mode = strtoull(arg, &arg, 10) - 1;
-        splatt_cpd_reg_l1(args->cpd_opts, mode, scale);
-      } while(strlen(arg) > 0);
-
-    } else {
-      /* all modes */
-      splatt_cpd_reg_l1(args->cpd_opts, mode, scale);
-    }
-    break;
-
-  case LONG_L2:
-    scale = strtof(arg, &arg);
-    if(strlen(arg) > 0) {
-      /* for each comma separated mode */
-      do {
-        ++arg; /* skip , */
-        mode = strtoull(arg, &arg, 10) - 1;
-        splatt_cpd_reg_l2(args->cpd_opts, mode, scale);
-      } while(strlen(arg) > 0);
-
-    } else {
-      /* all modes */
-      splatt_cpd_reg_l2(args->cpd_opts, mode, scale);
-    }
-    break;
-
-  case LONG_SMOOTH:
-    scale = strtof(arg, &arg);
-    if(strlen(arg) > 0) {
-      /* for each comma separated mode */
-      do {
-        ++arg; /* skip , */
-        mode = strtoull(arg, &arg, 10) - 1;
-        splatt_cpd_reg_smooth(args->cpd_opts, mode, scale);
-      } while(strlen(arg) > 0);
-
-    } else {
-      /* all modes */
-      splatt_cpd_reg_smooth(args->cpd_opts, mode, scale);
-    }
-#endif
-
-
   case ARGP_KEY_ARG:
     if(args->ifname != NULL) {
       argp_usage(state);
@@ -480,102 +412,11 @@ static struct argp cpd_argp =
   {cpd_options, parse_cpd_opt, cpd_args_doc, cpd_doc};
 
 
+
+
 /******************************************************************************
  * SPLATT-CPD
  *****************************************************************************/
-#if 0
-int splatt_cpd_cmd(
-  int argc,
-  char ** argv)
-{
-  /* assign defaults and parse arguments */
-  cpd_cmd_args args;
-  default_cpd_opts(&args);
-<<<<<<< HEAD
-  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER | ARGP_NO_HELP, 0, &args);
-=======
-  argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
-  srand(args.opts[SPLATT_OPTION_RANDSEED]);
->>>>>>> master
-
-  sptensor_t * tt = NULL;
-
-  print_header();
-
-  tt = tt_read(args.ifname);
-  if(tt == NULL) {
-    return SPLATT_ERROR_BADINPUT;
-  }
-
-  /* print basic tensor stats? */
-  splatt_verbosity_type which_verb = args.opts[SPLATT_OPTION_VERBOSITY];
-  if(which_verb >= SPLATT_VERBOSITY_LOW) {
-    stats_tt(tt, args.ifname, STATS_BASIC, 0, NULL);
-  }
-
-  splatt_csf * csf = splatt_csf_alloc(tt, args.opts);
-
-  idx_t nmodes = tt->nmodes;
-  tt_free(tt);
-
-  /* print CPD stats? */
-  if(which_verb >= SPLATT_VERBOSITY_LOW) {
-    cpd_stats(csf, args.nfactors, args.opts);
-  }
-
-  splatt_kruskal factored;
-
-  /* do the factorization! */
-  int ret = splatt_cpd_als(csf, args.nfactors, args.opts, &factored);
-  if(ret != SPLATT_SUCCESS) {
-    fprintf(stderr, "splatt_cpd_als returned %d. Aborting.\n", ret);
-    return ret;
-  }
-
-  printf("Final fit: %0.5"SPLATT_PF_VAL"\n", factored.fit);
-
-  /* write output */
-  if(args.write == 1) {
-    char * lambda_name = NULL;
-    if(args.stem) {
-      asprintf(&lambda_name, "%s.lambda.mat", args.stem);
-    } else {
-      asprintf(&lambda_name, "lambda.mat");
-    }
-    vec_write(factored.lambda, args.nfactors, lambda_name);
-    free(lambda_name);
-
-    for(idx_t m=0; m < nmodes; ++m) {
-      char * matfname = NULL;
-      if(args.stem) {
-        asprintf(&matfname, "%s.mode%"SPLATT_PF_IDX".mat", args.stem, m+1);
-      } else {
-        asprintf(&matfname, "mode%"SPLATT_PF_IDX".mat", m+1);
-      }
-
-      matrix_t tmpmat;
-      tmpmat.rowmajor = 1;
-      tmpmat.I = csf->dims[m];
-      tmpmat.J = args.nfactors;
-      tmpmat.vals = factored.factors[m];
-
-      mat_write(&tmpmat, matfname);
-      free(matfname);
-    }
-  }
-
-  /* cleanup */
-  splatt_csf_free(csf, args.opts);
-  free_cpd_args(&args);
-
-  /* free factor matrix allocations */
-  splatt_free_kruskal(&factored);
-
-  return EXIT_SUCCESS;
-}
-#endif
-
-
 
 int splatt_cpd_cmd2(
   int argc,
@@ -598,9 +439,7 @@ int splatt_cpd_cmd2(
     cpd_stats2(args.nfactors, tt->nmodes, args.cpd_opts, args.global_opts);
   }
 
-  double * dopts = splatt_default_opts();
-
-  splatt_csf * csf = splatt_csf_alloc(tt, dopts);
+  splatt_csf * csf = splatt_csf_alloc(tt, args.opts);
   tt_free(tt);
 
   splatt_kruskal * factored = splatt_alloc_cpd(csf, args.nfactors);
@@ -629,11 +468,7 @@ int splatt_cpd_cmd2(
       }
 
       matrix_t tmpmat;
-      tmpmat.rowmajor = 1;
-      tmpmat.I = csf->dims[m];
-      tmpmat.J = args.nfactors;
-      tmpmat.vals = factored->factors[m];
-
+      mat_fillptr(&tmpmat, factored->factors[m], csf->dims[m],args.nfactors,1);
       mat_write(&tmpmat, matfname);
       splatt_free(matfname);
     }
@@ -641,8 +476,7 @@ int splatt_cpd_cmd2(
 
   /* cleanup */
   splatt_free_cpd(factored);
-  splatt_free_csf(csf, dopts);
-  splatt_free_opts(dopts);
+  splatt_free_csf(csf, args.opts);
   splatt_free_opts(args.opts);
   splatt_free_cpd_opts(args.cpd_opts);
   splatt_free_global_opts(args.global_opts);
