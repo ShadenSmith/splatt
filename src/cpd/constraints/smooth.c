@@ -231,7 +231,7 @@ splatt_error_type splatt_register_smooth(
     con->init_func = splatt_smooth_init;
     con->free_func = splatt_smooth_free;
 
-    sprintf(con->description, "SMOOTH-COL");
+    sprintf(con->description, "SMOOTH-COL (%0.1e)", multiplier);
 
     smooth_ws * ws = splatt_malloc(sizeof(*ws));
     ws->lambda = multiplier;
