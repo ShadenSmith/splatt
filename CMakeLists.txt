@@ -28,6 +28,7 @@ include(cmake/lapack.cmake)
 include(cmake/openmp.cmake)
 include(cmake/mpi.cmake)
 include(cmake/partition.cmake)
+include(cmake/fortran.cmake)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
