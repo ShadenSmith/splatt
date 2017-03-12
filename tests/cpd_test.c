@@ -229,7 +229,11 @@ CTEST(cpd, cpd_constraint_rowsimp)
 
       ASSERT_TRUE(vals[j + (i*ncols)] >= 0.);
     }
+#if SPLATT_VAL_TYPEWIDTH == 32
+    ASSERT_DBL_NEAR_TOL(1.0, sum, 3e-6);
+#else
     ASSERT_DBL_NEAR_TOL(1.0, sum, 1e-6);
+#endif
   }
 
   splatt_free(vals);
@@ -268,7 +272,11 @@ CTEST(cpd, cpd_constraint_colsimp)
 
       ASSERT_TRUE(vals[j + (i*ncols)] >= 0.);
     }
+#if SPLATT_VAL_TYPEWIDTH == 32
+    ASSERT_DBL_NEAR_TOL(1.0, sum, 3e-6);
+#else
     ASSERT_DBL_NEAR_TOL(1.0, sum, 1e-6);
+#endif
   }
 
   splatt_free(vals);
