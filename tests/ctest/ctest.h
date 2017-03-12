@@ -378,6 +378,7 @@ static void *find_symbol(struct ctest *test, const char *fname)
 
 #ifdef CTEST_SEGFAULT
 #include <signal.h>
+extern const char * const sys_siglist[];
 static void sighandler(int signum)
 {
     char msg[128];
