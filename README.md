@@ -29,12 +29,18 @@ SPLATT requires CMake and working BLAS/LAPACK libraries to run. In short,
 
     $ ./configure && make
 
-will build the SPLATT library and its executable. The executable will be found
-in `build/<arch>/bin/`. You can also run
+will build the SPLATT library and its executable. SPLATT also provides options
+to automatically download the CMake and BLAS/LAPACK dependencies on Linux/OSX
+systems:
+
+    $ ./configure --download-cmake --download-blas-lapack
+
+You can also run
 
     $ ./configure --help
 
-to see additional build options. To install,
+to see additional build options.  After compilation, the executable will be
+found in `build/<arch>/bin/`. To install,
 
     $ make install
 
