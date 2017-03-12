@@ -23,5 +23,4 @@ before_install:
 script:
   - ./configure --precision=single && make && ./scripts/test.sh
   - ./configure --precision=double && make && ./scripts/test.sh
-  - ./configure --download-blas-lapack --precision=single && make && ./scripts/test.sh
   - ./configure --debug --index-size=32 && make && ./scripts/test.sh
