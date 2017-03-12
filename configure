@@ -53,6 +53,9 @@ show_help() {
   echo "COMPILATION OPTIONS"
   echo "==================="
 
+  echo "  --download-cmake"
+  echo "    Download a CMake binary instead of searching \$PATH."
+
   echo "  --build-dir=<dir>"
   echo "    Set the build directory (default: ./build/<arch>/)."
   echo "  --cc=<cc>"
@@ -131,10 +134,13 @@ CONFIG_FLAGS=""
 
 # default values
 CMAKE="$(which cmake)"
-BUILDDIR="build/$(uname -s)-$(uname -m)"
+BUILDDIR="$(pwd)/build/$(uname -s)-$(uname -m)"
+DL_CMAKE=0
 
 
+#
 # parse arguments
+#
 for i in "${@}"; do
   case "${i}" in
     # help
@@ -168,6 +174,10 @@ for i in "${@}"; do
     ;;
     --build-dir=*)
       BUILDDIR="${i#*=}"
+    ;;
+
+    --download-cmake)
+			DL_CMAKE=1;
     ;;
 
     --with-index-size=*)
@@ -279,19 +289,10 @@ done
 
 
 
+###############################################################################
+# RUN CMAKE ###################################################################
+###############################################################################
 
-
-
-
-
-
-
-# check if cmake exists
-if [[ ! -x "${CMAKE}" ]]; then
-  die "Could not find usable cmake: '${CMAKE}'"
-else
-  echo "Found CMAKE: '${CMAKE}'"
-fi
 
 # clean out build directory if it exists
 if [[ -d "${BUILDDIR}" ]]; then
@@ -305,9 +306,18 @@ mkdir -vp "${BUILDDIR}" || \
     die "Failed to create build directory: '${BUILDDIR}'"
 
 
-###############################################################################
-# RUN CMAKE ###################################################################
-###############################################################################
+# Download CMake if requested.
+if [[ ${DL_CMAKE} -eq 1 ]]; then
+	CMAKE="$(./scripts/download-cmake.sh ${BUILDDIR})"
+fi
+
+# Check if cmake exists
+if [[ ! -x "${CMAKE}" ]]; then
+  die "Could not find usable cmake: '${CMAKE}'. Try '--download-cmake'."
+else
+  echo "Found CMAKE: '${CMAKE}'"
+fi
+
 
 ROOTDIR="${PWD}"
 pushd "${BUILDDIR}"

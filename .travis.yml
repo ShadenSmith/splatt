@@ -13,7 +13,6 @@ compiler:
 addons:
   apt:
     packages:
-      - cmake
       - libatlas-dev
 
 before_install:
@@ -22,6 +21,6 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install argp-standalone ; fi
 
 script:
-  - ./configure --with-precision=single && make && ./scripts/test.sh
-  - ./configure --with-precision=double && make && ./scripts/test.sh
-  - ./configure --debug --with-precision=single && make && ./scripts/test.sh
+  - ./configure --download-cmake --with-precision=single && make && ./scripts/test.sh
+  - ./configure --download-cmake --with-precision=double && make && ./scripts/test.sh
+  - ./configure --download-cmake --debug --with-precision=single && make && ./scripts/test.sh
