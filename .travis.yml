@@ -22,6 +22,6 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install valgrind ; fi
 
 script:
-  - ./configure --download-cmake --debug --with-precision=single && make && valgrind ./scripts/test.sh
+  - ./configure --download-cmake --debug --with-precision=single && make && valgrind ./build/Darwin-x86_64/bin/test
   #- ./configure --download-cmake --with-precision=single && make && ./scripts/test.sh
   #- ./configure --download-cmake --with-precision=double && make && ./scripts/test.sh
