@@ -21,17 +21,21 @@ CTEST_DATA(api)
 
 CTEST_SETUP(api)
 {
+#if 0
   data->ntensors = sizeof(datasets) / sizeof(datasets[0]);
   for(idx_t i=0; i < data->ntensors; ++i) {
     data->tensors[i] = tt_read(datasets[i]);
   }
+#endif
 }
 
 CTEST_TEARDOWN(api)
 {
+#if 0
   for(idx_t i=0; i < data->ntensors; ++i) {
     tt_free(data->tensors[i]);
   }
+#endif
 }
 
 
@@ -75,14 +79,14 @@ CTEST(api, par_opts_alloc)
 
 CTEST2(api, csf_load)
 {
+#if 0
   splatt_csf loaded;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
 
-#if 0
     int ret = splatt_csf_load(datasets[i], &nmodes, &loaded, opts);
-#endif
   }
+#endif
 }
 
 
