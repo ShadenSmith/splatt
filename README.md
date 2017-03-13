@@ -188,7 +188,7 @@ LAPACK/BLAS libraries use 32-bit integers, and so SPLATT by default provides
 32-bit integers. You should either instruct Matlab to link against a matching
 library, or configure SPLATT to also use 64-bit integers during configuration:
 
-    $ ./configure --blas-int=int64_t
+    $ ./configure --blas-int=64
 
 Note that this may break usability of the SPLATT executable or API.
 
