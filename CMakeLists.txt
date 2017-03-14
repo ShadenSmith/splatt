@@ -31,6 +31,7 @@ include(cmake/lapack.cmake)
 include(cmake/openmp.cmake)
 include(cmake/mpi.cmake)
 include(cmake/partition.cmake)
+include(cmake/fortran.cmake)
 
 # Set flags/defines
 set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} ${SPLATT_FLAGS}")

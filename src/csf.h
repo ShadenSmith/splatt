@@ -35,6 +35,8 @@ typedef enum
 * @brief Convert a coordinate tensor to CSF form. Options will determine how
 *        many tensors to allocate and which tiling scheme to use.
 *
+*        NOTE: This data must be freed with `csf_free()`.
+*
 * @param tt The coordinate tensor to convert from.
 * @param opts 'SPLATT_OPTION_CSF_ALLOC' and 'SPLATT_OPTION_TILE' determine
 *             the allocation scheme.
@@ -51,6 +53,8 @@ splatt_csf * csf_alloc(
 * @brief Convert a coordinate tensor to CSF form, optimized for a certain
 *        mode. The tensor is written to 'csf', whose pointer is assumed to be
 *        non-NULL. Exactly one tensor will be filled, unlike csf_alloc().
+*
+*        NOTE: This data must be freed with `csf_free_mode()`.
 *
 * @param tt The coordinate tensor to convert from.
 * @param which_ordering Which ordering scheme to use.
