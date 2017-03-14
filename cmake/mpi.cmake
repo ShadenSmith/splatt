@@ -18,7 +18,12 @@ if (DEFINED USE_MPI)
   file(GLOB MPI_SOURCES
       src/mpi/*.c
       src/mpi/*.cc)
+
+  # set new MPI vars
+  include_directories(SYSTEM ${MPI_C_INCLUDE_PATH})
+  set(SPLATT_FLAGS "${SPLATT_FLAGS} ${MPI_C_COMPILE_FLAGS}")
   set(SPLATT_LIBS ${SPLATT_LIBS} ${MPI_C_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_C_LINK_FLAGS}")
 else()
   set(MPI_SOURCES "")
 endif()

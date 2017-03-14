@@ -68,9 +68,9 @@ show_help() {
   echo "    Set the maxmimum number of tensor modes (default: 8)."
 
   echo ""
-  echo "  --with-index-size={32,64}"
+  echo "  --index-size={32,64}"
   echo "    Use 32 or 64 bit integers (default: 64)."
-  echo "  --with-precision={single,double}"
+  echo "  --precision={single,double}"
   echo "    Use single or double precision floating point values (default: double)."
 
   echo "  --intel"
@@ -180,25 +180,13 @@ for i in "${@}"; do
 			DL_CMAKE=1;
     ;;
 
-    --with-index-size=*)
+    --index-size=*)
       IDX_WIDTH=${i#*=}
-      if [ "${IDX_WIDTH}" == "32" ]; then
-        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=32"
-      elif [ "${IDX_WIDTH}" == "64" ]; then
-        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=64"
-      else
-        die "Unknown index size: ${IDX_WIDTH}. Choose between {32,64}."
-      fi
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_IDX_WIDTH=${IDX_WIDTH}"
     ;;
-    --with-precision=*)
+    --precision=*)
       PRECISION=${i#*=}
-      if [ "${PRECISION}" == "single" ]; then
-        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=single"
-      elif [ "${PRECISION}" == "double" ]; then
-        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=double"
-      else
-        die "Unknown precision: ${PRECISION}. Choose between {single,double}."
-      fi
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_VAL_WIDTH=${PRECISION}"
     ;;
     --max-modes=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"

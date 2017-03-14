@@ -126,12 +126,24 @@ void thd_reduce(
 
 #define thd_times splatt_thd_times
 /**
-* @brief Output a summary to STDOUT of all thread timers.
+* @brief Output a list of all thread timers.
 *
 * @param thds The array on thd_info structs.
 * @param nthreads The number of timers to print.
 */
 void thd_times(
+  thd_info * thds,
+  idx_t const nthreads);
+
+
+#define thd_time_stats splatt_thd_time_stats
+/**
+* @brief Output a summary to STDOUT of thread timers.
+*
+* @param thds The array on thd_info structs.
+* @param nthreads The number of timers to print.
+*/
+void thd_time_stats(
   thd_info * thds,
   idx_t const nthreads);
 

@@ -211,7 +211,6 @@ static char cpd_args_doc[] = "TENSOR";
 static char cpd_doc[] =
   "splatt-cpd -- Compute the CPD of a sparse tensor.\n";
 
-
 /* start above non-printable ASCII */
 enum
 {
@@ -219,6 +218,8 @@ enum
   LONG_NOWRITE,
   LONG_TILE,
   LONG_TOL,
+
+  LONG_CSF,
 
   /* constraints and regularizations*/
   LONG_CON,
@@ -245,14 +246,22 @@ static struct argp_option cpd_options[] = {
 
   {"seed", LONG_SEED, "SEED", 0, "random seed (default: system time)"},
   {"iters", 'i', "#ITS", 0, "maximum number of outer iterations (default: 200)"},
-  {"tol", LONG_TOL, "TOLERANCE", 0, "convergence tolerance (default: 1e-5)"},
 
   {"rank", 'r', "RANK", 0, "rank of factorization (default: 10)"},
   {"stem", 's', "PATH", 0, "file stem for output files (default: ./)"},
   {"nowrite", LONG_NOWRITE, 0, 0, "do not write output to file"},
+
+  {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
+  {"tol", LONG_TOL, "TOLERANCE", 0, "convergence tolerance (default: 1e-5)"},
+  {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
+  {"nowrite", LONG_NOWRITE, 0, 0, "do not write output to file"},
+  {"seed", LONG_SEED, "SEED", 0, "random seed (default: system time)"},
+
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
 
   {"threads", 't', "#THREADS", 0, "number of threads (default: ${OMP_NUM_THREADS})", CMD_GROUP_PERFORMANCE},
+  {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
+  {"csf", LONG_CSF, "#CSF", 0, "how many CSF to use? {one,two,all} default: two"},
   {"tile", LONG_TILE, 0, 0, "use tiling during MTTKRP", CMD_GROUP_PERFORMANCE},
 
   {0, 0, 0, 0, CPD_CONSTRAINT_DOC, CMD_GROUP_CONSTRAINT},
@@ -358,6 +367,19 @@ static error_t parse_cpd_opt(
     break;
   case 'r':
     args->nfactors = strtoull(arg, &arg, 10);
+    break;
+
+  case LONG_CSF:
+    if(strcmp("one", arg) == 0) {
+      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
+    } else if(strcmp("two", arg) == 0) {
+      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_TWOMODE;
+    } else if(strcmp("all", arg) == 0) {
+      args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
+    } else {
+      fprintf(stderr, "SPLATT: --csf option '%s' not recognized.\n", arg);
+      argp_usage(state);
+    }
     break;
 
   case LONG_SEED:

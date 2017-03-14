@@ -187,8 +187,11 @@ double cpd_iterate(
     mat_aTa(mats[m], ws->aTa[m], NULL);
   }
 
-  /* TODO: CSF opts */
+  /* XXX TODO: CSF opts */
   double * opts = splatt_default_opts();
+
+  /* MTTKRP ws */
+  splatt_mttkrp_ws * mttkrp_ws = splatt_mttkrp_alloc_ws(tensor, rank, opts);
 
   /* for tracking convergence */
   double olderr = 1.;
@@ -208,7 +211,7 @@ double cpd_iterate(
     /* foreach AO step */
     for(idx_t m=0; m < nmodes; ++m) {
       timer_fstart(&modetime[m]);
-      mttkrp_csf(tensor, mats, m, ws->thds, opts);
+      mttkrp_csf(tensor, mats, m, ws->thds, mttkrp_ws, global_opts);
 
       /* ADMM solve for constraints */
       inner_its[m] = admm_inner(m, mats, factored->lambda, ws, cpd_opts,
@@ -265,6 +268,8 @@ double cpd_iterate(
     /* only free ptr */
     splatt_free(mats[m]);
   }
+
+  splatt_mttkrp_free_ws(mttkrp_ws);
 
   timer_stop(&timers[TIMER_CPD]);
 

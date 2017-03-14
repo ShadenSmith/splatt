@@ -29,6 +29,7 @@
 * @param mats The output and input matrices.
 * @param mode Which mode we are computing for.
 * @param thds Thread structures. TODO: make this easier to allocate.
+* @param ws MTTKRP workspace.
 * @param opts SPLATT options. This uses SPLATT_OPTION_CSF_ALLOC.
 */
 void mttkrp_csf(
@@ -36,7 +37,8 @@ void mttkrp_csf(
   matrix_t ** mats,
   idx_t const mode,
   thd_info * const thds,
-  double const * const opts);
+  splatt_mttkrp_ws * const ws,
+  splatt_global_opts const * const global_opts);
 
 
 /******************************************************************************

@@ -84,15 +84,27 @@ typedef struct splatt_csf
   /** @brief The dimension of each mode. */
   splatt_idx_t dims[SPLATT_MAX_NMODES];
 
-  /** @brief The permutation of the tensor modes.
-   *         dim_perm[0] is the mode stored at the root level and so on. */
+  /** @brief This maps levels in the tensor to actual tensor modes.
+   *         dim_perm[0] is the mode stored at the root level and so on.
+   *         NOTE: do not use directly; use`csf_depth_to_mode()` instead.
+   */
   splatt_idx_t dim_perm[SPLATT_MAX_NMODES];
+
+  /**
+   * @brief Inverse of dim_perm. This maps tensor modes to levels in the CSF.
+   *        NOTE: do not use directly; use`csf_mode_to_depth()` instead.
+   */
+  splatt_idx_t dim_iperm[SPLATT_MAX_NMODES];
 
   /** @brief Which tiling scheme this tensor is stored as. */
   splatt_tile_type which_tile;
 
   /** @brief How many tiles there are. */
   splatt_idx_t ntiles;
+
+  /** @brief How many modes of the tensor (i.e., CSF levels) are tiled. Counted
+   *         from the leaf (bottom) mode. */
+  splatt_idx_t ntiled_modes;
 
   /** @brief For a dense tiling, how many tiles along each mode. */
   splatt_idx_t tile_dims[SPLATT_MAX_NMODES];

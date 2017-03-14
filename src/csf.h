@@ -80,6 +80,7 @@ void csf_free(
   double const * const opts);
 
 
+#define csf_free_mode splatt_csf_free_mode
 /**
 * @brief Free the memory allocated for one CSF representation. This should be
 *        paired with csf_alloc_mode().
@@ -88,6 +89,7 @@ void csf_free(
 */
 void csf_free_mode(
     splatt_csf * const csf);
+
 
 #define csf_storage splatt_csf_storage
 /**
@@ -136,31 +138,94 @@ void csf_find_mode_order(
   idx_t * const perm_dims);
 
 
-#define csf_mode_depth splatt_csf_mode_depth
+#define csf_mode_to_depth splatt_csf_mode_to_depth
 /**
 * @brief Map a mode (in the input system) to the tree level that it is found.
 *        This is equivalent to the inverse dim_perm.
 *
+* @param csf The CSF tensor.
 * @param mode The mode (relative to the input) to lookup.
-* @param perm The dimenison permutation.
-* @param nmodes The number of modes.
 *
 * @return The level of the tree that mode is mapped to.
 */
-static inline idx_t csf_mode_depth(
-  idx_t const mode,
-  idx_t const * const perm,
-  idx_t const nmodes)
+static inline idx_t csf_mode_to_depth(
+    splatt_csf const * const csf,
+    idx_t const mode)
 {
-  for(idx_t m=0; m < nmodes; ++m) {
-    if(perm[m] == mode) {
-      return m;
-    }
-  }
-
-  /* XXX: ERROR */
-  assert(1 == 2);
-  return MAX_NMODES;
+  assert(mode < csf->nmodes);
+  return csf->dim_iperm[mode];
 }
+
+
+
+#define csf_depth_to_mode splatt_csf_depth_to_mode
+/**
+* @brief Map a level in the CSF tree (zero-indexed, measured from root) to the
+*        actual mode in the tensor, respecting any mode permutation.
+*
+* @param csf The CSF tensor.
+* @param level The level in the tree.
+*
+* @return The actual mode in the tensor.
+*/
+static inline idx_t csf_depth_to_mode(
+    splatt_csf const * const csf,
+    idx_t const level)
+{
+  assert(level < csf->nmodes);
+  return csf->dim_perm[level];
+}
+
+
+
+#define csf_partition_1d splatt_csf_partition_1d
+/**
+* @brief Split the root nodes of a CSF tensor into 'nparts' partitions.
+*
+* @param csf The CSF tensor to partition.
+* @param nparts The number of partitions.
+*
+* @return An array of length (nparts+1) specifying the starts of each part.
+*/
+idx_t * csf_partition_1d(
+    splatt_csf const * const csf,
+    idx_t const tile_id,
+    idx_t const nparts);
+
+
+#define csf_partition_tiles_1d splatt_csf_partition_tiles_1d
+/**
+* @brief Split the tiles of csf into 'nparts' partitions.
+*        NOTE: This does not account for any mode-ordering of the tiles, and
+*        instead treats them as a 1D resource.
+*
+* @param csf The tiled tensor to partition.
+* @param nparts The number of partitions to compute.
+*
+* @return An array of length (nparts+1) specifying the starts of each part.
+*/
+idx_t * csf_partition_tiles_1d(
+    splatt_csf const * const csf,
+    idx_t const nparts);
+
+
+#define csf_count_nnz splatt_csf_count_nnz
+/**
+* @brief Count the nonzeros below a given node in a CSF tensor.
+*
+* @param fptr The adjacency pointer of the CSF tensor.
+* @param nmodes The number of modes in the tensor.
+* @param depth The depth of the node
+* @param fiber The id of the node.
+*
+* @return The nonzeros below fptr[depth][fiber].
+*/
+idx_t csf_count_nnz(
+    idx_t * * fptr,
+    idx_t const nmodes,
+    idx_t depth,
+    idx_t const fiber);
+
+
 
 #endif

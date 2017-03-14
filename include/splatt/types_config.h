@@ -1,9 +1,10 @@
 /**
-* @file types.h
-* @brief Primitive data types used by SPLATT.
+* @file types_config.h
+* @brief Primitive data types used by SPLATT. This will be copied to types.h
+*        by CMake.
 * @author Shaden Smith <shaden@cs.umn.edu>
 * @version 2.0.0
-* @date 2016-05-10
+* @date 2017-01-08
 */
 
 
@@ -30,18 +31,13 @@
  * TYPES
  *****************************************************************************/
 
-/* USER: You may edit values to chance the size of integer and real types.
- * Accepted values are 32 and 64. Changing these values to 32 will decrease
- * memory consumption at the cost of precision and maximum supported tensor
- * size. */
+/* These values are configured by CMake and can be altered by supplying flags
+ * to 'configure'. Default index and value widths are 64 bits. Changing these
+ * values to 32 will decrease memory consumption at the cost of precision and
+ * maximum supported tensor size. */
 
-#ifndef SPLATT_IDX_TYPEWIDTH
-  #define SPLATT_IDX_TYPEWIDTH 64
-#endif
-
-#ifndef SPLATT_VAL_TYPEWIDTH
-  #define SPLATT_VAL_TYPEWIDTH 64
-#endif
+#define SPLATT_IDX_TYPEWIDTH @CONFIG_IDX_WIDTH@
+#define SPLATT_VAL_TYPEWIDTH @CONFIG_VAL_WIDTH@
 
 
 /* Set type constants based on width. */
@@ -105,7 +101,8 @@ typedef enum
   SPLATT_OPTION_RANDSEED,   /* Random number seed */
   SPLATT_OPTION_CSF_ALLOC,  /* How many (and which) tensors to allocate. */
   SPLATT_OPTION_TILE,       /* Use cache tiling during MTTKRP. */
-  SPLATT_OPTION_TILEDEPTH,  /* Minimium depth in CSF to tile, 0-indexed. */
+  SPLATT_OPTION_TILELEVEL,  /* How many levels of the CSF are tiled? */
+  SPLATT_OPTION_PRIVTHRESH, /* Threshold for privatizing a mode. */
 
   SPLATT_OPTION_DECOMP,     /* Decomposition to use on distributed systems */
   SPLATT_OPTION_COMM,       /* Communication pattern to use */
