@@ -192,9 +192,27 @@ library, or configure SPLATT to also use 64-bit integers during configuration:
 
 Note that this may break usability of the SPLATT executable or API.
 
+Some Matlab versions have issues with linking to applications which use OpenMP
+(e.g., SPLATT) due to a limited amount of thread-local storage. This is a
+system limitation, not necessarily a software limitation. When calling SPLATT
+from Matlab, you may receive an error message:
 
-After compilation the MEX files will be found in the current directory. You can
-now call those functions directly:
+    dlopen: cannot load any more object with static TLS
+
+Two workarounds for this issue are:
+1. Ensure that your OpenMP library is loaded first when starting Matlab.  The
+most common OpenMP library is `libgomp.so.1`:
+
+    $ LD_PRELOAD=libgomp.so.1 matlab 
+
+2. Disable OpenMP (at the cost of losing multi-threaded execution):
+
+    $ ./configure --no-openmp
+
+
+
+After compilation, the MEX files will be found in the current directory. You
+can now call those functions directly:
 
     >> KT = splatt_cpd('mytensor.tns', 25);
 

@@ -82,6 +82,12 @@ show_help() {
   echo "LIBRARY OPTIONS"
   echo "==============="
 
+  # OpenMP
+  echo "OpenMP"
+  echo "  --no-openmp"
+  echo "    Disable OpenMP support (i.e., disable multi-threading)."
+  echo ""
+
   # MPI
   echo "MPI"
   echo "  --with-mpi"
@@ -221,6 +227,10 @@ for i in "${@}"; do
       CONFIG_FLAGS="${CONFIG_FLAGS} -DDOWNLOAD_BLAS_LAPACK=TRUE"
     ;;
 
+    # OpenMP support
+    --no-openmp)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DDISABLE_OPENMP=1"
+    ;;
 
     # MPI support
     --with-mpi)
