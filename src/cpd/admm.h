@@ -21,6 +21,8 @@
 #include "../thd_info.h"
 
 
+static bool ADMM_ROW_CONVERGE = false;
+
 
 
 
