@@ -353,7 +353,12 @@ static splatt_csf * p_parse_tensor(
 
   if(mxIsChar(args[0])) {
     char * fname = (char *) mxArrayToString(args[0]);
-    splatt_csf_load(fname, nmodes, &tt, cpd_opts);
+    int err = splatt_csf_load(fname, nmodes, &tt, cpd_opts);
+
+    if(err != SPLATT_SUCCESS) {
+      mexErrMsgIdAndTxt("SPLATT:FileNotFound",
+                        "Could not load file '%s'.\n", fname);
+    }
     mxFree(fname);
   } else if(nargs > 1 && mxIsNumeric(args[0]) && mxIsNumeric(args[1])) {
     tt = p_convert_sptensor(args[0], args[1], nmodes, cpd_opts);
