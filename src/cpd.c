@@ -283,7 +283,7 @@ double cpd_als_iterate(
    * TODO make this better */
   splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  thd_init(nthreads, 3,
-    (nfactors * nfactors * sizeof(val_t)) + 64,
+    (nmodes * nfactors * sizeof(val_t)) + 64,
     0,
     (nmodes * nfactors * sizeof(val_t)) + 64);
 
