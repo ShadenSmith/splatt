@@ -203,12 +203,11 @@ Two workarounds for this issue are:
 1. Ensure that your OpenMP library is loaded first when starting Matlab.  The
 most common OpenMP library is `libgomp.so.1`:
 
-    $ LD_PRELOAD=libgomp.so.1 matlab 
+        $ LD_PRELOAD=libgomp.so.1 matlab 
 
 2. Disable OpenMP (at the cost of losing multi-threaded execution):
 
-    $ ./configure --no-openmp
-
+        $ ./configure --no-openmp
 
 
 After compilation, the MEX files will be found in the current directory. You
