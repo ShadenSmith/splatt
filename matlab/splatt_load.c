@@ -15,8 +15,10 @@ static char const * csf_keys[] = {
   "nmodes",
   "dims",
   "dim_perm",
+  "dim_iperm",
   "which_tile",
   "ntiles",
+  "ntiled_modes",
   "tile_dims",
   "pt"
 };
@@ -66,12 +68,14 @@ static mxArray * p_pack_csf(
     p_mk_uint64(curr, "nmodes", 1, &(nmodes));
     p_mk_uint64(curr, "dims", nmodes, tt[t].dims);
     p_mk_uint64(curr, "dim_perm", nmodes, tt[t].dim_perm);
+    p_mk_uint64(curr, "dim_iperm", nmodes, tt[t].dim_iperm);
 
 
     /* tiled fields */
     int32_t which = tt[t].which_tile;
     p_mk_int32(curr, "which_tile", 1, &(which));
     p_mk_uint64(curr, "ntiles", 1, &(tt[t].ntiles));
+    p_mk_uint64(curr, "ntiled_modes", 1, &(tt[t].ntiled_modes));
     p_mk_uint64(curr, "tile_dims", 1, tt[t].tile_dims);
 
     /* sparsity pattern for each tile */
