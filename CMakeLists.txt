@@ -12,8 +12,6 @@ set(SPLATT_FLAGS "")   # shared C and C++ flags
 # Intel customization
 if(DEFINED INTEL_OPT)
   set(INTEL_OPT true)
-  set(SPLATT_FLAGS  "-restrict -D_XOPEN_SOURCE=600")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 # GCC/Clang
 else()
   set(INTEL_OPT false)
