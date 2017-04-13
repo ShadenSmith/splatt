@@ -41,6 +41,9 @@ static void p_csf_mttkrp(
     matrix_t ** gold,
     idx_t nfactors)
 {
+  splatt_global_opts * gopts = splatt_alloc_global_opts();
+  gopts->verbosity = SPLATT_VERBOSITY_NONE;
+
   idx_t const nthreads = opts[SPLATT_OPTION_NTHREADS];
   for(idx_t i=0; i < ntensors; ++i) {
     sptensor_t * const tt = tensors[i];
@@ -72,7 +75,7 @@ static void p_csf_mttkrp(
 
       /* compute MTTKRP */
       splatt_mttkrp_ws * ws = splatt_mttkrp_alloc_ws(cs, nfactors, opts);
-      mttkrp_csf(cs, mats[i], m, thds, ws, opts);
+      mttkrp_csf(cs, mats[i], m, thds, ws, gopts);
       splatt_mttkrp_free_ws(ws);
 
       __compare_mats(mats[i][MAX_NMODES], gold[i]);
@@ -80,6 +83,8 @@ static void p_csf_mttkrp(
     thd_free(thds, nthreads);
     csf_free(cs, opts);
   }
+
+  splatt_free_global_opts(gopts);
 }
 
 
