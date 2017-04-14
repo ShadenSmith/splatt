@@ -349,7 +349,7 @@ done
 echo "#######################################################################"
 echo ""
 echo "all clean install uninstall:"
-echo "	make -C ${BUILDDIR} \$@ \$(MAKEFLAGS)"
+echo "	\$(MAKE) -C ${BUILDDIR} \$@"
 echo ""
 echo "distclean:"
 echo "	rm -rf ${BUILDDIR} Makefile"
