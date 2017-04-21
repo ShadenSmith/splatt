@@ -77,6 +77,8 @@ int main(
   int argc,
   char **argv)
 {
+  setvbuf(stdout, NULL, _IOLBF, 0);
+
   int rank = 0;
 #ifdef SPLATT_USE_MPI
   MPI_Init(&argc, &argv);

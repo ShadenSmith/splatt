@@ -182,6 +182,7 @@ CTEST2(mttkrp, csf_all_notile)
 
   p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
       data->nfactors);
+  splatt_free_opts(opts);
 }
 
 
@@ -200,6 +201,7 @@ CTEST2(mttkrp, csf_all_densetile_alldepth)
     p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
         data->nfactors);
   }
+  splatt_free_opts(opts);
 }
 
 
@@ -216,6 +218,7 @@ CTEST2(mttkrp, csf_one_notile)
 
   p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
       data->nfactors);
+  splatt_free_opts(opts);
 }
 
 
@@ -232,6 +235,7 @@ CTEST2(mttkrp, csf_one_densetile_alldepth)
     p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
         data->nfactors);
   }
+  splatt_free_opts(opts);
 }
 
 /*
@@ -247,6 +251,7 @@ CTEST2(mttkrp, csf_two_notile)
 
   p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
       data->nfactors);
+  splatt_free_opts(opts);
 }
 
 CTEST2(mttkrp, csf_two_densetile_alldepth)
@@ -261,5 +266,6 @@ CTEST2(mttkrp, csf_two_densetile_alldepth)
     p_csf_mttkrp(opts, data->tensors, data->ntensors, data->mats, data->gold,
         data->nfactors);
   }
+  splatt_free_opts(opts);
 }
 

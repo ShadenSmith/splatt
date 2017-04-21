@@ -555,6 +555,8 @@ void mat_normalize(
 }
 
 
+
+/* XXX * duplicated effort with p_form_gram */
 void mat_form_gram(
     matrix_t * * aTa,
     matrix_t * out_mat,

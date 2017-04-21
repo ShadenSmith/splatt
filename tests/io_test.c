@@ -84,6 +84,8 @@ CTEST2(io, binary_io)
     for(idx_t n=0; n < tt_bin->nnz; ++n) {
       ASSERT_DBL_NEAR_TOL(gold_vals[n], test_vals[n], 0.);
     }
+
+    tt_free(tt_bin);
   }
 
   /* delete temporary file */
