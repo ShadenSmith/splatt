@@ -21,7 +21,10 @@
 #include "../thd_info.h"
 
 
-static bool ADMM_ROW_CONVERGE = false;
+
+#ifndef SPLATT_ADMM_ROW_CONVERGE
+#define SPLATT_ADMM_ROW_CONVERGE 0
+#endif
 
 
 

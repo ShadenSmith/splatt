@@ -187,10 +187,7 @@ double cpd_iterate(
     mat_aTa(mats[m], ws->aTa[m], NULL);
   }
 
-  if(getenv("SPLATT_ROW_CONVERGE") != NULL) {
-    ADMM_ROW_CONVERGE = (bool) atoi(getenv("SPLATT_ROW_CONVERGE"));
-  }
-  printf("ADMM_ROW_CONVERGE: %d\n\n", (int) ADMM_ROW_CONVERGE);
+  printf("SPLATT_ADMM_ROW_CONVERGE: %d\n\n", SPLATT_ADMM_ROW_CONVERGE);
 
   /* XXX TODO: CSF opts */
   double * opts = splatt_default_opts();

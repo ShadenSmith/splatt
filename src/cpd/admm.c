@@ -155,49 +155,50 @@ static void p_calc_residual(
   /*
    * Converge based on max row movement.
    */
-  if(ADMM_ROW_CONVERGE) {
-    #pragma omp parallel for reduction(max:p_norm, p_resid, d_resid) \
-        if(should_parallelize)
-    for(idx_t i=0; i < nrows; ++i) {
-      val_t row_p_norm  = 0;
-      val_t row_p_resid = 0;
-      val_t row_d_resid = 0;
+#if SPLATT_ADMM_ROW_CONVERGE
+  #pragma omp parallel for reduction(max:p_norm, p_resid, d_resid) \
+      if(should_parallelize)
+  for(idx_t i=0; i < nrows; ++i) {
+    val_t row_p_norm  = 0;
+    val_t row_p_resid = 0;
+    val_t row_d_resid = 0;
 
-      for(idx_t j=0; j < ncols; ++j) {
-        idx_t const index = j + (i*ncols);
-        val_t const pdiff = matv[index] - auxv[index];
-        val_t const ddiff = matv[index] - init[index];
-        row_p_norm  += matv[index] * matv[index];
-        row_p_resid += pdiff * pdiff;
-        row_d_resid += ddiff * ddiff;
-      }
-
-      /* save the row with the largest primal residual */
-      if(row_p_resid > p_resid) {
-        p_norm  = row_p_norm;
-        p_resid = row_p_resid;
-        d_resid = row_d_resid;
-      }
+    for(idx_t j=0; j < ncols; ++j) {
+      idx_t const index = j + (i*ncols);
+      val_t const pdiff = matv[index] - auxv[index];
+      val_t const ddiff = matv[index] - init[index];
+      row_p_norm  += matv[index] * matv[index];
+      row_p_resid += pdiff * pdiff;
+      row_d_resid += ddiff * ddiff;
     }
+
+    /* save the row with the largest primal residual */
+    if(row_p_resid > p_resid) {
+      p_norm  = row_p_norm;
+      p_resid = row_p_resid;
+      d_resid = row_d_resid;
+    }
+  }
+
+#else
 
   /*
    * Converge based on aggregate row movement.
    */
-  } else {
-    #pragma omp parallel for reduction(+:p_norm, p_resid, d_resid) \
-        if(should_parallelize)
-    for(idx_t i=0; i < nrows; ++i) {
-      for(idx_t j=0; j < ncols; ++j) {
-        idx_t const index = j + (i*ncols);
-        val_t const pdiff = matv[index] - auxv[index];
-        val_t const ddiff = matv[index] - init[index];
+  #pragma omp parallel for reduction(+:p_norm, p_resid, d_resid) \
+      if(should_parallelize)
+  for(idx_t i=0; i < nrows; ++i) {
+    for(idx_t j=0; j < ncols; ++j) {
+      idx_t const index = j + (i*ncols);
+      val_t const pdiff = matv[index] - auxv[index];
+      val_t const ddiff = matv[index] - init[index];
 
-        p_norm  += matv[index] * matv[index];
-        p_resid += pdiff * pdiff;
-        d_resid += ddiff * ddiff;
-      }
+      p_norm  += matv[index] * matv[index];
+      p_resid += pdiff * pdiff;
+      d_resid += ddiff * ddiff;
     }
   }
+#endif
 
   *primal_norm  = p_norm;
   *primal_resid = p_resid;
