@@ -31,7 +31,7 @@ pushd ${BUILD_DIR}/lapack
   # Setup LAPACK build to use BLIS.
   BLIS_LIB=${BUILD_DIR}/lib/libblis.a
   sed "s@../../librefblas.a@${BLIS_LIB}@" make.inc.example > make.inc
-  make lapacklib -j $(( $(nproc) + 1))
+  make lapacklib -j $(( $(nproc) + 1 ))
   mv liblapack.a ../lib/
 popd
 
