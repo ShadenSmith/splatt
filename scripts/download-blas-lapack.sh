@@ -19,7 +19,7 @@ fi
 git clone https://github.com/flame/blis.git ${BUILD_DIR}/blis
 pushd $1/blis
   CC=gcc ./configure -p .. --enable-threading=openmp --blas-int-size=${BISIZE} auto
-  make -j
+  make -j $(( $(nproc) + 1 ))
   make install
 popd
 
@@ -31,7 +31,7 @@ pushd ${BUILD_DIR}/lapack
   # Setup LAPACK build to use BLIS.
   BLIS_LIB=${BUILD_DIR}/lib/libblis.a
   sed "s@../../librefblas.a@${BLIS_LIB}@" make.inc.example > make.inc
-  make -j lapacklib
+  make lapacklib -j $(( $(nproc) + 1))
   mv liblapack.a ../lib/
 popd
 
