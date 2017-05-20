@@ -387,7 +387,7 @@ static inline void p_propagate_up(
 }
 
 
-static void p_csf_mttkrp_root_nolock3(
+static void p_csf_mttkrp_root3_nolock(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -683,7 +683,7 @@ static void p_csf_mttkrp_root_nolock(
   }
 
   if(nmodes == 3) {
-    p_csf_mttkrp_root_nolock3(ct, tile_id, mats, mode, thds, partition);
+    p_csf_mttkrp_root3_nolock(ct, tile_id, mats, mode, thds, partition);
     return;
   }
 
@@ -799,7 +799,7 @@ static void p_csf_mttkrp_root_locked(
 }
 
 
-static void p_csf_mttkrp_leaf_nolock3(
+static void p_csf_mttkrp_leaf3_nolock(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -872,7 +872,7 @@ static void p_csf_mttkrp_leaf_nolock(
     return;
   }
   if(nmodes == 3) {
-    p_csf_mttkrp_leaf_nolock3(ct, tile_id, mats, mode, thds, partition);
+    p_csf_mttkrp_leaf3_nolock(ct, tile_id, mats, mode, thds, partition);
     return;
   }
 
@@ -1029,7 +1029,7 @@ static void p_csf_mttkrp_leaf_locked(
 }
 
 
-static void p_csf_mttkrp_intl_nolock3(
+static void p_csf_mttkrp_intl3_nolock(
   splatt_csf const * const ct,
   idx_t const tile_id,
   matrix_t ** mats,
@@ -1109,7 +1109,7 @@ static void p_csf_mttkrp_intl_nolock(
     return;
   }
   if(nmodes == 3) {
-    p_csf_mttkrp_intl_nolock3(ct, tile_id, mats, mode, thds, partition);
+    p_csf_mttkrp_intl3_nolock(ct, tile_id, mats, mode, thds, partition);
     return;
   }
 
