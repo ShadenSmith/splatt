@@ -262,7 +262,7 @@ static inline void p_assign_hada(
 }
 
 
-static inline void p_csf_process_fiber_lock(
+static inline void p_csf_process_fiber_locked(
   val_t * const leafmat,
   val_t const * const restrict accumbuf,
   idx_t const nfactors,
@@ -1016,7 +1016,7 @@ static void p_csf_mttkrp_leaf_locked(
       /* process all nonzeros [start, end) */
       idx_t const start = fp[depth][idxstack[depth]];
       idx_t const end   = fp[depth][idxstack[depth]+1];
-      p_csf_process_fiber_lock(mats[MAX_NMODES]->vals, buf[depth],
+      p_csf_process_fiber_locked(mats[MAX_NMODES]->vals, buf[depth],
           nfactors, start, end, fids[depth+1], vals);
 
       /* now move back up to the next unprocessed child */
