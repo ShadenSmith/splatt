@@ -249,6 +249,7 @@ Citing
 ------
 If SPLATT has contributed to your research, please consider citing us:
 
+```
   @misc{splattsoftware,
     author = {Smith, Shaden and Karypis, George},
     title = {{SPLATT: The Surprisingly ParalleL spArse Tensor Toolkit}},
@@ -256,6 +257,7 @@ If SPLATT has contributed to your research, please consider citing us:
     version = {1.1.1},
     year = {2016},
   }
+```
 
 
 Licensing
