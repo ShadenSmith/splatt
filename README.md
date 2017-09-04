@@ -245,6 +245,19 @@ Please see `help <cmd>` from an Octave/Matlab terminal or read <cmd>.m in the
 `matlab/` directory for more usage information.
 
 
+Citing
+------
+If SPLATT has contributed to your research, please consider citing us:
+
+		@misc{splattsoftware,
+			author = {Smith, Shaden and Karypis, George},
+			title = {{SPLATT: The Surprisingly ParalleL spArse Tensor Toolkit}},
+			howpublished = {\url{http://cs.umn.edu/~splatt/}},
+			version = {1.1.1},
+			year = {2016},
+		}
+
+
 Licensing
 ---------
 SPLATT is released under the MIT License. Please see the 'LICENSE' file for
