@@ -249,13 +249,13 @@ Citing
 ------
 If SPLATT has contributed to your research, please consider citing us:
 
-		@misc{splattsoftware,
-			author = {Smith, Shaden and Karypis, George},
-			title = {{SPLATT: The Surprisingly ParalleL spArse Tensor Toolkit}},
-			howpublished = {\url{http://cs.umn.edu/~splatt/}},
-			version = {1.1.1},
-			year = {2016},
-		}
+  @misc{splattsoftware,
+    author = {Smith, Shaden and Karypis, George},
+    title = {{SPLATT: The Surprisingly ParalleL spArse Tensor Toolkit}},
+    howpublished = {\url{http://cs.umn.edu/~splatt/}},
+    version = {1.1.1},
+    year = {2016},
+  }
 
 
 Licensing
