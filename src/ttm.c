@@ -1026,17 +1026,18 @@ static void p_csf_ttmc_internal(
 
   /* count the number of columns at each depth -- grows from ends */
   idx_t ncols_lvl[MAX_NMODES];
+  /* going down */
   ncols_lvl[0] = ncols_mat[0];
-  for(idx_t m=1; m < nmodes-1; ++m) {
-    if(m < outdepth) {
-      ncols_lvl[m] = ncols_lvl[m-1] * ncols_mat[m];
-    } else if(m == outdepth) {
-      ncols_lvl[m] = ncols;
-    } else {
-      ncols_lvl[m] = ncols_lvl[m-1] / ncols_mat[m];
-    }
+  for(idx_t m=1; m < outdepth; ++m) {
+    ncols_lvl[m] = ncols_lvl[m-1] * ncols_mat[m];
   }
+  /* at output */
+  ncols_lvl[outdepth] = ncols;
+  /* going up */
   ncols_lvl[nmodes-1] = ncols_mat[nmodes-1];
+  for(idx_t m=nmodes-2; m > outdepth; --m) {
+    ncols_lvl[m] = ncols_lvl[m+1] * ncols_mat[m];
+  }
 
   /* allocate buffers */
   val_t * mvals[MAX_NMODES]; /* permuted factors */
@@ -1045,7 +1046,6 @@ static void p_csf_ttmc_internal(
     buf[m] = calloc(ncols_lvl[m], sizeof(**buf));
     mvals[m] = mats[csf->dim_perm[m]]->vals;
   }
-
 
   /* extract tensor structures */
   idx_t const * const * const restrict fp
