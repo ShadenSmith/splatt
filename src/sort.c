@@ -7,6 +7,7 @@
 #include "timer.h"
 #include "io.h"
 #include "thd_info.h"
+#include "util.h"
 
 
 /******************************************************************************
@@ -856,9 +857,9 @@ static void p_counting_sort_hybrid(
       tt->ind[i] = new_ind[i];
     }
   }
-  splatt_free(tt->vals);
-  tt->vals = new_vals;
 
+  par_memcpy(tt->vals, new_vals, tt->nnz * sizeof(*tt->vals));
+  splatt_free(new_vals);
 
   histogram_array[nslices] = tt->nnz;
 

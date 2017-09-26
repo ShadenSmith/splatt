@@ -54,11 +54,15 @@ int splatt_tucker_hooi(
   }
 
   /* compute the factorization */
-  tucker_hooi_iterate(tensors, mats, factored->core, nfactors, options);
+  factored->fit = tucker_hooi_iterate(tensors,
+                                      mats,
+                                      factored->core,
+                                      nfactors,
+                                      options);
 
   /* cleanup */
   for(idx_t m=0; m < nmodes; ++m) {
-    free(mats[m]); /* just delete the pointer */
+    splatt_free(mats[m]); /* just delete the pointer */
   }
 
   return SPLATT_SUCCESS;
@@ -208,9 +212,11 @@ static void p_alloc_tucker_ws(
   /* fill #cols in TTMc output */
   ttmc_compute_ncols(nfactors, nmodes, ws->gten_cols);
 
+#if 0
   p_print_cache_size(ws, tensors, nfactors, opts);
   printf("\n\n");
   p_print_cache_size2(ws, tensors, nfactors, opts);
+#endif
 
   /* SVD allocations */
   alloc_svd_ws(&(ws->sws), nmodes, tensors->dims, ws->gten_cols, nfactors);

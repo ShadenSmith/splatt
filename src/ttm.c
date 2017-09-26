@@ -1315,12 +1315,14 @@ void ttmc_csf(
 
   timer_stop(&ttmc_time);
 
+  if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_LOW) {
 #if SPLATT_TTMC_FLOPS == 1
-  printf("    TTMc: %0.3fs (%0.3f GFLOPS)\n", ttmc_time.seconds,
-      1e-9 * (double) nflops / ttmc_time.seconds);
+    printf("    TTMc: %0.3fs (%0.3f GFLOPS)\n", ttmc_time.seconds,
+        1e-9 * (double) nflops / ttmc_time.seconds);
 #else
-  printf("    TTMc: %0.3fs\n", ttmc_time.seconds);
+    printf("    TTMc: %0.3fs\n", ttmc_time.seconds);
 #endif
+  }
 }
 
 
