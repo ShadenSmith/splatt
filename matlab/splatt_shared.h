@@ -254,10 +254,14 @@ static splatt_csf * p_unpack_csf_cell(
         nmodes * sizeof(uint64_t));
     memcpy(csf[t].dim_perm, p_get_uint64_data(curr, "dim_perm"),
         nmodes * sizeof(uint64_t));
+    memcpy(csf[t].dim_iperm, p_get_uint64_data(curr, "dim_iperm"),
+        nmodes * sizeof(uint64_t));
     memcpy(&(csf[t].which_tile), p_get_int_data(curr, "which_tile"),
         sizeof(splatt_tile_type));
     memcpy(&(csf[t].ntiles), p_get_uint64_data(curr, "ntiles"),
         sizeof(uint64_t));
+    memcpy(&(csf[t].ntiled_modes), p_get_uint64_data(curr, "ntiled_modes"),
+        nmodes * sizeof(uint64_t));
     memcpy(csf[t].tile_dims, p_get_uint64_data(curr, "tile_dims"),
         nmodes * sizeof(uint64_t));
 
@@ -349,7 +353,12 @@ static splatt_csf * p_parse_tensor(
 
   if(mxIsChar(args[0])) {
     char * fname = (char *) mxArrayToString(args[0]);
-    splatt_csf_load(fname, nmodes, &tt, cpd_opts);
+    int err = splatt_csf_load(fname, nmodes, &tt, cpd_opts);
+
+    if(err != SPLATT_SUCCESS) {
+      mexErrMsgIdAndTxt("SPLATT:FileNotFound",
+                        "Could not load file '%s'.\n", fname);
+    }
     mxFree(fname);
   } else if(nargs > 1 && mxIsNumeric(args[0]) && mxIsNumeric(args[1])) {
     tt = p_convert_sptensor(args[0], args[1], nmodes, cpd_opts);

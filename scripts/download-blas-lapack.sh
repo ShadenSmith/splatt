@@ -1,24 +1,37 @@
 #!/bin/bash
 
-LAPACK_VERSION=3.6.1
-LAPACK_LOC=http://www.netlib.org/lapack/lapack-${LAPACK_VERSION}.tgz
-
 if [ "$#" -eq 0 ]; then
-  echo "usage: <build directory>";
+  echo "usage: <build directory> [int size]";
   exit 1;
 fi
 
-wget ${LAPACK_LOC} --output-document=$1/lapack.tgz;
+BUILD_DIR=$1
+mkdir -p ${BUILD_DIR}
 
-pushd $1/
-tar xf lapack.tgz
-rm lapack.tgz;
+BISIZE=32
+if [ "$#" -gt 1 ]; then
+  BISIZE=$2
+fi
 
-mv lapack-${LAPACK_VERSION} lapack
-pushd lapack
-cmake .
-make -j
-
+#
+# Build BLIS for its BLAS interface.
+#
+git clone https://github.com/flame/blis.git ${BUILD_DIR}/blis
+pushd $1/blis
+  CC=gcc ./configure -p .. --enable-threading=openmp --blas-int-size=${BISIZE} auto
+  make -j $(( $(nproc) + 1 ))
+  make install
 popd
+
+#
+# Build reference LAPACK implementation.
+#
+git clone https://github.com/Reference-LAPACK/lapack.git ${BUILD_DIR}/lapack
+pushd ${BUILD_DIR}/lapack
+  # Setup LAPACK build to use BLIS.
+  BLIS_LIB=${BUILD_DIR}/lib/libblis.a
+  sed "s@../../librefblas.a@${BLIS_LIB}@" make.inc.example > make.inc
+  make lapacklib -j $(( $(nproc) + 1 ))
+  mv liblapack.a ../lib/
 popd
 

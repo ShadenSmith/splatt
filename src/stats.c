@@ -201,9 +201,9 @@ void stats_csf(
   for(idx_t m=1; m < ct->nmodes; ++m) {
     printf("x%"SPLATT_PF_IDX"", ct->dims[m]);
   }
-  printf(" (%"SPLATT_PF_IDX"", ct->dim_perm[0]);
+  printf(" (%"SPLATT_PF_IDX"", csf_depth_to_mode(ct, 0));
   for(idx_t m=1; m < ct->nmodes; ++m) {
-    printf("->%"SPLATT_PF_IDX"", ct->dim_perm[m]);
+    printf("->%"SPLATT_PF_IDX"", csf_depth_to_mode(ct, m));
   }
   printf(")\n");
   printf("ntiles: %"SPLATT_PF_IDX" tile dims: %"SPLATT_PF_IDX"", ct->ntiles,
@@ -274,8 +274,8 @@ void cpd_stats(
     printf("NO");
     break;
   case SPLATT_DENSETILE:
-    printf("DENSE TILE-DEPTH=%"SPLATT_PF_IDX,
-        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+    printf("DENSE TILED-MODES=%"SPLATT_PF_IDX,
+        (idx_t)opts[SPLATT_OPTION_TILELEVEL]);
     break;
   case SPLATT_SYNCTILE:
     printf("SYNC");
@@ -352,8 +352,8 @@ void tucker_stats(
     printf("NO");
     break;
   case SPLATT_DENSETILE:
-    printf("DENSE TILE-DEPTH=%"SPLATT_PF_IDX,
-        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+    printf("DENSE TILED-MODES=%"SPLATT_PF_IDX,
+        (idx_t)opts[SPLATT_OPTION_TILELEVEL]);
     break;
   case SPLATT_SYNCTILE:
     printf("SYNC");
@@ -363,6 +363,7 @@ void tucker_stats(
     break;
   }
   printf("\n");
+
 
   char * fstorage = bytes_str(fbytes);
   char * mstorage = bytes_str(mbytes);
@@ -445,8 +446,8 @@ void mpi_cpd_stats(
     printf("NO");
     break;
   case SPLATT_DENSETILE:
-    printf("DENSE TILE-DEPTH=%"SPLATT_PF_IDX,
-        (idx_t)opts[SPLATT_OPTION_TILEDEPTH]);
+    printf("DENSE TILED-MODES=%"SPLATT_PF_IDX,
+        (idx_t)opts[SPLATT_OPTION_TILELEVEL]);
     break;
   case SPLATT_SYNCTILE:
     printf("SYNC");

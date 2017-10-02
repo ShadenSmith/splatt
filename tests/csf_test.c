@@ -213,12 +213,11 @@ CTEST2(csf_one_init, dense_tiled_normsq)
   data->opts[SPLATT_OPTION_NTHREADS] = 7;
 
   for(idx_t m=0; m < data->tt->nmodes; ++m) {
-    data->opts[SPLATT_OPTION_TILEDEPTH] = m;
+    data->opts[SPLATT_OPTION_TILELEVEL] = m;
     splatt_csf * csf = csf_alloc(data->tt, data->opts);
     val_t mynorm = csf_frobsq(csf);
     csf_free(csf, data->opts);
 
     ASSERT_DBL_NEAR_TOL(gold_norm, mynorm, 1e-5);
   }
-
 }

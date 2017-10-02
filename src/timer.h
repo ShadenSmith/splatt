@@ -125,9 +125,13 @@ static inline double monotonic_seconds()
   static mach_timebase_info_data_t info;
   static double seconds_per_unit;
   if(seconds_per_unit == 0) {
-    mach_timebase_info(&info);
-    seconds_per_unit = (info.numer / info.denom) / 1e9;
+    #pragma omp critical
+    {
+      mach_timebase_info(&info);
+      seconds_per_unit = (info.numer / info.denom) / 1e9;
+    }
   }
+
   return seconds_per_unit * mach_absolute_time();
 #else
   /* Linux systems */

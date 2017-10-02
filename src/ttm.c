@@ -1011,7 +1011,7 @@ static void p_csf_ttmc_internal(
   }
 
   /* find out which level in the tree this is */
-  idx_t const outdepth = csf_mode_depth(mode, csf->dim_perm, nmodes);
+  idx_t const outdepth = csf_mode_to_depth(csf, mode);
 
   /* count the number of columns in output and each factor */
   idx_t ncols_mat[MAX_NMODES];
@@ -1282,7 +1282,7 @@ void ttmc_csf(
 
     /* find out which level in the tree this is */
     splatt_csf const * const curr_csf = &(tensors[ttmc_csf_assign[mode]]);
-    idx_t const outdepth = csf_mode_depth(mode, curr_csf->dim_perm, nmodes);
+    idx_t const outdepth = csf_mode_to_depth(curr_csf, mode);
 
     if(outdepth == 0) {
       p_root_decide(curr_csf, mats, ttmc_output, mode, thds, opts);

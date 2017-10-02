@@ -20,7 +20,7 @@
 *
 * @param mode The mode to compute the cost.
 * @param ttmc_mode The mode we are performing TTMc on.
-* @param dim_perm The permutation of the modes.
+* @param csf The CSF tensor to analyze.
 * @param nfactors The rank of each mode.
 *
 * @return The number of requisite flops per node.
@@ -29,10 +29,12 @@ static size_t p_mode_flops(
     idx_t const mode,
     idx_t const ttmc_mode,
     idx_t const nmodes,
-    idx_t const * const dim_perm,
+    splatt_csf const * const csf,
     idx_t const * const nfactors)
 {
   size_t flops = 0;
+
+  idx_t const * const dim_perm = csf->dim_perm;
 
   /* permute nfactors */
   idx_t ranks[MAX_NMODES];
@@ -41,8 +43,8 @@ static size_t p_mode_flops(
   }
 
   /* which level are we actually at in the tree? */
-  idx_t const tree_level = csf_mode_depth(mode, dim_perm, nmodes);
-  idx_t const outp_level = csf_mode_depth(ttmc_mode, dim_perm, nmodes);
+  idx_t const tree_level = csf_mode_to_depth(csf, mode);
+  idx_t const outp_level = csf_mode_to_depth(csf, ttmc_mode);
 
   /*
    * Now account for three cases, whether we are above, below, or at the output
@@ -118,10 +120,10 @@ static size_t p_count_csf_flops(
   for(idx_t tile=0; tile < csf->ntiles; ++tile) {
     /* Sum the cost for each mode */
     for(idx_t m=0; m < csf->nmodes; ++m) {
-      idx_t const csf_level = csf_mode_depth(m, dim_perm, nmodes);
+      idx_t const csf_level = csf_mode_to_depth(csf, m);
       size_t const num_nodes = (size_t) csf->pt[tile].nfibs[csf_level];
 
-      size_t node_flops = p_mode_flops(m, mode, nmodes, dim_perm, nfactors);
+      size_t node_flops = p_mode_flops(m, mode, nmodes, csf, nfactors);
 
       flops += node_flops * num_nodes;
     }

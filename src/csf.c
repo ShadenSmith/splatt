@@ -6,6 +6,7 @@
 #include "sort.h"
 #include "tile.h"
 #include "stats.h"
+#include "ccp/ccp.h"
 
 #include "io.h"
 
@@ -72,6 +73,39 @@ void splatt_free_csf(
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
+
+/**
+* @brief Count the nonzeros below a given node in a CSF tensor.
+*
+* @param fptr The adjacency pointer of the CSF tensor.
+* @param nmodes The number of modes in the tensor.
+* @param depth The depth of the node
+* @param fiber The id of the node.
+*
+* @return The nonzeros below fptr[depth][fiber].
+*/
+idx_t p_csf_count_nnz(
+    idx_t * * fptr,
+    idx_t const nmodes,
+    idx_t depth,
+    idx_t const fiber)
+{
+  if(depth == nmodes-1) {
+    return 1;
+  }
+
+  idx_t left = fptr[depth][fiber];
+  idx_t right = fptr[depth][fiber+1];
+  ++depth;
+
+  for(; depth < nmodes-1; ++depth) {
+    left = fptr[depth][left];
+    right = fptr[depth][right];
+  }
+
+  return right - left;
+}
+
 
 /**
 * @brief Find a permutation of modes that results in non-increasing mode size.
@@ -259,8 +293,9 @@ static void p_mk_outerptr(
 
   assert(nnzstart < nnzend);
 
-  /* the mode after accounting for dim_perm */
-  idx_t const * const restrict ttind = tt->ind[ct->dim_perm[0]] + nnzstart;
+  /* grap top-level indices */
+  idx_t const * const restrict ttind =
+      nnzstart + tt->ind[csf_depth_to_mode(ct, 0)];
 
   /* count fibers */
   idx_t nfibs = 1;
@@ -271,7 +306,7 @@ static void p_mk_outerptr(
     }
   }
   ct->pt[tile_id].nfibs[0] = nfibs;
-  assert(nfibs <= ct->dims[ct->dim_perm[0]]);
+  assert(nfibs <= ct->dims[csf_depth_to_mode(ct, 0)]);
 
   /* grab sparsity pattern */
   csf_sparsity * const pt = ct->pt + tile_id;
@@ -336,7 +371,8 @@ static void p_mk_fptr(
     return;
   }
   /* the mode after accounting for dim_perm */
-  idx_t const * const restrict ttind = tt->ind[ct->dim_perm[mode]] + nnzstart;
+  idx_t const * const restrict ttind =
+      nnzstart + tt->ind[csf_depth_to_mode(ct, mode)];
 
   csf_sparsity * const pt = ct->pt + tile_id;
 
@@ -405,6 +441,7 @@ static void p_csf_alloc_untiled(
   tt_sort(tt, ct->dim_perm[0], ct->dim_perm);
 
   ct->ntiles = 1;
+  ct->ntiled_modes = 0;
   for(idx_t m=0; m < nmodes; ++m) {
     ct->tile_dims[m] = 1;
   }
@@ -416,7 +453,7 @@ static void p_csf_alloc_untiled(
   pt->nfibs[nmodes-1] = ct->nnz;
   pt->fids[nmodes-1] = splatt_malloc(ct->nnz * sizeof(**(pt->fids)));
   pt->vals           = splatt_malloc(ct->nnz * sizeof(*(pt->vals)));
-  memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]],
+  memcpy(pt->fids[nmodes-1], tt->ind[csf_depth_to_mode(ct, nmodes-1)],
       ct->nnz * sizeof(**(pt->fids)));
   memcpy(pt->vals, tt->vals, ct->nnz * sizeof(*(pt->vals)));
 
@@ -448,14 +485,22 @@ static void p_csf_alloc_densetile(
 {
   idx_t const nmodes = tt->nmodes;
 
+  /* how many levels we tile (counting from the bottom) */
+  ct->ntiled_modes = (idx_t)splatt_opts[SPLATT_OPTION_TILELEVEL];
+  ct->ntiled_modes = SS_MIN(ct->ntiled_modes, ct->nmodes);
+
+  /* how many levels from the root do we start tiling? */
+  idx_t const tile_depth = ct->nmodes - ct->ntiled_modes;
+
   idx_t ntiles = 1;
-  for(idx_t m=0; m < ct->nmodes; ++m) {
-    idx_t const depth = csf_mode_depth(m, ct->dim_perm, ct->nmodes);
-    if(depth >= splatt_opts[SPLATT_OPTION_TILEDEPTH]) {
+  for(idx_t m=0; m < nmodes; ++m) {
+    idx_t const depth = csf_mode_to_depth(ct, m);
+    if(depth >= tile_depth) {
       ct->tile_dims[m] = (idx_t) splatt_opts[SPLATT_OPTION_NTHREADS];
     } else {
       ct->tile_dims[m] = 1;
     }
+
     ntiles *= ct->tile_dims[m];
   }
 
@@ -488,23 +533,39 @@ static void p_csf_alloc_densetile(
       continue;
     }
 
-    /* last row of fptr is just nonzero inds */
-    pt->nfibs[nmodes-1] = ptnnz;
+    idx_t const leaves = nmodes-1;
 
-    pt->fids[nmodes-1] = splatt_malloc(ptnnz * sizeof(**(pt->fids)));
-    memcpy(pt->fids[nmodes-1], tt->ind[ct->dim_perm[nmodes-1]] + startnnz,
+    /* last row of fptr is just nonzero inds */
+    pt->nfibs[leaves] = ptnnz;
+
+    pt->fids[leaves] = splatt_malloc(ptnnz * sizeof(**(pt->fids)));
+    memcpy(pt->fids[leaves], tt->ind[csf_depth_to_mode(ct, leaves)] + startnnz,
         ptnnz * sizeof(**(pt->fids)));
 
     pt->vals = splatt_malloc(ptnnz * sizeof(*(pt->vals)));
     memcpy(pt->vals, tt->vals + startnnz, ptnnz * sizeof(*(pt->vals)));
 
     /* create fptr entries for the rest of the modes */
-    for(idx_t m=0; m < tt->nmodes-1; ++m) {
+    for(idx_t m=0; m < leaves; ++m) {
       p_mk_fptr(ct, tt, t, nnz_ptr, m);
     }
   }
 
   free(nnz_ptr);
+}
+
+
+/**
+* @brief Construct dim_iperm, which is the inverse of dim_perm.
+*
+* @param ct The CSF tensor.
+*/
+static void p_fill_dim_iperm(
+    splatt_csf * const ct)
+{
+  for(idx_t level=0; level < ct->nmodes; ++level) {
+    ct->dim_iperm[ct->dim_perm[level]] = level;
+  }
 }
 
 
@@ -533,6 +594,7 @@ static void p_mk_csf(
 
   /* get the indices in order */
   csf_find_mode_order(tt->dims, tt->nmodes, mode_type, mode, ct->dim_perm);
+  p_fill_dim_iperm(ct);
 
   ct->which_tile = splatt_opts[SPLATT_OPTION_TILE];
   switch(ct->which_tile) {
@@ -711,7 +773,7 @@ splatt_csf * csf_alloc(
     tmp_opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;
 
     /* allocate with no tiling for the last mode */
-    last_mode = ret[0].dim_perm[tt->nmodes-1];
+    last_mode = csf_depth_to_mode(&(ret[0]), tt->nmodes-1);
     p_mk_csf(ret + 1, tt, CSF_SORTED_SMALLFIRST_MINUSONE, last_mode, tmp_opts);
 
     free(tmp_opts);
@@ -764,4 +826,50 @@ val_t csf_frobsq(
 
   return (val_t) norm;
 }
+
+
+idx_t * csf_partition_1d(
+    splatt_csf const * const csf,
+    idx_t const tile_id,
+    idx_t const nparts)
+{
+  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
+
+  idx_t const nslices = csf->pt[tile_id].nfibs[0];
+  idx_t * weights = splatt_malloc(nslices * sizeof(*weights));
+
+  #pragma omp parallel for schedule(static)
+  for(idx_t i=0; i < nslices; ++i) {
+    weights[i] = p_csf_count_nnz(csf->pt[tile_id].fptr, csf->nmodes, 0, i);
+  }
+
+  partition_1d(weights, nslices, parts, nparts);
+  splatt_free(weights);
+
+  return parts;
+}
+
+
+idx_t * csf_partition_tiles_1d(
+    splatt_csf const * const csf,
+    idx_t const nparts)
+{
+  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
+
+  idx_t const nmodes = csf->nmodes;
+  idx_t const ntiles = csf->ntiles;
+  idx_t * weights = splatt_malloc(ntiles * sizeof(*weights));
+
+  #pragma omp parallel for schedule(static)
+  for(idx_t i=0; i < ntiles; ++i) {
+    weights[i] = csf->pt[i].nfibs[nmodes-1];
+  }
+
+  partition_1d(weights, ntiles, parts, nparts);
+  splatt_free(weights);
+
+  return parts;
+}
+
+
 

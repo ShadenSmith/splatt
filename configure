@@ -2,7 +2,7 @@
 
 # The MIT License (MIT)
 #
-# Copyright (c) 2014-2016, Dominique LaSalle and Shaden Smith
+# Copyright (c) 2014-2017, Dominique LaSalle and Shaden Smith
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -65,10 +65,11 @@ show_help() {
   echo "    Set the maxmimum number of tensor modes (default: 8)."
 
   echo ""
-  echo "  --with-index-size={32,64}"
+  echo "  --index-size={32,64}"
   echo "    Use 32 or 64 bit integers (default: 64)."
-  echo "  --with-precision={single,double}"
+  echo "  --precision={single,double}"
   echo "    Use single or double precision floating point values (default: double)."
+  echo ""
 
   echo "  --intel"
   echo "    Use the Intel compiler (icc), MKL, and possibly Intel-specific optimizations."
@@ -81,7 +82,14 @@ show_help() {
   echo "LIBRARY OPTIONS"
   echo "==============="
 
+  # OpenMP
+  echo "OpenMP"
+  echo "  --no-openmp"
+  echo "    Disable OpenMP support (i.e., disable multi-threading)."
+  echo ""
+
   # MPI
+  echo "MPI"
   echo "  --with-mpi"
   echo "    Build with MPI support. Let CMake auto-detect MPI environment."
   echo "  --with-mpicc=<cc>"
@@ -91,16 +99,24 @@ show_help() {
   echo ""
 
   # BLAS/LAPACK
+  echo "BLAS/LAPACK"
   echo "If you are unhappy with the auto-detected BLAS/LAPACK libraries:"
   echo "  --with-blas-lib=<lib>"
   echo "    Set the BLAS library (e.g., /usr/.../libblas.so)."
   echo "  --with-lapack-lib=<lib>"
   echo "    Set the LAPACK library (e.g., /usr/.../liblapack.so)."
   echo "  --download-blas-lapack"
-  echo "    Download generic BLAS/LAPACK libraries (possible performance loss)."
+  echo "    Download BLIS & reference LAPACK (requires git & gfortran)."
+  echo "  --with-fortran"
+  echo "    Link against a Fortran library. Some LAPACK libraries require."
+  echo "  --with-fortran-lib=<lib>"
+  echo "    Set the Fortran library (e.g., gfortran or ifort)."
+  echo "  --blas-int={32,64}"
+  echo "    Integer size for BLAS/LAPACK (default: 32). Matlab requires 64."
+  echo ""
 
   # Metis
-  echo "";
+  echo "Metis (developers only)"
   echo "  --with-metis"
   echo "    Build with Metis support. Let CMake auto-detect Metis environment."
   echo "  --with-metis-lib=<lib>"
@@ -169,28 +185,26 @@ for i in "${@}"; do
       BUILDDIR="${i#*=}"
     ;;
 
-    --with-index-size=*)
+    --index-size=*)
       IDX_WIDTH=${i#*=}
-      if [ "${IDX_WIDTH}" == "32" ]; then
-        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=32"
-      elif [ "${IDX_WIDTH}" == "64" ]; then
-        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_IDX_WIDTH=64"
-      else
-        die "Unknown index size: ${IDX_WIDTH}. Choose between {32,64}."
-      fi
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_IDX_WIDTH=${IDX_WIDTH}"
     ;;
-    --with-precision=*)
+    --precision=*)
       PRECISION=${i#*=}
-      if [ "${PRECISION}" == "single" ]; then
-        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=single"
-      elif [ "${PRECISION}" == "double" ]; then
-        CONFIG_FLAGS="${CONFIG_FLAGS} -DSPLATT_VAL_WIDTH=double"
-      else
-        die "Unknown precision: ${PRECISION}. Choose between {single,double}."
-      fi
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_VAL_WIDTH=${PRECISION}"
+    ;;
+    --blas-int=*)
+      INT_WIDTH=${i#*=}
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_BLAS_INT=${INT_WIDTH}"
     ;;
     --max-modes=*)
       CONFIG_FLAGS="${CONFIG_FLAGS} -DMAX_MODES=${i#*=}"
+    ;;
+    --with-fortran)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSE_FORTRAN=TRUE"
+    ;;
+    --with-fortran-lib=*)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DUSER_FORTRAN_LIB=${i#*=}"
     ;;
 
 
@@ -213,6 +227,10 @@ for i in "${@}"; do
       CONFIG_FLAGS="${CONFIG_FLAGS} -DDOWNLOAD_BLAS_LAPACK=TRUE"
     ;;
 
+    # OpenMP support
+    --no-openmp)
+      CONFIG_FLAGS="${CONFIG_FLAGS} -DDISABLE_OPENMP=1"
+    ;;
 
     # MPI support
     --with-mpi)
@@ -331,7 +349,7 @@ done
 echo "#######################################################################"
 echo ""
 echo "all clean install uninstall:"
-echo "	make -C ${BUILDDIR} \$@ \$(MAKEFLAGS)"
+echo "	\$(MAKE) -C ${BUILDDIR} \$@"
 echo ""
 echo "distclean:"
 echo "	rm -rf ${BUILDDIR} Makefile"

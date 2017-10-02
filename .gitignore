@@ -2,6 +2,9 @@
 *.swp
 *.o
 
+# config-generated files
+include/splatt/types.h
+
 # compiled matlab files
 *.mex
 *.mexa64
