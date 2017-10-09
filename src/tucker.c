@@ -16,7 +16,6 @@
 #include "tucker.h"
 #include "svd.h"
 
-#include <omp.h>
 #include <math.h>
 
 
@@ -297,7 +296,7 @@ double tucker_hooi_iterate(
 
   /* thread structures */
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
-  omp_set_num_threads(nthreads);
+  splatt_omp_set_num_threads(nthreads);
   thd_info * thds =  ttmc_alloc_thds(nthreads, tensors, nfactors, opts);
 
   sp_timer_t itertime;

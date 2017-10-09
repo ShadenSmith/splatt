@@ -573,7 +573,7 @@ static void p_csf_ttmc_root3(
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
   val_t * const restrict accum_nnz_raw = (val_t *) thds[tid].scratch[0];
 
   /* buffered outer products */
@@ -664,7 +664,7 @@ static void p_csf_ttmc_intl3(
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
   val_t * const restrict accum_nnz = (val_t *) thds[tid].scratch[0];
 
   /* foreach slice */
@@ -750,7 +750,7 @@ static void p_csf_ttmc_leaf3(
   val_t const * const avals = A->vals;
   val_t const * const bvals = B->vals;
 
-  int const tid = omp_get_thread_num();
+  int const tid = splatt_omp_get_thread_num();
 
   /* nonzero accumulation */
   val_t * const accum_oprod = thds[tid].scratch[2];
@@ -1143,7 +1143,7 @@ static inline void p_root_decide(
     double const * const opts)
 {
   idx_t const nmodes = tensor->nmodes;
-  timer_start(&thds[omp_get_thread_num()].ttime);
+  timer_start(&thds[splatt_omp_get_thread_num()].ttime);
   /* tile id */
   idx_t tid = 0;
   switch(tensor->which_tile) {
@@ -1157,7 +1157,7 @@ static inline void p_root_decide(
     exit(1);
     break;
   }
-  timer_stop(&thds[omp_get_thread_num()].ttime);
+  timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
 
 }
 
@@ -1174,7 +1174,7 @@ static void p_intl_decide(
 
   idx_t const nmodes = csf->nmodes;
 
-  timer_start(&thds[omp_get_thread_num()].ttime);
+  timer_start(&thds[splatt_omp_get_thread_num()].ttime);
   /* tile id */
   idx_t tid = 0;
   switch(csf->which_tile) {
@@ -1188,7 +1188,7 @@ static void p_intl_decide(
     exit(1);
     break;
   }
-  timer_stop(&thds[omp_get_thread_num()].ttime);
+  timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
 }
 
 
@@ -1204,7 +1204,7 @@ static void p_leaf_decide(
   idx_t const nmodes = csf->nmodes;
   idx_t const depth = nmodes - 1;
 
-  timer_start(&thds[omp_get_thread_num()].ttime);
+  timer_start(&thds[splatt_omp_get_thread_num()].ttime);
 
   /* tile id */
   idx_t tid = 0;
@@ -1219,7 +1219,7 @@ static void p_leaf_decide(
     exit(1);
     break;
   }
-  timer_stop(&thds[omp_get_thread_num()].ttime);
+  timer_stop(&thds[splatt_omp_get_thread_num()].ttime);
 }
 
 
