@@ -8,12 +8,12 @@ os:
 
 compiler:
   - gcc
-  - clang
 
 addons:
   apt:
     packages:
-      - libatlas-dev
+      - libopenblas-dev
+      - liblapack-dev
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
