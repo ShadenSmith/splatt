@@ -8,11 +8,12 @@ os:
 
 compiler:
   - gcc
-  - clang
+  - clang-3.8
 
 addons:
   apt:
     packages:
+      - clang-3.8
       - libopenblas-dev
       - liblapack-dev
 
