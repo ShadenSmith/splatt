@@ -259,7 +259,8 @@ double tucker_calc_fit(
     gnormsq += core[x] * core[x];
   }
 
-  double const residual = sqrt(ttnormsq - gnormsq);
+  double resid_sqd = ttnormsq - gnormsq;
+  double const residual = (resid_sqd > 0.) ? sqrt(resid_sqd) : 0.;
   double fit = 1 - (residual / sqrt((double)ttnormsq));
 
   timer_stop(&timers[TIMER_FIT]);
@@ -321,12 +322,10 @@ double tucker_hooi_iterate(
       ttmc_csf(tensors, mats, gten, m, thds, opts);
       timer_stop(&timers[TIMER_TTM]);
 
-#if 1
       /* Find the truncated SVD of the TTMc output and store in mats[m]. */
       gten_mat.I = mats[m]->I;
       gten_mat.J = ncols[m];
       left_singulars(&gten_mat, mats[m], mats[m]->J, &(ws.sws));
-#endif
 
       timer_stop(&modetime[m]);
     }
