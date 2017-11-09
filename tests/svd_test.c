@@ -177,7 +177,7 @@ CTEST2(svd, svd)
   alloc_svd_ws(&ws, 1, &(data->nrows), &(data->ncols), &(data->ncols));
 
   for(idx_t r=1; r <= 2; ++r) {
-    left_singulars(&data->matA, &data->matLeft, r, &ws);
+    left_singulars_lanczos(&data->matA, &data->matLeft, r, &ws);
 
     for(idx_t i=0; i < data->nrows; ++i) {
       for(idx_t j=0; j < r-1; ++j) {

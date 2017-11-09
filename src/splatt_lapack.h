@@ -28,6 +28,38 @@
  * PROTOTYPES
  *****************************************************************************/
 
+/* Matrix multiplications */
+void SPLATT_BLAS(gemv)(
+    char *,
+    splatt_blas_int *,
+    splatt_blas_int *,
+    splatt_val_t *,
+    splatt_val_t const *,
+    splatt_blas_int *,
+    splatt_val_t const *,
+    splatt_blas_int *,
+    splatt_val_t *,
+    splatt_val_t *,
+    splatt_blas_int *);
+
+void SPLATT_BLAS(gemm)(
+    char *,
+    char *,
+    splatt_blas_int *,
+    splatt_blas_int *,
+    splatt_blas_int *,
+    splatt_val_t *,
+    splatt_val_t const *,
+    splatt_blas_int *,
+    splatt_val_t const *,
+    splatt_blas_int *,
+    splatt_val_t *,
+    splatt_val_t *,
+    splatt_blas_int *);
+
+
+
+
 /* Cholesky factorization */
 void SPLATT_BLAS(potrf)(
     char *,
@@ -35,8 +67,10 @@ void SPLATT_BLAS(potrf)(
     splatt_val_t *,
     splatt_blas_int *,
     splatt_blas_int *);
+
 void SPLATT_BLAS(potrs)(
-    char *, splatt_blas_int *,
+    char *,
+    splatt_blas_int *,
     splatt_blas_int *,
     splatt_val_t *,
     splatt_blas_int *,
@@ -92,5 +126,39 @@ void SPLATT_BLAS(gelss)(
     splatt_val_t *,
     splatt_blas_int *,
     splatt_blas_int *);
+
+
+void SPLATT_BLAS(gesdd)(
+    char *,
+    splatt_blas_int *,
+    splatt_blas_int *,
+    splatt_val_t *,
+    splatt_blas_int *,
+    splatt_val_t *,
+    splatt_val_t *,
+    splatt_blas_int *,
+    splatt_val_t *,
+    splatt_blas_int *,
+    splatt_val_t *,
+    splatt_blas_int *,
+    splatt_blas_int *,
+    splatt_blas_int *);
+
+void SPLATT_BLAS(bdsqr)(
+    char * uplo,
+    splatt_blas_int * N,
+    splatt_blas_int * NCVT,
+    splatt_blas_int * NRU,
+    splatt_blas_int * NCC,
+    splatt_val_t * D,
+    splatt_val_t * E,
+    splatt_val_t * VT,
+    splatt_blas_int * LDVT,
+    splatt_val_t * U,
+    splatt_blas_int * LDU,
+    splatt_val_t * C,
+    splatt_blas_int * LDC,
+    splatt_val_t * work,
+    splatt_blas_int * info);
 
 #endif

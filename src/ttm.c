@@ -4,6 +4,7 @@
  *****************************************************************************/
 #include "base.h"
 #include "ttm.h"
+#include "splatt_lapack.h"
 #include "thd_info.h"
 #include "tile.h"
 #include "util.h"
@@ -282,7 +283,7 @@ static inline void p_twovec_outer_prod_tiled(
   int N = ncol_fids;
   int K = nfibers;
 
-	BLAS_GEMM(
+	SPLATT_BLAS(gemm)(
       &transA, &transB, /* transposes */
       &M, &N, &K,       /* dimensions */
       &alpha,
@@ -1505,7 +1506,7 @@ void make_core(
   val_t beta = 0;
 
   /* C' = B' * A, but transA/B are flipped to account for row-major ordering */
-	BLAS_GEMM(
+	SPLATT_BLAS(gemm)(
       &transB, &transA,
       &N, &M, &K,
       &alpha,
@@ -1561,6 +1562,7 @@ void permute_core(
   #pragma omp parallel for
   for(idx_t x=0; x < ncols[nmodes]; ++x) {
     idx_t ind[MAX_NMODES];
+
     /* translate x into ind, respecting the natural ordering of modes */
     idx_t id = x;
     for(idx_t m=nmodes; m-- != 0; ){
@@ -1570,9 +1572,11 @@ void permute_core(
 
     /* translate ind to an index into core, accounting for permutation */
     idx_t mult = ncols[nmodes-1];
+    assert(perm[0] < nmodes);
     idx_t translated = mult * ind[perm[0]];
     for(idx_t m=1; m < nmodes; ++m) {
       mult /= nfactors[perm[m]];
+      assert(perm[m] < nmodes);
       translated += mult * ind[perm[m]];
     }
 

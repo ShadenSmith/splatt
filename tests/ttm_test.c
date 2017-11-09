@@ -307,7 +307,7 @@ CTEST2(ttm, rearrange_core_two)
 }
 
 
-CTEST2(ttm, rearrange_core_all)
+CTEST2_SKIP(ttm, rearrange_core_all)
 {
   data->opts[SPLATT_OPTION_CSF_ALLOC]  = SPLATT_CSF_ALLMODE;
   data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;

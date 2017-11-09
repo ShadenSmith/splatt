@@ -5,6 +5,7 @@
  *****************************************************************************/
 
 #include "svd.h"
+#include "splatt_lapack.h"
 #include "matrix.h"
 #include "timer.h"
 #include "util.h"
@@ -12,6 +13,9 @@
 
 #include <math.h>
 
+
+/* Minimum #row / #vecs ratio to use Lanczos */
+double const MIN_ROW_RATIO_LANCZOS = 10.;
 
 
 /**
@@ -42,6 +46,109 @@ void left_singulars(
 {
 	timer_start(&timers[TIMER_SVD]);
 
+  /* decide which SVD to use */
+  double const ratio = (double) A->I / (double) nvecs;
+  if(ratio >= MIN_ROW_RATIO_LANCZOS) {
+    left_singulars_lanczos(A, left_singular_matrix, nvecs, ws);
+  } else {
+    left_singulars_lapack(A, left_singular_matrix, nvecs, ws);
+  }
+
+	timer_stop(&timers[TIMER_SVD]);
+}
+
+
+void left_singulars_lapack(
+    matrix_t const * const A,
+    matrix_t       * const left_singular_matrix,
+    idx_t const nvecs,
+    svd_ws * const ws)
+{
+  char jobz = 'S';
+
+  /* actually pass in A^T */
+  splatt_blas_int M = A->J;
+  splatt_blas_int N = A->I;
+  splatt_blas_int LDA = M;
+
+  val_t * inmat = splatt_malloc(M * N * sizeof(*inmat));
+  par_memcpy(inmat, A->vals, M * N * sizeof(*inmat));
+
+  val_t * S = splatt_malloc(SS_MIN(M,N) * sizeof(*S));
+  par_memset(S, 0, SS_MIN(M,N) * sizeof(*S));
+
+  /* NOTE: change these if we switch to jobz=O */
+  splatt_blas_int LDU = M;
+  splatt_blas_int LDVt = SS_MIN(M,N);
+
+  val_t * U  = splatt_malloc(LDU * SS_MIN(M,N) * sizeof(*U));
+  val_t * Vt = splatt_malloc(LDVt * N * sizeof(*Vt));
+
+  val_t work_size;
+  splatt_blas_int lwork = -1;
+  splatt_blas_int * iwork = splatt_malloc(8 * SS_MIN(M,N) * sizeof(*iwork));
+  splatt_blas_int info = 0;
+
+  /* query */
+  SPLATT_BLAS(gesdd)(
+      &jobz,
+      &M, &N,
+      inmat, &LDA,
+      S,
+      U, &LDU,
+      Vt, &LDVt,
+      &work_size, &lwork,
+      iwork, &info);
+  if(info) {
+    fprintf(stderr, "SPLATT: DGESDD returned %d\n", info);
+  }
+
+  lwork = work_size;
+  val_t * workspace = splatt_malloc(lwork * sizeof(*workspace));
+
+  /* do the SVD */
+  SPLATT_BLAS(gesdd)(
+      &jobz,
+      &M, &N,
+      inmat, &LDA,
+      S,
+      U, &LDU,
+      Vt, &LDVt,
+      workspace, &lwork,
+      iwork, &info);
+  if(info) {
+    fprintf(stderr, "SPLATT: DGESDD returned %d\n", info);
+  }
+
+
+  /* copy matrix Vt to outmat */
+  idx_t const rank = left_singular_matrix->J;
+  idx_t const effective_rank = SS_MIN(rank, (idx_t) N);
+  val_t * const restrict outmat = left_singular_matrix->vals;
+  par_memset(outmat, 0, rank * A->I * sizeof(*outmat));
+  #pragma omp parallel
+  for(idx_t c=0; c < effective_rank; ++c) {
+    #pragma omp for schedule(static)
+    for(idx_t r=0; r < A->I; ++r) {
+      outmat[c + (r*rank)] = Vt[c + (r*LDVt)];
+    }
+  }
+
+  splatt_free(workspace);
+  splatt_free(iwork);
+  splatt_free(inmat);
+  splatt_free(S);
+  splatt_free(Vt);
+  splatt_free(U);
+}
+
+
+void left_singulars_lanczos(
+    matrix_t const * const A,
+    matrix_t       * const left_singular_matrix,
+    idx_t const nvecs,
+    svd_ws * const ws)
+{
   left_singular_matrix->J = nvecs;
 
   idx_t const lanczos_nvecs = SS_MIN(A->J, nvecs + LANCZOS_EXTRA_VECS);
@@ -80,15 +187,16 @@ void left_singulars(
 
     /* bi-diagonal SVD */
     int info = 0;
-    LAPACK_BDSQR(&uplo, &n,
-            &ncvt,
-            &nru,
-            &ncc,
-            ws->alphas, ws->betas,
-            VT, &ldvt,
-            U, &ldu,
-            C, &ldc,
-            ws->work, &info);
+    SPLATT_BLAS(bdsqr)(
+        &uplo, &n,
+        &ncvt,
+        &nru,
+        &ncc,
+        ws->alphas, ws->betas,
+        VT, &ldvt,
+        U, &ldu,
+        C, &ldc,
+        ws->work, &info);
     if(info != 0) {
       printf("DBDSQR returned %d\n", info);
     }
@@ -123,7 +231,7 @@ void left_singulars(
     char transA = 'N';
     char transB = 'N';
 
-    BLAS_GEMM(&transA, &transB,
+    SPLATT_BLAS(gemm)(&transA, &transB,
                &m, &n, &k,
                &alpha,
                ws->Qt->vals, &lda,
@@ -132,7 +240,6 @@ void left_singulars(
                left_singular_matrix->vals, &ldc);
   }
 
-	timer_stop(&timers[TIMER_SVD]);
 }
 
 

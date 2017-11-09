@@ -508,19 +508,23 @@ void mat_vec(
 {
   assert(A->rowmajor == 1);
 
-  idx_t const nrows = A->I;
-  idx_t const ncols = A->J;
+  char trans = 'T';
+  splatt_blas_int M = A->J;
+  splatt_blas_int N = A->I;
+  val_t alpha = 1.;
+  val_t beta  = 0.;
+  splatt_blas_int incx = 1;
+  splatt_blas_int incy = 1;
+  splatt_blas_int lda = M;
 
-  #pragma omp parallel for schedule(static)
-  for(idx_t i=0; i < nrows; ++i) {
-    b[i] = 0.;
-    val_t const * const restrict vals = A->vals + (i * ncols);
-
-    /* inner product */
-    for(idx_t j=0; j < ncols; ++j) {
-      b[i] += vals[j] * x[j];
-    }
-  }
+  SPLATT_BLAS(gemv)(
+      &trans,
+      &M, &N,
+      &alpha,
+      A->vals, &lda,
+      x, &incx,
+      &beta,
+      b, &incy);
 }
 
 
@@ -531,37 +535,24 @@ void mat_transpose_vec(
     val_t       * const restrict b)
 {
   assert(A->rowmajor == 1);
-  idx_t const nrows = A->I;
-  idx_t const ncols = A->J;
 
-  /* clear out vector result */
-  for(idx_t j=0; j < ncols; ++j) {
-    b[j] = 0.;
-  }
+  char trans = 'N';
+  splatt_blas_int M = A->J;
+  splatt_blas_int N = A->I;
+  val_t alpha = 1.;
+  val_t beta  = 0.;
+  splatt_blas_int incx = 1;
+  splatt_blas_int incy = 1;
+  splatt_blas_int lda = M;
 
-  #pragma omp parallel
-  {
-    val_t * restrict accum = splatt_malloc(ncols * sizeof(*accum));
-    for(idx_t j=0; j < ncols; ++j) {
-      accum[j] = 0.;
-    }
-
-    #pragma omp for schedule(static) nowait
-    for(idx_t i=0; i < nrows; ++i) {
-      val_t const * const restrict vals = A->vals + (i * ncols);
-      for(idx_t j=0; j < ncols; ++j) {
-        accum[j] += vals[j] * x[i];
-      }
-    }
-
-    /* accumulate at end */
-    for(idx_t j=0; j < ncols; ++j) {
-      #pragma omp atomic
-      b[j] += accum[j];
-    }
-
-    splatt_free(accum);
-  } /* omp parallel */
+  SPLATT_BLAS(gemv)(
+      &trans,
+      &M, &N,
+      &alpha,
+      A->vals, &lda,
+      x, &incx,
+      &beta,
+      b, &incy);
 }
 
 

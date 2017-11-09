@@ -30,25 +30,24 @@ typedef struct
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 
-#define left_singulars splatt_left_singulars
-/**
-* @brief Compute the SVD of a row-major matrix and return the first 'rank' of
-*        the left singular vectors.
-*
-* @param inmat The matrix to factor.
-* @param[out] outmat A row-major matrix of the first 'rank' left singular vecs.
-* @param nrows The number of rows of 'inmat'.
-* @param ncols The number of columns of 'inmat'.
-* @param rank The desired number of columns.
-*/
-
-
 void left_singulars(
     matrix_t const * const A,
     matrix_t       * const left_singular_matrix,
     idx_t const nvecs,
     svd_ws * const ws);
 
+
+void left_singulars_lapack(
+    matrix_t const * const A,
+    matrix_t       * const left_singular_matrix,
+    idx_t const nvecs,
+    svd_ws * const ws);
+
+void left_singulars_lanczos(
+    matrix_t const * const A,
+    matrix_t       * const left_singular_matrix,
+    idx_t const nvecs,
+    svd_ws * const ws);
 
 
 void lanczos_bidiag(
