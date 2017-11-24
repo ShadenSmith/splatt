@@ -1,5 +1,5 @@
 
-#include "../src/ccp/ccp.h"
+#include "../src/thread_partition.h"
 #include "../src/util.h"
 #include "../src/sort.h"
 
@@ -7,13 +7,20 @@
 
 #include "splatt_test.h"
 
-#define NUM_CCP_TESTS 7
+#define NUM_PARTITION_TESTS 7
 
 
-CTEST_DATA(ccp)
+bool lprobe(
+    idx_t const * const weights,
+    idx_t const nitems,
+    idx_t * const parts,
+    idx_t const nparts,
+    idx_t const bottleneck);
+
+
+CTEST_DATA(partition)
 {
   idx_t P;
-  idx_t * parts;
   idx_t N;
   idx_t * unit_data;
   idx_t * rand_data;
@@ -23,14 +30,13 @@ CTEST_DATA(ccp)
   idx_t * bigend_data;
   idx_t * fibonacci_data;
 
-  idx_t * ptrs[NUM_CCP_TESTS];
+  idx_t * ptrs[NUM_PARTITION_TESTS];
 };
 
 
-CTEST_SETUP(ccp)
+CTEST_SETUP(partition)
 {
   data->P = 31;
-  data->parts = calloc(data->P + 1, sizeof(*(data->parts)));
 
   data->N = 500;
   data->rand_data = malloc(data->N * sizeof(*(data->rand_data)));
@@ -75,20 +81,19 @@ CTEST_SETUP(ccp)
   data->ptrs[6] = data->fibonacci_data;
 }
 
-CTEST_TEARDOWN(ccp)
+CTEST_TEARDOWN(partition)
 {
-  free(data->parts);
-  for(idx_t t=0; t < NUM_CCP_TESTS; ++t) {
+  for(idx_t t=0; t < NUM_PARTITION_TESTS; ++t) {
     free(data->ptrs[t]);
   }
 }
 
 
-CTEST2(ccp, prefix_sum_inc)
+CTEST2(partition, prefix_sum_inc)
 {
   idx_t * pref = malloc(data->N * sizeof(*pref));
 
-  for(idx_t t=0; t < NUM_CCP_TESTS; ++t) {
+  for(idx_t t=0; t < NUM_PARTITION_TESTS; ++t) {
     idx_t * const restrict weights = data->ptrs[t];
 
     idx_t total = 0;
@@ -113,13 +118,13 @@ CTEST2(ccp, prefix_sum_inc)
 }
 
 
-CTEST2(ccp, prefix_sum_exc)
+CTEST2(partition, prefix_sum_exc)
 {
   /* make a copy */
   idx_t * pref = malloc(data->N * sizeof(*pref));
 
   /* foreach test */
-  for(idx_t t=0; t < NUM_CCP_TESTS; ++t) {
+  for(idx_t t=0; t < NUM_PARTITION_TESTS; ++t) {
     idx_t * const restrict weights = data->ptrs[t];
     memcpy(pref, weights,  data->N * sizeof(*pref));
 
@@ -136,31 +141,32 @@ CTEST2(ccp, prefix_sum_exc)
 }
 
 
-CTEST2(ccp, partition_1d)
+CTEST2(partition, partition_weighted)
 {
   /* foreach test */
-  for(idx_t t=0; t < NUM_CCP_TESTS; ++t) {
+  for(idx_t t=0; t < NUM_PARTITION_TESTS; ++t) {
     idx_t * const restrict weights = data->ptrs[t];
 
-    idx_t bneck = partition_1d(weights, data->N, data->parts, data->P);
+    idx_t bneck;
+    idx_t * parts = partition_weighted(weights, data->N, data->P, &bneck);
 
     /* check bounds */
-    ASSERT_EQUAL(0, data->parts[0]);
-    ASSERT_EQUAL(data->N, data->parts[data->P]);
+    ASSERT_EQUAL(0, parts[0]);
+    ASSERT_EQUAL(data->N, parts[data->P]);
 
     /* check non-overlapping partitions */
     for(idx_t p=0; p < data->P; ++p) {
       /* if N < P, someone will have no work */
-      if(data->parts[p] > data->parts[p+1]) {
+      if(parts[p] > parts[p+1]) {
         ASSERT_FAIL();
       }
     }
 
     /* check that bneck is not surpassed */
     for(idx_t p=0; p < data->P; ++p) {
-      idx_t const left = SS_MIN(data->parts[p], data->N-1);
+      idx_t const left = SS_MIN(parts[p], data->N-1);
       /* -1 because exclusive bound */
-      idx_t const right = SS_MIN(data->parts[p+1]-1, data->N-1);
+      idx_t const right = SS_MIN(parts[p+1]-1, data->N-1);
       if(weights[right] - weights[left] > bneck) {
         ASSERT_FAIL();
       }
@@ -168,16 +174,17 @@ CTEST2(ccp, partition_1d)
 
     /* check actual optimality */
     bool success;
-    success = lprobe(weights, data->N, data->parts, data->P, bneck);
+    success = lprobe(weights, data->N, parts, data->P, bneck);
     ASSERT_EQUAL(true, success);
-    success = lprobe(weights, data->N, data->parts, data->P, bneck-1);
+    success = lprobe(weights, data->N, parts, data->P, bneck-1);
     ASSERT_EQUAL(false, success);
 
+    splatt_free(parts);
   } /* end foreach test */
 }
 
 
-CTEST2(ccp, probe)
+CTEST2(partition, probe)
 {
   idx_t total = 0;
   for(idx_t x=0; x < data->N; ++x) {
@@ -185,25 +192,29 @@ CTEST2(ccp, probe)
   }
 
   prefix_sum_exc(data->rand_data, data->N);
-  bool result = lprobe(data->rand_data, data->N, data->parts, data->P,
+
+  idx_t * parts = splatt_malloc((data->P+1) * sizeof(*parts));
+
+  bool result = lprobe(data->rand_data, data->N, parts, data->P,
       (total / data->P) - 1);
   ASSERT_EQUAL(false, result);
 
+  /* find optimal */
   idx_t bottleneck = total / data->P;
   while(!result) {
-    result = lprobe(data->rand_data, data->N, data->parts, data->P, bottleneck);
+    result = lprobe(data->rand_data, data->N, parts, data->P, bottleneck);
     ++bottleneck;
   }
   --bottleneck;
 
   /* check bounds */
-  ASSERT_EQUAL(0, data->parts[0]);
-  ASSERT_EQUAL(data->N, data->parts[data->P]);
+  ASSERT_EQUAL(0, parts[0]);
+  ASSERT_EQUAL(data->N, parts[data->P]);
 
   /* check non-overlapping partitions */
   for(idx_t p=1; p < data->P; ++p) {
     /* if N < P, someone will have no work */
-    if(data->parts[p] <= data->parts[p-1]) {
+    if(parts[p] <= parts[p-1]) {
       ASSERT_FAIL();
     }
   }
@@ -211,21 +222,20 @@ CTEST2(ccp, probe)
   /* check actual bneck */
   for(idx_t p=1; p < data->P; ++p) {
     /* if N < P, someone will have no work */
-    if(data->parts[p] - data->parts[p-1] > bottleneck) {
+    if(parts[p] - parts[p-1] > bottleneck) {
       ASSERT_FAIL();
     }
   }
-
+  splatt_free(parts);
 }
 
 
-CTEST2(ccp, bigpart)
+CTEST2(partition, bigpart)
 {
   idx_t const N = 25000000;
   idx_t const P = 24;
 
-  idx_t * weights = malloc(N * sizeof(*weights));
-  idx_t * parts = malloc((P+1) * sizeof(*weights));
+  idx_t * weights = splatt_malloc(N * sizeof(*weights));
 
   for(idx_t x=0; x < N; ++x) {
     weights[x] = rand_idx() % 100;
@@ -233,7 +243,8 @@ CTEST2(ccp, bigpart)
 
   sp_timer_t part;
   timer_fstart(&part);
-  idx_t const bneck = partition_1d(weights, N, parts, P);
+  idx_t bneck; 
+  idx_t * parts = partition_weighted(weights, N, P, &bneck);
   timer_stop(&part);
 
   /* correctness */
@@ -243,25 +254,25 @@ CTEST2(ccp, bigpart)
   success = lprobe(weights, N, parts, P, bneck-1);
   ASSERT_EQUAL(false, success);
 
-  free(weights);
-  free(parts);
+  splatt_free(weights);
+  splatt_free(parts);
 }
 
 
-CTEST2(ccp, part_equalsize)
+CTEST2(partition, part_equalsize)
 {
   idx_t const P = 24;
   idx_t const CHUNK = 10000;
   idx_t const N = P * CHUNK;
 
-  idx_t * weights = malloc(N * sizeof(*weights));
-  idx_t * parts = malloc((P+1) * sizeof(*weights));
+  idx_t * weights = splatt_malloc(N * sizeof(*weights));
 
   for(idx_t x=0; x < N; ++x) {
     weights[x] = 1;
   }
 
-  idx_t const bneck = partition_1d(weights, N, parts, P);
+  idx_t bneck;
+  idx_t * parts = partition_weighted(weights, N, P, &bneck);
 
   ASSERT_EQUAL(CHUNK, bneck);
 
@@ -272,8 +283,57 @@ CTEST2(ccp, part_equalsize)
   }
   ASSERT_EQUAL(N, parts[P]);
 
-  free(weights);
-  free(parts);
+  splatt_free(weights);
+  splatt_free(parts);
+}
+
+
+CTEST2(partition, part_simple)
+{
+  idx_t * parts;
+
+  /* assign 1 to everyone */
+  parts = partition_simple(4, 4);
+  ASSERT_EQUAL(0, parts[0]);
+  ASSERT_EQUAL(1, parts[1]);
+  ASSERT_EQUAL(2, parts[2]);
+  ASSERT_EQUAL(3, parts[3]);
+  ASSERT_EQUAL(4, parts[4]);
+  splatt_free(parts);
+
+  /* assign 1 to everyone, 2 to last */
+  parts = partition_simple(5, 4);
+  ASSERT_EQUAL(0, parts[0]);
+  ASSERT_EQUAL(1, parts[1]);
+  ASSERT_EQUAL(2, parts[2]);
+  ASSERT_EQUAL(3, parts[3]);
+  ASSERT_EQUAL(5, parts[4]);
+  splatt_free(parts);
+
+  /* assign 2 to everyone */
+  parts = partition_simple(8, 4);
+  ASSERT_EQUAL(0, parts[0]);
+  ASSERT_EQUAL(2, parts[1]);
+  ASSERT_EQUAL(4, parts[2]);
+  ASSERT_EQUAL(6, parts[3]);
+  ASSERT_EQUAL(8, parts[4]);
+  splatt_free(parts);
+  
+  /* primes */
+  parts = partition_simple(7, 3);
+  ASSERT_EQUAL(0, parts[0]);
+  ASSERT_EQUAL(2, parts[1]);
+  ASSERT_EQUAL(4, parts[2]);
+  ASSERT_EQUAL(7, parts[3]);
+  splatt_free(parts);
+
+  /* fewer items than parts */
+  parts = partition_simple(2, 3);
+  ASSERT_EQUAL(0, parts[0]);
+  ASSERT_EQUAL(1, parts[1]);
+  ASSERT_EQUAL(2, parts[2]);
+  ASSERT_EQUAL(2, parts[3]);
+  splatt_free(parts);
 }
 
 

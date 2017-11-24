@@ -5,7 +5,8 @@
 #include "csf.h"
 #include "sort.h"
 #include "tile.h"
-#include "ccp/ccp.h"
+#include "util.h"
+#include "thread_partition.h"
 
 #include "io.h"
 
@@ -262,6 +263,7 @@ static void p_mk_outerptr(
 
   /* count fibers */
   idx_t nfibs = 1;
+  #pragma omp parallel for schedule(static) reduction(+: nfibs)
   for(idx_t x=1; x < nnz; ++x) {
     assert(ttind[x-1] <= ttind[x]);
     if(ttind[x] != ttind[x-1]) {
@@ -275,7 +277,8 @@ static void p_mk_outerptr(
   csf_sparsity * const pt = ct->pt + tile_id;
 
   pt->fptr[0] = splatt_malloc((nfibs+1) * sizeof(**(pt->fptr)));
-  if(ct->ntiles > 1) {
+  /* only store top-level fids if we are tiling or there are gaps */
+  if((ct->ntiles > 1) || (tt->dims[csf_depth_to_mode(ct, 0)] != nfibs)) {
     pt->fids[0] = splatt_malloc(nfibs * sizeof(**(pt->fids)));
   } else {
     pt->fids[0] = NULL;
@@ -400,6 +403,8 @@ static void p_csf_alloc_untiled(
   splatt_csf * const ct,
   sptensor_t * const tt)
 {
+  sp_timer_t csf;
+  timer_fstart(&csf);
   idx_t const nmodes = tt->nmodes;
   tt_sort(tt, ct->dim_perm[0], ct->dim_perm);
 
@@ -416,9 +421,9 @@ static void p_csf_alloc_untiled(
   pt->nfibs[nmodes-1] = ct->nnz;
   pt->fids[nmodes-1] = splatt_malloc(ct->nnz * sizeof(**(pt->fids)));
   pt->vals           = splatt_malloc(ct->nnz * sizeof(*(pt->vals)));
-  memcpy(pt->fids[nmodes-1], tt->ind[csf_depth_to_mode(ct, nmodes-1)],
+  par_memcpy(pt->fids[nmodes-1], tt->ind[csf_depth_to_mode(ct, nmodes-1)],
       ct->nnz * sizeof(**(pt->fids)));
-  memcpy(pt->vals, tt->vals, ct->nnz * sizeof(*(pt->vals)));
+  par_memcpy(pt->vals, tt->vals, ct->nnz * sizeof(*(pt->vals)));
 
   /* setup a basic tile ptr for one tile */
   idx_t nnz_ptr[2];
@@ -430,6 +435,10 @@ static void p_csf_alloc_untiled(
   for(idx_t m=0; m < tt->nmodes-1; ++m) {
     p_mk_fptr(ct, tt, 0, nnz_ptr, m);
   }
+  timer_stop(&csf);
+#if 0
+  printf("CSF: %0.3fs\n", csf.seconds);
+#endif
 }
 
 
@@ -787,8 +796,6 @@ idx_t * csf_partition_1d(
     idx_t const tile_id,
     idx_t const nparts)
 {
-  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
-
   idx_t const nslices = csf->pt[tile_id].nfibs[0];
   idx_t * weights = splatt_malloc(nslices * sizeof(*weights));
 
@@ -797,7 +804,8 @@ idx_t * csf_partition_1d(
     weights[i] = p_csf_count_nnz(csf->pt[tile_id].fptr, csf->nmodes, 0, i);
   }
 
-  partition_1d(weights, nslices, parts, nparts);
+  idx_t bneck;
+  idx_t * parts = partition_weighted(weights, nslices, nparts, &bneck);
   splatt_free(weights);
 
   return parts;
@@ -808,8 +816,6 @@ idx_t * csf_partition_tiles_1d(
     splatt_csf const * const csf,
     idx_t const nparts)
 {
-  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
-
   idx_t const nmodes = csf->nmodes;
   idx_t const ntiles = csf->ntiles;
   idx_t * weights = splatt_malloc(ntiles * sizeof(*weights));
@@ -819,7 +825,8 @@ idx_t * csf_partition_tiles_1d(
     weights[i] = csf->pt[i].nfibs[nmodes-1];
   }
 
-  partition_1d(weights, ntiles, parts, nparts);
+  idx_t bneck;
+  idx_t * parts = partition_weighted(weights, ntiles, nparts, &bneck);
   splatt_free(weights);
 
   return parts;
