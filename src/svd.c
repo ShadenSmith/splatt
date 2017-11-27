@@ -19,9 +19,11 @@ double const MIN_ROW_RATIO_LANCZOS = 10.;
 
 
 /**
-* @brief The number of extra vectors (and Lanczos iterations) to compute.
+* @brief The number of extra vectors (and Lanczos iterations) to compute, as
+*        a multiplier of the given rank (i.e., 2x the number of singular
+*        vectors).
 */
-idx_t const LANCZOS_EXTRA_VECS = 20;
+idx_t const LANCZOS_EXTRA_VECS = 2;
 
 
 /******************************************************************************
@@ -151,7 +153,7 @@ void left_singulars_lanczos(
 {
   left_singular_matrix->J = nvecs;
 
-  idx_t const lanczos_nvecs = SS_MIN(A->J, nvecs + LANCZOS_EXTRA_VECS);
+  idx_t const lanczos_nvecs = SS_MIN(A->J, nvecs * LANCZOS_EXTRA_VECS);
 
   /* Compute the bidiagonalization and right orthogonal matrix */
   lanczos_onesided_bidiag(A, lanczos_nvecs, ws);
@@ -364,7 +366,7 @@ void alloc_svd_ws(
   idx_t const max_rank = ranks[argmax_elem(ranks, nmats)];
 
   /* allocate space for bidiagonalization */
-  idx_t const max_bi_rank = max_rank + LANCZOS_EXTRA_VECS;
+  idx_t const max_bi_rank = max_rank * LANCZOS_EXTRA_VECS;
   ws->alphas = splatt_malloc(max_bi_rank * sizeof(*ws->alphas));
   ws->betas  = splatt_malloc((max_bi_rank-1) * sizeof(*ws->betas));
   ws->p0 = mat_alloc(max_nrow, 1);
@@ -375,7 +377,7 @@ void alloc_svd_ws(
   idx_t max_bi_elems = 0;
   for(idx_t m=0; m < nmats; ++m) {
     idx_t elems = ncolumns[m] \
-        * SS_MIN(ncolumns[m], ranks[m] + LANCZOS_EXTRA_VECS);
+        * SS_MIN(ncolumns[m], ranks[m] * LANCZOS_EXTRA_VECS);
     if(elems > max_bi_elems) {
       max_bi_elems = elems;
       max_bi_mode = m;
@@ -383,7 +385,7 @@ void alloc_svd_ws(
   }
   ws->Q = mat_alloc(ncolumns[max_bi_mode],
                     SS_MIN(ncolumns[max_bi_mode],
-                        ranks[max_bi_mode] + LANCZOS_EXTRA_VECS));
+                        ranks[max_bi_mode] * LANCZOS_EXTRA_VECS));
 
   ws->Qt = mat_alloc(ws->Q->I, ws->Q->J);
   ws->Q->rowmajor = 0;
