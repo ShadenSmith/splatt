@@ -5,8 +5,8 @@
  * INCLUDES
  *****************************************************************************/
 
-#include "ccp.h"
-#include "../timer.h"
+#include "thread_partition.h"
+#include "timer.h"
 
 
 /******************************************************************************
@@ -14,6 +14,7 @@
  *****************************************************************************/
 
 static idx_t nprobes = 0;
+
 
 
 /**
@@ -76,76 +77,9 @@ static idx_t p_binary_search(
 }
 
 
-
-static idx_t p_eps_rb_partition_1d(
-    idx_t * const weights,
-    idx_t const nitems,
-    idx_t * const parts,
-    idx_t const nparts,
-    idx_t const eps)
-{
-  idx_t const tot_weight = weights[nitems-1];
-  idx_t lower = tot_weight / nparts;
-  idx_t upper = tot_weight;
-
-  do {
-    idx_t mid = lower + ((upper - lower) / 2);
-    if(lprobe(weights, nitems, parts, nparts, mid)) {
-      upper = mid;
-    } else {
-      lower = mid+1;
-    }
-  } while(upper > lower + eps);
-
-  return upper;
-}
-
-
-
-
-/******************************************************************************
- * PUBLIC FUNCTIONS
- *****************************************************************************/
-
-idx_t partition_1d(
-    idx_t * const weights,
-    idx_t const nitems,
-    idx_t * const parts,
-    idx_t const nparts)
-{
-  timer_start(&timers[TIMER_PART]);
-  prefix_sum_inc(weights, nitems);
-
-  nprobes = 0;
-
-  idx_t bottleneck = 0;
-  
-  /* actual partitioning */
-  if(nitems > nparts) {
-    /* use recursive bisectioning with 0 tolerance to get exact solution */
-    bottleneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
-    /* apply partitioning that we found */
-    bool success = lprobe(weights, nitems, parts, nparts, bottleneck);
-    assert(success == true);
-
-  /* Do a trivial partitioning. Silly, but this happens when tensors have
-   * short modes. */
-  } else {
-    for(idx_t p=0; p < nitems; ++p) {
-      parts[p] = p;
-      bottleneck = SS_MAX(bottleneck, weights[p]);
-    }
-    for(idx_t p=nitems; p <= nparts; ++p) {
-      parts[p] = nitems;
-    }
-  }
-
-  timer_stop(&timers[TIMER_PART]);
-  return bottleneck;
-}
-
-
-
+/*
+ * Not static because we use it in unit tests.
+ */
 bool lprobe(
     idx_t const * const weights,
     idx_t const nitems,
@@ -185,6 +119,101 @@ bool lprobe(
 
   return bsum >= wtotal;
 }
+
+
+static idx_t p_eps_rb_partition_1d(
+    idx_t * const weights,
+    idx_t const nitems,
+    idx_t * const parts,
+    idx_t const nparts,
+    idx_t const eps)
+{
+  idx_t const tot_weight = weights[nitems-1];
+  idx_t lower = tot_weight / nparts;
+  idx_t upper = tot_weight;
+
+  do {
+    idx_t mid = lower + ((upper - lower) / 2);
+    if(lprobe(weights, nitems, parts, nparts, mid)) {
+      upper = mid;
+    } else {
+      lower = mid+1;
+    }
+  } while(upper > lower + eps);
+
+  return upper;
+}
+
+
+
+
+/******************************************************************************
+ * PUBLIC FUNCTIONS
+ *****************************************************************************/
+
+
+
+idx_t * partition_weighted(
+    idx_t * const weights,
+    idx_t const nitems,
+    idx_t const nparts,
+    idx_t * const bottleneck)
+{
+  timer_start(&timers[TIMER_PART]);
+  prefix_sum_inc(weights, nitems);
+
+  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
+
+  nprobes = 0;
+
+  idx_t bneck = 0;
+  
+  /* actual partitioning */
+  if(nitems > nparts) {
+    /* use recursive bisectioning with 0 tolerance to get exact solution */
+    bneck = p_eps_rb_partition_1d(weights, nitems, parts, nparts, 0);
+    /* apply partitioning that we found */
+    bool success = lprobe(weights, nitems, parts, nparts, bneck);
+    assert(success == true);
+
+  /* Do a trivial partitioning. Silly, but this happens when tensors have
+   * short modes. */
+  } else {
+    for(idx_t p=0; p < nitems; ++p) {
+      parts[p] = p;
+      bneck = SS_MAX(bneck, weights[p]);
+    }
+    for(idx_t p=nitems; p <= nparts; ++p) {
+      parts[p] = nitems;
+    }
+  }
+
+  *bottleneck = bneck;
+
+  timer_stop(&timers[TIMER_PART]);
+  return parts;
+}
+
+
+idx_t * partition_simple(
+    idx_t const nitems,
+    idx_t const nparts)
+{
+  timer_start(&timers[TIMER_PART]);
+
+  idx_t * parts = splatt_malloc((nparts+1) * sizeof(*parts));
+
+  parts[0] = 0;
+  idx_t const per_part = SS_MAX(nitems / nparts, 1);
+  for(idx_t p=1; p < nparts; ++p) {
+    parts[p] = SS_MAX(SS_MIN(per_part * p, nitems), 1);
+  }
+  parts[nparts] = nitems;
+
+  timer_stop(&timers[TIMER_PART]);
+  return parts;
+}
+
 
 
 
