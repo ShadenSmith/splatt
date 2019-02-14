@@ -37,7 +37,7 @@ static void p_compare_vecs(
 
 static void p_csf_core(
     double const * const opts,
-    sptensor_t * tt,
+    splatt_coo * tt,
     matrix_t ** mats,
     idx_t const * const nfactors)
 {
@@ -99,7 +99,7 @@ static void p_csf_core(
 
 static void p_csf_ttm(
     double const * const opts,
-    sptensor_t * tt,
+    splatt_coo * tt,
     matrix_t ** mats,
     idx_t const * const nfactors)
 {
@@ -179,7 +179,7 @@ CTEST_DATA(ttm)
   double * opts;
   idx_t ntensors;
   idx_t nfactors[MAX_NMODES];
-  sptensor_t * tensors[MAX_DSETS];
+  splatt_coo * tensors[MAX_DSETS];
   matrix_t * mats[MAX_DSETS][MAX_NMODES];
 };
 
@@ -199,7 +199,7 @@ CTEST_SETUP(ttm)
   }
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t const * const tt = data->tensors[i];
+    splatt_coo const * const tt = data->tensors[i];
     for(idx_t m=0; m < tt->nmodes; ++m) {
       data->mats[i][m] = mat_rand(tt->dims[m], data->nfactors[m]);
     }
@@ -223,7 +223,7 @@ CTEST_TEARDOWN(ttm)
 CTEST2(ttm, tenout_alloc)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t const * const tt = data->tensors[i];
+    splatt_coo const * const tt = data->tensors[i];
     idx_t const size = tenout_dim(tt->nmodes, data->nfactors, tt->dims);
 
     /* compute size */
@@ -251,7 +251,7 @@ CTEST2(ttm, csf_one_notile)
   data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * tt = data->tensors[i];
+    splatt_coo * tt = data->tensors[i];
     p_csf_ttm(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
@@ -263,7 +263,7 @@ CTEST2(ttm, csf_two_notile)
   data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * tt = data->tensors[i];
+    splatt_coo * tt = data->tensors[i];
     p_csf_ttm(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
@@ -275,7 +275,7 @@ CTEST2(ttm, csf_all_notile)
   data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * tt = data->tensors[i];
+    splatt_coo * tt = data->tensors[i];
     p_csf_ttm(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
@@ -287,7 +287,7 @@ CTEST2(ttm, rearrange_core_one)
   data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * tt = data->tensors[i];
+    splatt_coo * tt = data->tensors[i];
 
     p_csf_core(data->opts, tt, data->mats[i], data->nfactors);
   }
@@ -300,7 +300,7 @@ CTEST2(ttm, rearrange_core_two)
   data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * tt = data->tensors[i];
+    splatt_coo * tt = data->tensors[i];
 
     p_csf_core(data->opts, tt, data->mats[i], data->nfactors);
   }
@@ -313,7 +313,7 @@ CTEST2_SKIP(ttm, rearrange_core_all)
   data->opts[SPLATT_OPTION_TILE]       = SPLATT_NOTILE;
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * tt = data->tensors[i];
+    splatt_coo * tt = data->tensors[i];
     p_csf_core(data->opts, tt, data->mats[i], data->nfactors);
   }
 }
@@ -321,7 +321,7 @@ CTEST2_SKIP(ttm, rearrange_core_all)
 
 CTEST2(ttm, ttmc_full)
 {
-  sptensor_t * tt = tt_alloc(3, 3);
+  splatt_coo * tt = tt_alloc(3, 3);
   tt->dims[0] = 3;
   tt->dims[1] = 3;
   tt->dims[2] = 2;

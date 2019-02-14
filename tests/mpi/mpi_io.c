@@ -3,7 +3,7 @@
 #include "../splatt_test.h"
 
 #include "../../src/io.h"
-#include "../../src/sptensor.h"
+#include "../../src/coo.h"
 #include "../../src/sort.h"
 
 static char const * const TMP_FILE = "tmp.bin";

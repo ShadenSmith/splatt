@@ -4,7 +4,7 @@
 #include "base.h"
 #include "cpd.h"
 #include "matrix.h"
-#include "sptensor.h"
+#include "coo.h"
 #include "stats.h"
 #include "timer.h"
 #include "thd_info.h"

@@ -70,7 +70,7 @@ void ttmc_csf(
 * @param opts SPLATT options.
 */
 void ttmc_stream(
-    sptensor_t const * const tt,
+    splatt_coo const * const tt,
     matrix_t ** mats,
     val_t * const tenout,
     idx_t const mode,
@@ -198,13 +198,13 @@ thd_info * ttmc_alloc_thds(
 *               idx_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES].
 */
 void ttmc_fill_flop_tbl(
-    sptensor_t * const tt,
+    splatt_coo * const tt,
     idx_t const * const nfactors,
     size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES]);
 
 
 splatt_csf * ttmc_choose_csf(
-    sptensor_t * const tt,
+    splatt_coo * const tt,
     idx_t const * const nfactors,
     idx_t max_tensors,
     idx_t * num_chosen_tensors,

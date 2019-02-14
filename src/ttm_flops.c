@@ -146,7 +146,7 @@ static size_t p_count_csf_flops(
 * @return The number of flops.
 */
 static size_t p_coord_count_flops(
-    sptensor_t const * const tt,
+    splatt_coo const * const tt,
     idx_t const mode,
     idx_t const * const nfactors)
 {
@@ -194,7 +194,7 @@ static size_t p_coord_count_flops(
 * @param nsuffix Permutation state.
 */
 static void permute_all_csf(
-    sptensor_t * const tt,
+    splatt_coo * const tt,
     idx_t const * const nfactors,
     size_t * const table,
     idx_t * const perms,
@@ -275,7 +275,7 @@ static void permute_all_csf(
 
 
 static size_t p_ttmc_csf_optimal_flops(
-    sptensor_t * const tt,
+    splatt_coo * const tt,
     idx_t const * const nfactors)
 {
   idx_t const nmodes = tt->nmodes;
@@ -355,7 +355,7 @@ static size_t p_ttmc_csf_optimal_flops(
  *****************************************************************************/
 
 void ttmc_fill_flop_tbl(
-    sptensor_t * const tt,
+    splatt_coo * const tt,
     idx_t const * const nfactors,
     size_t table[MAX_NMODES][MAX_NMODES])
 {
@@ -498,7 +498,7 @@ void ttmc_fill_flop_tbl(
 
 
 splatt_csf * ttmc_choose_csf(
-    sptensor_t * const tt,
+    splatt_coo * const tt,
     idx_t const * const nfactors,
     idx_t max_tensors,
     idx_t * num_chosen_tensors,

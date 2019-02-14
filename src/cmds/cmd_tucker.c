@@ -4,7 +4,7 @@
  *****************************************************************************/
 #include "splatt_cmds.h"
 #include "../io.h"
-#include "../sptensor.h"
+#include "../coo.h"
 #include "../csf.h"
 #include "../stats.h"
 
@@ -137,7 +137,7 @@ int splatt_tucker_cmd(
 
   print_header();
 
-  sptensor_t * tt = NULL;
+  splatt_coo * tt = NULL;
   tt = tt_read(args.ifname);
   if(tt == NULL) {
     return EXIT_FAILURE;

@@ -165,6 +165,9 @@ void left_singulars_lanczos(
   int nru  = 0;
   int ncc  = 0;
 
+  /* XXX this is a hack to avoid an mat_transpose:assert() failure. */
+  ws->Qt->I = ws->Q->I;
+  ws->Qt->J = ws->Q->J;
   /* switch to row-major -- same as transpose & same dimensions */
   mat_transpose(ws->Q, ws->Qt);
   ws->Qt->I = ws->Q->I;

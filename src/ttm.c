@@ -1329,7 +1329,7 @@ void ttmc_csf(
 
 
 void ttmc_stream(
-    sptensor_t const * const tt,
+    splatt_coo const * const tt,
     matrix_t ** mats,
     val_t * const tenout,
     idx_t const mode,
