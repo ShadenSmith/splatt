@@ -5,7 +5,7 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include "sptensor.h"
+#include "coo.h"
 #include "matrix.h"
 #include "graph.h"
 #include "reorder.h"
@@ -158,30 +158,30 @@ void tt_get_dims_binary(
 
 
 #define tt_read_file splatt_tt_read_file
-sptensor_t * tt_read_file(
+splatt_coo * tt_read_file(
   char const * const fname);
 
 #define tt_read_binary_file splatt_tt_read_binary_file
-sptensor_t * tt_read_binary_file(
+splatt_coo * tt_read_binary_file(
   char const * const fname);
 
 #define tt_write_file splatt_tt_write_file
 void tt_write_file(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   FILE * fout);
 
 void tt_write_binary_file(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   FILE * fout);
 
 #define tt_write splatt_tt_write
 void tt_write(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   char const * const fname);
 
 #define tt_write_binary_file tt_write_binary_file
 void tt_write_binary(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   char const * const fname);
 
 /******************************************************************************

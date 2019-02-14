@@ -113,7 +113,7 @@ typedef struct
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include "sptensor.h"
+#include "coo.h"
 #include "reorder.h"
 
 
@@ -238,7 +238,7 @@ void mpi_write_mats(
 * @param rinfo MPI rank information.
 */
 void mpi_write_part(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   permutation_t const * const perm,
   rank_info const * const rinfo);
 
@@ -252,7 +252,7 @@ void mpi_write_part(
 */
 void mpi_compute_ineed(
   rank_info * const rinfo,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode,
   idx_t const nfactors,
   splatt_decomp_type const distribution);
@@ -268,7 +268,7 @@ void mpi_compute_ineed(
 *
 * @return The rank's subtensor.
 */
-sptensor_t * mpi_tt_read(
+splatt_coo * mpi_tt_read(
   char const * const ifname,
   char const * const pfname,
   rank_info * const rinfo);
@@ -287,7 +287,7 @@ sptensor_t * mpi_tt_read(
 *
 * @return My own sub-tensor.
 */
-sptensor_t * mpi_simple_distribute(
+splatt_coo * mpi_simple_distribute(
   char const * const ifname,
   MPI_Comm comm);
 
@@ -296,7 +296,7 @@ sptensor_t * mpi_simple_distribute(
 #define mpi_rearrange_by_part splatt_mpi_rearrange_by_part
 /**
 * @brief Rearrange nonzeros based on an nonzero partitioning. This allocates
-*        and returns a new sptensor_t.
+*        and returns a new splatt_coo.
 *
 * @param ttbuf The nonzeros to rearrange.
 * @param parts The partitioning of length ttbuf->nnz.
@@ -304,8 +304,8 @@ sptensor_t * mpi_simple_distribute(
 *
 * @return A new rearranged tensor.
 */
-sptensor_t * mpi_rearrange_by_part(
-  sptensor_t const * const ttbuf,
+splatt_coo * mpi_rearrange_by_part(
+  splatt_coo const * const ttbuf,
   int const * const parts,
   MPI_Comm comm);
 
@@ -322,7 +322,7 @@ sptensor_t * mpi_rearrange_by_part(
 * @return The MPI rank that owns ttbuf[n].
 */
 int mpi_determine_med_owner(
-  sptensor_t * const ttbuf,
+  splatt_coo * const ttbuf,
   idx_t const n,
   rank_info * const rinfo);
 
@@ -340,8 +340,8 @@ int mpi_determine_med_owner(
 */
 void mpi_filter_tt_1d(
   idx_t const mode,
-  sptensor_t const * const tt,
-  sptensor_t * const ftt,
+  splatt_coo const * const tt,
+  splatt_coo * const ftt,
   idx_t start,
   idx_t end);
 
@@ -360,7 +360,7 @@ void mpi_filter_tt_1d(
 */
 permutation_t *  mpi_distribute_mats(
   rank_info * const rinfo,
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   splatt_decomp_type const distribution);
 
 
@@ -396,7 +396,7 @@ matrix_t * mpi_mat_rand(
 * @param rinfo MPI rank information.
 */
 void mpi_find_owned(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode,
   rank_info * const rinfo);
 
@@ -411,7 +411,7 @@ void mpi_find_owned(
 * @param mode Which mode to copy.
 */
 void mpi_cpy_indmap(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   rank_info * const rinfo,
   idx_t const mode);
 
@@ -460,7 +460,7 @@ void mpi_time_stats(
 */
 void mpi_send_recv_stats(
   rank_info const * const rinfo,
-  sptensor_t const * const tt);
+  splatt_coo const * const tt);
 
 #endif /* SPLATT_USE_MPI */
 #endif

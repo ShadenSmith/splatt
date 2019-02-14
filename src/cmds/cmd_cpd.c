@@ -4,7 +4,7 @@
  *****************************************************************************/
 #include "splatt_cmds.h"
 #include "../io.h"
-#include "../sptensor.h"
+#include "../coo.h"
 #include "../stats.h"
 #include "../thd_info.h"
 #include "../cpd.h"
@@ -166,7 +166,7 @@ int splatt_cpd_cmd(
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
   srand(args.opts[SPLATT_OPTION_RANDSEED]);
 
-  sptensor_t * tt = NULL;
+  splatt_coo * tt = NULL;
 
   print_header();
 

@@ -1,6 +1,6 @@
 
 #include "../src/tile.h"
-#include "../src/sptensor.h"
+#include "../src/coo.h"
 
 #include "ctest/ctest.h"
 #include "splatt_test.h"

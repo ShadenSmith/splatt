@@ -11,7 +11,7 @@ static char const * const TMP_FILE = "tmp.bin";
 CTEST_DATA(io)
 {
   idx_t ntensors;
-  sptensor_t * tensors[MAX_DSETS];
+  splatt_coo * tensors[MAX_DSETS];
 };
 
 CTEST_SETUP(io)
@@ -34,8 +34,8 @@ CTEST_TEARDOWN(io)
 
 CTEST2(io, zero_index)
 {
-  sptensor_t * zero_tt = tt_read(DATASET(small4.tns));
-  sptensor_t * one_tt  = tt_read(DATASET(small4_zeroidx.tns));
+  splatt_coo * zero_tt = tt_read(DATASET(small4.tns));
+  splatt_coo * one_tt  = tt_read(DATASET(small4_zeroidx.tns));
 
   ASSERT_EQUAL(one_tt->nnz, zero_tt->nnz);
   ASSERT_EQUAL(one_tt->nmodes, zero_tt->nmodes);
@@ -58,13 +58,13 @@ CTEST2(io, zero_index)
 CTEST2(io, binary_io)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * const gold = data->tensors[i];
+    splatt_coo * const gold = data->tensors[i];
 
     /* write to binary */
     tt_write_binary(gold, TMP_FILE);
 
     /* now read it back */
-    sptensor_t * tt_bin = tt_read(TMP_FILE);
+    splatt_coo * tt_bin = tt_read(TMP_FILE);
 
     /* now check for correctness */
     ASSERT_EQUAL(gold->nnz, tt_bin->nnz);

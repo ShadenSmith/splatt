@@ -35,7 +35,7 @@ static void __compare_mats(
 
 static void p_csf_mttkrp(
     double const * const opts,
-    sptensor_t ** tensors,
+    splatt_coo ** tensors,
     idx_t ntensors,
     matrix_t * mats[][SPLATT_MAX_NMODES+1],
     matrix_t ** gold,
@@ -43,7 +43,7 @@ static void p_csf_mttkrp(
 {
   idx_t const nthreads = opts[SPLATT_OPTION_NTHREADS];
   for(idx_t i=0; i < ntensors; ++i) {
-    sptensor_t * const tt = tensors[i];
+    splatt_coo * const tt = tensors[i];
 
     /* skip tensors with more tiles than modes (which are ignored) */
     if((idx_t)opts[SPLATT_OPTION_TILELEVEL] > tt->nmodes) {
@@ -87,7 +87,7 @@ CTEST_DATA(mttkrp)
 {
   idx_t ntensors;
   idx_t nfactors;
-  sptensor_t * tensors[MAX_DSETS];
+  splatt_coo * tensors[MAX_DSETS];
   matrix_t * mats[MAX_DSETS][MAX_NMODES+1];
   matrix_t * gold[MAX_DSETS];
 };
@@ -102,7 +102,7 @@ CTEST_SETUP(mttkrp)
   }
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t const * const tt = data->tensors[i];
+    splatt_coo const * const tt = data->tensors[i];
     idx_t maxdim = 0;
     for(idx_t m=0; m < tt->nmodes; ++m) {
       data->mats[i][m] = mat_rand(tt->dims[m], data->nfactors);
@@ -133,7 +133,7 @@ CTEST2(mttkrp, splatt)
     (data->nfactors * data->nfactors * sizeof(val_t)) + 64);
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * const tt = data->tensors[i];
+    splatt_coo * const tt = data->tensors[i];
     if(tt->nmodes > 3) {
       continue;
     }

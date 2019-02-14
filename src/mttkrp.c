@@ -1653,7 +1653,7 @@ void mttkrp_giga(
  * TTBOX MTTKRP
  *****************************************************************************/
 void mttkrp_ttbox(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   matrix_t ** mats,
   idx_t const mode,
   val_t * const scratch)
@@ -1695,7 +1695,7 @@ void mttkrp_ttbox(
 }
 
 void mttkrp_stream(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   matrix_t ** mats,
   idx_t const mode)
 {

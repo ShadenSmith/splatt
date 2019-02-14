@@ -59,7 +59,7 @@ typedef struct ftensor_t
  * INCLUDES
  *****************************************************************************/
 
-#include "sptensor.h"
+#include "coo.h"
 #include "matrix.h"
 
 
@@ -69,7 +69,7 @@ typedef struct ftensor_t
 #define ften_alloc splatt_ften_alloc
 void ften_alloc(
   ftensor_t * const ft,
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode,
   int const tile);
 

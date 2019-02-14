@@ -3,7 +3,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "base.h"
-#include "sptensor.h"
+#include "coo.h"
 #include "ftensor.h"
 #include "graph.h"
 #include "io.h"
@@ -28,7 +28,7 @@
 * @param ofname The filename to write to.
 */
 static void p_convert_fib_hgraph(
-  sptensor_t * tt,
+  splatt_coo * tt,
   idx_t const mode,
   char const * const ofname)
 {
@@ -52,7 +52,7 @@ static void p_convert_fib_hgraph(
 * @param ofname The filename to write to.
 */
 static void p_convert_nnz_hgraph(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   char const * const ofname)
 {
   hgraph_t * hg = hgraph_nnz_alloc(tt);
@@ -71,7 +71,7 @@ static void p_convert_nnz_hgraph(
 * @param ofname The filename to write the matrix to.
 */
 static void p_convert_fib_mat(
-  sptensor_t * tt,
+  splatt_coo * tt,
   idx_t const mode,
   char const * const ofname)
 {
@@ -89,7 +89,7 @@ static void p_convert_fib_mat(
 
 
 static void p_convert_ijk_graph(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   char const * const ofname)
 {
   /* convert to graph */
@@ -113,7 +113,7 @@ void tt_convert(
   idx_t const mode,
   splatt_convert_type const type)
 {
-  sptensor_t * tt = tt_read(ifname);
+  splatt_coo * tt = tt_read(ifname);
   if(tt == NULL) {
     return;
   }

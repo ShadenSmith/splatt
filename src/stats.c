@@ -4,7 +4,7 @@
  *****************************************************************************/
 #include "base.h"
 #include "stats.h"
-#include "sptensor.h"
+#include "coo.h"
 #include "ftensor.h"
 #include "csf.h"
 #include "io.h"
@@ -24,7 +24,7 @@
 * @param ifname The filename of tt. Can be NULL.
 */
 static void p_stats_basic(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   char const * const ifname)
 {
   printf("Tensor information ---------------------------------------------\n");
@@ -51,7 +51,7 @@ static void p_stats_basic(
 * @param pfname The file containing the partitioning.
 */
 static void p_stats_hparts(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode,
   char const * const pfname)
 {
@@ -171,7 +171,7 @@ static void p_stats_hparts(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void stats_tt(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   char const * const ifname,
   splatt_stats_type const type,
   idx_t const mode,
@@ -382,7 +382,7 @@ void mpi_cpd_stats(
 
 
 void mpi_global_stats(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   rank_info * const rinfo,
   char const * const ifname)
 {
@@ -400,7 +400,7 @@ void mpi_global_stats(
 }
 
 void mpi_rank_stats(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   rank_info const * const rinfo)
 {
   idx_t totnnz = 0;

@@ -32,7 +32,7 @@ static int const MSG_UPDATES   = 5;
 */
 static void p_naive_mat_distribution(
   rank_info * const rinfo,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   permutation_t * const perm)
 {
   MPI_Comm lcomm;
@@ -435,7 +435,7 @@ static void p_fill_volume_stats(
 */
 static void p_greedy_mat_distribution(
   rank_info * const rinfo,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   permutation_t * const perm)
 {
   /* get the maximum dimension size for my layer */
@@ -589,7 +589,7 @@ static void p_setup_mat_ptrs(
 
 permutation_t * mpi_distribute_mats(
   rank_info * const rinfo,
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   splatt_decomp_type const distribution)
 {
   permutation_t * perm = perm_identity(tt->dims, tt->nmodes);
@@ -626,7 +626,7 @@ permutation_t * mpi_distribute_mats(
 
 
 void mpi_find_owned(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode,
   rank_info * const rinfo)
 {

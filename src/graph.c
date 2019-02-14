@@ -319,7 +319,7 @@ static void p_fill_ijk_graph(
 */
 static void p_fill_graph_vwgts(
     splatt_graph * const graph,
-    sptensor_t const * const tt)
+    splatt_coo const * const tt)
 {
   idx_t const nnz = tt->nnz;
 
@@ -450,7 +450,7 @@ static idx_t p_map_idx(
  *****************************************************************************/
 
 hgraph_t * hgraph_nnz_alloc(
-  sptensor_t const * const tt)
+  splatt_coo const * const tt)
 {
   hgraph_t * hg = (hgraph_t *) splatt_malloc(sizeof(hgraph_t));
   hg->nvtxs = tt->nnz;
@@ -635,7 +635,7 @@ void hgraph_free(
 
 
 splatt_graph * graph_convert(
-    sptensor_t * const tt)
+    splatt_coo * const tt)
 {
   double * opts = splatt_default_opts();
   opts[SPLATT_OPTION_TILE] = SPLATT_NOTILE;

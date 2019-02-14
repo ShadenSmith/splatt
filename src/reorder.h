@@ -38,7 +38,7 @@ typedef struct
  * INCLUDES
  *****************************************************************************/
 
-#include "sptensor.h"
+#include "coo.h"
 #include "ftensor.h"
 
 
@@ -58,7 +58,7 @@ typedef struct
 * @return
 */
 permutation_t *  tt_perm(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   splatt_perm_type const type,
   idx_t const mode,
   char const * const pfile);
@@ -93,7 +93,7 @@ void build_pptr(
 * @param perm A list of permutations (one for each mode).
 */
 void perm_apply(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t ** perm);
 
 
@@ -107,7 +107,7 @@ void perm_apply(
 * @return The random permutation.
 */
 permutation_t * perm_rand(
-  sptensor_t * const tt);
+  splatt_coo * const tt);
 
 
 
@@ -125,7 +125,7 @@ void shuffle_idx(
 
 #define perm_hgraph splatt_perm_hgraph
 permutation_t * perm_hgraph(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   ftensor_t const * const ft,
   idx_t const * const parts,
   idx_t const nparts,
@@ -134,7 +134,7 @@ permutation_t * perm_hgraph(
 
 #define perm_graph splatt_perm_graph
 permutation_t * perm_graph(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const parts,
   idx_t const nparts);
 

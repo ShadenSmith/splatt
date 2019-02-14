@@ -100,8 +100,8 @@ static idx_t p_fill_uniques(
 static void p_tile_uniques(
   idx_t const start,
   idx_t const end,
-  sptensor_t * const src,
-  sptensor_t * const dest,
+  splatt_coo * const src,
+  splatt_coo * const dest,
   idx_t const mode,
   idx_t * const seen,
   idx_t * const uniques,
@@ -178,8 +178,8 @@ static void p_clear_uniques(
 static void p_pack_slab(
   idx_t const start,
   idx_t const end,
-  sptensor_t * const tt,
-  sptensor_t * const tt_buf,
+  splatt_coo * const tt,
+  splatt_coo * const tt_buf,
   idx_t const * const dim_perm,
   idx_t * const * const seen,
   idx_t * const * const uniques,
@@ -213,7 +213,7 @@ static void p_pack_slab(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void tt_tile(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t * dim_perm)
 {
   timer_start(&timers[TIMER_TILE]);
@@ -223,7 +223,7 @@ void tt_tile(
 
   tt_sort(tt, dim_perm[0], dim_perm);
 
-  sptensor_t * tt_buf = tt_alloc(tt->nnz, tt->nmodes);
+  splatt_coo * tt_buf = tt_alloc(tt->nnz, tt->nmodes);
   for(idx_t m=0; m < tt->nmodes; ++m) {
     tt_buf->dims[m] = tt->dims[m];
   }
@@ -260,7 +260,7 @@ void tt_tile(
 
 
 idx_t * tt_densetile(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const tile_dims)
 {
   timer_start(&timers[TIMER_TILE]);
@@ -281,7 +281,7 @@ idx_t * tt_densetile(
   }
 
   /* We'll copy the newly tiled non-zeros into this one, then copy back */
-  sptensor_t * newtt = tt_alloc(tt->nnz, tt->nmodes);
+  splatt_coo * newtt = tt_alloc(tt->nnz, tt->nmodes);
 
   /*
    * Count of non-zeros per tile. We use +1 because after a prefix sum, this

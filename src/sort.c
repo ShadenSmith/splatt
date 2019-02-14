@@ -92,7 +92,7 @@ static inline int p_ttqcmp2(
 * @param end The last nonzero to sort.
 */
 static void p_tt_insertionsort2(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const cmplt,
   idx_t const start,
   idx_t const end)
@@ -133,7 +133,7 @@ static void p_tt_insertionsort2(
 * @param end The last nonzero to sort.
 */
 static void p_tt_quicksort2(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const cmplt,
   idx_t const start,
   idx_t const end)
@@ -295,7 +295,7 @@ static inline int p_ttcmp3(
 *         are equal.
 */
 static inline int p_ttcmp(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const * const cmplt,
   idx_t const i,
   idx_t const j)
@@ -322,7 +322,7 @@ static inline int p_ttcmp(
 * @return Returns -1 if ind[i] < j, 1 if ind[i] > j, and 0 if they are equal.
 */
 static inline int p_ttqcmp(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const * const cmplt,
   idx_t const i,
   idx_t const j[MAX_NMODES])
@@ -346,7 +346,7 @@ static inline int p_ttqcmp(
 * @param j The second nonzero to swap with.
 */
 static inline void p_ttswap(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const i,
   idx_t const j)
 {
@@ -372,7 +372,7 @@ static inline void p_ttswap(
 * @param end The last nonzero to sort.
 */
 static void p_tt_insertionsort3(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const cmplt,
   idx_t const start,
   idx_t const end)
@@ -418,7 +418,7 @@ static void p_tt_insertionsort3(
 * @param end The last nonzero to sort.
 */
 static void p_tt_insertionsort(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const cmplt,
   idx_t const start,
   idx_t const end)
@@ -460,7 +460,7 @@ static void p_tt_insertionsort(
 * @param end The last nonzero to sort.
 */
 static void p_tt_quicksort3(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const cmplt,
   idx_t const start,
   idx_t const end)
@@ -552,7 +552,7 @@ static void p_tt_quicksort3(
 * @param end The last nonzero to sort.
 */
 static void p_tt_quicksort(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const cmplt,
   idx_t const start,
   idx_t const end)
@@ -759,7 +759,7 @@ static inline idx_t p_transpose_idx(
 * @param cmplt Mode permutation used for defining tie-breaking order.
 */
 static void p_counting_sort_hybrid(
-    sptensor_t * const tt,
+    splatt_coo * const tt,
     idx_t * const cmplt)
 {
   idx_t m = cmplt[0];
@@ -910,7 +910,7 @@ static void p_counting_sort_hybrid(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void tt_sort(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode,
   idx_t * dim_perm)
 {
@@ -919,7 +919,7 @@ void tt_sort(
 
 
 void tt_sort_range(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode,
   idx_t * dim_perm,
   idx_t const start,
@@ -942,17 +942,12 @@ void tt_sort_range(
 
   /* sort a subtensor */
   } else {
-    switch(tt->type) {
-    case SPLATT_NMODE:
-      p_tt_quicksort(tt, cmplt, start, end);
-      break;
-
-    case SPLATT_3MODE:
+    if(tt->nmodes == 3) {
       p_tt_quicksort3(tt, cmplt, start, end);
-      break;
+    } else {
+      p_tt_quicksort(tt, cmplt, start, end);
     }
   }
-
 
   if(dim_perm == NULL) {
     free(cmplt);

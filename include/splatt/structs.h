@@ -17,6 +17,25 @@
  * DATA STRUCTURES
  *****************************************************************************/
 
+
+/**
+* @brief The data structure for representing sparse tensors in coordinate form.
+*/
+typedef struct
+{
+  splatt_idx_t nmodes;   /** The number of modes in the tensor, denoted 'm'. */
+  splatt_idx_t nnz;      /** The number of nonzeros in the tensor. */
+  splatt_idx_t * dims;   /** An array containing the dimension of each mode. */
+  splatt_idx_t ** ind;   /** An m x nnz matrix containing the coordinates of each
+                             each nonzero. The nth nnz is accessed via
+                             ind[0][n], ind[1][n], ..., ind[m][n]. */
+  splatt_val_t * vals;   /** An array containing the values of each nonzero. */
+  int tiled;      /** Whether splatt_coo has been tiled. Used by ftensor_t. */
+
+  splatt_idx_t * indmap[SPLATT_MAX_NMODES]; /** Maps local -> global indices. */
+} splatt_coo;
+
+
 /**
 * @brief Kruskal tensors are the output of the CPD. Each mode of the tensor is
 *        represented as a matrix with unit columns. Lambda is a vector whose

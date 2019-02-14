@@ -18,7 +18,7 @@ int splatt_mpi_csf_load(
     double const * const options,
     MPI_Comm comm)
 {
-  sptensor_t * tt = NULL;
+  splatt_coo * tt = NULL;
 
   int rank, npes;
   MPI_Comm_rank(comm, &rank);
@@ -39,7 +39,7 @@ int splatt_mpi_coord_load(
     double const * const options,
     MPI_Comm comm)
 {
-  sptensor_t * tt = mpi_simple_distribute(fname, comm);
+  splatt_coo * tt = mpi_simple_distribute(fname, comm);
 
   if(tt == NULL) {
     *nmodes = 0;
@@ -78,7 +78,7 @@ int splatt_mpi_coord_load(
 */
 static void p_fill_tt_nnz(
   FILE * fin,
-  sptensor_t * const buf,
+  splatt_coo * const buf,
   idx_t const * const offset,
   idx_t const nnz_to_read)
 {
@@ -106,7 +106,7 @@ static void p_fill_tt_nnz(
 
 
 static int * p_distribute_parts(
-  sptensor_t * const ttbuf,
+  splatt_coo * const ttbuf,
   char const * const pfname,
   rank_info * const rinfo)
 {
@@ -282,7 +282,7 @@ static idx_t p_count_my_nnz_1d(
 */
 static void p_read_tt_part_1d(
   char const * const fname,
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const sstarts,
   idx_t const * const sends)
 {
@@ -329,7 +329,7 @@ static void p_read_tt_part_1d(
 *
 * @return My portion of the sparse tensor read from fname.
 */
-static sptensor_t * p_read_tt_1d(
+static splatt_coo * p_read_tt_1d(
   char const * const fname,
   idx_t ** const ssizes,
   idx_t const nmodes,
@@ -345,7 +345,7 @@ static sptensor_t * p_read_tt_1d(
   /* count nnz in my partition and allocate */
   idx_t const mynnz = p_count_my_nnz_1d(fname, nmodes, rinfo->mat_start,
       rinfo->mat_end);
-  sptensor_t * tt = tt_alloc(mynnz, nmodes);
+  splatt_coo * tt = tt_alloc(mynnz, nmodes);
 
   /* now actually load values */
   p_read_tt_part_1d(fname, tt, rinfo->mat_start, rinfo->mat_end);
@@ -448,8 +448,8 @@ static void p_find_layer_boundaries(
 *
 * @return My owned tensor nonzeros.
 */
-static sptensor_t * p_rearrange_medium(
-  sptensor_t * const ttbuf,
+static splatt_coo * p_rearrange_medium(
+  splatt_coo * const ttbuf,
   idx_t * * ssizes,
   rank_info * const rinfo)
 {
@@ -466,7 +466,7 @@ static sptensor_t * p_rearrange_medium(
     parts[n] = mpi_determine_med_owner(ttbuf, n, rinfo);
   }
 
-  sptensor_t * tt = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
+  splatt_coo * tt = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
 
   splatt_free(parts);
   return tt;
@@ -483,8 +483,8 @@ static sptensor_t * p_rearrange_medium(
 *
 * @return My owned tensor nonzeros.
 */
-static sptensor_t * p_rearrange_fine(
-  sptensor_t * const ttbuf,
+static splatt_coo * p_rearrange_fine(
+  splatt_coo * const ttbuf,
   char const * const pfname,
   idx_t * * ssizes,
   rank_info * const rinfo)
@@ -492,7 +492,7 @@ static sptensor_t * p_rearrange_fine(
   /* first distribute partitioning information */
   int * parts = p_distribute_parts(ttbuf, pfname, rinfo);
 
-  sptensor_t * tt = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
+  splatt_coo * tt = mpi_rearrange_by_part(ttbuf, parts, rinfo->comm_3d);
 
   free(parts);
   return tt;
@@ -509,7 +509,7 @@ static sptensor_t * p_rearrange_fine(
 * @param rinfo MPI information (containing global dims, nnz, etc.).
 */
 static void p_fill_ssizes(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t ** const ssizes,
   rank_info const * const rinfo)
 {
@@ -584,7 +584,7 @@ static void p_get_best_mpi_dim(
 *
 * @return The sparse tensor.
 */
-static sptensor_t * p_tt_mpi_read_file(
+static splatt_coo * p_tt_mpi_read_file(
     FILE * fin,
     MPI_Comm comm)
 {
@@ -596,7 +596,7 @@ static sptensor_t * p_tt_mpi_read_file(
   idx_t offsets[MAX_NMODES];
   idx_t global_nnz;
   idx_t nmodes;
-  sptensor_t * tt = NULL;
+  splatt_coo * tt = NULL;
 
   if(rank == 0) {
     /* send dimension info */
@@ -618,7 +618,7 @@ static sptensor_t * p_tt_mpi_read_file(
 
   /* read/send all chunks */
   if(rank == 0) {
-    sptensor_t * tt_buf = tt_alloc(target_nnz, nmodes);
+    splatt_coo * tt_buf = tt_alloc(target_nnz, nmodes);
 
     /* now send to everyone else */
     for(int p=1; p < npes; ++p) {
@@ -657,11 +657,11 @@ static sptensor_t * p_tt_mpi_read_file(
 *
 * @return The sparse tensor.
 */
-static sptensor_t * p_tt_mpi_read_binary_file(
+static splatt_coo * p_tt_mpi_read_binary_file(
     FILE * fin,
     MPI_Comm comm)
 {
-  sptensor_t * tt = NULL;
+  splatt_coo * tt = NULL;
 
   int rank, npes;
   MPI_Comm_rank(comm, &rank);
@@ -753,7 +753,7 @@ static sptensor_t * p_tt_mpi_read_binary_file(
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
-sptensor_t * mpi_tt_read(
+splatt_coo * mpi_tt_read(
   char const * const ifname,
   char const * const pfname,
   rank_info * const rinfo)
@@ -771,7 +771,7 @@ sptensor_t * mpi_tt_read(
   fclose(fin);
 
   /* first naively distribute tensor nonzeros for analysis */
-  sptensor_t * ttbuf = mpi_simple_distribute(ifname, MPI_COMM_WORLD);
+  splatt_coo * ttbuf = mpi_simple_distribute(ifname, MPI_COMM_WORLD);
 
   rinfo->nmodes = ttbuf->nmodes;
   MPI_Allreduce(&(ttbuf->nnz), &(rinfo->global_nnz), 1, SPLATT_MPI_IDX,
@@ -796,7 +796,7 @@ sptensor_t * mpi_tt_read(
   p_fill_ssizes(ttbuf, ssizes, rinfo);
 
   /* actually parse tensor */
-  sptensor_t * tt = NULL;
+  splatt_coo * tt = NULL;
   switch(rinfo->decomp) {
   case SPLATT_DECOMP_COARSE:
     tt = p_read_tt_1d(ifname, ssizes, ttbuf->nmodes, rinfo);
@@ -846,8 +846,8 @@ sptensor_t * mpi_tt_read(
 
 void mpi_filter_tt_1d(
   idx_t const mode,
-  sptensor_t const * const tt,
-  sptensor_t * const ftt,
+  splatt_coo const * const tt,
+  splatt_coo * const ftt,
   idx_t start,
   idx_t end)
 {
@@ -1021,7 +1021,7 @@ void mpi_write_mats(
 
 
 void mpi_write_part(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   permutation_t const * const perm,
   rank_info const * const rinfo)
 {
@@ -1050,7 +1050,7 @@ void mpi_write_part(
 }
 
 
-sptensor_t * mpi_simple_distribute(
+splatt_coo * mpi_simple_distribute(
   char const * const ifname,
   MPI_Comm comm)
 {
@@ -1058,7 +1058,7 @@ sptensor_t * mpi_simple_distribute(
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &npes);
 
-  sptensor_t * tt = NULL;
+  splatt_coo * tt = NULL;
 
   FILE * fin = NULL;
   if(rank == 0) {
@@ -1176,8 +1176,8 @@ matrix_t * mpi_mat_rand(
 }
 
 
-sptensor_t * mpi_rearrange_by_part(
-  sptensor_t const * const ttbuf,
+splatt_coo * mpi_rearrange_by_part(
+  splatt_coo const * const ttbuf,
   int const * const parts,
   MPI_Comm comm)
 {
@@ -1214,7 +1214,7 @@ sptensor_t * mpi_rearrange_by_part(
   }
 
   /* allocate my tensor and send buffer */
-  sptensor_t * tt = tt_alloc(nowned, ttbuf->nmodes);
+  splatt_coo * tt = tt_alloc(nowned, ttbuf->nmodes);
   idx_t * isend_buf = splatt_malloc(ttbuf->nnz * sizeof(*isend_buf));
 
   /* rearrange into sendbuf and send one mode at a time */
@@ -1267,7 +1267,7 @@ sptensor_t * mpi_rearrange_by_part(
 
 
 int mpi_determine_med_owner(
-  sptensor_t * const ttbuf,
+  splatt_coo * const ttbuf,
   idx_t const n,
   rank_info * const rinfo)
 {

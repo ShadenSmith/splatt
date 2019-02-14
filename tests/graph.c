@@ -13,7 +13,7 @@ static char const * const TMP_FILE = "tmp.txt";
 CTEST_DATA(graph)
 {
   idx_t ntensors;
-  sptensor_t * tensors[MAX_DSETS];
+  splatt_coo * tensors[MAX_DSETS];
 };
 
 CTEST_SETUP(graph)
@@ -36,7 +36,7 @@ CTEST_TEARDOWN(graph)
 CTEST2(graph, graph_convert)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * const tt = data->tensors[i];
+    splatt_coo * const tt = data->tensors[i];
 
     splatt_graph * graph = graph_convert(tt);
 
@@ -86,7 +86,7 @@ CTEST2(graph, graph_convert)
 CTEST2(graph, metis_part)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * const tt = data->tensors[i];
+    splatt_coo * const tt = data->tensors[i];
     splatt_graph * graph = graph_convert(tt);
 
     idx_t mycut = 0;

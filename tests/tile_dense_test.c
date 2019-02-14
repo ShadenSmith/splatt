@@ -1,6 +1,6 @@
 
 #include "../src/tile.h"
-#include "../src/sptensor.h"
+#include "../src/coo.h"
 
 #include "ctest/ctest.h"
 #include "splatt_test.h"
@@ -8,7 +8,7 @@
 
 CTEST_DATA(tile_dense)
 {
-  sptensor_t * tt;
+  splatt_coo * tt;
   idx_t ntiles;
   idx_t tile_dims[MAX_NMODES];
 };
@@ -39,7 +39,7 @@ CTEST2(tile_dense, no_missing_nnz)
   for(idx_t m=0; m < data->tt->nmodes; ++m) {
     cksums[m] = 0;
 
-    sptensor_t const * const tt = data->tt;
+    splatt_coo const * const tt = data->tt;
     for(idx_t x=0; x < tt->nnz; ++x) {
       cksums[m] += tt->ind[m][x];
     }
@@ -54,7 +54,7 @@ CTEST2(tile_dense, no_missing_nnz)
   free(ptr);
 
   for(idx_t m=0; m < data->tt->nmodes; ++m) {
-    sptensor_t const * const tt = data->tt;
+    splatt_coo const * const tt = data->tt;
     for(idx_t x=0; x < tt->nnz; ++x) {
       cksums[m] -= tt->ind[m][x];
     }
@@ -82,7 +82,7 @@ CTEST2(tile_dense, no_missing_nnz_traverse)
   for(idx_t m=0; m < data->tt->nmodes; ++m) {
     cksums[m] = 0;
 
-    sptensor_t const * const tt = data->tt;
+    splatt_coo const * const tt = data->tt;
     for(idx_t x=0; x < tt->nnz; ++x) {
       cksums[m] += tt->ind[m][x];
     }
@@ -99,7 +99,7 @@ CTEST2(tile_dense, no_missing_nnz_traverse)
       idx_t const start = ptr[id];
       idx_t const end = ptr[id+1];
       for(idx_t m=0; m < data->tt->nmodes; ++m) {
-        sptensor_t const * const tt = data->tt;
+        splatt_coo const * const tt = data->tt;
         for(idx_t x=start; x < end; ++x) {
           cksums[m] -= tt->ind[m][x];
         }
@@ -128,7 +128,7 @@ CTEST2(tile_dense, check_tile_bounds)
 
   idx_t coords[MAX_NMODES];
 
-  sptensor_t const * const tt = data->tt;
+  splatt_coo const * const tt = data->tt;
   for(idx_t i=0; i < data->tile_dims[0]; ++i) {
     idx_t id;
     id = get_next_tileid(TILE_BEGIN, data->tile_dims, data->tt->nmodes, 0, i);
@@ -174,7 +174,7 @@ CTEST2(tile_dense, check_tile_bounds_weirddims)
 
   idx_t coords[MAX_NMODES];
 
-  sptensor_t const * const tt = data->tt;
+  splatt_coo const * const tt = data->tt;
   for(idx_t i=0; i < data->tile_dims[0]; ++i) {
     idx_t id;
     id = get_next_tileid(TILE_BEGIN, data->tile_dims, data->tt->nmodes, 0, i);

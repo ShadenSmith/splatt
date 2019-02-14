@@ -6,7 +6,7 @@
 #include "base.h"
 #include "reorder.h"
 
-#include "sptensor.h"
+#include "coo.h"
 #include "ftensor.h"
 #include "io.h"
 #include "sort.h"
@@ -18,7 +18,7 @@
  * PRIVATE FUNCTIONS
  *****************************************************************************/
 static void p_reorder_slices(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   ftensor_t const * const ft,
   idx_t const * const parts,
   idx_t const nparts,
@@ -97,7 +97,7 @@ static void p_reorder_slices(
 }
 
 static void p_reorder_fibs(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   ftensor_t const * const ft,
   idx_t const * const parts,
   idx_t const nparts,
@@ -177,7 +177,7 @@ static void p_reorder_fibs(
 }
 
 static void p_reorder_inds(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   ftensor_t const * const ft,
   idx_t const * const parts,
   idx_t const nparts,
@@ -269,7 +269,7 @@ static void p_reorder_inds(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 permutation_t * tt_perm(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   splatt_perm_type const type,
   idx_t const mode,
   char const * const pfile)
@@ -348,7 +348,7 @@ void build_pptr(
 
 
 void perm_apply(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t ** perm)
 {
   idx_t const nnz = tt->nnz;
@@ -362,7 +362,7 @@ void perm_apply(
 }
 
 permutation_t * perm_hgraph(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   ftensor_t const * const ft,
   idx_t const * const parts,
   idx_t const nparts,
@@ -410,7 +410,7 @@ permutation_t * perm_hgraph(
 }
 
 permutation_t * perm_graph(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const parts,
   idx_t const nparts)
 {
@@ -497,7 +497,7 @@ permutation_t * perm_alloc(
 
 
 permutation_t * perm_rand(
-  sptensor_t * const tt)
+  splatt_coo * const tt)
 {
   idx_t const nmodes = tt->nmodes;
   idx_t const * const dims = tt->dims;
