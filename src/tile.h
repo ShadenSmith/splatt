@@ -5,7 +5,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "base.h"
-#include "sptensor.h"
+#include "coo.h"
 
 /*
  * Constants used during tile traversal.
@@ -111,7 +111,7 @@ idx_t get_next_tileid(
 *         each tile. These can be indexed via get_next_tileid().
 */
 idx_t * tt_densetile(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const * const tile_dims);
 
 
@@ -126,7 +126,7 @@ idx_t * tt_densetile(
 *                 TILE_SIZES[2] defines the longest fibers allowed in a tile.
 */
 void tt_tile(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t * dim_perm);
 
 #endif

@@ -1,5 +1,5 @@
 
-#include "../src/sptensor.h"
+#include "../src/coo.h"
 #include "../src/io.h"
 #include "../src/sort.h"
 #include "../src/tile.h"
@@ -59,7 +59,7 @@ static int __idx_cmp(
 CTEST_DATA(sort_tensor)
 {
   idx_t ntensors;
-  sptensor_t * tensors[MAX_DSETS];
+  splatt_coo * tensors[MAX_DSETS];
 };
 
 
@@ -85,7 +85,7 @@ CTEST2(sort_tensor, full_sort)
   omp_set_num_threads(2);
 #endif
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * tt = data->tensors[i];
+    splatt_coo * tt = data->tensors[i];
 
     for(idx_t m=tt->nmodes; m-- != 0; ) {
       tt_sort(tt, m, NULL);
@@ -103,10 +103,10 @@ CTEST2(sort_tensor, full_sort)
 CTEST2(sort_tensor, par_sort)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * gold = data->tensors[i];
+    splatt_coo * gold = data->tensors[i];
 
     /* make a copy */
-    sptensor_t * test = tt_alloc(gold->nnz, gold->nmodes);
+    splatt_coo * test = tt_alloc(gold->nnz, gold->nmodes);
     memcpy(test->dims, gold->dims, gold->nmodes * sizeof(*(test->dims)));
     for(idx_t m=0; m < gold->nmodes; ++m) {
       memcpy(test->ind[m], gold->ind[m], gold->nnz * sizeof(**(test->ind)));
@@ -147,7 +147,7 @@ CTEST2(sort_tensor, tiled_sort)
   idx_t tdims[MAX_NMODES];
 
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * tt = data->tensors[i];
+    splatt_coo * tt = data->tensors[i];
 
     idx_t ntiles = 1;
     for(idx_t m=0; m < tt->nmodes; ++m) {

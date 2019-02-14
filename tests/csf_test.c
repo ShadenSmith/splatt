@@ -1,5 +1,5 @@
 #include "../src/csf.h"
-#include "../src/sptensor.h"
+#include "../src/coo.h"
 
 #include "ctest/ctest.h"
 #include "splatt_test.h"
@@ -7,7 +7,7 @@
 
 CTEST_DATA(csf_one_init)
 {
-  sptensor_t * tt;
+  splatt_coo * tt;
   double * opts;
 };
 

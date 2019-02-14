@@ -12,7 +12,7 @@ static char const * const TMP_FILE = "tmp.bin";
 CTEST_DATA(mpi_io)
 {
   idx_t ntensors;
-  sptensor_t * tensors[MAX_DSETS];
+  splatt_coo * tensors[MAX_DSETS];
   rank_info rinfo;
 };
 
@@ -72,7 +72,7 @@ CTEST2(mpi_io, splatt_mpi_coord_load)
 
 
     /* now check inds/vals */
-    sptensor_t * tmp = NULL;
+    splatt_coo * tmp = NULL;
     if(rank == 0) {
       tmp = tt_alloc(global, nmodes);
 
@@ -154,7 +154,7 @@ CTEST2(mpi_io, splatt_mpi_coord_load_binary)
     }
 
     /* now check distribution - exact comparison should be good (no sorting) */
-    sptensor_t * gold = tt_read(TMP_FILE);
+    splatt_coo * gold = tt_read(TMP_FILE);
     idx_t const target_nnz = gold->nnz / npes;
     if(rank == 0) {
       ASSERT_EQUAL(gold->nnz - ((npes-1) * target_nnz), nnz);

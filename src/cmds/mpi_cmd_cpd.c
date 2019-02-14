@@ -5,7 +5,7 @@
  *****************************************************************************/
 #include "splatt_cmds.h"
 #include "../io.h"
-#include "../sptensor.h"
+#include "../coo.h"
 #include "../stats.h"
 #include "../cpd.h"
 #include "../splatt_mpi.h"
@@ -182,7 +182,7 @@ int splatt_mpi_cpd_cmd(
   argp_parse(&cpd_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
   srand(args.opts[SPLATT_OPTION_RANDSEED]);
 
-  sptensor_t * tt  = NULL;
+  splatt_coo * tt  = NULL;
   splatt_csf * csf = NULL;
 
   rank_info rinfo;
@@ -229,7 +229,7 @@ int splatt_mpi_cpd_cmd(
     /* coarse-grained forces us to use ALLMODE. override default opts. */
     args.opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ALLMODE;
 
-    sptensor_t * tt_filtered = tt_alloc(tt->nnz, tt->nmodes);
+    splatt_coo * tt_filtered = tt_alloc(tt->nnz, tt->nmodes);
     for(idx_t m=0; m < tt->nmodes; ++m) {
 
       /* tt has more nonzeros than any of the modes actually need, so we need

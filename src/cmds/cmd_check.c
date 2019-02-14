@@ -3,7 +3,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "splatt_cmds.h"
-#include "../sptensor.h"
+#include "../coo.h"
 #include "../io.h"
 
 
@@ -71,7 +71,7 @@ int splatt_check(
   argp_parse(&check_argp, argc, argv, ARGP_IN_ORDER, 0, &args);
 
   print_header();
-  sptensor_t * tt = tt_read(args.ifname);
+  splatt_coo * tt = tt_read(args.ifname);
   if(tt == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }

@@ -23,7 +23,7 @@ typedef enum
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include "sptensor.h"
+#include "coo.h"
 #include "csf.h"
 #include "cpd.h"
 #include "splatt_mpi.h"
@@ -43,7 +43,7 @@ typedef enum
 * @param pfile The partitioning file to work with, if applicable.
 */
 void stats_tt(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   char const * const ifname,
   splatt_stats_type const type,
   idx_t const mode,
@@ -121,7 +121,7 @@ void mpi_cpd_stats(
 * @param rinfo Global tensor information.
 */
 void mpi_global_stats(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   rank_info * const rinfo,
   char const * const ifname);
 
@@ -135,7 +135,7 @@ void mpi_global_stats(
 * @param args Some CPD parameters.
 */
 void mpi_rank_stats(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   rank_info const * const rinfo);
 
 #endif /* endif SPLATT_USE_MPI */

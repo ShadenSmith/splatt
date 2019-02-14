@@ -20,7 +20,7 @@ int splatt_csf_load(
     splatt_csf ** tensors,
     double const * const options)
 {
-  sptensor_t * tt = tt_read(fname);
+  splatt_coo * tt = tt_read(fname);
   if(tt == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
@@ -49,7 +49,7 @@ int splatt_csf_convert(
     splatt_csf ** tensors,
     double const * const options)
 {
-  sptensor_t tt;
+  splatt_coo tt;
   tt_fill(&tt, nnz, nmodes, inds, vals);
   tt_remove_empty(&tt);
 
@@ -282,7 +282,7 @@ static void p_order_dims_bigfirst_minusone(
 */
 static void p_mk_outerptr(
   splatt_csf * const ct,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const tile_id,
   idx_t const * const nnztile_ptr)
 {
@@ -390,7 +390,7 @@ static void p_mk_outerptr(
 */
 static void p_mk_fptr(
   splatt_csf * const ct,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const tile_id,
   idx_t const * const nnztile_ptr,
   idx_t const mode)
@@ -502,7 +502,7 @@ static void p_mk_fptr(
 */
 static void p_csf_alloc_untiled(
   splatt_csf * const ct,
-  sptensor_t * const tt)
+  splatt_coo * const tt)
 {
   idx_t const nmodes = tt->nmodes;
   tt_sort(tt, ct->dim_perm[0], ct->dim_perm);
@@ -547,7 +547,7 @@ static void p_csf_alloc_untiled(
 */
 static void p_csf_alloc_densetile(
   splatt_csf * const ct,
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   double const * const splatt_opts)
 {
   idx_t const nmodes = tt->nmodes;
@@ -647,7 +647,7 @@ static void p_fill_dim_iperm(
 */
 static void p_mk_csf(
   splatt_csf * const ct,
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   csf_mode_type mode_type,
   idx_t const mode,
   double const * const splatt_opts)
@@ -812,7 +812,7 @@ size_t csf_storage(
 
 
 splatt_csf * csf_alloc(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   double const * const opts)
 {
   splatt_csf * ret = NULL;
@@ -859,7 +859,7 @@ splatt_csf * csf_alloc(
 
 
 void csf_alloc_mode(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   csf_mode_type which_ordering,
   idx_t const mode_special,
   splatt_csf * const csf,

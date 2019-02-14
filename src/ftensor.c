@@ -17,7 +17,7 @@
  *****************************************************************************/
 static void p_create_fptr(
   ftensor_t * const ft,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode)
 {
   idx_t const nnz = tt->nnz;
@@ -95,7 +95,7 @@ static void p_create_fptr(
 
 static void p_create_syncptr(
   ftensor_t * const ft,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode)
 {
   idx_t const nnz = tt->nnz;
@@ -124,7 +124,7 @@ static void p_create_syncptr(
 
 static void p_create_slabptr(
   ftensor_t * const ft,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode)
 {
   idx_t const nnz = tt->nnz;
@@ -176,7 +176,7 @@ static void p_create_slabptr(
 
 static void p_create_sliceptr(
   ftensor_t * const ft,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode)
 {
   idx_t const nnz = tt->nnz;
@@ -232,7 +232,7 @@ static void p_create_sliceptr(
  *****************************************************************************/
 void ften_alloc(
   ftensor_t * const ft,
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode,
   int const tile)
 {

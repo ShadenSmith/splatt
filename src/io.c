@@ -6,7 +6,7 @@
 
 #include "base.h"
 #include "io.h"
-#include "sptensor.h"
+#include "coo.h"
 #include "matrix.h"
 #include "graph.h"
 
@@ -59,7 +59,7 @@ splatt_file_type get_file_type(
 /******************************************************************************
  * PRIVATE FUNCTIONS
  *****************************************************************************/
-static sptensor_t * p_tt_read_file(
+static splatt_coo * p_tt_read_file(
   FILE * fin)
 {
   char * ptr = NULL;
@@ -81,7 +81,7 @@ static sptensor_t * p_tt_read_file(
   }
 
   /* allocate structures */
-  sptensor_t * tt = tt_alloc(nnz, nmodes);
+  splatt_coo * tt = tt_alloc(nnz, nmodes);
   memcpy(tt->dims, dims, nmodes * sizeof(*dims));
 
   char * line = NULL;
@@ -117,7 +117,7 @@ static sptensor_t * p_tt_read_file(
 */
 static void p_write_tt_binary_header(
   FILE * fout,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   bin_header * header)
 {
   int32_t type = SPLATT_BIN_COORD;
@@ -159,7 +159,7 @@ static void p_write_tt_binary_header(
 *
 * @return The parsed tensor.
 */
-static sptensor_t * p_tt_read_binary_file(
+static splatt_coo * p_tt_read_binary_file(
   FILE * fin)
 {
   bin_header header;
@@ -182,7 +182,7 @@ static sptensor_t * p_tt_read_binary_file(
   }
 
   /* allocate structures */
-  sptensor_t * tt = tt_alloc(nnz, nmodes);
+  splatt_coo * tt = tt_alloc(nnz, nmodes);
   memcpy(tt->dims, dims, nmodes * sizeof(*dims));
 
   /* fill in tensor data */
@@ -206,7 +206,7 @@ int splatt_load(
   splatt_idx_t *** inds,
   splatt_val_t ** vals)
 {
-  sptensor_t * tt = tt_read_file(fname);
+  splatt_coo * tt = tt_read_file(fname);
   if(tt == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }
@@ -227,7 +227,7 @@ int splatt_load(
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
-sptensor_t * tt_read_file(
+splatt_coo * tt_read_file(
   char const * const fname)
 {
   FILE * fin;
@@ -236,7 +236,7 @@ sptensor_t * tt_read_file(
     return NULL;
   }
 
-  sptensor_t * tt = NULL;
+  splatt_coo * tt = NULL;
 
   timer_start(&timers[TIMER_IO]);
   switch(get_file_type(fname)) {
@@ -253,7 +253,7 @@ sptensor_t * tt_read_file(
 }
 
 
-sptensor_t * tt_read_binary_file(
+splatt_coo * tt_read_binary_file(
   char const * const fname)
 {
   FILE * fin;
@@ -263,7 +263,7 @@ sptensor_t * tt_read_binary_file(
   }
 
   timer_start(&timers[TIMER_IO]);
-  sptensor_t * tt = p_tt_read_binary_file(fin);
+  splatt_coo * tt = p_tt_read_binary_file(fin);
   timer_stop(&timers[TIMER_IO]);
   fclose(fin);
   return tt;
@@ -349,7 +349,7 @@ void tt_get_dims(
 
 
 void tt_write(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   char const * const fname)
 {
   FILE * fout;
@@ -370,7 +370,7 @@ void tt_write(
 }
 
 void tt_write_file(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   FILE * fout)
 {
   timer_start(&timers[TIMER_IO]);
@@ -386,7 +386,7 @@ void tt_write_file(
 
 
 void tt_write_binary(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   char const * const fname)
 {
   FILE * fout;
@@ -408,7 +408,7 @@ void tt_write_binary(
 
 
 void tt_write_binary_file(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   FILE * fout)
 {
   timer_start(&timers[TIMER_IO]);

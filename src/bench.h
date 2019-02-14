@@ -7,7 +7,7 @@
  *****************************************************************************/
 #include "base.h"
 #include "matrix.h"
-#include "sptensor.h"
+#include "coo.h"
 #include "reorder.h"
 
 
@@ -31,27 +31,27 @@ typedef struct
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 void bench_splatt(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   matrix_t ** mats,
   bench_opts const * const opts);
 
 void bench_csf(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   matrix_t ** mats,
   bench_opts const * const opts);
 
 void bench_giga(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   matrix_t ** mats,
   bench_opts const * const opts);
 
 void bench_ttbox(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   matrix_t ** mats,
   bench_opts const * const opts);
 
 void bench_coord(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   matrix_t ** mats,
   bench_opts const * const opts);
 

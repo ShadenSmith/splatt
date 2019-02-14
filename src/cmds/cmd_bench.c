@@ -39,7 +39,7 @@ typedef enum
 } splatt_algs;
 
 
-static void (*bench_funcs[ALG_NALGS]) (sptensor_t * const tt,
+static void (*bench_funcs[ALG_NALGS]) (splatt_coo * const tt,
                                        matrix_t ** mats,
                                        bench_opts const * const opts)
   = {
@@ -225,7 +225,7 @@ int splatt_bench(
 
   print_header();
 
-  sptensor_t * tt = tt_read(args.ifname);
+  splatt_coo * tt = tt_read(args.ifname);
   if(tt == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }

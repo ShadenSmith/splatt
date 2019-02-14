@@ -2,7 +2,7 @@
 #include "ctest/ctest.h"
 #include "splatt_test.h"
 
-#include "../src/sptensor.h"
+#include "../src/coo.h"
 
 
 /* API includes */
@@ -16,7 +16,7 @@
 CTEST_DATA(api)
 {
   splatt_idx_t ntensors;
-  sptensor_t * tensors[MAX_DSETS];
+  splatt_coo * tensors[MAX_DSETS];
 };
 
 CTEST_SETUP(api)

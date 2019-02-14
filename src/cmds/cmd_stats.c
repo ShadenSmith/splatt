@@ -96,7 +96,7 @@ int splatt_stats(
 
   print_header();
 
-  sptensor_t * tt = tt_read(args.ifname);
+  splatt_coo * tt = tt_read(args.ifname);
   if(tt == NULL) {
     return SPLATT_ERROR_BADINPUT;
   }

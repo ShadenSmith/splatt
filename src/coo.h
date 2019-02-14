@@ -1,43 +1,8 @@
-#ifndef SPLATT_SPTENSOR_H
-#define SPLATT_SPTENSOR_H
+#ifndef SPLATT_COO_H
+#define SPLATT_COO_H
 
 
 #include "base.h"
-
-
-/******************************************************************************
- * STRUCTURES
- *****************************************************************************/
-
-/**
-* @brief Types of tensors supported by splatt.
-*/
-typedef enum
-{
-  SPLATT_3MODE,   /** Three-mode tensors. */
-  SPLATT_NMODE,   /** Tensors of with arbitrary numbers of modes.
-                      NOTE: support is minimal. */
-} tt_type;
-
-
-/**
-* @brief The main data structure for representing sparse tensors in
-*        coordinate format.
-*/
-typedef struct
-{
-  tt_type type;   /** Type of tensor represented */
-  idx_t nmodes;   /** The number of modes in the tensor, denoted 'm'. */
-  idx_t nnz;      /** The number of nonzeros in the tensor. */
-  idx_t * dims;   /** An array containing the dimension of each mode. */
-  idx_t ** ind;   /** An m x nnz matrix containing the coordinates of each
-                      nonzero. The nth nnz is accessed via ind[0][n], ind[1][n],
-                      ..., ind[m][n]. */
-  val_t * vals;   /** An array containing the values of each nonzero. */
-  int tiled;      /** Whether sptensor_t has been tiled. Used by ftensor_t. */
-
-  idx_t * indmap[MAX_NMODES]; /** Maps local -> global indices. */
-} sptensor_t;
 
 
 
@@ -60,7 +25,7 @@ typedef struct
 *
 * @return A sparse tensor.
 */
-sptensor_t * tt_read(
+splatt_coo * tt_read(
   char const * const ifname);
 
 
@@ -73,7 +38,7 @@ sptensor_t * tt_read(
 *
 * @return A pointer to the allocated tensor.
 */
-sptensor_t * tt_alloc(
+splatt_coo * tt_alloc(
   idx_t const nnz,
   idx_t const nmodes);
 
@@ -92,7 +57,7 @@ sptensor_t * tt_alloc(
 * @param vals An array of values.
 */
 void tt_fill(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const nnz,
   idx_t const nmodes,
   idx_t ** const inds,
@@ -113,7 +78,7 @@ void tt_fill(
 *         found in tt.
 */
 idx_t * tt_get_slices(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode,
   idx_t * nunique);
 
@@ -129,7 +94,7 @@ idx_t * tt_get_slices(
 * @return An array of length tt->dims[m].
 */
 idx_t * tt_get_hist(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode);
 
 
@@ -140,7 +105,7 @@ idx_t * tt_get_hist(
 * @param tt The tensor to free. NOTE: the pointer will also be freed!
 */
 void tt_free(
-  sptensor_t * tt);
+  splatt_coo * tt);
 
 
 /**
@@ -151,7 +116,7 @@ void tt_free(
 * @return The density of tt.
 */
 double tt_density(
-  sptensor_t const * const tt);
+  splatt_coo const * const tt);
 
 #define tt_remove_dups splatt_tt_remove_dups
 /**
@@ -164,7 +129,7 @@ double tt_density(
 * @return The number of nonzeros removed.
 */
 idx_t tt_remove_dups(
-  sptensor_t * const tt);
+  splatt_coo * const tt);
 
 
 #define tt_remove_empty splatt_tt_remove_empty
@@ -177,7 +142,7 @@ idx_t tt_remove_dups(
 * @return The number of empty slices removed.
 */
 idx_t tt_remove_empty(
-  sptensor_t * const tt);
+  splatt_coo * const tt);
 
 
 #define tt_unfold splatt_tt_unfold
@@ -192,7 +157,7 @@ idx_t tt_remove_empty(
 *         dims[mode+1] * ... * dims[m].
 */
 spmatrix_t * tt_unfold(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode);
 
 
@@ -206,6 +171,6 @@ spmatrix_t * tt_unfold(
 * @return  The squared Frobenius norm.
 */
 val_t tt_normsq(
-  sptensor_t const * const tt);
+  splatt_coo const * const tt);
 
 #endif

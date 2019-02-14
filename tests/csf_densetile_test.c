@@ -1,6 +1,6 @@
 #include "../src/csf.h"
 #include "../src/tile.h"
-#include "../src/sptensor.h"
+#include "../src/coo.h"
 
 #include "ctest/ctest.h"
 #include "splatt_test.h"
@@ -8,7 +8,7 @@
 
 CTEST_DATA(csf_densetile)
 {
-  sptensor_t * tt;
+  splatt_coo * tt;
 };
 
 CTEST_SETUP(csf_densetile)

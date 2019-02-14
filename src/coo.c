@@ -3,7 +3,7 @@
 /******************************************************************************
  * INCLUDES
  *****************************************************************************/
-#include "sptensor.h"
+#include "coo.h"
 #include "matrix.h"
 #include "sort.h"
 #include "io.h"
@@ -16,7 +16,7 @@
  * PRIVATE FUNCTONS
  *****************************************************************************/
 static inline int p_same_coord(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const i,
   idx_t const j)
 {
@@ -42,7 +42,7 @@ static inline int p_same_coord(
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
-val_t tt_normsq(sptensor_t const * const tt)
+val_t tt_normsq(splatt_coo const * const tt)
 {
   val_t norm = 0.0;
   val_t const * const restrict tv = tt->vals;
@@ -54,7 +54,7 @@ val_t tt_normsq(sptensor_t const * const tt)
 
 
 double tt_density(
-  sptensor_t const * const tt)
+  splatt_coo const * const tt)
 {
   double root = pow((double)tt->nnz, 1./(double)tt->nmodes);
   double density = 1.0;
@@ -67,7 +67,7 @@ double tt_density(
 
 
 idx_t * tt_get_slices(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const m,
   idx_t * nunique)
 {
@@ -115,7 +115,7 @@ idx_t * tt_get_slices(
 
 
 idx_t * tt_get_hist(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode)
 {
   idx_t * restrict hist = splatt_malloc(tt->dims[mode] * sizeof(*hist));
@@ -133,7 +133,7 @@ idx_t * tt_get_hist(
 
 
 idx_t tt_remove_dups(
-  sptensor_t * const tt)
+  splatt_coo * const tt)
 {
   tt_sort(tt, 0, NULL);
 
@@ -162,7 +162,7 @@ idx_t tt_remove_dups(
 
 
 idx_t tt_remove_empty(
-  sptensor_t * const tt)
+  splatt_coo * const tt)
 {
   idx_t dim_sizes[MAX_NMODES];
 
@@ -230,26 +230,24 @@ idx_t tt_remove_empty(
 /******************************************************************************
  * PUBLIC FUNCTONS
  *****************************************************************************/
-sptensor_t * tt_read(
+splatt_coo * tt_read(
   char const * const ifname)
 {
   return tt_read_file(ifname);
 }
 
 
-sptensor_t * tt_alloc(
+splatt_coo * tt_alloc(
   idx_t const nnz,
   idx_t const nmodes)
 {
-  sptensor_t * tt = (sptensor_t*) splatt_malloc(sizeof(*tt));
+  splatt_coo * tt = (splatt_coo*) splatt_malloc(sizeof(*tt));
   tt->tiled = SPLATT_NOTILE;
 
   tt->nnz = nnz;
   tt->vals = splatt_malloc(nnz * sizeof(*tt->vals));
 
   tt->nmodes = nmodes;
-  tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
-
   tt->dims = splatt_malloc(nmodes * sizeof(*tt->dims));
   tt->ind  = splatt_malloc(nmodes * sizeof(*tt->ind));
   for(idx_t m=0; m < nmodes; ++m) {
@@ -262,7 +260,7 @@ sptensor_t * tt_alloc(
 
 
 void tt_fill(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const nnz,
   idx_t const nmodes,
   idx_t ** const inds,
@@ -274,8 +272,6 @@ void tt_fill(
   tt->ind = inds;
 
   tt->nmodes = nmodes;
-  tt->type = (nmodes == 3) ? SPLATT_3MODE : SPLATT_NMODE;
-
   tt->dims = splatt_malloc(nmodes * sizeof(*tt->dims));
   for(idx_t m=0; m < nmodes; ++m) {
     tt->indmap[m] = NULL;
@@ -290,7 +286,7 @@ void tt_fill(
 
 
 void tt_free(
-  sptensor_t * tt)
+  splatt_coo * tt)
 {
   tt->nnz = 0;
   for(idx_t m=0; m < tt->nmodes; ++m) {
@@ -305,7 +301,7 @@ void tt_free(
 }
 
 spmatrix_t * tt_unfold(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode)
 {
   idx_t nrows = tt->dims[mode];

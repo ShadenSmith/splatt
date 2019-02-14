@@ -104,7 +104,7 @@ hgraph_t * hgraph_fib_alloc(
 * @return The hypergraph.
 */
 hgraph_t * hgraph_nnz_alloc(
-  sptensor_t const * const tt);
+  splatt_coo const * const tt);
 
 
 #define hgraph_free splatt_hgraph_free
@@ -128,7 +128,7 @@ void hgraph_free(
 * @return  The m-partite graph.
 */
 splatt_graph * graph_convert(
-    sptensor_t * const tt);
+    splatt_coo * const tt);
 
 
 #define graph_alloc splatt_graph_alloc

@@ -24,7 +24,7 @@ typedef enum
  * INCLUDES
  *****************************************************************************/
 
-#include "sptensor.h"
+#include "coo.h"
 
 
 /******************************************************************************
@@ -45,7 +45,7 @@ typedef enum
 * @return The allocated tensor(s).
 */
 splatt_csf * csf_alloc(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   double const * const opts);
 
 
@@ -64,7 +64,7 @@ splatt_csf * csf_alloc(
 * @param opts 'SPLATT_OPTION_TILE' determines the allocation scheme.
 */
 void csf_alloc_mode(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   csf_mode_type which_ordering,
   idx_t const mode_special,
   splatt_csf * const csf,

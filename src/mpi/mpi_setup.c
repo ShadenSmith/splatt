@@ -11,7 +11,7 @@
  *****************************************************************************/
 
 static void p_fill_ineed_ptrs(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode,
   rank_info * const rinfo,
   MPI_Comm const comm)
@@ -63,7 +63,7 @@ static void p_fill_ineed_ptrs(
 
 
 static void p_fill_ineed_inds(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode,
   idx_t const nfactors,
   rank_info * const rinfo,
@@ -250,7 +250,7 @@ static void p_setup_3d(
 
 void mpi_compute_ineed(
   rank_info * const rinfo,
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   idx_t const mode,
   idx_t const nfactors,
   splatt_decomp_type const distribution)
@@ -323,7 +323,7 @@ void rank_free(
 }
 
 void mpi_cpy_indmap(
-  sptensor_t const * const tt,
+  splatt_coo const * const tt,
   rank_info * const rinfo,
   idx_t const mode)
 {

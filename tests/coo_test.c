@@ -1,5 +1,5 @@
 
-#include "../src/sptensor.h"
+#include "../src/coo.h"
 
 #include "ctest/ctest.h"
 
@@ -9,7 +9,7 @@
 CTEST_DATA(sptensor)
 {
   idx_t ntensors;
-  sptensor_t * tensors[MAX_DSETS];
+  splatt_coo * tensors[MAX_DSETS];
 };
 
 
@@ -32,10 +32,10 @@ CTEST_TEARDOWN(sptensor)
 CTEST2(sptensor, tt_fill)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {
-    sptensor_t * gold = data->tensors[i];
+    splatt_coo * gold = data->tensors[i];
 
     /* make a copy */
-    sptensor_t test;
+    splatt_coo test;
     tt_fill(&test, gold->nnz, gold->nmodes, gold->ind, gold->vals);
 
     ASSERT_EQUAL(gold->nnz, test.nnz);

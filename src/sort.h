@@ -5,7 +5,7 @@
  * INCLUDES
  *****************************************************************************/
 #include "base.h"
-#include "sptensor.h"
+#include "coo.h"
 
 
 
@@ -26,7 +26,7 @@
 *                 a default ordering of {0, 1, ..., m} is used.
 */
 void tt_sort(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode,
   idx_t * dim_perm);
 
@@ -44,7 +44,7 @@ void tt_sort(
 * @param end The end of the nonzeros to sort (exclusive).
 */
 void tt_sort_range(
-  sptensor_t * const tt,
+  splatt_coo * const tt,
   idx_t const mode,
   idx_t * dim_perm,
   idx_t const start,
