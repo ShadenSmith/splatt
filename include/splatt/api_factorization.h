@@ -51,7 +51,7 @@ int splatt_cpd_als(
 *
 * @param nfactors The number of factors to use for each mode.
 * @param nmodes The number of modes in the tensor.
-* @param tensors An array of splatt_csf created by SPLATT.
+* @param tensor The tensor to factor.
 * @param options Options array for SPLATT.
 * @param factored The factored tensor in Kruskal format.
 *
@@ -60,7 +60,7 @@ int splatt_cpd_als(
 int splatt_tucker_hooi(
     splatt_idx_t const * const nfactors,
     splatt_idx_t const nmodes,
-    splatt_csf const * const tensors,
+    splatt_coo * const tensor,
     double const * const options,
     splatt_tucker_t * factored);
 

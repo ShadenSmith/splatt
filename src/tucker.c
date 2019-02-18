@@ -26,7 +26,7 @@
 int splatt_tucker_hooi(
     splatt_idx_t const * const nfactors,
     splatt_idx_t const nmodes,
-    splatt_csf const * const tensors,
+    splatt_coo * const tensor,
     double const * const options,
     splatt_tucker_t * factored)
 {
@@ -38,7 +38,7 @@ int splatt_tucker_hooi(
   factored->nmodes = nmodes;
   for(idx_t m=0; m < nmodes; ++m) {
     factored->rank[m] = nfactors[m];
-    mats[m] = mat_rand(tensors[0].dims[m], nfactors[m]);
+    mats[m] = mat_rand(tensor->dims[m], nfactors[m]);
     factored->factors[m] = mats[m]->vals;
 
     csize *= nfactors[m];
@@ -46,14 +46,8 @@ int splatt_tucker_hooi(
   }
   factored->core = (val_t *) calloc(csize, sizeof(val_t));
 
-  /* print Tucker stats? */
-  splatt_verbosity_type which_verb = options[SPLATT_OPTION_VERBOSITY];
-  if(which_verb >= SPLATT_VERBOSITY_LOW) {
-    tucker_stats(tensors, nfactors, options);
-  }
-
   /* compute the factorization */
-  factored->fit = tucker_hooi_iterate(tensors,
+  factored->fit = tucker_hooi_iterate(tensor,
                                       mats,
                                       factored->core,
                                       nfactors,
@@ -191,16 +185,16 @@ static void p_print_cache_size2(
 *
 * @param[out] ws The workspace to fill.
 * @param nfactors The ranks of the decomposition.
-* @param tensors The CSF tensor(s).
+* @param tensor The COO tensor.
 * @param opts The options used during CSF allocation and factorization.
 */
 static void p_alloc_tucker_ws(
     tucker_ws * const ws,
     idx_t const * const nfactors,
-    splatt_csf const * const tensors,
+    splatt_coo const * const tensor,
     double const * const opts)
 {
-  idx_t const nmodes = tensors->nmodes;
+  idx_t const nmodes = tensor->nmodes;
 
   /* initialize ptr arrays with NULL */
   for(idx_t m=0; m < MAX_NMODES; ++m) {
@@ -218,7 +212,7 @@ static void p_alloc_tucker_ws(
 #endif
 
   /* SVD allocations */
-  alloc_svd_ws(&(ws->sws), nmodes, tensors->dims, ws->gten_cols, nfactors);
+  alloc_svd_ws(&(ws->sws), nmodes, tensor->dims, ws->gten_cols, nfactors);
 }
 
 
@@ -270,20 +264,48 @@ double tucker_calc_fit(
 
 
 double tucker_hooi_iterate(
-    splatt_csf const * const tensors,
+    splatt_coo * const coo,
     matrix_t ** mats,
     val_t * const core,
     idx_t const * const nfactors,
     double const * const opts)
 {
   timer_start(&timers[TIMER_TUCKER]);
-  idx_t const nmodes = tensors->nmodes;
+  idx_t const nmodes = coo->nmodes;
+
+  splatt_csf * csf;
+#if 0
+  size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
+  //ttmc_fill_flop_tbl(tt, nfactors, table);
+
+  splatt_csf * csf = ttmc_choose_csf(tt, nfactors, args.max_csf, &ttmc_num_csf,
+      ttmc_csf_assign);
+
+  printf("assigned: %lu\n", ttmc_num_csf);
+  for(idx_t c=0; c < ttmc_num_csf; ++c) {
+    printf("(");
+    for(idx_t m=0; m < tt->nmodes; ++m) {
+      printf(" %lu", csf[c].dim_perm[m]);
+    }
+    printf(" )\n");
+  }
+  //return EXIT_SUCCESS;
+#else
+  csf = csf_alloc(coo, opts);
+#endif
+
+
+  /* print Tucker stats? */
+  splatt_verbosity_type which_verb = opts[SPLATT_OPTION_VERBOSITY];
+  if(which_verb >= SPLATT_VERBOSITY_LOW) {
+    tucker_stats(csf, nfactors, opts);
+  }
 
   tucker_ws ws;
-  p_alloc_tucker_ws(&ws, nfactors, tensors, opts);
+  p_alloc_tucker_ws(&ws, nfactors, coo, opts);
 
   /* allocate the TTMc output */
-  idx_t const tenout_size = tenout_dim(nmodes, nfactors, tensors->dims);
+  idx_t const tenout_size = tenout_dim(nmodes, nfactors, coo->dims);
   val_t * gten = splatt_malloc(tenout_size * sizeof(*gten));
   /* parallel memset for first-touch */
   par_memset(gten, 0, tenout_size * sizeof(*gten));
@@ -298,7 +320,7 @@ double tucker_hooi_iterate(
   /* thread structures */
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
   splatt_omp_set_num_threads(nthreads);
-  thd_info * thds =  ttmc_alloc_thds(nthreads, tensors, nfactors, opts);
+  thd_info * thds =  ttmc_alloc_thds(nthreads, csf, nfactors, opts);
 
   sp_timer_t itertime;
   sp_timer_t modetime[MAX_NMODES];
@@ -306,7 +328,7 @@ double tucker_hooi_iterate(
   double oldfit = 0;
   double fit = 0;
 
-  val_t const ttnormsq = csf_frobsq(tensors);
+  val_t const ttnormsq = csf_frobsq(csf);
 
 
   /* foreach iteration */
@@ -319,7 +341,7 @@ double tucker_hooi_iterate(
       timer_fstart(&modetime[m]);
 
       timer_start(&timers[TIMER_TTM]);
-      ttmc_csf(tensors, mats, gten, m, thds, opts);
+      ttmc_csf(csf, mats, gten, m, thds, opts);
       timer_stop(&timers[TIMER_TTM]);
 
       /* Find the truncated SVD of the TTMc output and store in mats[m]. */
@@ -333,7 +355,7 @@ double tucker_hooi_iterate(
 
     /* compute core */
     make_core(gten, mats[nmodes-1]->vals, core, nmodes, nmodes-1, nfactors,
-        tensors->dims[nmodes-1]);
+        coo->dims[nmodes-1]);
 
     /* check for convergence */
     fit = tucker_calc_fit(core, ncols[nmodes], ttnormsq);
@@ -361,9 +383,12 @@ double tucker_hooi_iterate(
   free(gten);
   thd_free(thds, nthreads);
 
-  permute_core(tensors, core, nfactors, opts);
+  permute_core(csf, core, nfactors, opts);
 
   timer_stop(&timers[TIMER_TUCKER]);
+
+  csf_free(csf, opts);
+
   return fit;
 }
 

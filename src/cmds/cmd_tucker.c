@@ -155,6 +155,17 @@ int splatt_tucker_cmd(
     core_size *= nfactors[m];
   }
 
+  splatt_tucker_t factored;
+  int ret = splatt_tucker_hooi(nfactors, tt->nmodes, tt, args.opts, &factored);
+  if(ret != SPLATT_SUCCESS) {
+    fprintf(stderr, "splatt_tucker_hooi returned %d. Aborting.\n", ret);
+    return EXIT_FAILURE;
+  }
+  idx_t const nmodes = tt->nmodes;
+  tt_free(tt);
+
+
+#if 0
 #if 1
   size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
   //ttmc_fill_flop_tbl(tt, nfactors, table);
@@ -174,16 +185,8 @@ int splatt_tucker_cmd(
 #else
   splatt_csf * csf = csf_alloc(tt, args.opts);
 #endif
+#endif
 
-  idx_t const nmodes = tt->nmodes;
-  tt_free(tt);
-
-  splatt_tucker_t factored;
-  int ret = splatt_tucker_hooi(nfactors, nmodes, csf, args.opts, &factored);
-  if(ret != SPLATT_SUCCESS) {
-    fprintf(stderr, "splatt_tucker_hooi returned %d. Aborting.\n", ret);
-    return EXIT_FAILURE;
-  }
 
   /* write output */
   if(args.write == 1) {
@@ -195,7 +198,7 @@ int splatt_tucker_cmd(
 
       matrix_t tmpmat;
       tmpmat.rowmajor = 1;
-      tmpmat.I = csf->dims[m];
+      tmpmat.I = tt->dims[m];
       tmpmat.J = nfactors[m];
       tmpmat.vals = factored.factors[m];
 
@@ -208,9 +211,11 @@ int splatt_tucker_cmd(
 #if 0
   csf_free(csf, args.opts);
 #endif
+#if 0
   for(idx_t m=0; m < ttmc_num_csf; ++m) {
     csf_free_mode(csf + m);
   }
+#endif
 
   /* output + cleanup */
   splatt_free_tucker(&factored);

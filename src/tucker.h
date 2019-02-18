@@ -20,7 +20,7 @@
 /**
 * @brief The primary computation in TUCKER-ALS. API functions call this one.
 *
-* @param tensors The CSF tensor(s) to factor.
+* @param tensors The COO tensor to factor.
 * @param[out] mats The output factors.
 * @param[out] core The output core tensor.
 * @param nfactors The rank of the factorization.
@@ -29,7 +29,7 @@
 * @return The final fitness of the factorization.
 */
 double tucker_hooi_iterate(
-    splatt_csf const * const tensors,
+    splatt_coo * const coo,
     matrix_t ** mats,
     val_t * const core,
     idx_t const * const nfactors,
