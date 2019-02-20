@@ -50,6 +50,7 @@ typedef enum
   TIMER_ATA,
   TIMER_MATNORM,
   TIMER_SVD,
+  TIMER_CSF,
   TIMER_IO,
   TIMER_PART,
   TIMER_LVL2,   /* LEVEL 2 */

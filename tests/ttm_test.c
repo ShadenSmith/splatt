@@ -57,7 +57,7 @@ static void p_csf_core(
   val_t * test_core = calloc(core_size, sizeof(*test_core));
 
   splatt_csf * csf = csf_alloc(tt, opts);
-  thd_info * thds =  ttmc_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
+  thd_info * thds =  ttmc_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf->nmodes,
       nfactors, opts);
 
   /* make a matrix out of TTMc */
@@ -113,7 +113,7 @@ static void p_csf_ttm(
   splatt_csf * csf = csf_alloc(tt, opts);
   idx_t perm[MAX_NMODES];
 
-  thd_info * thds =  ttmc_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf,
+  thd_info * thds =  ttmc_alloc_thds(opts[SPLATT_OPTION_NTHREADS], csf->nmodes,
       nfactors, opts);
 
   for(idx_t m=0; m < nmodes; ++m) {

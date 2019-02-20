@@ -30,7 +30,7 @@ static struct argp_option cpd_options[] = {
   {"rank", 'r', "RANK", 0, "rank of decomposition to find (default: 10)"},
   {"threads", 't', "NTHREADS", 0, "number of threads to use (default: #cores)"},
   {"csf", TT_CSF, "#CSF", 0, "how many CSF to use? {one,two,all} default: two"},
-  {"tile", TT_TILE, 0, 0, "use tiling during SPLATT"},
+  {"tile", TT_TILE, 0, 0, "use tiling to increase parallelism"},
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file"},
   {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},

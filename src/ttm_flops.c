@@ -567,7 +567,6 @@ splatt_csf * ttmc_choose_csf(
   } /* greedy CSF construction */
 
 
-
   printf("GREEDY:");
   size_t total_flops = 0;
 

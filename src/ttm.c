@@ -12,9 +12,6 @@
 
 #include "mutex_pool.h"
 
-idx_t ttmc_num_csf;
-idx_t ttmc_csf_assign[MAX_NMODES];
-
 /* XXX: this is a memory leak */
 static mutex_pool * pool = NULL;
 
@@ -71,7 +68,7 @@ int splatt_ttmc(
   /* Setup thread structures. + 64 bytes is to avoid false sharing. */
   idx_t const nthreads = (idx_t) options[SPLATT_OPTION_NTHREADS];
   splatt_omp_set_num_threads(nthreads);
-  thd_info * thds = ttmc_alloc_thds(nthreads, tensors, ncolumns, options);
+  thd_info * thds = ttmc_alloc_thds(nthreads, nmodes, ncolumns, options);
 
   ttmc_csf(tensors, mats, tenout, mode, thds, options);
 
@@ -1230,7 +1227,7 @@ static void p_leaf_decide(
 
 
 void ttmc_csf(
-    splatt_csf const * const tensors,
+    splatt_csf const * const csf,
     matrix_t ** mats,
     val_t * const tenout,
     idx_t const mode,
@@ -1239,17 +1236,19 @@ void ttmc_csf(
 {
   nflops = 0;
 
+  idx_t const nmodes = csf->nmodes;
+
   /* clear out stale results */
-  p_clear_tenout(tenout, mats, tensors->nmodes, mode, tensors->dims);
+  p_clear_tenout(tenout, mats, csf->nmodes, mode, csf->dims);
 
   splatt_omp_set_num_threads(opts[SPLATT_OPTION_NTHREADS]);
   if(pool == NULL) {
     pool = mutex_alloc();
   }
 
-  idx_t const nrows = tensors[0].dims[mode];
+  idx_t const nrows = csf->dims[mode];
   idx_t ncols = 1;
-  for(idx_t m=0; m < tensors[0].nmodes; ++m) {
+  for(idx_t m=0; m < nmodes; ++m) {
     if(m != mode) {
       ncols *= mats[m]->J;
     }
@@ -1258,7 +1257,7 @@ void ttmc_csf(
   val_t * output_bufs[splatt_omp_get_max_threads()];
 
   bool privatized = false;
-  if(false && tensors[0].dims[mode] < 1000) {
+  if(false && nrows < 1000) {
     privatized = true;
   }
 
@@ -1279,18 +1278,16 @@ void ttmc_csf(
       ttmc_output = output_bufs[tid];
     }
 
-    idx_t nmodes = tensors[0].nmodes;
-
+    //splatt_csf const * const curr_csf = &(tensor[ttmc_csf_assign[mode]]);
     /* find out which level in the tree this is */
-    splatt_csf const * const curr_csf = &(tensors[ttmc_csf_assign[mode]]);
-    idx_t const outdepth = csf_mode_to_depth(curr_csf, mode);
+    idx_t const outdepth = csf_mode_to_depth(csf, mode);
 
     if(outdepth == 0) {
-      p_root_decide(curr_csf, mats, ttmc_output, mode, thds, opts);
+      p_root_decide(csf, mats, ttmc_output, mode, thds, opts);
     } else if(outdepth == nmodes - 1) {
-      p_leaf_decide(curr_csf, mats, ttmc_output, mode, thds, opts);
+      p_leaf_decide(csf, mats, ttmc_output, mode, thds, opts);
     } else {
-      p_intl_decide(curr_csf, mats, ttmc_output, mode, thds, opts);
+      p_intl_decide(csf, mats, ttmc_output, mode, thds, opts);
     }
 
     if(privatized) {
@@ -1593,12 +1590,10 @@ void permute_core(
 
 thd_info * ttmc_alloc_thds(
     idx_t const nthreads,
-    splatt_csf const * const tensors,
+    idx_t const nmodes,
     idx_t const * const nfactors,
     double const * const opts)
 {
-  idx_t const nmodes = tensors->nmodes;
-
   /* find # columns for each TTMc and output core */
   idx_t ncols[MAX_NMODES+1];
   ttmc_compute_ncols(nfactors, nmodes, ncols);

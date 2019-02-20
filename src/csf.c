@@ -815,6 +815,7 @@ splatt_csf * csf_alloc(
   splatt_coo * const tt,
   double const * const opts)
 {
+  timer_start(&timers[TIMER_CSF]);
   splatt_csf * ret = NULL;
 
   double * tmp_opts = NULL;
@@ -854,6 +855,7 @@ splatt_csf * csf_alloc(
     break;
   }
 
+  timer_stop(&timers[TIMER_CSF]);
   return ret;
 }
 
@@ -865,7 +867,9 @@ void csf_alloc_mode(
   splatt_csf * const csf,
   double const * const opts)
 {
+  timer_start(&timers[TIMER_CSF]);
   p_mk_csf(csf, tt, which_ordering, mode_special, opts);
+  timer_stop(&timers[TIMER_CSF]);
 }
 
 

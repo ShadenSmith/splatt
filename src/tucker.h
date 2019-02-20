@@ -10,6 +10,18 @@
 #include "matrix.h"
 #include "splatt_mpi.h"
 
+typedef enum
+{
+  TUCKER_CSF_ALLOC_SIMPLE,
+  TUCKER_CSF_ALLOC_GREEDY,
+  TUCKER_CSF_ALLOC_ITER,
+} tucker_csf_alloc_t;
+
+
+/* XXX GLOBALS */
+extern idx_t ttmc_max_csf;
+extern tucker_csf_alloc_t tucker_alloc_policy;
+
 
 
 /******************************************************************************

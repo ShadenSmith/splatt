@@ -11,10 +11,6 @@
 #include "thd_info.h"
 
 
-/* XXX GLOBALS */
-extern idx_t ttmc_num_csf;
-extern idx_t ttmc_csf_assign[MAX_NMODES];
-
 /******************************************************************************
  * PUBLIC FUNCTIONS
  *****************************************************************************/
@@ -33,7 +29,7 @@ extern idx_t ttmc_csf_assign[MAX_NMODES];
 *        during Tucker factorization.
 *
 *
-* @param tensors The CSF tensor(s) to factor.
+* @param tensors The CSF tensor.
 * @param mats The input matrices.
 * @param tenout The output tensor.
 * @param mode Which mode we are computing for.
@@ -41,7 +37,7 @@ extern idx_t ttmc_csf_assign[MAX_NMODES];
 * @param opts SPLATT options. This uses SPLATT_OPTION_CSF_ALLOC.
 */
 void ttmc_csf(
-    splatt_csf const * const tensors,
+    splatt_csf const * const tensor,
     matrix_t ** mats,
     val_t * const tenout,
     idx_t const mode,
@@ -171,7 +167,7 @@ void permute_core(
 * @brief Allocate thread structures for TTMc.
 *
 * @param nthreads The number of threads we will use.
-* @param tensors The CSF tensor(s).
+* @param nmodes The number of modes in the tensor.
 * @param nfactors The number of columns in each mode.
 * @param opts The options used during allocation/factorization.
 *
@@ -179,7 +175,7 @@ void permute_core(
 */
 thd_info * ttmc_alloc_thds(
     idx_t const nthreads,
-    splatt_csf const * const tensors,
+    idx_t const nmodes,
     idx_t const * const nfactors,
     double const * const opts);
 

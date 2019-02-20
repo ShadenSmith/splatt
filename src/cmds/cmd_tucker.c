@@ -8,7 +8,7 @@
 #include "../csf.h"
 #include "../stats.h"
 
-#include "../ttm.h"
+#include "../tucker.h"
 
 /******************************************************************************
  * ARG PARSING
@@ -18,9 +18,11 @@ static char tucker_doc[] =
   "splatt-tucker -- Compute the Tucker Decomposition of a sparse tensor.\n";
 
 
+#define TT_ALLOC 251
 #define TT_SEED 252
 #define TT_NOWRITE 253
 #define TT_TOL 254
+#define TT_TILE 255
 static struct argp_option tucker_options[] = {
   {"iters", 'i', "NITERS", 0, "maximum number of iterations to use (default: 50)"},
   {"tol", TT_TOL, "TOLERANCE", 0, "minimum change for convergence (default: 1e-5)"},
@@ -29,6 +31,8 @@ static struct argp_option tucker_options[] = {
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
   {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"csf", 'c', "#CSF", 0, "number of CSF allocations (default: 2)"},
+  {"alloc", TT_ALLOC, "POLICY", 0, "CSF allocation policy {simple, greedy, iter} default: simple"},
+  {"tile", TT_TILE, 0, 0, "use tiling to increase parallelism"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   { 0 }
 };
@@ -52,7 +56,9 @@ static void default_tucker_opts(
   tucker_cmd_args * args)
 {
   args->opts = splatt_default_opts();
-  args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_ONEMODE;
+  args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_TWOMODE;
+  tucker_alloc_policy = TUCKER_CSF_ALLOC_SIMPLE;
+  ttmc_max_csf = 2;
   args->ifname    = NULL;
   args->write     = DEFAULT_WRITE;
   args->nfactors  = DEFAULT_NFACTORS;
@@ -91,17 +97,34 @@ static error_t parse_tucker_opt(
   case TT_NOWRITE:
     args->write = 0;
     break;
+  case TT_TILE:
+    args->opts[SPLATT_OPTION_TILE] = SPLATT_DENSETILE;
+    break;
   case 'r':
     args->nfactors = atoi(arg);
     break;
 
   case 'c':
     args->max_csf = atoi(arg);
+    ttmc_max_csf = atoi(arg);
     break;
 
   case TT_SEED:
     args->opts[SPLATT_OPTION_RANDSEED] = atoi(arg);
     srand(atoi(arg));
+    break;
+
+  case TT_ALLOC:
+    if(strcmp(arg, "simple") == 0) {
+      tucker_alloc_policy = TUCKER_CSF_ALLOC_SIMPLE;
+    } else if(strcmp(arg, "greedy") == 0) {
+      tucker_alloc_policy = TUCKER_CSF_ALLOC_GREEDY;
+    } else if(strcmp(arg, "iter") == 0) {
+      tucker_alloc_policy = TUCKER_CSF_ALLOC_ITER;
+    } else {
+      fprintf(stderr, "ERROR: CSF allocation '%s' unrecognized.\n", arg);
+      argp_usage(state);
+    }
     break;
 
   case ARGP_KEY_ARG:
@@ -206,16 +229,6 @@ int splatt_tucker_cmd(
       free(matfname);
     }
   }
-
-  /* free up the ftensor allocations */
-#if 0
-  csf_free(csf, args.opts);
-#endif
-#if 0
-  for(idx_t m=0; m < ttmc_num_csf; ++m) {
-    csf_free_mode(csf + m);
-  }
-#endif
 
   /* output + cleanup */
   splatt_free_tucker(&factored);

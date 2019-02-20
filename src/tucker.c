@@ -18,6 +18,9 @@
 
 #include <math.h>
 
+idx_t ttmc_max_csf;
+
+tucker_csf_alloc_t tucker_alloc_policy;
 
 
 /******************************************************************************
@@ -273,33 +276,13 @@ double tucker_hooi_iterate(
   timer_start(&timers[TIMER_TUCKER]);
   idx_t const nmodes = coo->nmodes;
 
-  splatt_csf * csf;
 #if 0
-  size_t table[SPLATT_MAX_NMODES][SPLATT_MAX_NMODES];
-  //ttmc_fill_flop_tbl(tt, nfactors, table);
-
-  splatt_csf * csf = ttmc_choose_csf(tt, nfactors, args.max_csf, &ttmc_num_csf,
-      ttmc_csf_assign);
-
-  printf("assigned: %lu\n", ttmc_num_csf);
-  for(idx_t c=0; c < ttmc_num_csf; ++c) {
-    printf("(");
-    for(idx_t m=0; m < tt->nmodes; ++m) {
-      printf(" %lu", csf[c].dim_perm[m]);
-    }
-    printf(" )\n");
-  }
-  //return EXIT_SUCCESS;
-#else
-  csf = csf_alloc(coo, opts);
-#endif
-
-
   /* print Tucker stats? */
   splatt_verbosity_type which_verb = opts[SPLATT_OPTION_VERBOSITY];
   if(which_verb >= SPLATT_VERBOSITY_LOW) {
     tucker_stats(csf, nfactors, opts);
   }
+#endif
 
   tucker_ws ws;
   p_alloc_tucker_ws(&ws, nfactors, coo, opts);
@@ -320,7 +303,7 @@ double tucker_hooi_iterate(
   /* thread structures */
   idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
   splatt_omp_set_num_threads(nthreads);
-  thd_info * thds =  ttmc_alloc_thds(nthreads, csf, nfactors, opts);
+  thd_info * thds =  ttmc_alloc_thds(nthreads, coo->nmodes, nfactors, opts);
 
   sp_timer_t itertime;
   sp_timer_t modetime[MAX_NMODES];
@@ -328,8 +311,74 @@ double tucker_hooi_iterate(
   double oldfit = 0;
   double fit = 0;
 
-  val_t const ttnormsq = csf_frobsq(csf);
+  val_t const ttnormsq = coo_frobsq(coo);
 
+  /* Setup CSF allocations. */
+  splatt_csf * csf = NULL;
+  idx_t ttmc_csf_assign[MAX_NMODES]; /* mapping of modes to CSF allocations */
+  idx_t ttmc_num_csf;
+
+  switch(tucker_alloc_policy) {
+  case TUCKER_CSF_ALLOC_SIMPLE:
+    printf("CSF_ALLOC_POLICY=SIMPLE\n");
+    printf("NOT YET IMPLEMENTED.\n\n");
+    exit(1);
+    /* force TTMc to use the allocated tensor */
+    for(idx_t n=0; n < nmodes; ++n) {
+      ttmc_csf_assign[n] = 0;
+    }
+    break;
+
+  case TUCKER_CSF_ALLOC_GREEDY:
+    printf("CSF_ALLOC_POLICY=GREEDY\n\n");
+    csf = ttmc_choose_csf(coo, nfactors, ttmc_max_csf, &ttmc_num_csf,
+        ttmc_csf_assign);
+    printf("assigned: %lu [", ttmc_num_csf);
+    for(idx_t m=0; m < nmodes; ++m) {
+      printf("%lu", ttmc_csf_assign[m]);
+      if(m < nmodes-1) {
+        printf(", ");
+      }
+    }
+    printf("]\n");
+    printf("mode orderings:\n");
+    for(idx_t c=0; c < ttmc_num_csf; ++c) {
+      printf("(");
+      for(idx_t m=0; m < coo->nmodes; ++m) {
+        printf(" %lu", csf[c].dim_perm[m]);
+      }
+      printf(" )\n");
+    }
+    printf("\n");
+    break;
+
+  case TUCKER_CSF_ALLOC_ITER:
+    printf("CSF_ALLOC_POLICY=ITER\n\n");
+    /* Start with an allocation for the smallest mode. */
+    csf = splatt_malloc(sizeof(*csf));
+    csf_alloc_mode(coo,
+                   CSF_SORTED_SMALLFIRST_MINUSONE,
+                   argmin_elem(coo->dims, nmodes),
+                   csf,
+                   opts);
+    /* force TTMc to use the allocated tensor */
+    for(idx_t n=0; n < nmodes; ++n) {
+      ttmc_csf_assign[n] = 0;
+    }
+    break;
+
+  default:
+    fprintf(stderr, "ALLOC POLICY %d invalid.\n", tucker_alloc_policy);
+    exit(1);
+  }
+
+#if 0
+#endif
+
+  /* XXX drop sort timing from CSF selection */
+  timer_reset(&timers[TIMER_SORT]);
+
+  sp_timer_t csf_timer;
 
   /* foreach iteration */
   idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
@@ -340,19 +389,51 @@ double tucker_hooi_iterate(
     for(idx_t m=0; m < nmodes; ++m) {
       timer_fstart(&modetime[m]);
 
+      /* TTMc -- choose which data structure to use */
+      /* Possibly allocate a new CSF tensor. */
+      if(tucker_alloc_policy == TUCKER_CSF_ALLOC_ITER) {
+        timer_fstart(&csf_timer);
+        /* reallocate if it's a bad mode */
+        if(true || csf_mode_to_depth(csf, m) == nmodes - 1) {
+          csf_free_mode(csf);
+
+          /* Which mode CSF to construct? Heuristic: construct the smallest
+           * unless we are computing for the largest mode. */
+          idx_t mode_to_construct = argmin_elem(coo->dims, nmodes);
+          if(m == argmax_elem(coo->dims, nmodes)) {
+            mode_to_construct = m;
+          }
+          mode_to_construct = m;
+          csf_alloc_mode(coo,
+                         CSF_SORTED_SMALLFIRST_MINUSONE,
+                         mode_to_construct,
+                         csf,
+                         opts);
+        }
+        timer_stop(&csf_timer);
+        printf("    CSF:  %0.3fs\n", csf_timer.seconds);
+      }
+
+      /* grab the CSF for TTMc */
+      splatt_csf const * const curr_csf = &(csf[ttmc_csf_assign[m]]);
+      printf("mode: %lu depth: %lu\n", m, csf_mode_to_depth(curr_csf, m));
+
       timer_start(&timers[TIMER_TTM]);
-      ttmc_csf(csf, mats, gten, m, thds, opts);
+      ttmc_csf(curr_csf, mats, gten, m, thds, opts);
       timer_stop(&timers[TIMER_TTM]);
 
+#if 0
       /* Find the truncated SVD of the TTMc output and store in mats[m]. */
       gten_mat.I = mats[m]->I;
       gten_mat.J = ncols[m];
       left_singulars(&gten_mat, mats[m], mats[m]->J, &(ws.sws));
+#endif
 
       timer_stop(&modetime[m]);
     }
     timer_stop(&itertime);
 
+#if 0
     /* compute core */
     make_core(gten, mats[nmodes-1]->vals, core, nmodes, nmodes-1, nfactors,
         coo->dims[nmodes-1]);
@@ -360,6 +441,9 @@ double tucker_hooi_iterate(
     /* check for convergence */
     fit = tucker_calc_fit(core, ncols[nmodes], ttnormsq);
     assert(fit >= oldfit);
+#else
+    fit = 0.;
+#endif
 
     /* print progress */
     if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {
@@ -383,13 +467,22 @@ double tucker_hooi_iterate(
   free(gten);
   thd_free(thds, nthreads);
 
+  /* XXX fix this */
+#if 0
   permute_core(csf, core, nfactors, opts);
+#endif
 
   timer_stop(&timers[TIMER_TUCKER]);
 
-  csf_free(csf, opts);
+#if CSF_ALLOC_ONCE == 1
+  //csf_free(csf, opts);
+  for(idx_t n=0; n < ttmc_num_csf; ++n) {
+    csf_free_mode(&csf[n]);
+  }
+#endif
 
   return fit;
+
 }
 
 

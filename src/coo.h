@@ -161,16 +161,16 @@ spmatrix_t * tt_unfold(
   idx_t const mode);
 
 
-#define tt_normsq splatt_tt_normsq
+#define coo_normsq splatt_coo_normsq
 /**
-* @brief Calculate the Frobenius norm of tt, squared. This is the
-*        sum-of-squares for all nonzero values.
+* @brief Compute the squared Frobenius norm of a tensor. This is the
+*        sum-of-squares of all nonzeros.
 *
-* @param tv The tensor values to operate on.
+* @param tensor The tensor to operate on.
 *
-* @return  The squared Frobenius norm.
+* @return The norm.
 */
-val_t tt_normsq(
-  splatt_coo const * const tt);
+val_t coo_frobsq(
+    splatt_coo const * const tensor);
 
 #endif

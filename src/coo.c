@@ -42,14 +42,19 @@ static inline int p_same_coord(
  * PUBLIC FUNCTONS
  *****************************************************************************/
 
-val_t tt_normsq(splatt_coo const * const tt)
+val_t coo_frobsq(
+    splatt_coo const * const tensor)
 {
-  val_t norm = 0.0;
-  val_t const * const restrict tv = tt->vals;
-  for(idx_t n=0; n < tt->nnz; ++n) {
-    norm += tv[n] * tv[n];
-  }
-  return norm;
+  /* accumulate into double to help with some precision loss */
+  double norm = 0;
+  idx_t const nnz = tensor->nnz;
+  val_t const * const restrict vals = tensor->vals;
+  #pragma omp parallel for reduction(+:norm)
+  for(idx_t n=0; n < nnz; ++n) {
+    norm += vals[n] * vals[n];
+  } /* end omp parallel */
+
+  return (val_t) norm;
 }
 
 
