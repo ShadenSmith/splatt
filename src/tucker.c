@@ -318,6 +318,8 @@ double tucker_hooi_iterate(
   idx_t ttmc_csf_assign[MAX_NMODES]; /* mapping of modes to CSF allocations */
   idx_t ttmc_num_csf;
 
+  printf("MAX_CSF=%lu\n", ttmc_max_csf);
+
   switch(tucker_alloc_policy) {
   case TUCKER_CSF_ALLOC_SIMPLE:
     printf("CSF_ALLOC_POLICY=SIMPLE\n");
