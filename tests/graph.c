@@ -33,7 +33,7 @@ CTEST_TEARDOWN(graph)
 }
 
 
-CTEST2(graph, graph_convert)
+CTEST2_SKIP(graph, graph_convert)
 {
   for(idx_t i=0; i < data->ntensors; ++i) {
     splatt_coo * const tt = data->tensors[i];

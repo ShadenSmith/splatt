@@ -374,8 +374,6 @@ double tucker_hooi_iterate(
     exit(1);
   }
 
-#if 0
-#endif
 
   /* XXX drop sort timing from CSF selection */
   timer_reset(&timers[TIMER_SORT]);
@@ -418,24 +416,23 @@ double tucker_hooi_iterate(
 
       /* grab the CSF for TTMc */
       splatt_csf const * const curr_csf = &(csf[ttmc_csf_assign[m]]);
+#if 0
       printf("mode: %lu depth: %lu\n", m, csf_mode_to_depth(curr_csf, m));
+#endif
 
       timer_start(&timers[TIMER_TTM]);
       ttmc_csf(curr_csf, mats, gten, m, thds, opts);
       timer_stop(&timers[TIMER_TTM]);
 
-#if 0
       /* Find the truncated SVD of the TTMc output and store in mats[m]. */
       gten_mat.I = mats[m]->I;
       gten_mat.J = ncols[m];
       left_singulars(&gten_mat, mats[m], mats[m]->J, &(ws.sws));
-#endif
 
       timer_stop(&modetime[m]);
     }
     timer_stop(&itertime);
 
-#if 0
     /* compute core */
     make_core(gten, mats[nmodes-1]->vals, core, nmodes, nmodes-1, nfactors,
         coo->dims[nmodes-1]);
@@ -443,9 +440,6 @@ double tucker_hooi_iterate(
     /* check for convergence */
     fit = tucker_calc_fit(core, ncols[nmodes], ttnormsq);
     assert(fit >= oldfit);
-#else
-    fit = 0.;
-#endif
 
     /* print progress */
     if(opts[SPLATT_OPTION_VERBOSITY] > SPLATT_VERBOSITY_NONE) {

@@ -31,7 +31,7 @@ static struct argp_option tucker_options[] = {
   {"nowrite", TT_NOWRITE, 0, 0, "do not write output to file (default: WRITE)"},
   {"seed", TT_SEED, "SEED", 0, "random seed (default: system time)"},
   {"csf", 'c', "#CSF", 0, "number of CSF allocations (default: 2)"},
-  {"alloc", TT_ALLOC, "POLICY", 0, "CSF allocation policy {simple, greedy, iter} default: simple"},
+  {"alloc", TT_ALLOC, "POLICY", 0, "CSF allocation policy {greedy, iter} default: greedy"},
   {"tile", TT_TILE, 0, 0, "use tiling to increase parallelism"},
   {"verbose", 'v', 0, 0, "turn on verbose output (default: no)"},
   { 0 }
@@ -57,7 +57,7 @@ static void default_tucker_opts(
 {
   args->opts = splatt_default_opts();
   args->opts[SPLATT_OPTION_CSF_ALLOC] = SPLATT_CSF_TWOMODE;
-  tucker_alloc_policy = TUCKER_CSF_ALLOC_SIMPLE;
+  tucker_alloc_policy = TUCKER_CSF_ALLOC_GREEDY;
   ttmc_max_csf = 2;
   args->ifname    = NULL;
   args->write     = DEFAULT_WRITE;
